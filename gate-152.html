@@ -1,0 +1,444 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 152: Forward kinematics</title><meta name="description" content="Forward kinematics answers one question: if we know every joint value of a robot arm, where is the tool and which way is it pointing? This topic explains the idea with a simple planar arm, then introduces the Denavit-Hartenberg (DH) table, which turns any serial arm into a chain of 4 by 4 matrices. Forward kinematics is the most common GATE Robotics calculation."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g152" data-key="g152" data-noun="topic" data-num="152" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Forward kinematics</h1>
+<p class="lede">Forward kinematics answers one question: if we know every joint value of a robot arm, where is the tool and which way is it pointing? This topic explains the idea with a simple planar arm, then introduces the Denavit-Hartenberg (DH) table, which turns any serial arm into a chain of 4 by 4 matrices. Forward kinematics is the most common GATE Robotics calculation.</p>
+<div class="station"><b>152</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>What forward kinematics asks</li><li>Forward kinematics of a planar two-link arm</li><li>The Denavit-Hartenberg parameters</li><li>Building the DH transform matrix</li><li>Chaining links to find the tool pose</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Close your eyes and bend your elbow by 30 degrees and your shoulder by 60 degrees. You can roughly feel where your hand is, even without seeing it. Your brain knows the angles of the joints, and it works out the hand position from them. That calculation is called <strong>forward kinematics</strong>.</p>
+  <p>In a robot, we know the joint values because the motors report them. We want the position and orientation of the tool. Forward kinematics takes the joint values as input and gives the tool pose as output. It is always a direct calculation, with one correct answer for each set of joint values.</p>
+  <p><strong>Everyday analogy.</strong> Think of a row of linked bicycle chain links, each one attached to the next with a hinge. If you know the angle at each hinge, you can compute where the last link ends up, by adding up the steps one after another.</p>
+  <p><strong>Why it matters.</strong> A controller does forward kinematics many times a second, to check where the tool is. A simulator uses it to draw the arm. Designers use it to test whether a tool can reach a target before any hardware is built.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper, you may be asked for the end-effector position of a two- or three-link arm for given joint angles, or for the DH parameters of a simple arm. These are direct calculations, and the steps must be followed in order.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Forward kinematics</dt><dd>The calculation of the tool position and orientation from the joint values. Plain meaning: from the joints to the hand.</dd></div>
+    <div><dt>Inverse kinematics</dt><dd>The reverse problem: from a desired tool pose to the joint values. Plain meaning: from the hand to the joints.</dd></div>
+    <div><dt>Joint value</dt><dd>The current value of a joint, an angle for a revolute joint or a distance for a prismatic joint.</dd></div>
+    <div><dt>Link length (a)</dt><dd>The distance between two joint axes, measured along the common perpendicular.</dd></div>
+    <div><dt>Link twist (α)</dt><dd>The angle between two neighbouring joint axes, measured about the common perpendicular.</dd></div>
+    <div><dt>Link offset (d)</dt><dd>The distance along a joint axis from one common perpendicular to the next.</dd></div>
+    <div><dt>Joint angle (θ)</dt><dd>The angle about a joint axis between the two neighbouring links. For a revolute joint, it is the joint value.</dd></div>
+    <div><dt>Denavit-Hartenberg (DH) convention</dt><dd>A standard way of choosing frames on a serial arm, so that each link is described by four numbers: a, α, d and θ.</dd></div>
+    <div><dt>DH table</dt><dd>A list with one row for each link, giving its a, α, d and θ values.</dd></div>
+    <div><dt>Transform A<sub>i</sub></dt><dd>The 4 by 4 matrix that moves from frame i − 1 to frame i for link i.</dd></div>
+    <div><dt>End-effector pose</dt><dd>The position and orientation of the tool, found as the product of all the link transforms.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="What forward kinematics asks">
+  <h2>What forward kinematics asks</h2>
+  <h3>From joints to tool</h3>
+  <p>Forward kinematics is a function. Its input is the list of joint values, and its output is the tool pose. Written in symbols, the tool pose is a function f of the joint values q = (q<sub>1</sub>, q<sub>2</sub>, ..., q<sub>n</sub>). For a given q, there is exactly one tool pose. This makes forward kinematics easier than its reverse, inverse kinematics, which can have several answers.</p>
+  <div class="formula">tool pose = f(q<sub>1</sub>, q<sub>2</sub>, ..., q<sub>n</sub>)</div>
+
+  <h3>Two ways to do it</h3>
+  <p>There are two common methods. The first is <strong>geometry</strong>: draw the arm, add up the link vectors, and use sines and cosines. This works well for a planar arm with two or three links. The second is <strong>systematic</strong>: choose a frame on each link, write one 4 by 4 transform for each link, and multiply them. This method works for any serial arm, and it is what the DH convention supports.</p>
+  <p>We start with the geometric method, then move to DH.</p>
+
+  <details class="check"><summary>What are the inputs and the output of forward kinematics?</summary><div class="ans"><p>The input is the list of joint values. The output is the tool position and orientation.</p></div></details>
+  <details class="check"><summary>Why is forward kinematics usually easier than inverse kinematics?</summary><div class="ans"><p>Each set of joint values gives exactly one tool pose. The inverse problem can have several joint solutions for one pose, so it is harder.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Forward kinematics of a planar two-link arm">
+  <h2>Forward kinematics of a planar two-link arm</h2>
+  <h3>The picture</h3>
+  <p>A planar two-link arm has two rigid links of lengths l<sub>1</sub> and l<sub>2</sub>. The first joint at the base has angle θ<sub>1</sub>, measured from the x-axis. The second joint has angle θ<sub>2</sub>, measured from the direction of the first link.</p>
+  <pre class="code" data-lang="text"><code>                  tool (x, y)
+                     o
+                    /
+                   /  link 2, length l2
+                  /    at angle θ1 + θ2 from the x-axis
+        elbow    o
+                / \
+               /   \ link 1, length l1
+              /     \   at angle θ1 from the x-axis
+    -------- o ----------------------------------- x-axis
+          base
+
+    θ1 is the base joint angle, θ2 is the elbow angle.</code></pre>
+
+  <h3>Adding up the two link vectors</h3>
+  <p>The tool position is the base point plus the vector of link 1 plus the vector of link 2. Link 1 points at angle θ<sub>1</sub>, so its vector is (l<sub>1</sub> cos θ<sub>1</sub>, l<sub>1</sub> sin θ<sub>1</sub>). Link 2 points at angle θ<sub>1</sub> + θ<sub>2</sub>, because the elbow angle is measured from link 1. So its vector is (l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>), l<sub>2</sub> sin(θ<sub>1</sub> + θ<sub>2</sub>)). Adding them gives</p>
+  <div class="formula">x = l<sub>1</sub> cos θ<sub>1</sub> + l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>)</div>
+  <div class="formula">y = l<sub>1</sub> sin θ<sub>1</sub> + l<sub>2</sub> sin(θ<sub>1</sub> + θ<sub>2</sub>)</div>
+  <p>Symbols: x and y are the tool coordinates, l<sub>1</sub> and l<sub>2</sub> are the link lengths, and the angles are in radians or degrees, consistently.</p>
+
+  <h3>Worked example</h3>
+  <p>Take l<sub>1</sub> = l<sub>2</sub> = 1 m, θ<sub>1</sub> = 30° and θ<sub>2</sub> = 60°. Then θ<sub>1</sub> + θ<sub>2</sub> = 90°.</p>
+  <ol>
+    <li>x = 1 × cos 30° + 1 × cos 90° = 0.866 + 0 = 0.866 m.</li>
+    <li>y = 1 × sin 30° + 1 × sin 90° = 0.5 + 1 = 1.5 m.</li>
+    <li>The tool is at (0.87, 1.50) m, to two decimals.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+l1, l2 = 1.0, 1.0
+t1, t2 = math.radians(30), math.radians(60)
+x = l1 * math.cos(t1) + l2 * math.cos(t1 + t2)
+y = l1 * math.sin(t1) + l2 * math.sin(t1 + t2)
+print(f"end effector = ({x:.2f}, {y:.2f})")</code></pre>
+  <pre class="output">end effector = (0.87, 1.50)</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The second link angle is measured from the first link, not from the x-axis. So link 2 is at θ<sub>1</sub> + θ<sub>2</sub> in the world. Forgetting to add θ<sub>1</sub> is the most common mistake in planar forward kinematics.</p></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>Each link adds one vector to the chain. Its direction is the sum of all the joint angles up to that link.</p></div>
+
+  <details class="check"><summary>For l<sub>1</sub> = 2, l<sub>2</sub> = 1, θ<sub>1</sub> = θ<sub>2</sub> = 0, where is the tool?</summary><div class="ans"><p>At (3, 0). Both links point along the x-axis, so their lengths add.</p></div></details>
+  <details class="check"><summary>What is the tool position when θ<sub>2</sub> = 180° and l<sub>1</sub> = l<sub>2</sub>?</summary><div class="ans"><p>At the origin. Link 2 folds exactly back over link 1, and the two vectors cancel.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="The Denavit-Hartenberg parameters">
+  <h2>The Denavit-Hartenberg parameters</h2>
+  <h3>Why a standard convention</h3>
+  <p>For a planar arm, the geometry is easy to draw. For a spatial arm with six joints, the links point in all directions, and drawing the vectors becomes very hard. The Denavit-Hartenberg convention solves this. It places a frame on each link in a standard way, so that only four numbers per link are needed. These four numbers fill a DH table, and the table fully describes the arm.</p>
+  <p>For each link i, the four parameters are:</p>
+  <ul>
+    <li><strong>a<sub>i</sub> (link length)</strong>: the distance along x<sub>i</sub> from z<sub>i−1</sub> to z<sub>i</sub>. It is the length of link i.</li>
+    <li><strong>α<sub>i</sub> (link twist)</strong>: the angle about x<sub>i</sub> from z<sub>i−1</sub> to z<sub>i</sub>. It says how the next joint axis is turned relative to this one.</li>
+    <li><strong>d<sub>i</sub> (link offset)</strong>: the distance along z<sub>i−1</sub> from x<sub>i−1</sub> to x<sub>i</sub>. It is the sliding distance for a prismatic joint.</li>
+    <li><strong>θ<sub>i</sub> (joint angle)</strong>: the angle about z<sub>i−1</sub> from x<sub>i−1</sub> to x<sub>i</sub>. It is the joint value for a revolute joint.</li>
+  </ul>
+  <p>Here z<sub>i</sub> is the axis of joint i + 1, and x<sub>i</sub> is the common perpendicular between the joint axes. For a revolute joint, θ<sub>i</sub> is the variable, and d<sub>i</sub> is fixed. For a prismatic joint, d<sub>i</sub> is the variable, and θ<sub>i</sub> is fixed.</p>
+
+  <pre class="code" data-lang="text"><code>  Two joint axes, joined by link i
+
+       z(i-1)                 z(i)
+         |                      |
+         |  d(i) (slide along   |
+         |  z(i-1))             |
+         +-----------a(i)-------+   <- a(i): along x(i)
+         |                      |
+        theta(i) (turn about     alpha(i) (turn about x(i)
+        z(i-1))                  from z(i-1) to z(i))
+
+  Read the four numbers from the figure:
+    a = length along x,  alpha = twist about x,
+    d = slide along z,   theta = turn about z.</code></pre>
+
+  <h3>Reading a DH table</h3>
+  <p>A DH table for a planar two-link arm with both joints revolute has two rows, one for each link. In a planar arm, all the twists and offsets are zero, and only the link lengths and joint angles are nonzero. The table below is an example for such an arm.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Link</th><th>a (m)</th><th>α (rad)</th><th>d (m)</th><th>θ</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>l<sub>1</sub></td><td>0</td><td>0</td><td>θ<sub>1</sub> (variable)</td></tr>
+      <tr><td>2</td><td>l<sub>2</sub></td><td>0</td><td>0</td><td>θ<sub>2</sub> (variable)</td></tr>
+    </tbody>
+  </table></div>
+
+  <details class="check"><summary>Which DH parameter is the variable for a prismatic joint?</summary><div class="ans"><p>The link offset d. The joint angle θ is fixed for a prismatic joint.</p></div></details>
+  <details class="check"><summary>In a planar arm with all joints in the plane, what are the link twists?</summary><div class="ans"><p>Zero. All joint axes are parallel, so there is no twist between neighbouring axes.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Building the DH transform matrix">
+  <h2>Building the DH transform matrix</h2>
+  <h3>Four simple moves</h3>
+  <p>Each link transform is made by four simple moves, applied in a fixed order: turn about z by θ, slide along z by d, slide along x by a, and turn about x by α. In matrix form,</p>
+  <div class="formula">A<sub>i</sub> = Rz(θ<sub>i</sub>) Tz(d<sub>i</sub>) Tx(a<sub>i</sub>) Rx(α<sub>i</sub>)</div>
+  <p>Multiplying these four basic matrices gives the standard DH matrix, which is what you should use in practice.</p>
+  <pre class="code" data-lang="text"><code>A(i) =
+[ cos θ   −sin θ cos α    sin θ sin α    a cos θ ]
+[ sin θ    cos θ cos α   −cos θ sin α    a sin θ ]
+[ 0        sin α          cos α          d       ]
+[ 0        0              0              1       ]</code></pre>
+  <p>The first three columns hold the rotation of frame i relative to frame i − 1. The fourth column holds its position. The last row is always (0, 0, 0, 1).</p>
+
+  <h3>The planar case simplifies</h3>
+  <p>For a planar arm, α = 0 and d = 0 for every link. Then sin α = 0 and cos α = 1, and the matrix becomes</p>
+  <pre class="code" data-lang="text"><code>A(i) for a planar revolute link (alpha = 0, d = 0)
+
+[ cos θ   −sin θ   0   a cos θ ]
+[ sin θ    cos θ   0   a sin θ ]
+[ 0        0       1   0       ]
+[ 0        0       0   1       ]</code></pre>
+  <p>Notice that the position part is (a cos θ, a sin θ, 0). That is exactly the link vector from the geometric method. So the matrix method and the geometric method agree.</p>
+
+  <h3>Checking the matrix against the geometry</h3>
+  <p>The Python check below builds the two link matrices with the DH formula, multiplies them, and reads off the tool position. It must match the geometric formulas from the previous unit.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def dh(a, alpha, d, theta):
+    ct, st = math.cos(theta), math.sin(theta)
+    ca, sa = math.cos(alpha), math.sin(alpha)
+    return [[ct, -st * ca, st * sa, a * ct],
+            [st, ct * ca, -ct * sa, a * st],
+            [0.0, sa, ca, d],
+            [0.0, 0.0, 0.0, 1.0]]
+
+def matmul4(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+l1, l2 = 1.0, 1.0
+t1, t2 = math.radians(30), math.radians(60)
+T = matmul4(dh(l1, 0, 0, t1), dh(l2, 0, 0, t2))
+print(f"DH end effector = ({T[0][3]:.2f}, {T[1][3]:.2f})")</code></pre>
+  <pre class="output">DH end effector = (0.87, 1.50)</pre>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a planar arm, the position of the tool is the fourth column of the product of the link matrices. Learn to read that column; it gives x and y directly.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Use the same order of the four moves for every link. Some books use different DH variants, so check which convention a question uses. The standard convention above is the one this topic follows.</p></div>
+
+  <details class="check"><summary>What is the fourth column of the DH matrix A<sub>i</sub>?</summary><div class="ans"><p>(a<sub>i</sub> cos θ<sub>i</sub>, a<sub>i</sub> sin θ<sub>i</sub>, d<sub>i</sub>, 1), giving the position of frame i in frame i − 1.</p></div></details>
+  <details class="check"><summary>For a planar link with α = 0 and d = 0, what is the position part?</summary><div class="ans"><p>(a cos θ, a sin θ, 0), which is the link vector of length a at angle θ.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Chaining links to find the tool pose">
+  <h2>Chaining links to find the tool pose</h2>
+  <h3>Multiply in order</h3>
+  <p>The tool pose is the product of all the link transforms, from the base outward. For a three-link arm,</p>
+  <div class="formula">T<sub>tool</sub> = A<sub>1</sub> A<sub>2</sub> A<sub>3</sub></div>
+  <p>The product is read from the base outward, and when you apply it to a point, the rightmost matrix acts first. The position of the tool is then the fourth column of T<sub>tool</sub>, and the orientation is its upper-left 3 by 3 block.</p>
+
+  <h3>Planar three-link arm</h3>
+  <p>For a planar arm with three revolute links, the same method gives the tool position as a sum of three link vectors, each at the sum of the angles up to that link.</p>
+  <div class="formula">x = l<sub>1</sub> cos θ<sub>1</sub> + l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>) + l<sub>3</sub> cos(θ<sub>1</sub> + θ<sub>2</sub> + θ<sub>3</sub>)</div>
+  <div class="formula">y = l<sub>1</sub> sin θ<sub>1</sub> + l<sub>2</sub> sin(θ<sub>1</sub> + θ<sub>2</sub>) + l<sub>3</sub> sin(θ<sub>1</sub> + θ<sub>2</sub> + θ<sub>3</sub>)</div>
+  <p>Each new link adds the next angle to the running total. This is the pattern to remember: the angle of link k is the sum of the first k joint angles.</p>
+
+  <h3>Worked example</h3>
+  <p>Take l<sub>1</sub> = 1, l<sub>2</sub> = 0.5, l<sub>3</sub> = 0.5 (in metres), θ<sub>1</sub> = 0°, θ<sub>2</sub> = 90°, θ<sub>3</sub> = −90°. The running angles are 0°, 90° and 0°.</p>
+  <ol>
+    <li>x = 1 cos 0° + 0.5 cos 90° + 0.5 cos 0° = 1 + 0 + 0.5 = 1.5 m.</li>
+    <li>y = 1 sin 0° + 0.5 sin 90° + 0.5 sin 0° = 0 + 0.5 + 0 = 0.5 m.</li>
+    <li>The tool is at (1.5, 0.5) m. The third link points back along the x-axis, because its running angle is 0°.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>Forward kinematics is repetitive. Once you can compute one link vector, the whole arm is that same step repeated, with the angles added up as you go.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Write the running angle beside each link before you compute anything. It prevents the most common mistake, which is using a relative angle as if it were an absolute one.</p></div>
+
+  <details class="check"><summary>In the three-link example, what is the running angle of link 3?</summary><div class="ans"><p>0°, because θ<sub>1</sub> + θ<sub>2</sub> + θ<sub>3</sub> = 0 + 90° − 90° = 0°.</p></div></details>
+  <details class="check"><summary>Why do we add the joint angles as we go along the chain?</summary><div class="ans"><p>Each joint angle is measured relative to the link before it. To get the direction of a link in the base frame, we add all the joint angles up to that link.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>x = l<sub>1</sub> cos θ<sub>1</sub> + l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>)</td><td>planar two-link tool x-position</td><td>Geometric method for two links</td></tr>
+      <tr><td>y = l<sub>1</sub> sin θ<sub>1</sub> + l<sub>2</sub> sin(θ<sub>1</sub> + θ<sub>2</sub>)</td><td>planar two-link tool y-position</td><td>Geometric method for two links</td></tr>
+      <tr><td>A<sub>i</sub> = Rz(θ<sub>i</sub>) Tz(d<sub>i</sub>) Tx(a<sub>i</sub>) Rx(α<sub>i</sub>)</td><td>DH link transform</td><td>Any serial arm</td></tr>
+      <tr><td>T<sub>tool</sub> = A<sub>1</sub> A<sub>2</sub> ... A<sub>n</sub></td><td>product from base outward</td><td>Chaining all links</td></tr>
+      <tr><td>Planar DH link: position (a cos θ, a sin θ, 0)</td><td>α = 0 and d = 0</td><td>Quick planar check</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE multiple select and numerical questions. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Tool position with zero angles</h3>
+    <div class="statement"><p>A planar two-link arm has l<sub>1</sub> = 2 m and l<sub>2</sub> = 1 m. Both joint angles are zero. What is the x-coordinate of the tool, in metres? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The x-coordinate of the tool when the arm is straight and along the x-axis.</li>
+      <li><strong>Which idea applies.</strong> x = l<sub>1</sub> cos θ<sub>1</sub> + l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>).</li>
+      <li><strong>Work it out.</strong> With θ<sub>1</sub> = θ<sub>2</sub> = 0, cos 0 = 1. So x = 2 × 1 + 1 × 1 = 3 m.</li>
+      <li><strong>Check.</strong> The arm is straight, so the total reach is the sum of the lengths, 2 + 1 = 3 m.</li>
+    </ol>
+    <p class="cx">Answer: 3 m.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which statements about DH parameters are true</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) a<sub>i</sub> is the link length.<br>(B) d<sub>i</sub> is the link offset along z.<br>(C) θ<sub>i</sub> is the joint angle, and it is the variable for a revolute joint.<br>(D) α<sub>i</sub> is the joint angle.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the four DH parameters are correct.</li>
+      <li><strong>Which idea applies.</strong> The four parameters are link length a, link twist α, link offset d and joint angle θ.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is true. (D) is false, since α is the link twist, and the joint angle is θ.</li>
+      <li><strong>Check.</strong> Remember the pairs: a is length, α is twist, d is offset, θ is joint angle.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>The x-coordinate of a bent two-link arm</h3>
+    <div class="statement"><p>A planar two-link arm has l<sub>1</sub> = l<sub>2</sub> = 1 m, θ<sub>1</sub> = 90° and θ<sub>2</sub> = −90°. What is the x-coordinate of the tool, in metres? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The x-coordinate of the tool for these angles.</li>
+      <li><strong>Which idea applies.</strong> x = l<sub>1</sub> cos θ<sub>1</sub> + l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>).</li>
+      <li><strong>Work it out.</strong> θ<sub>1</sub> + θ<sub>2</sub> = 0°. So x = 1 × cos 90° + 1 × cos 0° = 0 + 1 = 1 m.</li>
+      <li><strong>Check.</strong> The first link points straight up, and the second link points back to the right along x. The tool is at (1, 1), so x = 1 is consistent.</li>
+    </ol>
+    <p class="cx">Answer: 1 m.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Tool position for an unusual pair of angles</h3>
+    <div class="statement"><p>A planar two-link arm has l<sub>1</sub> = 2 m and l<sub>2</sub> = 1 m. The joint angles are θ<sub>1</sub> = 60° and θ<sub>2</sub> = 90°. What is the x-coordinate of the tool, in metres, to two decimal places? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The x-coordinate of the tool, to two decimals.</li>
+      <li><strong>Which idea applies.</strong> x = l<sub>1</sub> cos θ<sub>1</sub> + l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>).</li>
+      <li><strong>Work it out.</strong> θ<sub>1</sub> + θ<sub>2</sub> = 150°. So x = 2 cos 60° + 1 cos 150° = 2 × 0.5 + (−0.866) = 1 − 0.866 = 0.134 m, which is 0.13 m to two decimals.</li>
+      <li><strong>Check.</strong> The tool is close to the base, because the second link folds back against the first. A small x is expected.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+l1, l2 = 2.0, 1.0
+t1, t2 = math.radians(60), math.radians(90)
+x = l1 * math.cos(t1) + l2 * math.cos(t1 + t2)
+print(f"x = {x:.2f} m")</code></pre>
+    <pre class="output">x = 0.13 m</pre>
+    <p class="cx">Answer: 0.13 m.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about serial forward kinematics</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) The DH transform of a serial arm is the product of its link transforms, taken from the base outward.<br>(B) Changing the order of the link transforms can change the tool pose.<br>(C) For a planar RRR arm, one set of joint angles gives one tool pose.<br>(D) The inverse of a two-link planar arm always has exactly one joint solution for each tool point.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about forward and inverse kinematics are correct.</li>
+      <li><strong>Which idea applies.</strong> Forward kinematics is a function from joint values to pose. Matrices do not commute in general, so their order matters. Inverse kinematics can have several solutions.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is true, since forward kinematics is a function. (D) is false, because a two-link arm usually has two solutions, the elbow up and the elbow down.</li>
+      <li><strong>Check.</strong> The elbow-up and elbow-down pair is the standard example that shows (D) is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Y-coordinate of a three-link planar arm</h3>
+    <div class="statement"><p>A planar three-link arm has link lengths l<sub>1</sub> = 1 m, l<sub>2</sub> = 0.5 m and l<sub>3</sub> = 0.5 m. The joint angles are θ<sub>1</sub> = 0°, θ<sub>2</sub> = 90° and θ<sub>3</sub> = −90°. What is the y-coordinate of the tool, in metres? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The y-coordinate of the tool for a three-link planar arm.</li>
+      <li><strong>Which idea applies.</strong> Each link's direction is the sum of the joint angles up to that link. So the running angles are 0°, 90° and 0°.</li>
+      <li><strong>Work it out.</strong> y = l<sub>1</sub> sin 0° + l<sub>2</sub> sin 90° + l<sub>3</sub> sin 0° = 0 + 0.5 × 1 + 0 = 0.5 m.</li>
+      <li><strong>Check.</strong> The Python check below builds the same arm from DH matrices and gets the same y-coordinate.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+def dh(a, alpha, d, theta):
+    ct, st = math.cos(theta), math.sin(theta)
+    ca, sa = math.cos(alpha), math.sin(alpha)
+    return [[ct, -st * ca, st * sa, a * ct],
+            [st, ct * ca, -ct * sa, a * st],
+            [0.0, sa, ca, d],
+            [0.0, 0.0, 0.0, 1.0]]
+
+def matmul4(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+links = [(1.0, 0.0, 0.0, math.radians(0)),
+         (0.5, 0.0, 0.0, math.radians(90)),
+         (0.5, 0.0, 0.0, math.radians(-90))]
+T = dh(*links[0])
+for L in links[1:]:
+    T = matmul4(T, dh(*L))
+print(f"tool = ({round(T[0][3], 6) + 0.0:.2f}, {round(T[1][3], 6) + 0.0:.2f})")</code></pre>
+    <pre class="output">tool = (1.50, 0.50)</pre>
+    <p class="cx">Answer: 0.5 m.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about a two-link arm with equal links</h3>
+    <div class="statement"><p>A planar two-link arm has l<sub>1</sub> = l<sub>2</sub> = L. Select all that apply.</p>
+    <p>(A) If θ<sub>2</sub> = 180°, the tool is at the origin for every θ<sub>1</sub>.<br>(B) The tool is never farther than 2L from the base.<br>(C) If θ<sub>2</sub> = 0°, the arm is fully folded.<br>(D) The closest the tool can get to the base is 0 when the links are equal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the equal-link two-link arm are true.</li>
+      <li><strong>Which idea applies.</strong> With θ<sub>2</sub> = 180°, the link vectors are opposite, so x = L cos θ<sub>1</sub> − L cos θ<sub>1</sub> = 0 and y = 0 likewise.</li>
+      <li><strong>Work it out.</strong> (A) is true, as just shown. (B) is true, since the maximum reach is l<sub>1</sub> + l<sub>2</sub> = 2L. (C) is false: θ<sub>2</sub> = 0° makes the arm fully straight, so the reach is 2L, not folded. (D) is true, because the minimum reach is |l<sub>1</sub> − l<sub>2</sub>| = 0.</li>
+      <li><strong>Check.</strong> Look at (A) and (D) together: when θ<sub>2</sub> = 180°, the tool is at the base, which is the minimum reach of 0.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Two link planar arm (NAT, 2 marks)</h3>
+    <div class="statement"><p>A planar 2R arm has l<sub>1</sub> = 1 m and l<sub>2</sub> = 0.5 m. With θ<sub>1</sub> = 30° and θ<sub>2</sub> = 60°, find the x coordinate of the end effector, correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> x = l<sub>1</sub>cos θ<sub>1</sub> + l<sub>2</sub>cos(θ<sub>1</sub> + θ<sub>2</sub>).</li>
+      <li><strong>Which idea applies.</strong> Add the link vectors.</li>
+      <li><strong>Work it out.</strong> 0.866 + 0.5 cos 90° = 0.866.</li>
+      <li><strong>Check.</strong> y = 0.5 + 0.5 = 1.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+t1, t2 = math.radians(30), math.radians(60)
+print("x = %.3f, y = %.3f" % (math.cos(t1) + 0.5 * math.cos(t1 + t2), math.sin(t1) + 0.5 * math.sin(t1 + t2)))
+</code></pre>
+    <pre class="output">x = 0.866, y = 1.000</pre>
+    <p class="cx">Answer: about 0.866 m.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Workspace (NAT, 2 marks)</h3>
+    <div class="statement"><p>For the same arm with full joint ranges, find the area of its reachable workspace, correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The area of an annulus.</li>
+      <li><strong>Which idea applies.</strong> Reach is from |l<sub>1</sub> − l<sub>2</sub>| to l<sub>1</sub> + l<sub>2</sub>.</li>
+      <li><strong>Work it out.</strong> π(1.5² − 0.5²) = 2π = 6.283 m².</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("%.3f" % (math.pi * (1.5 ** 2 - 0.5 ** 2)))
+</code></pre>
+    <pre class="output">6.283</pre>
+    <p class="cx">Answer: about 6.283 m².</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: DH parameters (MSQ, 2 marks)</h3>
+    <div class="statement"><p>In the standard Denavit-Hartenberg convention, which are TRUE? (A) Each link is described by four parameters. (B) For a revolute joint, θ is the variable. (C) For a prismatic joint, d is the variable. (D) a is the angle between successive z axes.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> DH convention facts.</li>
+      <li><strong>Which idea applies.</strong> Parameters a, α, d, θ. a is a length and α is a twist angle.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) That is α. False.</li>
+      <li><strong>Check.</strong> a is the distance along x between z axes.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Forward kinematics</dt><dd>Joint values in, tool pose out. Always one answer.</dd></div>
+    <div><dt>Inverse kinematics</dt><dd>Tool pose in, joint values out. Can have several answers.</dd></div>
+    <div><dt>Planar two-link x</dt><dd>x = l<sub>1</sub> cos θ<sub>1</sub> + l<sub>2</sub> cos(θ<sub>1</sub> + θ<sub>2</sub>).</dd></div>
+    <div><dt>Planar two-link y</dt><dd>y = l<sub>1</sub> sin θ<sub>1</sub> + l<sub>2</sub> sin(θ<sub>1</sub> + θ<sub>2</sub>).</dd></div>
+    <div><dt>Link length a</dt><dd>Distance between joint axes along the common perpendicular.</dd></div>
+    <div><dt>Link twist α</dt><dd>Angle between neighbouring joint axes about the common perpendicular.</dd></div>
+    <div><dt>Link offset d</dt><dd>Distance along a joint axis, the slide for a prismatic joint.</dd></div>
+    <div><dt>Joint angle θ</dt><dd>Angle about a joint axis, the value for a revolute joint.</dd></div>
+    <div><dt>DH table</dt><dd>One row per link, listing a, α, d and θ.</dd></div>
+    <div><dt>DH link transform</dt><dd>A<sub>i</sub> = Rz(θ) Tz(d) Tx(a) Rx(α), written as a 4 by 4 matrix.</dd></div>
+    <div><dt>Planar DH link</dt><dd>With α = 0 and d = 0, the position part is (a cos θ, a sin θ, 0).</dd></div>
+    <div><dt>Chaining</dt><dd>T<sub>tool</sub> = A<sub>1</sub> A<sub>2</sub> ... A<sub>n</sub>, from base outward.</dd></div>
+    <div><dt>Tool position</dt><dd>The fourth column of T<sub>tool</sub>.</dd></div>
+    <div><dt>Running angle</dt><dd>The sum of the joint angles up to a link, which sets its direction.</dd></div>
+    <div><dt>Equal-link fold</dt><dd>With θ<sub>2</sub> = 180° and equal links, the tool returns to the base.</dd></div>
+    <div><dt>Standard convention</dt><dd>Check which DH convention a question uses before computing.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Forward kinematics maps joint values to the tool pose, and there is one answer for each set of joint values.</li>
+    <li>For a planar two-link arm, the second link is at θ<sub>1</sub> + θ<sub>2</sub> in the world.</li>
+    <li>The DH convention describes each link with a, α, d and θ.</li>
+    <li>A planar DH link has position (a cos θ, a sin θ, 0).</li>
+    <li>Multiply the link transforms from the base outward to get the tool pose.</li>
+    <li>The tool position is the fourth column of the total transform.</li>
+    <li>Write down the running angle of each link before you compute.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 152?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 152 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-151.html"><small>Previous, topic 151</small>Homogeneous transformations</a><a class="next" href="gate-153.html"><small>Next, topic 153</small>End-effector types</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

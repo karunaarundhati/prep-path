@@ -1,0 +1,372 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 191: CAD/CAM concepts and their integration tools</title><meta name="description" content="CAD (computer-aided design) is how a part is drawn and described on a computer, and CAM (computer-aided manufacturing) is how that description is turned into machine instructions. This page explains the main model types, parametric design, the NC code that CAM produces, and the data formats that let the two tools work together."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g191" data-key="g191" data-noun="topic" data-num="191" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>CAD/CAM concepts and their integration tools</h1>
+<p class="lede">CAD (computer-aided design) is how a part is drawn and described on a computer, and CAM (computer-aided manufacturing) is how that description is turned into machine instructions. This page explains the main model types, parametric design, the NC code that CAM produces, and the data formats that let the two tools work together.</p>
+<div class="station"><b>191</b><span>Unit 18 · Machine design and CIM · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>What CAD and CAM are and why they go together</li><li>Geometric models: wireframe, surface and solid</li><li>Parametric design and feature-based modelling</li><li>CAM: from a model to toolpaths and NC code</li><li>Data exchange formats: IGES, STEP and STL</li><li>Integrated CAD/CAM workflow</li><li>Benefits and conceptual GATE questions</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Welcome. Long ago, an engineer drew a part on paper, a draughtsman copied it onto a larger sheet, and a machinist read the drawing by hand to cut the metal. Every step was slow, and a small error could spoil a whole batch. Today the whole chain runs on a computer. The part is drawn in a <strong>CAD</strong> program (computer-aided design). Then the same computer model is used to plan and run the cutting machine in a <strong>CAM</strong> program (computer-aided manufacturing).</p>
+  <p>Think of a recipe book. A good recipe is written once, and it tells the cook what to buy, how to mix it and how long to bake. CAD is the recipe for the part. CAM is the set of cooking steps that a machine follows. If the recipe is changed, the steps can be regenerated automatically, rather than rewritten by hand.</p>
+  <p>Why does this matter for GATE? In the Machine Design and CIM part of the Robotics and Automation paper, CAD and CAM questions are mostly conceptual. They ask which model type holds volume, which file format carries a solid model between two software packages, what a parametric model is, or what CAM does. Some questions also ask for a simple calculation, such as the length of a toolpath around a circle. Knowing the ideas clearly makes these questions quick.</p>
+  <p>We will go slowly. We start with what a computer model can store, then build up to the whole workflow.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once, and come back to it when a term feels unfamiliar.</p>
+  <dl>
+    <div><dt>CAD</dt><dd>Computer-aided design, the use of software to create and change a geometric model of a part. Precisely: a digital tool for creating, analysing and documenting product geometry.</dd></div>
+    <div><dt>CAM</dt><dd>Computer-aided manufacturing, the use of software to plan and control manufacturing. Precisely: software that generates machine tool paths and NC code from a model.</dd></div>
+    <div><dt>CAE</dt><dd>Computer-aided engineering, the use of software for analysis such as stress, heat or motion. Precisely: simulation tools that test a model before it is made.</dd></div>
+    <div><dt>Geometric model</dt><dd>A computer description of the shape of a part. Precisely: a set of data, such as points, curves, surfaces or volumes, that defines the geometry.</dd></div>
+    <div><dt>Wireframe model</dt><dd>A model made of edges and vertices only. Precisely: a skeleton of lines and curves with no faces or volume.</dd></div>
+    <div><dt>Surface model</dt><dd>A model made of faces with no solid interior. Precisely: a collection of surfaces that bound a shape but do not define a volume.</dd></div>
+    <div><dt>Solid model</dt><dd>A model with a defined volume, mass and inside. Precisely: a closed boundary that encloses material, so the computer can find volume, mass and interference.</dd></div>
+    <div><dt>Parametric model</dt><dd>A model whose shape is controlled by named dimensions and rules. Precisely: a model in which changing a dimension or a constraint updates the geometry automatically.</dd></div>
+    <div><dt>Feature</dt><dd>A meaningful shape element such as a hole, slot or fillet. Precisely: a building block of a feature-based model that carries its own dimensions.</dd></div>
+    <div><dt>Toolpath</dt><dd>The path followed by the cutting tool. Precisely: the sequence of tool positions and motions that the CAM system generates.</dd></div>
+    <div><dt>NC code (G-code)</dt><dd>Numerical control instructions that a machine tool reads. Precisely: a text program of commands such as G00 for rapid move and G01 for linear cutting move.</dd></div>
+    <div><dt>Post-processor</dt><dd>A small program that turns generic toolpath data into the code a specific machine understands. Precisely: the translator between CAM output and a particular controller.</dd></div>
+    <div><dt>IGES</dt><dd>Initial Graphics Exchange Specification, an older neutral format for curves and surfaces. Precisely: a text or binary format for exchanging geometry between CAD systems.</dd></div>
+    <div><dt>STEP</dt><dd>Standard for the Exchange of Product model data, ISO 10303. Precisely: a neutral format that carries solid geometry and product information between systems.</dd></div>
+    <div><dt>STL</dt><dd>Stereolithography file format, which describes a surface as a set of triangles. Precisely: a mesh of triangular facets, widely used for 3D printing.</dd></div>
+    <div><dt>Lead time</dt><dd>The time from the start of design to the first finished part. Precisely: the total elapsed time of the design and manufacturing chain for one product.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Geometric models">
+  <h2>Geometric models: wireframe, surface and solid</h2>
+  <p>A computer model of a part can be stored in three main ways. Each one stores more information than the one before it, and each costs more memory and effort to build.</p>
+  <p><strong>Wireframe.</strong> The simplest model stores only the edges and corners of the part. It looks like a cage made of wire. It is quick to draw and light to store, but it is ambiguous. A wireframe cube and a wireframe box with a hole in it can look the same, because there are no faces to tell the computer what is inside. The computer cannot tell whether a point is inside or outside the part.</p>
+  <p><strong>Surface.</strong> A surface model adds faces. The computer knows where the outside skin of the part is, so the model looks like a finished shape and can be rendered with shading. However, a surface model is like a hollow eggshell. It has an outside but no defined volume, so the computer cannot yet calculate the mass or check whether two parts overlap inside.</p>
+  <p><strong>Solid.</strong> A solid model stores a closed boundary with a clear inside. This is the most complete type. Because the volume is known, the computer can calculate mass, centre of gravity, surface area and volume, and it can check interference between parts. Most modern CAD systems use a boundary representation, in which the solid is defined by its faces, edges and vertices, together with the rules that make them a closed shell.</p>
+  <pre class="code" data-lang="text"><code>  Wireframe        Surface             Solid
+  edges only       faces, hollow       faces + inside
+  +---+            +---+               +---+
+  |\  |\           |\  |\              |###|
+  | +-+-+          | +-+-+             |###|
+  +-+-+ |          +-+-+ |             +-+-+
+    |   |            |   |               |   |
+  Ambiguous        Outside known,      Volume known,
+                   volume unknown      mass computable</code></pre>
+  <p>The sketch above shows the idea. The solid version is the one you need for mass, volume and interference questions.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Wireframe gives edges, surface gives skin, solid gives skin plus a defined volume. Only a solid model can answer questions about mass and volume.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>A surface model is not a solid, even when it looks complete on the screen. If a question asks for the mass or volume of a part, the model must be a solid.</p></div>
+  <details class="check"><summary>Which model type lets a computer calculate the mass of a part?</summary><div class="ans"><p>A solid model, because it has a defined volume and inside. A wireframe or a surface model does not define the volume.</p></div></details>
+  <details class="check"><summary>Why is a wireframe model ambiguous?</summary><div class="ans"><p>Because it stores only edges and corners. Without faces, the computer cannot tell which side of an edge is material and which side is empty.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Parametric design">
+  <h2>Parametric design and feature-based modelling</h2>
+  <p>Suppose you design a bracket with a hole of 10 mm diameter. Later the customer asks for a 12 mm hole and a plate that is 2 mm thicker. In an old drawing, you would have to edit each line by hand. In a <strong>parametric</strong> model, the hole diameter and the plate thickness are named parameters. You change the value, and the model redraws itself. Every feature that depends on those parameters updates in step.</p>
+  <p>Think of a dress pattern with a size setting. Change the size from medium to large, and every seam and panel adjusts together. The pattern is defined by rules, not by fixed numbers.</p>
+  <p>A parametric model usually has three ingredients.</p>
+  <ul>
+    <li><strong>Dimensions.</strong> Numbers such as a length of 80 mm or a radius of 5 mm.</li>
+    <li><strong>Constraints.</strong> Rules such as "these two lines are parallel" or "this hole is centred on that edge".</li>
+    <li><strong>Relations.</strong> Equations that link one dimension to another, such as "the slot length is twice the plate width".</li>
+  </ul>
+  <p><strong>Feature-based modelling</strong> builds the part from features. A feature is a meaningful element, such as a hole, a slot, a boss or a fillet. Each feature carries its own dimensions. This matches how a machinist thinks: "drill a 10 mm hole here, cut a slot there". It also makes the design easier to change, because you edit a feature rather than a list of lines.</p>
+  <div class="note tip"><p><span class="t">Tip</span>When you read a parametric question, identify the named parameters first. Then ask which features depend on each parameter. That tells you what changes.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>A parametric model is not the same as a model with fixed numbers that happens to be made in a CAD program. The power comes from the links between dimensions. If the links are missing, the model cannot update correctly.</p></div>
+  <details class="check"><summary>In a parametric model, what happens when one dimension is changed?</summary><div class="ans"><p>The model updates automatically. Features and constraints that depend on that dimension are recalculated, so the geometry stays consistent with the rules.</p></div></details>
+  <details class="check"><summary>What is the difference between a dimension and a constraint?</summary><div class="ans"><p>A dimension is a number, such as a length or a diameter. A constraint is a rule about geometry, such as parallel, perpendicular or concentric.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="CAM and NC code">
+  <h2>CAM: from a model to toolpaths and NC code</h2>
+  <p>A CAD model describes what the part should look like. It does not say how to make it. CAM fills that gap. The CAM software reads the solid model, chooses a cutting tool, picks the cutting strategy, and computes the path the tool must follow to remove the right material.</p>
+  <p>The output of the CAM system is a <strong>toolpath</strong>, which is a list of positions for the cutting tool. Each position is then translated into a line of <strong>NC code</strong>, which the machine tool reads. The most common NC code uses short words called G-codes and M-codes.</p>
+  <pre class="code" data-lang="text"><code>N10 G00 X0 Y0 Z50       (rapid move above the part)
+N20 G01 Z-5 F100        (cut down 5 mm at feed 100 mm/min)
+N30 G01 X50 Y0          (cut straight along X)
+N40 G02 X0 Y0 I-25 J0   (arc around the centre)
+N50 G00 Z50             (retract)
+N60 M30                 (end of program)</code></pre>
+  <p>The sample above is a plain text listing, not a complete real machine program. The main point is that G00 is a fast, non-cutting move, and G01 is a controlled cutting move in a straight line.</p>
+  <p>The CAM system also performs a basic calculation: the length of the path. For a circle of diameter D, the cutting path around the circle has length pi D. This is the same idea used in the Python check at the end of the page.</p>
+  <div class="formula">Length of a circular toolpath = pi D</div>
+  <p>Here D is the diameter in mm and the length is in mm. For D = 50 mm, the path is pi times 50 = 157.08 mm.</p>
+  <div class="note key"><p><span class="t">Key idea</span>CAD says what the part is. CAM says how to cut it. The post-processor turns the generic path into the exact code for one machine.</p></div>
+  <details class="check"><summary>What is the difference between G00 and G01?</summary><div class="ans"><p>G00 is a rapid move that does not cut, used to go from one place to another. G01 is a linear cutting move at a set feed rate.</p></div></details>
+  <details class="check"><summary>Why does the same CAM output need a post-processor?</summary><div class="ans"><p>Different machine controllers use slightly different code. The post-processor converts the toolpath into the code that one specific controller understands.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Data exchange formats">
+  <h2>Data exchange formats: IGES, STEP and STL</h2>
+  <p>Suppose a designer uses one CAD program and the manufacturing team uses another. The two programs store their data in different internal ways, so the model cannot be opened directly. A <strong>neutral format</strong> solves this. The model is saved into a standard file, and the other program reads that file. Here are the three formats most often met in GATE questions.</p>
+  <ul>
+    <li><strong>IGES.</strong> An older standard for exchanging curves and surfaces. It works well for surface models, but it is less reliable for complete solids, and it often needs repair when imported.</li>
+    <li><strong>STEP (ISO 10303).</strong> A modern standard that carries solid geometry together with product information such as materials and assembly structure. It is the usual choice when a solid model must move between systems.</li>
+    <li><strong>STL.</strong> A mesh of small triangles that approximates a surface. It stores only the shape of the surface, not the design intent, and it is the standard input for most 3D printers.</li>
+  </ul>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Format</th><th>Stores</th><th>Typical use</th></tr></thead>
+    <tbody>
+      <tr><td>IGES</td><td>Curves and surfaces</td><td>Older exchange of surface data</td></tr>
+      <tr><td>STEP</td><td>Solid geometry and product data</td><td>Exchange of solid models between CAD and CAM systems</td></tr>
+      <tr><td>STL</td><td>Triangular facets of a surface</td><td>3D printing and rapid prototyping</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>If a question asks which neutral format carries a solid model between systems, the usual answer is STEP. If it asks which format is a set of triangles for 3D printing, the answer is STL.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>An STL file has no design intent. It does not remember that a hole was 10 mm, or that two faces were parallel. It is a mesh of triangles, so it cannot be edited parametrically.</p></div>
+  <details class="check"><summary>Which format is the best choice for exchanging a solid model with its product data?</summary><div class="ans"><p>STEP, because it is a neutral standard for solid geometry and product information.</p></div></details>
+  <details class="check"><summary>What is a neutral format?</summary><div class="ans"><p>A standard file format that is not tied to one software package, so that different CAD and CAM systems can read and write the same data.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Integrated workflow">
+  <h2>The integrated CAD/CAM workflow</h2>
+  <p>In a modern factory, the tools are joined into one chain. The steps usually run in this order.</p>
+  <ol>
+    <li><strong>Design.</strong> The part is drawn as a parametric solid model in CAD.</li>
+    <li><strong>Analysis.</strong> CAE checks the stress, heat or motion of the model before anything is made.</li>
+    <li><strong>Process planning.</strong> The machining method, the tools and the setup are chosen.</li>
+    <li><strong>Toolpath generation.</strong> CAM creates the toolpaths from the model.</li>
+    <li><strong>Simulation.</strong> The toolpath is run on a virtual machine to check for collisions and errors.</li>
+    <li><strong>Post-processing.</strong> The toolpath is converted to the NC code for the real machine.</li>
+    <li><strong>Machining and inspection.</strong> The part is cut, then measured, often on a coordinate measuring machine.</li>
+  </ol>
+  <p>Notice that the model is the single source of truth. A change in the design flows through analysis, toolpaths and code. This is the main reason an integrated workflow is faster and more accurate than a paper chain.</p>
+  <div class="note key"><p><span class="t">Key idea</span>In an integrated workflow, one model feeds every step. Changes flow forward automatically, and errors are caught before metal is cut.</p></div>
+  <details class="check"><summary>Why is simulation placed before post-processing?</summary><div class="ans"><p>Because it is cheaper and safer to find a collision or an error on a virtual machine than on a real one. Post-processing produces the code for the real machine, so errors must be removed first.</p></div></details>
+  <details class="check"><summary>What does CAE add to the chain?</summary><div class="ans"><p>Analysis of the design, such as stress, heat or motion, before the part is made. This catches weak designs early.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Benefits">
+  <h2>Benefits: lead time, accuracy and change</h2>
+  <p>Why do companies invest in CAD and CAM? Three benefits explain most of it.</p>
+  <ul>
+    <li><strong>Shorter lead time.</strong> The time from idea to finished part shrinks, because drawings, analyses and programs are generated from one model rather than typed out by hand. The lead time reduction is found from the old and new times: (old - new)/old.</li>
+    <li><strong>Better accuracy.</strong> The machine follows the computer path exactly, so the dimensions repeat from part to part. Human copying errors are removed.</li>
+    <li><strong>Easy change.</strong> A parametric model can be changed in minutes. The toolpaths and code can be regenerated, instead of rewritten by hand.</li>
+  </ul>
+  <p><strong>Worked example.</strong> A part used to take 12 days from design to first part. With an integrated CAD/CAM chain it takes 3 days.</p>
+  <ol>
+    <li>Time saved: 12 - 3 = 9 days.</li>
+    <li>Reduction in percent: 100 times 9/12 = 75 percent.</li>
+  </ol>
+  <p>The Python block below checks this number, and it also works out how many straight segments are needed to approximate a circle to a given accuracy. That second calculation is a common CAM idea.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not confuse a reduction in lead time with a reduction in the cost of material. A CAD/CAM chain changes the time and the accuracy, not the amount of material in the part.</p></div>
+  <details class="check"><summary>A design takes 20 days by hand and 5 days with CAD/CAM. What is the percent reduction?</summary><div class="ans"><p>(20 - 5)/20 = 15/20 = 75 percent.</p></div></details>
+  <details class="check"><summary>Which benefit comes most directly from a parametric model?</summary><div class="ans"><p>Easy change. Edits to one dimension update the whole model, and the toolpaths can be regenerated.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Use this table during revision and in practice.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Circular toolpath length = pi D</td><td>Length of a full circle of diameter D</td><td>Simple toolpath length questions</td></tr>
+      <tr><td>Lead time reduction = (old - new)/old</td><td>Fractional reduction in lead time</td><td>Comparing manual and CAD/CAM times</td></tr>
+      <tr><td>Chord error e = R (1 - cos(theta/2))</td><td>Sagitta of a chord that spans angle theta on a circle of radius R</td><td>Chord approximation of a circle</td></tr>
+      <tr><td>Segments = 2 pi/theta</td><td>Number of equal chords around a full circle</td><td>Approximating a circle with straight lines</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style, and they are not copied from any real exam paper. Try the "How to think about it" steps yourself before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which model holds mass?</h3>
+    <div class="statement"><p>Which type of computer model lets the software calculate the mass and volume of a part directly? (MCQ: choose one of wireframe, surface, solid, or sketch.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The model type that defines a volume.</li>
+      <li><strong>Which idea applies.</strong> A solid model has a closed boundary with a defined inside.</li>
+      <li><strong>Work it out.</strong> Wireframe has only edges. A surface has faces but no defined volume. A sketch is a flat outline. Only a solid defines the volume and the mass.</li>
+      <li><strong>Check.</strong> This matches the earlier explanation that only a solid can answer mass questions.</li>
+    </ol>
+    <p class="cx">Answer: solid.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Toolpath length around a circle</h3>
+    <div class="statement"><p>A CAM toolpath follows a full circle of diameter 50 mm. What is its length, in mm, to two decimal places? (NAT: enter a number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The length of the circular path.</li>
+      <li><strong>Which idea applies.</strong> Circumference = pi D.</li>
+      <li><strong>Work it out.</strong> pi times 50 = 157.08 mm.</li>
+      <li><strong>Check.</strong> A circle of diameter 50 mm has a circumference a little more than three times its diameter, as expected from pi.</li>
+    </ol>
+    <p class="cx">Answer: 157.08 mm.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about CAD and CAM</h3>
+    <div class="statement"><p>Which of the following statements about CAD, CAM and data formats are correct? Select all that apply. (MSQ)</p><ul><li>(A) In a parametric model, changing a named dimension updates the dependent features.</li><li>(B) An STL file stores the design intent of each feature.</li><li>(C) STEP is a neutral standard for solid geometry and product data.</li><li>(D) A post-processor converts generic toolpath data into code for a specific machine.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true. More than one may be correct.</li>
+      <li><strong>Which idea applies.</strong> Parametric links, the nature of an STL mesh, the role of STEP, and the role of a post-processor.</li>
+      <li><strong>Work it out.</strong> (A) True: that is the definition of a parametric update. (B) False: STL is a triangle mesh with no design intent. (C) True: STEP is ISO 10303. (D) True: that is the job of the post-processor.</li>
+      <li><strong>Check.</strong> Statement (B) claims something the mesh format does not store, so it must be false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D) are correct.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Percent reduction in lead time</h3>
+    <div class="statement"><p>A new bracket took 40 days from design to first part by hand. With an integrated CAD/CAM chain it takes 10 days. What is the percent reduction in lead time? (NAT: enter a number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The percent reduction.</li>
+      <li><strong>Which idea applies.</strong> Reduction = (old - new)/old times 100.</li>
+      <li><strong>Work it out.</strong> (40 - 10)/40 = 30/40 = 0.75, so the reduction is 75 percent.</li>
+      <li><strong>Check.</strong> The new time is one quarter of the old, so a 75 percent reduction is consistent.</li>
+    </ol>
+    <p class="cx">Answer: 75 percent.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Feature that updates with a parameter</h3>
+    <div class="statement"><p>In a parametric model, a slot length is defined as twice the plate width. The plate width is changed from 40 mm to 60 mm. What happens to the slot length? (MCQ: (A) stays at 80 mm, (B) becomes 120 mm, (C) becomes 60 mm, (D) becomes 30 mm.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The new slot length after a parameter change.</li>
+      <li><strong>Which idea applies.</strong> The relation slot length = 2 times plate width is stored in the model, so the slot updates.</li>
+      <li><strong>Work it out.</strong> Slot length = 2 times 60 = 120 mm.</li>
+      <li><strong>Check.</strong> The old slot was 2 times 40 = 80 mm, and the new one is 120 mm, which is consistent with the rule.</li>
+    </ol>
+    <p class="cx">Answer: (B), 120 mm.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Number of chords for a circle with a given chord error</h3>
+    <div class="statement"><p>A CAM system approximates a circle of radius 25 mm with straight chords. The chord error (the largest gap between chord and arc) must not exceed 0.01 mm. Using e = R(1 - cos(theta/2)) and a whole number of equal segments, how many segments are needed? (NAT: enter a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of equal chords around the full circle.</li>
+      <li><strong>Which idea applies.</strong> First find the largest angle theta per segment from e = R(1 - cos(theta/2)), then divide 2 pi by theta.</li>
+      <li><strong>Work it out.</strong> cos(theta/2) = 1 - e/R = 1 - 0.0004 = 0.9996. So theta/2 = arccos(0.9996) = 0.02828 rad, and theta = 0.05657 rad (about 3.24 degrees). Then 2 pi/theta = 111.07. Rounding up to a whole number gives 112 segments.</li>
+      <li><strong>Check.</strong> 112 segments of 3.24 degrees each cover 112 times 3.24 = 363 degrees, which is just over a full turn, so the rounding up is safe.</li>
+    </ol>
+    <p class="cx">Answer: 112 segments.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Choosing the exchange format</h3>
+    <div class="statement"><p>A designer must send a finished solid model, with its material and assembly data, from one CAD system to a CAM system in another company. Which neutral format is the best choice, and why? (Conceptual question, answer in one or two sentences.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The best neutral format for a solid model with product data.</li>
+      <li><strong>Which idea applies.</strong> Compare IGES, STEP and STL by what they store.</li>
+      <li><strong>Work it out.</strong> IGES is for curves and surfaces and is less reliable for complete solids. STL keeps only triangles and no product data. STEP stores solid geometry together with product information, and it is a neutral ISO standard.</li>
+      <li><strong>Check.</strong> The model needs both the solid shape and the data, so STEP meets both needs.</li>
+    </ol>
+    <p class="cx">Answer: STEP, because it is a neutral standard that carries solid geometry and product data between systems.</p>
+  </article>
+
+  <pre class="code" data-lang="python"><code>import math
+D = 50.0
+circ = math.pi * D
+print("Circle circumference (mm):", round(circ, 2))
+manual, cad = 12.0, 3.0
+print("Lead time reduction (%):", round(100 * (manual - cad) / manual, 1))
+R, e = 25.0, 0.01
+theta = 2 * math.acos(1 - e / R)
+segments = 2 * math.pi / theta
+print("Angle per segment (deg):", round(math.degrees(theta), 3))
+print("Segments needed (exact):", round(segments, 2))
+print("Segments to use:", math.ceil(segments))</code></pre>
+  <pre class="output">Circle circumference (mm): 157.08
+Lead time reduction (%): 75.0
+Angle per segment (deg): 3.241
+Segments needed (exact): 111.07
+Segments to use: 112</pre>
+  <p>The output confirms the three numbers used in this topic: the circumference, the lead time reduction, and the chord count.</p>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Homogeneous transform (NAT, 2 marks)</h3>
+    <div class="statement"><p>In CAD, the point (2, 1) is rotated by 90° about the origin and then translated by (3, 0). Find the result.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The transformed point.</li>
+      <li><strong>Which idea applies.</strong> Rotation (x, y) → (−y, x), then add the shift.</li>
+      <li><strong>Work it out.</strong> (−1, 2) + (3, 0) = (2, 2).</li>
+      <li><strong>Check.</strong> The code uses a 3 × 3 homogeneous matrix.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>M = [[0, -1, 3], [1, 0, 0], [0, 0, 1]]
+p = [2, 1, 1]
+print([sum(M[i][j] * p[j] for j in range(3)) for i in range(2)])
+</code></pre>
+    <pre class="output">[2, 2]</pre>
+    <p class="cx">Answer: (2, 2).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Bezier point (NAT, 2 marks)</h3>
+    <div class="statement"><p>A cubic Bezier curve has control points (0, 0), (1, 2), (3, 2), (4, 0). Find the point at t = 0.5.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> B(0.5).</li>
+      <li><strong>Which idea applies.</strong> B(t) = Σ C(3, i)(1 − t)<sup>3−i</sup>t<sup>i</sup>P<sub>i</sub>.</li>
+      <li><strong>Work it out.</strong> Weights 1/8, 3/8, 3/8, 1/8. x = (0 + 3 + 9 + 4)/8 = 2. y = (0 + 6 + 6 + 0)/8 = 1.5.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>P = [(0, 0), (1, 2), (3, 2), (4, 0)]; w = [1/8, 3/8, 3/8, 1/8]
+print(sum(a * p[0] for a, p in zip(w, P)), sum(a * p[1] for a, p in zip(w, P)))
+</code></pre>
+    <pre class="output">2.0 1.5</pre>
+    <p class="cx">Answer: (2, 1.5).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: CAD/CAM integration (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) STEP is a neutral data exchange format. (B) CAPP links design and manufacturing. (C) CAM can generate toolpaths from CAD geometry. (D) IGES stores only 2D drawings.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Integration facts.</li>
+      <li><strong>Which idea applies.</strong> Neutral formats let different systems share models.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) IGES holds 3D curves and surfaces too. False.</li>
+      <li><strong>Check.</strong> STEP also carries product data beyond geometry.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here are the one-line meanings of the main ideas on this page.</p>
+  <dl>
+    <div><dt>CAD</dt><dd>Computer-aided design, creating and changing a geometric model.</dd></div>
+    <div><dt>CAM</dt><dd>Computer-aided manufacturing, generating toolpaths and NC code from a model.</dd></div>
+    <div><dt>CAE</dt><dd>Computer-aided engineering, simulating a design before it is made.</dd></div>
+    <div><dt>Wireframe</dt><dd>A model of edges and corners only, ambiguous about the inside.</dd></div>
+    <div><dt>Surface model</dt><dd>A model of faces with no defined volume.</dd></div>
+    <div><dt>Solid model</dt><dd>A closed boundary with a defined inside, so mass and volume can be computed.</dd></div>
+    <div><dt>Parametric model</dt><dd>A model whose geometry updates when named dimensions or rules change.</dd></div>
+    <div><dt>Feature</dt><dd>A meaningful shape element, such as a hole or slot, with its own dimensions.</dd></div>
+    <div><dt>Toolpath</dt><dd>The path followed by the cutting tool.</dd></div>
+    <div><dt>NC code</dt><dd>Text instructions for a machine tool, such as G00 and G01.</dd></div>
+    <div><dt>Post-processor</dt><dd>The translator from generic toolpath data to one machine's code.</dd></div>
+    <div><dt>IGES</dt><dd>An older neutral format for curves and surfaces.</dd></div>
+    <div><dt>STEP</dt><dd>ISO 10303, a neutral format for solid geometry and product data.</dd></div>
+    <div><dt>STL</dt><dd>A mesh of triangles for a surface, used for 3D printing.</dd></div>
+    <div><dt>Neutral format</dt><dd>A standard file format that different software packages can read.</dd></div>
+    <div><dt>Lead time</dt><dd>The time from the start of design to the first finished part.</dd></div>
+    <div><dt>Chord error</dt><dd>The largest gap between a straight chord and the true arc.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Only a solid model can give mass and volume.</li>
+    <li>Parametric models update when named dimensions change.</li>
+    <li>CAD describes the part, and CAM produces the toolpath and the NC code.</li>
+    <li>G00 is a rapid non-cutting move, and G01 is a linear cutting move.</li>
+    <li>STEP carries solid data between systems, and STL carries only triangles.</li>
+    <li>Lead time reduction is (old - new)/old times 100 percent.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 191?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 191 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-190.html"><small>Previous, topic 190</small>Brakes and clutches</a><a class="next" href="gate-192.html"><small>Next, topic 192</small>Review: failure criteria &amp; CAD/CAM integration</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

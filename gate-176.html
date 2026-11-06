@@ -1,0 +1,467 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 176: Dynamic analysis of linkages</title><meta name="description" content="A moving link has mass, and when it speeds up or turns it needs a force to do so. Dynamic analysis of a linkage adds these inertia forces to the static loads, so that the pins, the bearings and the frame are designed for the real forces. This is the next step after kinematics, and it appears in GATE Robotics and Automation questions on shaking force and inertia."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g176" data-key="g176" data-noun="topic" data-num="176" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Dynamic analysis of linkages</h1>
+<p class="lede">A moving link has mass, and when it speeds up or turns it needs a force to do so. Dynamic analysis of a linkage adds these inertia forces to the static loads, so that the pins, the bearings and the frame are designed for the real forces. This is the next step after kinematics, and it appears in GATE Robotics and Automation questions on shaking force and inertia.</p>
+<div class="station"><b>176</b><span>Unit 17 · Kinematics and dynamics of machines · Paper RA · New concept</span></div>
+<ul class="topics"><li>Static versus dynamic force analysis</li><li>D&#x27;Alembert&#x27;s principle: turning motion into a balance</li><li>Inertia force and inertia couple of a link</li><li>Equivalent offset inertia force</li><li>Shaking force and shaking moment of a mechanism</li><li>Solving GATE-style dynamic force numericals</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Welcome. Think about a bus. When the driver presses the accelerator, the passengers are pushed back into their seats. The seats push forward on the passengers, and the passengers feel a force even though nothing is touching them from the front. That push is the reason the bus must be built strongly enough to hold its seats. In the same way, a link in a fast machine needs a force to speed it up or turn it. Its mass resists the change in motion. That resisting force is called the <strong>inertia force</strong>.</p>
+  <p>Here is a useful picture. Hold a heavy ball on a string and swing it in a circle. You feel a pull outward on your hand, and the string pulls the ball inward. The ball's inertia makes it want to fly straight, so the string must keep pulling it round. If you swing faster, the pull is bigger. A linkage works the same way. Each moving link feels this kind of pull, and the joints and the frame must carry it.</p>
+  <p>Static analysis ignores this. It asks only: what are the forces when everything is standing still? Dynamic analysis includes the inertia forces. For slow machines the difference is small. For fast machines, such as engines, presses and robot arms that move quickly, the inertia forces can be much larger than the applied loads, so ignoring them is a serious error.</p>
+  <p>Why does this matter for GATE? In <strong>Robotics and Automation (RA)</strong> papers, robot arms accelerate rapidly, and designers must know the force and torque at each joint. GATE questions often ask for the inertia force of a link, the offset position of the inertia force, the torque needed to accelerate a link, or the shaking force on the frame. The key tool is D'Alembert's principle, which turns a motion problem into a balance problem. Each step on this page has a numerical check.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list now, and come back whenever a word feels unfamiliar. Each entry gives the plain meaning first, then the precise definition.</p>
+  <dl>
+    <div><dt>Static force analysis</dt><dd>Finding joint forces with inertia ignored. Plain meaning: forces when nothing is accelerating. Precise definition: equilibrium of each link using only applied loads and reactions.</dd></div>
+    <div><dt>Dynamic force analysis</dt><dd>Finding joint forces with inertia forces included. Plain meaning: forces when things are speeding up or turning. Precise definition: equilibrium of each link using applied loads, reactions, and the inertia forces and couples.</dd></div>
+    <div><dt>Mass (m)</dt><dd>The amount of matter, which resists a change in velocity. Plain meaning: how heavy the link is in the sense of how hard it is to speed up. Precise definition: the inertia of a body against linear acceleration, in kg.</dd></div>
+    <div><dt>Centre of gravity or centre of mass (G)</dt><dd>The point where the mass of a link can be considered to be concentrated for linear motion. Plain meaning: the balance point of the link. Precise definition: the point whose acceleration describes the linear motion of the body.</dd></div>
+    <div><dt>Mass moment of inertia (I<sub>G</sub>)</dt><dd>The resistance of a body to angular acceleration about an axis through its centre of mass. Plain meaning: how hard it is to make the link spin faster. Precise definition: I<sub>G</sub> = integral of r² dm about G, in kg m².</dd></div>
+    <div><dt>Angular acceleration (alpha)</dt><dd>The rate of change of angular velocity. Plain meaning: how quickly the link speeds up its spin. Precise definition: alpha = d(omega)/dt, in rad/s².</dd></div>
+    <div><dt>Inertia force (F<sub>i</sub>)</dt><dd>A fictitious force equal to minus mass times acceleration of the centre of mass. Plain meaning: the force that the mass seems to push back with. Precise definition: F<sub>i</sub> = −m a<sub>G</sub>, in N.</dd></div>
+    <div><dt>Inertia couple (M<sub>i</sub>)</dt><dd>A fictitious turning effect equal to minus the moment of inertia times angular acceleration. Plain meaning: the twist that the link seems to push back with. Precise definition: M<sub>i</sub> = −I<sub>G</sub> alpha, in N m.</dd></div>
+    <div><dt>D'Alembert's principle</dt><dd>A moving body can be analysed as if in equilibrium once its inertia forces and couples are added. Plain meaning: add the push-back forces and the balance problem becomes a standing problem. Precise definition: the sum of applied forces, reactions and inertia forces, and the sum of the moments, are each zero for the body.</dd></div>
+    <div><dt>Equivalent offset inertia force</dt><dd>A single inertia force acting at a distance from G that has the same effect as the inertia force and couple together. Plain meaning: move the force sideways so that it makes the same turning effect. Precise definition: the inertia force F<sub>i</sub> acting at offset distance h from G, where h = M<sub>i</sub> / F<sub>i</sub>.</dd></div>
+    <div><dt>Offset distance (h)</dt><dd>The distance from G at which the equivalent inertia force acts. Plain meaning: how far to slide the force sideways. Precise definition: h = I<sub>G</sub> alpha / (m a<sub>G</sub>), in m.</dd></div>
+    <div><dt>Shaking force</dt><dd>The net inertia force that the moving links transmit to the frame. Plain meaning: the force that tries to shake the machine base. Precise definition: the vector sum of all inertia forces of the moving links, acting on the frame.</dd></div>
+    <div><dt>Shaking moment</dt><dd>The net turning effect that the moving links transmit to the frame. Plain meaning: the twist that tries to rock the machine base. Precise definition: the sum of the moments of the inertia forces and couples about a chosen point.</dd></div>
+    <div><dt>Unbalanced mass</dt><dd>A rotating or moving mass that is not cancelled by another. Plain meaning: a mass that is not paired off. Precise definition: a mass whose inertia force is not matched by an equal and opposite one in the same mechanism.</dd></div>
+    <div><dt>Balancing</dt><dd>Adding masses so that the shaking force or shaking moment becomes zero or smaller. Plain meaning: adding counterweights to cancel the shake. Precise definition: the design process of reducing shaking forces and moments by mass distribution.</dd></div>
+    <div><dt>Piston</dt><dd>The sliding part in a slider-crank that moves in a cylinder. Plain meaning: the part that moves up and down in an engine. Precise definition: the slider of the slider-crank, with its own mass and acceleration.</dd></div>
+    <div><dt>Reaction force</dt><dd>The force that a joint or support exerts on a link. Plain meaning: what a pin pushes or pulls back with. Precise definition: a force at a pin joint whose value is found by equilibrium.</dd></div>
+    <div><dt>Free-body diagram</dt><dd>A sketch of one body with all forces and couples on it. Plain meaning: a picture of a single link with every push and pull marked. Precise definition: an isolated diagram showing all external and inertia loads on one body.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Static and dynamic analysis">
+  <h2>Concept 1: Static and dynamic force analysis</h2>
+  <p>Let us start with a simple test. A link of mass 2 kg is held at rest in a horizontal position and then pulled from one end with a steady force. If the link is pulled very slowly, almost nothing happens to its motion, and the force needed is only what supports the link. That is static analysis. But if the link is pulled hard and speeds up quickly, the force needed is larger, because part of the force goes into accelerating the mass. That extra part is the inertia force.</p>
+  <p>A dynamic analysis includes that extra part. The method has three stages.</p>
+  <ol>
+    <li><strong>Kinematics first.</strong> Find the angular velocity and angular acceleration of every link, and the acceleration of the centre of mass of each link, from the methods in the kinematics topic.</li>
+    <li><strong>Inertia forces next.</strong> For each link, compute the inertia force and the inertia couple from its mass, mass moment of inertia, and accelerations.</li>
+    <li><strong>Equilibrium last.</strong> Treat each link as if it were in equilibrium, with the inertia loads added. Solve for the joint reactions and the input torque.</li>
+  </ol>
+  <p>The difference between the two analyses can be summarised in one sentence: <strong>dynamic analysis is static analysis with the inertia loads added.</strong></p>
+  <div class="note key"><p><span class="t">Key idea</span>Static analysis tells you the loads you would feel if the machine were still. Dynamic analysis tells you the loads you feel when the machine moves. The second is the one that breaks parts.</p></div>
+  <details class="check"><summary>Question 1: What is the main difference between static and dynamic force analysis?</summary><div class="ans"><p>Dynamic analysis includes the inertia forces and couples of the moving links, while static analysis ignores them.</p></div></details>
+  <details class="check"><summary>Question 2: What are the three stages of a dynamic force analysis?</summary><div class="ans"><p>Kinematics to get the accelerations, inertia loads from mass and accelerations, and equilibrium of each link with those loads added.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="D'Alembert's principle">
+  <h2>Concept 2: D'Alembert's principle turns motion into balance</h2>
+  <p>D'Alembert's principle is the trick that lets us use the familiar equations of equilibrium for a moving body. The idea is this: if you add a fictitious force equal to minus m times a, and a fictitious couple equal to minus I<sub>G</sub> times alpha, then the body behaves as if it were in equilibrium. The fictitious force and couple are called the inertia loads. They are not real forces from outside, but they make the calculation work.</p>
+  <p>Written as equations for a link, D'Alembert's principle says:</p>
+  <div class="formula">Sum of forces: F<sub>applied</sub> + F<sub>reactions</sub> + F<sub>i</sub> = 0, where F<sub>i</sub> = −m a<sub>G</sub></div>
+  <div class="formula">Sum of moments: M<sub>applied</sub> + M<sub>reactions</sub> + M<sub>i</sub> = 0, where M<sub>i</sub> = −I<sub>G</sub> alpha</div>
+  <p>Let us say what each symbol means. <strong>m</strong> is the mass of the link, in kg. <strong>a<sub>G</sub></strong> is the acceleration of its centre of mass, in m/s². <strong>I<sub>G</sub></strong> is its mass moment of inertia about G, in kg m². <strong>alpha</strong> is its angular acceleration, in rad/s². The minus signs mean the inertia loads push back against the motion.</p>
+  <p>Here is a text picture of one link with its inertia loads drawn in. The link is a rod with its centre of mass G at the middle, speeding up in the direction of arrow a.</p>
+  <pre class="code" data-lang="text"><code>        F_i = m a_G, the inertia force acts OPPOSITE to a
+   <-------------- F_i  (drawn opposite to a_G)
+   |
+   |             G
+   O-------------*-------------->  rod speeding up: a_G to the right
+   pivot                          (the rod's acceleration points right)
+
+   Inertia couple M_i = I_G alpha, acts opposite to alpha.
+   Then add the real forces and reactions, and write equilibrium.
+</code></pre>
+  <div class="note tip"><p><span class="t">Tip</span>Draw the inertia force with the arrow pointing opposite to the acceleration of G. Many errors in dynamic problems come from drawing it in the same direction as the acceleration.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>D'Alembert's principle does not make the inertia force real. It is a bookkeeping device. The real forces on the link are still the applied loads and the joint reactions. The inertia forces are used to write the balance equations.</p></div>
+  <details class="check"><summary>Question 3: Which way does the inertia force point relative to the acceleration of G?</summary><div class="ans"><p>Opposite to it. The inertia force is F<sub>i</sub> = −m a<sub>G</sub>.</p></div></details>
+  <details class="check"><summary>Question 4: Is the inertia force a real force from outside the link?</summary><div class="ans"><p>No. It is a device that makes the equations of motion look like equilibrium equations. The real loads are the applied forces and the joint reactions.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Inertia force and couple">
+  <h2>Concept 3: The inertia force and inertia couple of a link</h2>
+  <p>Now we compute the inertia loads for a real link. Two numbers are needed: the acceleration of the centre of mass, and the angular acceleration of the link. A link that moves in a plane has these two parts of motion. It may accelerate in a straight line, which is measured by a<sub>G</sub>, and it may speed up or slow down its spin, which is measured by alpha.</p>
+  <p>Consider a uniform rod of length L, mass m, pinned at one end. Its centre of mass is at L/2 from the pin. The mass moment of inertia about its centre is:</p>
+  <div class="formula">I<sub>G</sub> = m L² / 12</div>
+  <p>The inertia force and inertia couple are then:</p>
+  <div class="formula">F<sub>i</sub> = m a<sub>G</sub> (opposite to a<sub>G</sub>), and M<sub>i</sub> = I<sub>G</sub> alpha (opposite to alpha)</div>
+  <p><strong>Worked example.</strong> A uniform rod has mass m = 2 kg and length L = 0.4 m. It is pinned at one end and has angular acceleration alpha = 5 rad/s² at the instant considered, with zero angular velocity. Find the inertia force and the inertia couple.</p>
+  <ol>
+    <li>Find the distance to the centre of mass: L/2 = 0.2 m.</li>
+    <li>Find the tangential acceleration of G: a<sub>G</sub> = alpha × (L/2) = 5 × 0.2 = 1.0 m/s². At zero angular velocity there is no radial part.</li>
+    <li>Find the inertia force: F<sub>i</sub> = m a<sub>G</sub> = 2 × 1.0 = 2.0 N, opposite to the acceleration.</li>
+    <li>Find I<sub>G</sub> = m L² / 12 = 2 × 0.16 / 12 = 0.02667 kg m².</li>
+    <li>Find the inertia couple: M<sub>i</sub> = I<sub>G</sub> alpha = 0.02667 × 5 = 0.1333 N m, opposite to alpha.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>m = 2.0
+L = 0.4
+alpha = 5.0
+rG = L / 2
+aG_t = alpha * rG
+IG = m * L**2 / 12
+couple = IG * alpha
+Fi = m * aG_t
+print("tangential acceleration of G =", round(aG_t, 2), "m/s^2")
+print("inertia couple =", round(couple, 4), "N m")
+</code></pre>
+  <pre class="output">tangential acceleration of G = 1.0 m/s^2
+inertia couple = 0.1333 N m
+</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Using the moment of inertia about the pin, I<sub>O</sub> = m L² / 3, in place of I<sub>G</sub> = m L² / 12 when writing the inertia couple about G. The couple is always about the centre of mass. The pin moment of inertia is used only when you take moments about the pin, as in Concept 6.</p></div>
+  <details class="check"><summary>Question 5: For a uniform rod, what is I<sub>G</sub> in terms of m and L?</summary><div class="ans"><p>I<sub>G</sub> = m L² / 12.</p></div></details>
+  <details class="check"><summary>Question 6: A link rotates at constant angular velocity about a fixed pivot. What is its inertia couple?</summary><div class="ans"><p>Zero, because alpha is zero. The link still has a radial inertia force, from the centripetal acceleration of G.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Equivalent offset inertia force">
+  <h2>Concept 4: The equivalent offset inertia force</h2>
+  <p>Often a link has both an inertia force and an inertia couple at the same time. Two loads on one body are awkward to draw and to use. The equivalent offset inertia force combines them into a single force. We move the inertia force sideways, away from G, by a distance h, so that the force now produces the same turning effect as the couple.</p>
+  <p>The distance is:</p>
+  <div class="formula">h = M<sub>i</sub> / F<sub>i</sub> = I<sub>G</sub> alpha / (m a<sub>G</sub>)</div>
+  <p>Each symbol has a plain meaning. <strong>h</strong> is the offset distance from G, in m. <strong>M<sub>i</sub></strong> is the inertia couple, in N m. <strong>F<sub>i</sub></strong> is the inertia force, in N. The offset force acts at h from G, on the side that gives the same turning sense as the couple.</p>
+  <p>Here is a text picture. The inertia force is moved sideways by h from G, so its turning effect about G matches the original couple.</p>
+  <pre class="code" data-lang="text"><code>  Before: inertia force F_i at G, plus inertia couple M_i (a pure turning effect)
+
+            F_i
+            |
+            |
+            G  -----> couple M_i
+
+  After: the same effect as one force F_i, moved sideways by h
+
+            F_i
+            |
+            |  <-- line of action is shifted by h from G
+       G    |
+       ...  |
+
+  h = M_i / F_i
+</code></pre>
+  <p><strong>Worked example.</strong> Use the rod of Concept 3, with m a<sub>G</sub> = 2.0 N and M<sub>i</sub> = 0.1333 N m. Find the offset distance h.</p>
+  <ol>
+    <li>Write h = M<sub>i</sub> / F<sub>i</sub>.</li>
+    <li>Substitute: h = 0.1333 / 2.0 = 0.0667 m.</li>
+    <li>So the inertia force of 2 N acts 0.0667 m, or about 67 mm, from G.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>m = 2.0
+L = 0.4
+alpha = 5.0
+IG = m * L**2 / 12
+couple = IG * alpha
+Fi = m * alpha * L / 2
+h = couple / Fi
+print("offset h =", round(h, 4), "m")
+</code></pre>
+  <pre class="output">offset h = 0.0667 m
+</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>The offset formula h = I<sub>G</sub> alpha / (m a<sub>G</sub>) uses I<sub>G</sub>, the moment about the centre of mass. A question that gives the moment about the pin must first convert it using the parallel axis theorem, I<sub>O</sub> = I<sub>G</sub> + m (L/2)².</p></div>
+  <details class="check"><summary>Question 7: If the inertia couple is zero, what is the offset distance h?</summary><div class="ans"><p>Zero. The inertia force acts through G, so there is no offset.</p></div></details>
+  <details class="check"><summary>Question 8: Which moment of inertia appears in the offset formula?</summary><div class="ans"><p>The moment of inertia about the centre of mass, I<sub>G</sub>.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Shaking force and moment">
+  <h2>Concept 5: Shaking force and shaking moment</h2>
+  <p>A machine is bolted to a floor or a frame. Every moving link pushes on the frame through its joints, and the sum of these pushes is the shaking force. If the forces do not cancel, the machine shakes. The sum of the turning effects is the shaking moment, which tries to rock the frame.</p>
+  <p>The simplest case is one rotating unbalanced mass. Suppose a mass m sits at radius r on a shaft that turns at omega. The mass has a centripetal acceleration of omega² r towards the shaft, so its inertia force has magnitude:</p>
+  <div class="formula">F = m r omega²</div>
+  <p>This force turns with the shaft. It is a rotating force, and the frame feels it as a vibration at the speed of the shaft. To cancel it, we add a second mass of the same m r at the same radius, placed on the opposite side of the shaft. The two inertia forces point in opposite directions, and their sum is zero. This is the principle of balancing.</p>
+  <pre class="code" data-lang="text"><code>  One unbalanced mass: shaking force = m r omega^2, rotating with the shaft.
+
+       m (at radius r)
+       o
+       |
+   ----+----  shaft (turns at omega)
+
+  Two equal masses on opposite sides (same m r): forces cancel.
+
+       m          the two inertia forces point opposite ways
+       o          and their sum is zero
+       |
+   ----+----
+       |
+       o  m
+</code></pre>
+  <p>For a slider-crank, the piston is also a moving mass. Its inertia force is F<sub>p</sub> = m<sub>p</sub> a<sub>p</sub>, where a<sub>p</sub> is the piston acceleration. Its value changes with the crank angle. Take the piston mass m<sub>p</sub> = 0.5 kg. At the configuration of Concept 5 in the kinematics page, with r = 0.1 m, l = 0.4 m and omega = 10 rad/s, the piston acceleration at 90 degrees is 2.58 m/s². So the piston inertia force is 0.5 × 2.58 = 1.29 N. The shaking force of the whole mechanism adds this to the inertia forces of the crank and the rod.</p>
+  <pre class="code" data-lang="python"><code>import math
+w, r, l = 10.0, 0.1, 0.4
+a = w**2 * r**2 / math.sqrt(l**2 - r**2)
+mp = 0.5
+print("piston acceleration =", round(a, 2), "m/s^2")
+print("piston inertia force =", round(mp * a, 2), "N")
+</code></pre>
+  <pre class="output">piston acceleration = 2.58 m/s^2
+piston inertia force = 1.29 N
+</pre>
+  <div class="note key"><p><span class="t">Key idea</span>The shaking force from one unbalanced rotating mass is m r omega². It grows with the square of the speed, which is why unbalanced machines shake badly at high speed.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Assuming that two equal masses always cancel. They cancel only if they are at the same radius and on opposite sides of the shaft, with equal values of m r. Equal masses at different radii do not cancel fully.</p></div>
+  <details class="check"><summary>Question 9: What is the shaking force from a single rotating mass of 2 kg at radius 0.05 m, with omega = 20 rad/s?</summary><div class="ans"><p>F = m r omega² = 2 × 0.05 × 400 = 40 N.</p></div></details>
+  <details class="check"><summary>Question 10: Why does a faster machine shake much more than a slow one?</summary><div class="ans"><p>Because the inertia force from a rotating mass is proportional to omega squared, so doubling the speed makes it four times larger.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Force analysis of a link">
+  <h2>Concept 6: Force analysis of a link and the torque to drive it</h2>
+  <p>A useful GATE result links the inertia and the torque needed to drive a link about its pivot. Take the same rod pinned at one end, with zero angular velocity at the instant. The inertia loads act on the rod, and the driving torque at the pin must overcome them. The easiest way to find the torque is to take moments about the pin O.</p>
+  <p>About O, the inertia force and couple together give a total moment equal to the moment of inertia about O times alpha. This follows from the parallel axis theorem:</p>
+  <div class="formula">I<sub>O</sub> = I<sub>G</sub> + m (L/2)² = m L² / 3</div>
+  <p>The torque needed at the pin, to accelerate the rod, is therefore:</p>
+  <div class="formula">T = I<sub>O</sub> × alpha = (m L² / 3) × alpha</div>
+  <p><strong>Worked example.</strong> Using m = 2 kg, L = 0.4 m, alpha = 5 rad/s², find the torque at the pin.</p>
+  <ol>
+    <li>Find I<sub>O</sub> = m L² / 3 = 2 × 0.16 / 3 = 0.10667 kg m².</li>
+    <li>Find T = I<sub>O</sub> alpha = 0.10667 × 5 = 0.5333 N m.</li>
+    <li>Check: I<sub>G</sub> + m (L/2)² = 0.02667 + 2 × 0.04 = 0.10667, which matches.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>m = 2.0
+L = 0.4
+alpha = 5.0
+IO = m * L**2 / 3
+print("torque needed =", round(IO * alpha, 4), "N m")
+</code></pre>
+  <pre class="output">torque needed = 0.5333 N m
+</pre>
+  <div class="note tip"><p><span class="t">Tip</span>When a question asks for the torque on a single pivoted link, taking moments about the pin is usually quicker than finding the reaction at the pin first.</p></div>
+  <details class="check"><summary>Question 11: Why does taking moments about the pin avoid the reaction force at the pin?</summary><div class="ans"><p>The reaction at the pin has zero moment about the pin, so it does not appear in the moment equation.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table with you. Each row gives the formula, what it means, and when to use it.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>F<sub>i</sub> = −m a<sub>G</sub></td><td>Inertia force of a link</td><td>Every moving link in a dynamic analysis</td></tr>
+      <tr><td>M<sub>i</sub> = −I<sub>G</sub> alpha</td><td>Inertia couple of a link</td><td>Links with angular acceleration</td></tr>
+      <tr><td>h = I<sub>G</sub> alpha / (m a<sub>G</sub>)</td><td>Offset of the equivalent inertia force</td><td>Replacing force and couple by one offset force</td></tr>
+      <tr><td>I<sub>G</sub> = m L² / 12</td><td>Uniform rod about its centre</td><td>Rod inertia loads</td></tr>
+      <tr><td>I<sub>O</sub> = m L² / 3</td><td>Uniform rod about one end</td><td>Torque on a pivoted rod</td></tr>
+      <tr><td>I<sub>O</sub> = I<sub>G</sub> + m d²</td><td>Parallel axis theorem</td><td>Changing the axis of a moment of inertia</td></tr>
+      <tr><td>F = m r omega²</td><td>Shaking force from one unbalanced mass</td><td>Rotating unbalanced masses</td></tr>
+      <tr><td>F<sub>p</sub> = m<sub>p</sub> a<sub>p</sub></td><td>Piston inertia force</td><td>Slider-crank dynamics</td></tr>
+      <tr><td>T = I<sub>O</sub> alpha</td><td>Torque to accelerate a pivoted link</td><td>Single link about a pin</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions. Try each one on paper first.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Statements about static and dynamic analysis</h3>
+    <div class="statement"><p>Which of the following statements about static and dynamic force analysis of a linkage are correct? Select all that apply.</p>
+    <p>(A) Dynamic analysis includes the inertia forces of moving links.<br>(B) Static analysis is always more accurate for a fast machine.<br>(C) The inertia force of a link acts in the same direction as its acceleration.<br>(D) Dynamic analysis uses kinematics to find accelerations first.</p>
+    <p>Select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct. This is an MSQ.</li>
+      <li><strong>Which idea applies.</strong> The three stages of a dynamic analysis and the sign of the inertia force.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is false, because a fast machine needs the inertia forces. (C) is false, because F<sub>i</sub> = −m a<sub>G</sub> points opposite. (D) is true, because accelerations come from kinematics.</li>
+      <li><strong>Check.</strong> Two statements match the method, and two break the sign or the purpose of the inertia loads.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D) only.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Inertia force of a link</h3>
+    <div class="statement"><p>A link of mass 3 kg has an acceleration of its centre of mass of 2 m/s². What is the magnitude of its inertia force, in N? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The inertia force magnitude in N.</li>
+      <li><strong>Which idea applies.</strong> F<sub>i</sub> = m a<sub>G</sub>, in magnitude.</li>
+      <li><strong>Work it out.</strong> F<sub>i</sub> = 3 × 2 = 6 N.</li>
+      <li><strong>Check.</strong> A 3 kg mass pushed with 2 m/s² needs about 6 N, as Newton's second law says.</li>
+    </ol>
+    <p class="cx">Answer: 6 N.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Shaking force of an unbalanced mass</h3>
+    <div class="statement"><p>A 2 kg mass sits at a radius of 0.05 m on a shaft that turns at 20 rad/s. What is the magnitude of the shaking force from this mass, in N? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The shaking force in N.</li>
+      <li><strong>Which idea applies.</strong> F = m r omega².</li>
+      <li><strong>Work it out.</strong> omega² = 400. So F = 2 × 0.05 × 400 = 40 N.</li>
+      <li><strong>Check.</strong> Doubling the speed to 40 rad/s would give 160 N, four times as large, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 40 N.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Offset distance of the inertia force</h3>
+    <div class="statement"><p>A uniform link of mass 1 kg and length 0.6 m is pinned at one end. At the instant considered, its angular acceleration is 4 rad/s² and its angular velocity is zero. Find the offset distance h, in m, of the equivalent inertia force from the centre of mass, to three decimal places. This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> h in m, to three decimal places.</li>
+      <li><strong>Which idea applies.</strong> h = I<sub>G</sub> alpha / (m a<sub>G</sub>).</li>
+      <li><strong>Work it out.</strong> I<sub>G</sub> = m L² / 12 = 1 × 0.36 / 12 = 0.03. Then a<sub>G</sub> = alpha × L/2 = 4 × 0.3 = 1.2 m/s². So m a<sub>G</sub> = 1.2 N. Then h = 0.03 × 4 / 1.2 = 0.12 / 1.2 = 0.100 m.</li>
+      <li><strong>Check.</strong> Notice that h = (L²/12) alpha / ((L/2) alpha) = L / 6 = 0.6 / 6 = 0.1 m. The angular acceleration cancels, which is a useful shortcut for a uniform rod.</li>
+    </ol>
+    <p class="cx">Answer: 0.100 m.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which inertia loads are present</h3>
+    <div class="statement"><p>A link rotates about a fixed pivot at a constant angular velocity. Which of the following inertia loads are present at its centre of mass? Select all that apply.</p>
+    <p>(A) A radial inertia force directed away from the pivot.<br>(B) A radial inertia force directed towards the pivot.<br>(C) An inertia couple.<br>(D) A tangential inertia force.</p>
+    <p>Select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which inertia loads are present. This is an MSQ.</li>
+      <li><strong>Which idea applies.</strong> Constant angular velocity means alpha = 0, but the centre of mass still has radial acceleration towards the pivot.</li>
+      <li><strong>Work it out.</strong> The centripetal acceleration points towards the pivot, so the inertia force points away from it: (A) is true. (B) is false. There is no angular acceleration, so there is no inertia couple: (C) is false. The tangential acceleration is zero, so there is no tangential inertia force: (D) is false.</li>
+      <li><strong>Check.</strong> Only the radial inertia force remains, which matches the rule that the inertia force opposes the acceleration.</li>
+    </ol>
+    <p class="cx">Answer: (A) only.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Torque to accelerate a pivoted link</h3>
+    <div class="statement"><p>A uniform rod of mass 3 kg and length 0.5 m is pinned at one end. At the instant considered, it has zero angular velocity and angular acceleration 8 rad/s². Find the torque that must be applied at the pin, in N m, to two decimal places. Neglect gravity. This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The pin torque in N m.</li>
+      <li><strong>Which idea applies.</strong> T = I<sub>O</sub> alpha, with I<sub>O</sub> = m L² / 3.</li>
+      <li><strong>Work it out.</strong> I<sub>O</sub> = 3 × 0.25 / 3 = 0.25 kg m². T = 0.25 × 8 = 2.00 N m.</li>
+      <li><strong>Check.</strong> Using the centre of mass route: I<sub>G</sub> = 3 × 0.25 / 12 = 0.0625, and m (L/2)² = 3 × 0.0625 = 0.1875. Their sum is 0.25, which matches. So the answer is consistent.</li>
+    </ol>
+    <p class="cx">Answer: 2.00 N m.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about shaking force</h3>
+    <div class="statement"><p>Which of the following statements about shaking force and balancing are correct? Select all that apply.</p>
+    <p>(A) A single rotating unbalanced mass produces a shaking force of m r omega².<br>(B) Two equal masses at the same radius on opposite sides of a shaft have zero net shaking force.<br>(C) The shaking force from a rotating mass is independent of the speed.<br>(D) Equal masses at different radii always cancel.</p>
+    <p>Select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct. This is an MSQ.</li>
+      <li><strong>Which idea applies.</strong> F = m r omega² and the balancing condition.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true, because the forces are equal and opposite at the same radius. (C) is false, because the force depends on omega squared. (D) is false, because the radii must be equal for full cancellation.</li>
+      <li><strong>Check.</strong> Two statements match the formula and the balancing rule, and the two false ones use the wrong dependence on speed or radius.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B) only.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Piston inertia in a slider-crank</h3>
+    <div class="statement"><p>A slider-crank has crank radius 0.2 m, connecting rod length 0.5 m, and the crank turns at a constant 5 rad/s. The piston mass is 2 kg. At the instant the crank is at 90 degrees, find the magnitude of the piston inertia force, in N, to two decimal places. Use the piston acceleration a = omega² r² / √(l² − r²). This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The piston inertia force magnitude in N.</li>
+      <li><strong>Which idea applies.</strong> The piston acceleration at 90 degrees, then F<sub>p</sub> = m<sub>p</sub> a<sub>p</sub>.</li>
+      <li><strong>Work it out.</strong> omega² r² = 25 × 0.04 = 1.0. l² − r² = 0.21, and √0.21 = 0.45826. So a = 1.0 / 0.45826 = 2.182 m/s². Then F<sub>p</sub> = 2 × 2.182 = 4.36 N.</li>
+      <li><strong>Check.</strong> The piston acceleration matches the value 2.18 m/s² found in the kinematics page for the same data. Multiplying by the mass gives 4.36 N.</li>
+    </ol>
+    <p class="cx">Answer: 4.36 N.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Sign of the inertia force</h3>
+    <div class="statement"><p>A link speeds up in the positive x direction, so its centre of mass has acceleration +4 m/s² along x. What is the x component of its inertia force, in N, for a link of mass 2 kg? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The x component of the inertia force in N.</li>
+      <li><strong>Which idea applies.</strong> F<sub>i</sub> = −m a<sub>G</sub>.</li>
+      <li><strong>Work it out.</strong> F<sub>ix</sub> = −2 × 4 = −8 N.</li>
+      <li><strong>Check.</strong> The inertia force is negative, which is opposite to the positive acceleration, as the rule requires.</li>
+    </ol>
+    <p class="cx">Answer: −8 N.</p>
+  </article>
+
+  <pre class="code" data-lang="python"><code>import math
+w, r, l = 5.0, 0.2, 0.5
+a = w**2 * r**2 / math.sqrt(l**2 - r**2)
+print("piston acceleration =", round(a, 3), "m/s^2")
+print("piston inertia force =", round(2 * a, 2), "N")
+</code></pre>
+  <pre class="output">piston acceleration = 2.182 m/s^2
+piston inertia force = 4.36 N
+</pre>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Inertia force in a slider crank (NAT, 2 marks)</h3>
+    <div class="statement"><p>A reciprocating mass of 2 kg is driven by a crank of 0.1 m at 300 rpm with rod ratio n = 4. Find the inertia force at θ = 0°, correct to 1 decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> F = mω²r(cos θ + cos 2θ/n).</li>
+      <li><strong>Which idea applies.</strong> Approximate slider acceleration.</li>
+      <li><strong>Work it out.</strong> ω = 31.416. mω²r = 197.4 N. Times 1.25 = 246.7 N.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+w = 300 * 2 * math.pi / 60
+print("%.1f N" % (2 * w * w * 0.1 * (1 + 1 / 4)))
+</code></pre>
+    <pre class="output">246.7 N</pre>
+    <p class="cx">Answer: about 246.7 N.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Flywheel energy (NAT, 2 marks)</h3>
+    <div class="statement"><p>A flywheel has I = 10 kg·m² and mean speed 300 rpm. The speed fluctuates by ±1%. Find the energy fluctuation in J, correct to 1 decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> ΔE = Iω²C<sub>s</sub>.</li>
+      <li><strong>Which idea applies.</strong> C<sub>s</sub> = 0.02 for ±1%.</li>
+      <li><strong>Work it out.</strong> ω = 31.416, ω² = 986.96. ΔE = 10 · 986.96 · 0.02 = 197.4 J.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+w = 300 * 2 * math.pi / 60
+print("%.1f J" % (10 * w * w * 0.02))
+</code></pre>
+    <pre class="output">197.4 J</pre>
+    <p class="cx">Answer: about 197.4 J.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: D'Alembert (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) D'Alembert's principle turns a dynamics problem into one of static equilibrium. (B) The inertia force acts opposite to acceleration. (C) Inertia torque is −Iα. (D) The method ignores gravity.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The principle's statements.</li>
+      <li><strong>Which idea applies.</strong> Add −ma and −Iα, then apply statics.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) Gravity is included as a normal external force. False.</li>
+      <li><strong>Check.</strong> Turning moment diagrams use this method.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Static analysis</dt><dd>Forces with inertia ignored. Precise definition: equilibrium with applied loads only.</dd></div>
+    <div><dt>Dynamic analysis</dt><dd>Forces with inertia included. Precise definition: equilibrium with inertia loads added.</dd></div>
+    <div><dt>D'Alembert's principle</dt><dd>Moving bodies analysed as in equilibrium with inertia loads. Precise definition: sum of forces and moments is zero with F<sub>i</sub> and M<sub>i</sub> added.</dd></div>
+    <div><dt>Inertia force</dt><dd>Minus mass times acceleration of G. Precise definition: F<sub>i</sub> = −m a<sub>G</sub>.</dd></div>
+    <div><dt>Inertia couple</dt><dd>Minus moment of inertia times angular acceleration. Precise definition: M<sub>i</sub> = −I<sub>G</sub> alpha.</dd></div>
+    <div><dt>Mass moment of inertia about G</dt><dd>Resistance to angular acceleration about the centre of mass. Precise definition: I<sub>G</sub> = m L² / 12 for a uniform rod.</dd></div>
+    <div><dt>Equivalent offset inertia force</dt><dd>One force moved sideways to match the couple. Precise definition: h = I<sub>G</sub> alpha / (m a<sub>G</sub>).</dd></div>
+    <div><dt>Shaking force</dt><dd>Net inertia force transmitted to the frame. Precise definition: vector sum of inertia forces of moving links.</dd></div>
+    <div><dt>Shaking moment</dt><dd>Net turning effect transmitted to the frame. Precise definition: sum of moments of inertia loads.</dd></div>
+    <div><dt>Unbalanced mass</dt><dd>A rotating mass not cancelled by another. Precise definition: causes a shaking force m r omega².</dd></div>
+    <div><dt>Balancing</dt><dd>Adding masses to reduce shaking. Precise definition: makes the net shaking force or moment smaller.</dd></div>
+    <div><dt>Parallel axis theorem</dt><dd>Moves a moment of inertia to a new axis. Precise definition: I<sub>O</sub> = I<sub>G</sub> + m d².</dd></div>
+    <div><dt>Torque to accelerate a pivoted link</dt><dd>Moment about the pin. Precise definition: T = I<sub>O</sub> alpha.</dd></div>
+    <div><dt>Piston inertia force</dt><dd>Mass times piston acceleration. Precise definition: F<sub>p</sub> = m<sub>p</sub> a<sub>p</sub>.</dd></div>
+    <div><dt>Free-body diagram</dt><dd>Sketch of one body with all loads. Precise definition: shows every external and inertia load.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Dynamic analysis is static analysis with the inertia loads added.</li>
+    <li>The inertia force is F<sub>i</sub> = −m a<sub>G</sub>, opposite to the acceleration.</li>
+    <li>The inertia couple is M<sub>i</sub> = −I<sub>G</sub> alpha, opposite to the angular acceleration.</li>
+    <li>The offset distance is h = I<sub>G</sub> alpha / (m a<sub>G</sub>), and for a uniform rod h = L/6 when the rod pivots at one end.</li>
+    <li>The torque at a pin is T = I<sub>O</sub> alpha, with I<sub>O</sub> = m L² / 3 for a uniform rod.</li>
+    <li>A single unbalanced rotating mass gives a shaking force m r omega².</li>
+    <li>Use the moment of inertia about G for inertia couples, and about the pin only when taking moments about the pin.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 176?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 176 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-175.html"><small>Previous, topic 175</small>Displacement, velocity, acceleration analysis of plane mechanisms</a><a class="next" href="gate-177.html"><small>Next, topic 177</small>Gears and gear trains</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

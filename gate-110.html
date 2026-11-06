@@ -1,0 +1,457 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 110: Dimensionality reduction & PCA</title><meta name="description" content="Real data often has many features, and many of them repeat the same information. Dimensionality reduction squeezes data into fewer features while losing as little as possible. Principal Component Analysis (PCA) is the standard method. It finds the directions in which the data varies most, using the covariance matrix and its eigenvalues. GATE Data Science and AI asks for PCA steps and small numerical eigenvalue calculations."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g110" data-key="g110" data-noun="topic" data-num="110" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Dimensionality reduction &amp; PCA</h1>
+<p class="lede">Real data often has many features, and many of them repeat the same information. Dimensionality reduction squeezes data into fewer features while losing as little as possible. Principal Component Analysis (PCA) is the standard method. It finds the directions in which the data varies most, using the covariance matrix and its eigenvalues. GATE Data Science and AI asks for PCA steps and small numerical eigenvalue calculations.</p>
+<div class="station"><b>110</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Why fewer dimensions help: the curse of dimensionality</li><li>Centring the data and the covariance matrix</li><li>Eigenvalues and eigenvectors as principal components</li><li>Variance explained and choosing the number of components</li><li>Standardising features and the link to SVD</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Imagine a photograph of a tilted coin. The picture has millions of pixels, but the coin itself is just a circle. Its shape can be described with a few numbers: where its centre is, how big it is, and how much it is tilted. A few numbers capture almost everything that matters. That is the spirit of <strong>dimensionality reduction</strong>: describe each data point with fewer numbers, while keeping the information you care about.</p>
+
+  <p>Suppose each person in a survey is described by height in centimetres and height in inches. These two features are almost the same information written twice. We can drop one of them and lose almost nothing. Real datasets are full of such repeats. Dimensionality reduction finds them.</p>
+
+  <p><strong>Principal Component Analysis (PCA)</strong> is the standard method. It looks for the direction in which the data is most spread out, then the next direction at right angles to it that is most spread out, and so on. These directions are called <strong>principal components</strong>. If the data is spread out mostly along one direction, we can keep just that one.</p>
+
+  <p>Why does this matter for GATE? The Data Science and AI paper asks you to state the steps of PCA, compute eigenvalues of small covariance matrices, and say how much variance a component keeps. Each term is defined below, and each calculation is checked with Python.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Feature (dimension)</dt><dd>One measurement in each data point. Precise: a coordinate, so d features give points in d-dimensional space.</dd></div>
+    <div><dt>Dimensionality reduction</dt><dd>Representing data with fewer features. Precise: mapping d-dimensional points to k dimensions, with k less than d.</dd></div>
+    <div><dt>Curse of dimensionality</dt><dd>Problems that grow as the number of features grows. Precise: in high dimensions, most of the volume lies far from the centre, and data becomes sparse.</dd></div>
+    <div><dt>Mean</dt><dd>The average of each feature. Precise: the sum of the values divided by the number of points.</dd></div>
+    <div><dt>Centring</dt><dd>Subtracting the mean from each feature. Precise: each feature of the centred data has mean zero.</dd></div>
+    <div><dt>Variance</dt><dd>How spread out one feature is. Precise: the average squared distance of its values from their mean.</dd></div>
+    <div><dt>Covariance</dt><dd>How two features vary together. Precise: positive if they rise together, negative if one rises as the other falls, zero if unrelated.</dd></div>
+    <div><dt>Covariance matrix</dt><dd>A table of variances and covariances. Precise: a square matrix whose entry (i, j) is the covariance of feature i and feature j.</dd></div>
+    <div><dt>Eigenvector</dt><dd>A direction that a matrix only stretches, not turns. Precise: a non-zero vector v with Cv = λv.</dd></div>
+    <div><dt>Eigenvalue λ (lambda)</dt><dd>How much an eigenvector is stretched. Precise: the number λ in Cv = λv.</dd></div>
+    <div><dt>Principal component</dt><dd>A direction of maximum remaining variance. Precise: a unit eigenvector of the covariance matrix, usually ordered by eigenvalue.</dd></div>
+    <div><dt>Variance explained</dt><dd>The share of total variance kept by a component. Precise: its eigenvalue divided by the sum of all eigenvalues.</dd></div>
+    <div><dt>Standardising</dt><dd>Rescaling each feature to a common scale. Precise: subtract the mean and divide by the standard deviation.</dd></div>
+    <div><dt>SVD (singular value decomposition)</dt><dd>A way to split a matrix into rotations and stretches. Precise: any matrix X can be written as U Σ V<sup>T</sup>, and PCA can be computed from it.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Why fewer dimensions">
+  <h2>Concept 1: Why fewer dimensions help, and the curse of dimensionality</h2>
+
+  <h3>Redundancy is the first reason</h3>
+  <p>If two features carry the same information, keeping both wastes effort and adds noise. Removing redundant features makes models faster and often more accurate, because there are fewer chances to fit noise.</p>
+
+  <h3>The curse of dimensionality</h3>
+  <p>The second reason is harder to see. As the number of features grows, the space becomes enormous, and a fixed amount of data covers it more and more thinly. Distances between points also start to look alike, which makes "nearest" less meaningful. A useful fact to picture: take a cube, and the ball inscribed in it that touches each face. In low dimensions the ball fills much of the cube. In high dimensions the ball fills almost none of it.</p>
+
+  <p>Let us measure this. The code uses the formula for the volume of a ball of radius 1 in d dimensions, and compares it with the volume of the cube from −1 to 1 in each direction, which is 2<sup>d</sup>.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+for d in [2, 3, 10]:
+    vol_ball = math.pi ** (d / 2) / math.gamma(d / 2 + 1)
+    vol_cube = 2 ** d
+    print("d =", d, "fraction =", round(vol_ball / vol_cube, 4))</code></pre>
+  <pre class="output">d = 2 fraction = 0.7854
+d = 3 fraction = 0.5236
+d = 10 fraction = 0.0025</pre>
+
+  <p>Read the output. In 2 dimensions, about 79 percent of the square lies inside the circle. In 3 dimensions, about 52 percent of the cube lies inside the ball. In 10 dimensions, only about 0.25 percent lies inside. Most of the volume sits near the corners, far from the centre. This is why data in high dimensions is so sparse, and why many methods need far more examples as dimensions grow.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>More features make data sparse. Reducing dimensions keeps the data in the region where the examples actually are.</p></div>
+
+  <details class="check"><summary>Why does the curse of dimensionality make nearest-neighbour methods harder?</summary><div class="ans"><p>In high dimensions, points are spread thinly, so the nearest neighbour of a point is often not very near. Distances become less informative, and more data is needed to find genuinely similar examples.</p></div></details>
+
+  <details class="check"><summary>Does dimensionality reduction always lose information?</summary><div class="ans"><p>Usually a little, yes. The aim is to lose only the directions that carry little variance or are redundant, and to keep the rest.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Centring and covariance">
+  <h2>Concept 2: Centring the data and the covariance matrix</h2>
+
+  <h3>Step 1: centre the data</h3>
+  <p>PCA cares about spread around the middle, not about where the middle sits. So we first subtract the mean of each feature from every point. After this, each feature has mean zero. This is called <strong>centring</strong>. If the data is already centred, nothing changes.</p>
+
+  <h3>Step 2: the covariance matrix</h3>
+  <p>For centred data, the covariance of two features is the average product of their values:</p>
+  <div class="formula">cov(x, y) = (1/n) × Σ x<sub>i</sub> y<sub>i</sub></div>
+  <ul>
+    <li><strong>n</strong> is the number of points.</li>
+    <li><strong>x<sub>i</sub></strong> and <strong>y<sub>i</sub></strong> are the two feature values for point i, after centring.</li>
+    <li>The variance of x is the same formula with y replaced by x, so var(x) = cov(x, x).</li>
+  </ul>
+  <p>Some textbooks divide by n − 1 instead of n. That scales every entry by the same factor. The eigenvectors stay the same, and the eigenvalues are multiplied by the same constant, so the choices of components do not change. This page uses 1/n.</p>
+
+  <h3>A worked example</h3>
+  <p>Take four points: (1, 0), (−1, 0), (0, 2) and (0, −2). Their mean is (0, 0), so they are already centred. Now compute each entry of the covariance matrix by hand.</p>
+  <ol>
+    <li>Variance of x: values 1, −1, 0, 0. Squares 1, 1, 0, 0. Sum 2. Divide by 4: 2/4 = 1/2.</li>
+    <li>Variance of y: values 0, 0, 2, −2. Squares 0, 0, 4, 4. Sum 8. Divide by 4: 8/4 = 2.</li>
+    <li>Covariance of x and y: products 1 × 0, (−1) × 0, 0 × 2, 0 × (−2) are all 0. Sum 0. Divide by 4: 0.</li>
+  </ol>
+  <p>So the covariance matrix is [[1/2, 0], [0, 2]]. The y feature varies four times as much as the x feature, and the two are unrelated. The Python run in the next concept confirms these numbers.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Always centre first. Forgetting to subtract the mean is one of the most common PCA mistakes, and it changes the covariance matrix.</p></div>
+
+  <details class="check"><summary>What is the mean of the four points (3, 1), (5, 1), (4, 0) and (4, 2)?</summary><div class="ans"><p>x: (3 + 5 + 4 + 4)/4 = 16/4 = 4. y: (1 + 1 + 0 + 2)/4 = 4/4 = 1. The mean is (4, 1), so the centred points are (−1, 0), (1, 0), (0, −1), (0, 1).</p></div></details>
+
+  <details class="check"><summary>What does a covariance of zero mean?</summary><div class="ans"><p>The two features are uncorrelated in a linear sense: knowing one tells you nothing linear about the other. A covariance of zero does not always mean full independence, but it is the case we use here.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Eigenvalues as components">
+  <h2>Concept 3: Eigenvalues and eigenvectors as principal components</h2>
+
+  <h3>What an eigenvector is</h3>
+  <p>Multiply a matrix C by a vector v. Usually the result points in a new direction. For special vectors, the result points in the same direction, only stretched. Those are the eigenvectors. Written out:</p>
+  <div class="formula">C v = λ v</div>
+  <ul>
+    <li><strong>C</strong> is the covariance matrix.</li>
+    <li><strong>v</strong> is an eigenvector, a non-zero direction.</li>
+    <li><strong>λ</strong> is the eigenvalue, the stretch factor along v.</li>
+  </ul>
+  <p>For a covariance matrix, the eigenvectors are the principal directions and the eigenvalues are the variances along them.</p>
+
+  <h3>Checking eigenvectors by hand</h3>
+  <p>For the covariance matrix C = [[1/2, 0], [0, 2]] from Concept 2, try the vector (0, 1):</p>
+  <ol>
+    <li>C times (0, 1) = (1/2 × 0 + 0 × 1, 0 × 0 + 2 × 1) = (0, 2).</li>
+    <li>(0, 2) is 2 times (0, 1), so (0, 1) is an eigenvector with eigenvalue 2.</li>
+    <li>Try (1, 0): C times (1, 0) = (1/2, 0), which is 1/2 times (1, 0). So (1, 0) has eigenvalue 1/2.</li>
+  </ol>
+  <p>The largest eigenvalue, 2, belongs to the direction (0, 1), which is the y axis. That is the direction of greatest spread, so it is the first principal component.</p>
+
+  <h3>The formula for a 2 by 2 matrix</h3>
+  <p>For a symmetric 2 by 2 matrix [[a, b], [b, d]], the eigenvalues are:</p>
+  <div class="formula">λ = (a + d)/2 ± √( ((a − d)/2)² + b² )</div>
+  <p>The sum (a + d) is the trace, the total of the diagonal. Check it on the matrix above, with a = 1/2, b = 0 and d = 2: the middle is (1/2 + 2)/2 = 5/4, and the square root is √((−3/4)² + 0) = 3/4. So λ = 5/4 ± 3/4, which gives 2 and 1/2. These match the hand check.</p>
+
+  <p>Now a fuller example with exact integers. Take C = [[3, 1], [1, 3]]. The Python code tests two candidate directions and computes the trace and determinant.</p>
+  <pre class="code" data-lang="python"><code>C = [[3, 1], [1, 3]]
+
+def matvec(M, v):
+    return [M[0][0] * v[0] + M[0][1] * v[1], M[1][0] * v[0] + M[1][1] * v[1]]
+
+for v in ([1, 1], [1, -1]):
+    Cv = matvec(C, v)
+    print("C times", v, "=", Cv, "so eigenvalue", Cv[0] // v[0])
+print("trace:", C[0][0] + C[1][1], "det:", C[0][0] * C[1][1] - C[0][1] * C[1][0])</code></pre>
+  <pre class="output">C times [1, 1] = [4, 4] so eigenvalue 4
+C times [1, -1] = [2, -2] so eigenvalue 2
+trace: 6 det: 8</pre>
+
+  <p>The eigenvalues are 4 and 2. The trace is 4 + 2 = 6, and the determinant is 4 × 2 = 8, which the output confirms. The eigenvector for 4 is (1, 1), and the eigenvector for 2 is (1, −1). These two directions are at right angles, which is always true for eigenvectors of a symmetric matrix such as a covariance matrix. For PCA we usually scale each eigenvector to length 1 by dividing by √2.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The principal components are the eigenvectors of the covariance matrix, ordered from the largest eigenvalue to the smallest. The eigenvalue tells you how much variance lies along that direction.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not mix up the eigenvalue with the eigenvector. The eigenvalue is a number, the stretch factor. The eigenvector is a direction, and the first principal component is the eigenvector with the largest eigenvalue.</p></div>
+
+  <details class="check"><summary>For C = [[2, 0], [0, 5]], which direction is the first principal component?</summary><div class="ans"><p>The y axis, direction (0, 1). Its eigenvalue is 5, which is larger than the eigenvalue 2 of the x axis.</p></div></details>
+
+  <details class="check"><summary>What are the eigenvalues of [[1, 0], [0, 1]]?</summary><div class="ans"><p>Both are 1. Every direction is stretched by 1, so every direction is an eigenvector, and no single direction is the principal one.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Variance explained">
+  <h2>Concept 4: Variance explained and choosing the number of components</h2>
+
+  <h3>Total variance is the sum of eigenvalues</h3>
+  <p>The total variance of the data is the sum of the variances of the features, which is the trace of the covariance matrix. This equals the sum of all the eigenvalues. So the share of variance kept by one component is:</p>
+  <div class="formula">Variance explained by component i = λ<sub>i</sub> / (λ<sub>1</sub> + λ<sub>2</sub> + … + λ<sub>d</sub>)</div>
+  <ul>
+    <li><strong>λ<sub>i</sub></strong> is the eigenvalue of component i.</li>
+    <li><strong>Denominator</strong> is the total variance, the sum of all the eigenvalues.</li>
+  </ul>
+
+  <h3>Applying it to the four-point example</h3>
+  <p>The covariance matrix of the four points was [[1/2, 0], [0, 2]]. Its eigenvalues are 2 and 1/2, and the total is 5/2. The first component keeps 2 / (5/2) = 4/5, which is 80 percent of the variance. The second keeps 20 percent. The Python code below computes this, then projects each point onto the first component.</p>
+
+  <p>The projection is the score: the dot product of the point with the unit eigenvector. Here the first component is (0, 1), the y axis.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+import math
+
+data = [(1, 0), (-1, 0), (0, 2), (0, -2)]
+n = len(data)
+mx = F(sum(p[0] for p in data), n)
+my = F(sum(p[1] for p in data), n)
+print("mean:", mx, my)
+centred = [(p[0] - mx, p[1] - my) for p in data]
+a = sum(p[0] * p[0] for p in centred) / n
+d = sum(p[1] * p[1] for p in centred) / n
+b = sum(p[0] * p[1] for p in centred) / n
+print(f"covariance matrix: [[{a}, {b}], [{b}, {d}]]")
+print("trace:", a + d, "determinant:", a * d - b * b)
+mid = (a + d) / 2
+spread = math.sqrt(((a - d) / 2) ** 2 + b * b)
+lam1 = mid + spread
+lam2 = mid - spread
+print("eigenvalues:", lam1, lam2)
+print("variance explained by PC1:", lam1 / (lam1 + lam2))
+u = (0, 1)   # the eigenvector for the largest eigenvalue, found by hand
+for p in data:
+    score = p[0] * u[0] + p[1] * u[1]
+    print("score on PC1 for", p, "=", score)</code></pre>
+  <pre class="output">mean: 0 0
+covariance matrix: [[1/2, 0], [0, 2]]
+trace: 5/2 determinant: 1
+eigenvalues: 2.0 0.5
+variance explained by PC1: 0.8
+score on PC1 for (1, 0) = 0
+score on PC1 for (-1, 0) = 0
+score on PC1 for (0, 2) = 2
+score on PC1 for (0, -2) = -2</pre>
+
+  <p>Read the output. The covariance matrix matches the hand calculation. The trace 5/2 equals 2 + 1/2, which is the sum of the eigenvalues. PC1 keeps 0.8, or 80 percent. The scores show that the points on the x axis all land at 0, while the points on the y axis land at 2 and −2. The one-dimensional summary keeps the information that matters most, the y spread.</p>
+
+  <h3>How many components to keep</h3>
+  <p>A common rule is to keep the smallest number of components whose cumulative variance explained reaches a target such as 90 percent. Another is to plot the eigenvalues in order, a <strong>scree plot</strong>, and look for an elbow, as in K-means. Both are rules of thumb, and the right choice depends on the task.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect questions that ask for the variance explained by the first component. Compute the eigenvalues, add them to get the total, then divide. Always check that the eigenvalues add up to the trace.</p></div>
+
+  <details class="check"><summary>If the eigenvalues of a 3-feature dataset are 6, 3 and 1, what share does the first component explain?</summary><div class="ans"><p>The total is 6 + 3 + 1 = 10, so the first component explains 6/10 = 60 percent.</p></div></details>
+
+  <details class="check"><summary>Why does the sum of eigenvalues equal the total variance?</summary><div class="ans"><p>The eigenvalues are the variances along the principal directions, and those directions together cover all the features. Adding them recovers the sum of the feature variances, which is the trace of the covariance matrix.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Standardising and SVD">
+  <h2>Concept 5: Standardising features and the link to SVD</h2>
+
+  <h3>Why units matter</h3>
+  <p>PCA maximises variance, so a feature measured in large units, such as centimetres of rainfall, can dominate one measured in small units, such as kilograms, just because its numbers are bigger. Before PCA, we often <strong>standardise</strong> each feature: subtract its mean and divide by its standard deviation. After this, every feature has variance 1, and the covariance matrix becomes a correlation matrix. Standardise whenever the features are on different scales.</p>
+
+  <h3>The link to SVD</h3>
+  <p>Stack the centred data points as the rows of a matrix X, with n rows and d columns. Then the covariance matrix is (1/n) times XᵀX. Any matrix can be split by the singular value decomposition:</p>
+  <div class="formula">X = U Σ V<sup>T</sup></div>
+  <ul>
+    <li><strong>U</strong> and <strong>V</strong> have orthonormal columns, meaning they are rotations.</li>
+    <li><strong>Σ</strong> is a diagonal matrix of singular values σ<sub>1</sub> ≥ σ<sub>2</sub> ≥ …</li>
+    <li>The columns of V are the principal directions, and the eigenvalues of the covariance matrix are σ<sub>i</sub>² / n.</li>
+  </ul>
+  <p>In practice, PCA is often computed with SVD, because it is numerically stable. For GATE, the key link is that the principal components are the right singular vectors of the centred data, and the eigenvalues are the squared singular values divided by n.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>PCA is unsupervised. It never looks at class labels. A high-variance direction may have nothing to do with the class you want to predict, so PCA can throw away a useful direction.</p></div>
+
+  <details class="check"><summary>Why should you standardise features with different units?</summary><div class="ans"><p>Otherwise the feature with the largest numbers dominates the variance, and PCA chooses its directions mostly because of units rather than because of real structure.</p></div></details>
+
+  <details class="check"><summary>Is PCA a supervised method?</summary><div class="ans"><p>No. It uses only the inputs and never the labels. That is why it can miss directions that separate classes.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>cov(x, y) = (1/n) Σ x<sub>i</sub>y<sub>i</sub> (centred data)</td><td>Average product of centred values</td><td>Building the covariance matrix</td></tr>
+      <tr><td>C v = λ v</td><td>Eigenvector v with eigenvalue λ</td><td>Finding principal directions</td></tr>
+      <tr><td>λ = (a + d)/2 ± √(((a − d)/2)² + b²)</td><td>Eigenvalues of [[a, b], [b, d]]</td><td>2 by 2 covariance matrices</td></tr>
+      <tr><td>Variance explained = λ<sub>i</sub> / Σλ</td><td>Share of total variance kept</td><td>Choosing components</td></tr>
+      <tr><td>Total variance = trace = Σλ</td><td>Check on eigenvalue work</td><td>Verifying your eigenvalues</td></tr>
+      <tr><td>X = U Σ V<sup>T</sup></td><td>Singular value decomposition</td><td>Computing PCA stably</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>What PCA looks for</h3>
+    <div class="statement"><p>Principal Component Analysis finds: (MCQ, select one)</p>
+      <p>(A) the directions of maximum variance in the data<br>(B) the class boundary between two labelled groups<br>(C) extra features that increase the dimension<br>(D) the number of clusters in the data</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> What PCA finds.</li>
+      <li><strong>Which idea applies.</strong> Principal components are directions of greatest spread.</li>
+      <li><strong>Work it out.</strong> (B) describes a classifier, which is supervised. (C) is the opposite of what PCA does. (D) is clustering. (A) is the definition.</li>
+      <li><strong>Check.</strong> The eigenvalue of each principal direction is the variance along it, which is a variance statement, as (A) says.</li>
+    </ol>
+    <p class="cx">Answer: (A).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>How many components are possible</h3>
+    <div class="statement"><p>A dataset has 3 features. What is the maximum number of principal components? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest number of components.</li>
+      <li><strong>Which idea applies.</strong> The covariance matrix is 3 by 3, so it has at most 3 eigenvectors.</li>
+      <li><strong>Work it out.</strong> Each feature gives one direction, so the maximum is 3.</li>
+      <li><strong>Check.</strong> The four-point example had 2 features and 2 components, which matches the rule.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Facts about PCA</h3>
+    <div class="statement"><p>Select all statements that are correct. (MSQ)</p>
+      <p>(A) The principal components are mutually orthogonal.<br>(B) The data should be centred before computing the covariance matrix.<br>(C) The eigenvalues of the covariance matrix add up to the total variance.<br>(D) PCA keeps the original features with the largest raw values.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which PCA statements are correct.</li>
+      <li><strong>Which idea applies.</strong> Eigenvectors of a symmetric matrix, centring, and the trace.</li>
+      <li><strong>Work it out.</strong> (A) is true: eigenvectors of a symmetric matrix with different eigenvalues are orthogonal. (B) is true: the covariance is defined on centred data. (C) is true: the sum of eigenvalues equals the trace. (D) is false: PCA builds new directions that are combinations of features, and does not select original ones.</li>
+      <li><strong>Check.</strong> The four-point example confirms (C): 2 + 1/2 = 5/2, the trace.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Largest eigenvalue of a 2 by 2 matrix</h3>
+    <div class="statement"><p>A covariance matrix is [[3, 1], [1, 3]]. Find its largest eigenvalue. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest eigenvalue.</li>
+      <li><strong>Which idea applies.</strong> Use the 2 by 2 formula with a = 3, b = 1, d = 3.</li>
+      <li><strong>Work it out.</strong> Middle: (3 + 3)/2 = 3. Spread: √((0)² + 1²) = 1. Eigenvalues: 3 + 1 = 4 and 3 − 1 = 2. The largest is 4.</li>
+      <li><strong>Check.</strong> Their sum is 6, which equals the trace 3 + 3. The Python run in Concept 3 showed the eigenvalue 4 for the direction (1, 1).</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Variance explained by the first component</h3>
+    <div class="statement"><p>A covariance matrix is [[5, 2], [2, 2]]. What share of the total variance does the first principal component explain? Give a decimal rounded to two places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> λ<sub>1</sub> / (λ<sub>1</sub> + λ<sub>2</sub>), rounded.</li>
+      <li><strong>Which idea applies.</strong> Find the eigenvalues, then divide.</li>
+      <li><strong>Work it out.</strong> Trace 5 + 2 = 7, determinant 5 × 2 − 2 × 2 = 6. So λ² − 7λ + 6 = 0, which factors as (λ − 6)(λ − 1) = 0. The eigenvalues are 6 and 1. Share: 6/7, about 0.86.</li>
+      <li><strong>Check.</strong> The Python run below finds the same eigenvalues by the formula and gives the rounded share.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+C = [[5, 2], [2, 2]]
+a, b, d = C[0][0], C[0][1], C[1][1]
+mid = (a + d) / 2
+spread = math.sqrt(((a - d) / 2) ** 2 + b * b)
+print("eigenvalues:", mid + spread, mid - spread)
+print("variance explained by PC1:", round((mid + spread) / (2 * mid), 2))</code></pre>
+    <pre class="output">eigenvalues: 6.0 1.0
+variance explained by PC1: 0.86</pre>
+    <p class="cx">Answer: 0.86</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Variance along the first component</h3>
+    <div class="statement"><p>Four centred points are (2, 0), (−2, 0), (0, 1) and (0, −1). Find the variance along the first principal component, which is the largest eigenvalue of the covariance matrix. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest eigenvalue of the covariance matrix.</li>
+      <li><strong>Which idea applies.</strong> Compute the covariance entries, then find the eigenvalues.</li>
+      <li><strong>Work it out.</strong> Variance of x: squares 4, 4, 0, 0 sum to 8, divided by 4 gives 2. Variance of y: squares 0, 0, 1, 1 sum to 2, divided by 4 gives 1/2. Covariance: all products are 0, so it is 0. The matrix is [[2, 0], [0, 1/2]], which is already diagonal. Its eigenvalues are 2 and 1/2, so the largest is 2.</li>
+      <li><strong>Check.</strong> The eigenvector for 2 is the x axis, which is where the points spread most, from −2 to 2.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about PCA and SVD are true</h3>
+    <div class="statement"><p>Select all that apply. (MSQ)</p>
+      <p>(A) The right singular vectors of the centred data matrix give the principal directions.<br>(B) Standardising features is useful when they are measured in different units.<br>(C) PCA uses class labels to choose its directions.<br>(D) If all features are uncorrelated and have equal variance, every direction is a principal component.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about PCA and SVD are correct.</li>
+      <li><strong>Which idea applies.</strong> The SVD link, standardising, and what PCA uses as input.</li>
+      <li><strong>Work it out.</strong> (A) is true: the columns of V are the principal directions. (B) is true: standardising stops large units from dominating. (C) is false: PCA is unsupervised. (D) is true: if the covariance matrix is a multiple of the identity, every direction is an eigenvector with the same eigenvalue, as in the check question in Concept 3.</li>
+      <li><strong>Check.</strong> Statement (C) contradicts the rule that PCA never uses labels.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Statement (C) is false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>The curse in numbers</h3>
+    <div class="statement"><p>The ball of radius 1 is inscribed in the cube from −1 to 1 in each direction. In 10 dimensions, what fraction of the cube's volume lies inside the ball? Give a decimal rounded to four places, using the same method as Concept 1. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The ball volume divided by the cube volume, for d = 10.</li>
+      <li><strong>Which idea applies.</strong> The volume of a unit ball in d dimensions is π<sup>d/2</sup> / Γ(d/2 + 1). The cube volume is 2<sup>d</sup>.</li>
+      <li><strong>Work it out.</strong> For d = 10: the ball volume is π<sup>5</sup> / 120, which is about 2.5502. The cube volume is 2<sup>10</sup> = 1024. The fraction is 2.5502 / 1024, which is about 0.0025.</li>
+      <li><strong>Check.</strong> The Concept 1 Python run printed 0.0025 for d = 10, matching this value.</li>
+    </ol>
+    <p class="cx">Answer: 0.0025</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Variance explained (NAT, 2 marks)</h3>
+    <div class="statement"><p>The covariance matrix of centred data has eigenvalues 6, 3, 0.6, 0.4. What fraction of variance do the first two principal components explain?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> (λ<sub>1</sub> + λ<sub>2</sub>)/Σλ.</li>
+      <li><strong>Which idea applies.</strong> Each PC captures variance equal to its eigenvalue.</li>
+      <li><strong>Work it out.</strong> 9/10 = 0.9.</li>
+      <li><strong>Check.</strong> The total variance equals the trace, 10.</li>
+    </ol>
+    <p class="cx">Answer: 0.9.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: First principal component (NAT, 2 marks)</h3>
+    <div class="statement"><p>For covariance matrix [[5, 2], [2, 2]], the first PC direction is (a, b) with a &gt; 0 and unit length. Find a, correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The top eigenvector of the covariance.</li>
+      <li><strong>Which idea applies.</strong> Solve (Σ − λI)v = 0 with the largest λ.</li>
+      <li><strong>Work it out.</strong> λ = 6 and 1. For λ = 6: −a + 2b = 0, so v ∝ (2, 1). Normalised: a = 2/√5 ≈ 0.894.</li>
+      <li><strong>Check.</strong> The code checks Σv = 6v.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+a, b = 2 / math.sqrt(5), 1 / math.sqrt(5)
+print("%.3f" % a, [round(5 * a + 2 * b, 6), round(6 * a, 6)])
+</code></pre>
+    <pre class="output">0.894 [5.366563, 5.366563]</pre>
+    <p class="cx">Answer: about 0.894.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: PCA facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) PCs are mutually orthogonal. (B) PCA should be run on centred data. (C) PCA is unaffected by scaling the features. (D) Projecting onto the top k PCs minimises the squared reconstruction error among rank-k projections.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of PCA.</li>
+      <li><strong>Which idea applies.</strong> PCs are eigenvectors of a symmetric matrix.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) Scaling changes the covariance, so the PCs change. False. (D) True.</li>
+      <li><strong>Check.</strong> This is why features are often standardised first.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and explain each line in your own words.</p>
+  <dl>
+    <div><dt>Dimensionality reduction</dt><dd>Describing data with fewer features while keeping most of the information.</dd></div>
+    <div><dt>Curse of dimensionality</dt><dd>In high dimensions data becomes sparse and most volume lies away from the centre.</dd></div>
+    <div><dt>Centring</dt><dd>Subtracting each feature's mean so that every feature has mean zero.</dd></div>
+    <div><dt>Covariance matrix</dt><dd>The table of variances and covariances of centred features.</dd></div>
+    <div><dt>Eigenvector</dt><dd>A direction that a matrix only stretches. Cv = λv.</dd></div>
+    <div><dt>Eigenvalue</dt><dd>The stretch factor, which equals the variance along that eigenvector.</dd></div>
+    <div><dt>Principal component</dt><dd>An eigenvector of the covariance matrix, ordered by eigenvalue.</dd></div>
+    <div><dt>Variance explained</dt><dd>λ<sub>i</sub> divided by the sum of all eigenvalues.</dd></div>
+    <div><dt>Trace</dt><dd>The sum of the diagonal, which equals the sum of the eigenvalues.</dd></div>
+    <div><dt>Score</dt><dd>The projection of a point onto a principal component.</dd></div>
+    <div><dt>Scree plot</dt><dd>A plot of eigenvalues in order, used to find an elbow.</dd></div>
+    <div><dt>Standardising</dt><dd>Rescaling features to mean 0 and variance 1, so units do not dominate.</dd></div>
+    <div><dt>SVD</dt><dd>X = UΣV<sup>T</sup>. The columns of V give the principal directions.</dd></div>
+    <div><dt>Unsupervised</dt><dd>PCA uses the inputs only and never the labels.</dd></div>
+    <div><dt>Covariance</dt><dd>How two features vary together. Positive when they rise together.</dd></div>
+    <div><dt>Variance</dt><dd>How spread out one feature is around its mean.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Centre the data before building the covariance matrix.</li>
+    <li>Principal components are eigenvectors of the covariance matrix, ordered by eigenvalue.</li>
+    <li>The sum of eigenvalues equals the total variance, which is the trace.</li>
+    <li>Variance explained by a component is its eigenvalue divided by the sum of all eigenvalues.</li>
+    <li>For a 2 by 2 matrix, use the formula with the middle (a + d)/2 and the spread.</li>
+    <li>Standardise features with different units before PCA.</li>
+    <li>PCA is unsupervised, so it can miss directions that separate classes.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 110?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 110 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-109.html"><small>Previous, topic 109</small>Hierarchical clustering (single/multi linkage)</a><a class="next" href="gate-111.html"><small>Next, topic 111</small>Uninformed search: BFS, DFS, UCS, IDDFS</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

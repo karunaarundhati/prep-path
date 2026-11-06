@@ -1,0 +1,488 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 104: Support Vector Machine</title><meta name="description" content="A Support Vector Machine separates two classes with the widest possible street between them. You will learn the hyperplane, the margin, the support vectors, the soft margin with its C parameter, the dual idea, and the kernel trick that bends the boundary without extra work."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g104" data-key="g104" data-noun="topic" data-num="104" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Support Vector Machine</h1>
+<p class="lede">A Support Vector Machine separates two classes with the widest possible street between them. You will learn the hyperplane, the margin, the support vectors, the soft margin with its C parameter, the dual idea, and the kernel trick that bends the boundary without extra work.</p>
+<div class="station"><b>104</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Hyperplanes and the maximum margin</li><li>Support vectors</li><li>Soft margin and the C parameter</li><li>Dual formulation</li><li>Kernels: linear, polynomial and RBF</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine two villages on either side of a river. You must build a road that separates them, and you want the safest possible road. Make it run down the middle of the gap between the villages, and make the gap as wide as you can. The road is then as far from both villages as possible. The houses closest to the road on each side are the ones that decide where it can go. The rest of the houses could be moved a little without changing the road at all.</p>
+  <p>A <strong>Support Vector Machine</strong>, or SVM, does exactly this with data. It finds the straight line (in two dimensions) or flat plane (in higher dimensions) that separates the two classes with the largest <strong>margin</strong>, which is the gap on either side. The points that touch the edges of the gap are the <strong>support vectors</strong>. They hold up the whole solution.</p>
+  <p>Why maximise the margin? A line that passes close to many points is fragile. A tiny change in a new point could push it to the wrong side. A line with a wide margin has room to spare, so it tends to classify new data correctly. This idea is central to the Machine Learning part of the Data Science and AI paper (DA). GATE questions ask about hyperplanes, margins, the role of the C parameter, the dual form, and which kernel suits which situation.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Each term returns later on the page.</p>
+  <dl>
+    <div><dt>Hyperplane</dt><dd>A flat boundary that splits space into two sides. In two dimensions it is a line, in three it is a plane.</dd></div>
+    <div><dt>Weight vector w</dt><dd>A column of numbers, perpendicular to the hyperplane. It sets the direction of the boundary.</dd></div>
+    <div><dt>Bias b</dt><dd>A single number that slides the hyperplane away from the origin.</dd></div>
+    <div><dt>Label y</dt><dd>The class of a point, written as +1 or minus 1 for SVM.</dd></div>
+    <div><dt>Margin</dt><dd>The gap between the hyperplane and the nearest points of either class. Its width is 2 divided by the length of w.</dd></div>
+    <div><dt>Support vector</dt><dd>A training point that lies exactly on the edge of the margin, or on the wrong side of it in the soft margin case. Only these points determine the answer.</dd></div>
+    <div><dt>Hard margin</dt><dd>An SVM that demands every point lies on the correct side of the margin. It works only for separable data.</dd></div>
+    <div><dt>Soft margin</dt><dd>An SVM that allows some points to violate the margin, at a cost.</dd></div>
+    <div><dt>Slack variable ξ</dt><dd>The amount by which a point violates its margin. Zero means no violation.</dd></div>
+    <div><dt>Regularisation parameter C</dt><dd>The price of each violation. A large C punishes violations strongly, a small C tolerates them.</dd></div>
+    <div><dt>Dual variable α</dt><dd>A number attached to each training point in the dual problem. It is zero for points that are not support vectors.</dd></div>
+    <div><dt>Kernel K(x, z)</dt><dd>A function that gives the dot product of two points after they are mapped to a richer space, computed without doing the mapping.</dd></div>
+    <div><dt>Kernel trick</dt><dd>Replacing every dot product in the dual with a kernel, so the SVM learns curved boundaries at low cost.</dd></div>
+    <div><dt>RBF kernel</dt><dd>The radial basis function kernel exp(minus γ times the squared distance between points). It is also called the Gaussian kernel.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Hyperplanes and the maximum margin">
+  <h2>Hyperplanes and the maximum margin</h2>
+  <h3>The hyperplane equation</h3>
+  <p>A hyperplane is the set of points x that satisfy one linear equation. We write it as:</p>
+  <div class="formula">w<sup>T</sup>x + b = 0</div>
+  <p>Read it. w is the weight vector, x is a point, and b is the bias. The dot product w<sup>T</sup>x multiplies matching entries and adds them. For example, with w = (1, 1) and b = minus 3, the points with x<sub>1</sub> + x<sub>2</sub> = 3 lie on the hyperplane. The point (2, 2) gives 2 + 2 minus 3 = 1 and lies on the positive side. The point (0, 0) gives minus 3 and lies on the negative side.</p>
+  <p>Each point also gets a score f(x) = w<sup>T</sup>x + b. Its sign tells us the side. Positive scores lie on one side and negative scores on the other. The SVM sets the scale so that the margin edges are at scores +1 and minus 1, which gives the rules:</p>
+  <div class="formula">y<sub>i</sub>(w<sup>T</sup>x<sub>i</sub> + b) ≥ 1 for every training point i</div>
+  <p>Read it. y<sub>i</sub> is +1 or minus 1. If the point is positive, its score must be at least 1. If negative, its score must be at most minus 1. Together the two rules say every point is on the correct side and outside the margin.</p>
+  <h3>Why the width is 2 divided by the length of w</h3>
+  <p>The two margin edges are the hyperplanes w<sup>T</sup>x + b = 1 and w<sup>T</sup>x + b = minus 1. The distance between two parallel hyperplanes is the difference in their constants divided by the length of w. So the margin width is (1 minus (minus 1)) divided by ||w||, which is 2/||w||. Here ||w|| is the length of w, the square root of the sum of its squared entries.</p>
+  <div class="formula">margin width = 2 / ||w|| </div>
+  <p>Maximising the margin is therefore the same as minimising ||w||. For mathematical convenience we minimise (1/2)||w||², which has the same minimiser. The full problem is:</p>
+  <div class="formula">minimise (1/2)||w||² subject to y<sub>i</sub>(w<sup>T</sup>x<sub>i</sub> + b) ≥ 1 for all i</div>
+  <div class="note key"><p><span class="t">Key idea</span>A smaller weight vector means a wider margin. The SVM balances this one goal against the constraint that all points lie outside the margin.</p></div>
+  <details class="check"><summary>Question: what is the margin width when w = (3, 4)?</summary><div class="ans"><p>The length of w is √(9 + 16) = 5, so the width is 2/5 = 0.4.</p></div></details>
+  <details class="check"><summary>Question: does a larger ||w|| give a wider or narrower margin?</summary><div class="ans"><p>Narrower. The margin width is 2/||w||, so a longer weight vector gives a smaller margin.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Support vectors">
+  <h2>Support vectors</h2>
+  <h3>Which points matter?</h3>
+  <p>Only a few training points actually shape the SVM. These are the support vectors, the points that sit exactly on the margin edges. Every other point lies comfortably outside the margin. If you deleted those other points, the hyperplane would not change. If you moved a support vector, it would.</p>
+  <p>Think of the villages again. Only the houses closest to the road set its position. Houses far from the road are irrelevant to where it runs.</p>
+  <h3>Worked example: finding the hyperplane</h3>
+  <p>Take four training points in two dimensions. The positive class has (2, 2) and (3, 3). The negative class has (1, 1) and (0, 0).</p>
+  <ol>
+    <li><strong>Guess the support vectors.</strong> The closest pair from opposite classes is (2, 2) and (1, 1), so these are the likely support vectors.</li>
+    <li><strong>Find the direction.</strong> The difference between them is d = (2, 2) minus (1, 1) = (1, 1). For two support vectors, the best w points along this difference, scaled so the margin conditions hold. Here the scale gives w = (1, 1).</li>
+    <li><strong>Find the bias.</strong> The positive support vector must have score exactly 1. So w<sup>T</sup>(2, 2) + b = 1, which is 4 + b = 1, giving b = minus 3.</li>
+    <li><strong>Check the negative support vector.</strong> w<sup>T</sup>(1, 1) + b = 2 minus 3 = minus 1. It sits exactly on the other margin edge, as it should.</li>
+    <li><strong>Check the other points.</strong> (3, 3) scores 6 minus 3 = 3, which is at least 1. (0, 0) scores minus 3, which is at most minus 1. Both are safely outside the margin, so they are not support vectors.</li>
+    <li><strong>Read the margin.</strong> ||w|| = √2, so the width is 2/√2 = √2, about 1.414.</li>
+  </ol>
+  <p>The hyperplane is x<sub>1</sub> + x<sub>2</sub> = 3. It passes through the midpoint (1.5, 1.5) of the two support vectors, which is what we expect from a maximum margin line.</p>
+  <div class="note tip"><p><span class="t">Tip</span>For two support vectors, one on each side, the margin edges pass through them. This is the quickest way to find a hard-margin solution by hand.</p></div>
+  <details class="check"><summary>Question: in the example, why are (3, 3) and (0, 0) not support vectors?</summary><div class="ans"><p>Their scores, 3 and minus 3, are strictly outside the margin edges at plus and minus 1. Moving them slightly would not change the margin.</p></div></details>
+  <details class="check"><summary>Question: what happens to the solution if you add a new positive point at (10, 10)?</summary><div class="ans"><p>Nothing changes. The new point scores 20 minus 3 = 17, far outside the margin, so it is not a support vector and does not affect the hyperplane.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Soft margin and the C parameter">
+  <h2>Soft margin and the C parameter</h2>
+  <h3>When data cannot be separated</h3>
+  <p>The hard margin needs every point to lie on the right side of the margin. Real data is often messy. A few points may sit in the wrong place, or the two classes may overlap. Then the hard-margin problem has no solution. The soft margin fixes this by allowing violations, at a price.</p>
+  <p>Each point i gets a slack variable ξ<sub>i</sub> ≥ 0. It measures how far the point violates its margin. Zero means the point is safely outside. A positive value means it is inside the margin or on the wrong side.</p>
+  <div class="formula">y<sub>i</sub>(w<sup>T</sup>x<sub>i</sub> + b) ≥ 1 minus ξ<sub>i</sub>, with ξ<sub>i</sub> ≥ 0</div>
+  <p>The objective now balances the margin against the total slack:</p>
+  <div class="formula">minimise (1/2)||w||² + C Σ ξ<sub>i</sub></div>
+  <h3>The role of C</h3>
+  <p>C is a cost per unit of violation. A large C says: violations are very expensive, so try hard to classify every point correctly, even if the margin becomes narrow. A small C says: a few violations are acceptable if that gives a wider margin. Large C therefore behaves more like a hard margin, and small C gives a smoother, more tolerant boundary.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A large C does not mean a large margin. It means a strong focus on classifying training points correctly. The margin often gets narrower as C grows. Students often reverse this.</p></div>
+  <h3>Worked example: computing a slack</h3>
+  <p>A positive point (y = +1) has score f(x) = w<sup>T</sup>x + b = 0.5. It lies inside the margin, because its score is below 1. The slack is the amount it falls short of 1.</p>
+  <ol>
+    <li><strong>Write the rule.</strong> ξ = max(0, 1 minus y f).</li>
+    <li><strong>Compute y f.</strong> y f = (+1) × 0.5 = 0.5.</li>
+    <li><strong>Subtract.</strong> 1 minus 0.5 = 0.5.</li>
+    <li><strong>Take the maximum with 0.</strong> max(0, 0.5) = 0.5. The slack is 0.5.</li>
+  </ol>
+  <p>Now a negative point (y = minus 1) with score f = 0.3 is on the wrong side. Then y f = minus 0.3, so ξ = 1 minus (minus 0.3) = 1.3. It is misclassified and pays a larger slack.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The slack ξ = max(0, 1 minus y f) is the hinge loss. The soft-margin SVM minimises a margin term plus the total hinge loss, weighted by C.</p></div>
+  <details class="check"><summary>Question: a point has y = minus 1 and score f = minus 2. What is its slack?</summary><div class="ans"><p>y f = (minus 1)(minus 2) = 2, so 1 minus 2 = minus 1, and max(0, minus 1) = 0. The point is safely outside the margin, with zero slack.</p></div></details>
+  <details class="check"><summary>Question: what does C = 0 mean?</summary><div class="ans"><p>Violations cost nothing, so the objective only minimises ||w||. The margin grows without limit in that sense, and the classifier ignores the training labels. This is a degenerate case that shows why C must be chosen with care.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Dual formulation">
+  <h2>Dual formulation</h2>
+  <h3>Why a second form?</h3>
+  <p>The problem above is a constrained optimisation. Mathematicians have a second way to write it, called the dual. In the dual, the unknowns are one number α<sub>i</sub> per training point instead of the weight vector. The dual is the key to the kernel trick, which we study next.</p>
+  <p>The dual of the hard-margin SVM is:</p>
+  <div class="formula">maximise Σ α<sub>i</sub> minus (1/2) Σ<sub>i</sub> Σ<sub>j</sub> α<sub>i</sub> α<sub>j</sub> y<sub>i</sub> y<sub>j</sub> (x<sub>i</sub><sup>T</sup> x<sub>j</sub>)</div>
+  <p>subject to α<sub>i</sub> ≥ 0 and Σ α<sub>i</sub> y<sub>i</sub> = 0. For the soft margin, each α<sub>i</sub> also satisfies α<sub>i</sub> ≤ C.</p>
+  <p>Read the key facts that come out of the dual. The data appears only through the dot products x<sub>i</sub><sup>T</sup>x<sub>j</sub>. The weight vector is recovered as w = Σ α<sub>i</sub> y<sub>i</sub> x<sub>i</sub>. Points that are not support vectors have α<sub>i</sub> = 0, so only support vectors contribute to w.</p>
+  <div class="note key"><p><span class="t">Key idea</span>In the dual, the SVM is written entirely in terms of dot products between training points. Replace each dot product by a kernel, and the SVM works in a new space without ever visiting it.</p></div>
+  <h3>Worked check on the two-point example</h3>
+  <p>In the example above, the two support vectors are (2, 2) with y = +1 and (1, 1) with y = minus 1. Set α = 1 for both. Then Σ α<sub>i</sub> y<sub>i</sub> = 1 minus 1 = 0, which satisfies the constraint. The weight vector is w = 1 × (+1)(2, 2) + 1 × (minus 1)(1, 1) = (1, 1), the same as before.</p>
+  <p>The dual objective is Σ α minus (1/2) × (the double sum). The dot products are (2,2)·(2,2) = 8, (2,2)·(1,1) = 4 and (1,1)·(1,1) = 2. The double sum is 8 + 2 minus 4 minus 4 = 2. So the dual value is 2 minus (1/2) × 2 = 1. The code below confirms this equals (1/2)||w||², as the theory predicts.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def dot(a, b):
+    return a[0] * b[0] + a[1] * b[1]
+
+w = (1, 1)
+b = -3
+for x in [(2, 2), (3, 3), (1, 1), (0, 0)]:
+    print("score of", x, "=", dot(w, x) + b)
+print("margin width =", round(2 / math.sqrt(dot(w, w)), 3))
+
+support = [((2, 2), +1, 1.0), ((1, 1), -1, 1.0)]
+quad = sum(a1 * y1 * a2 * y2 * dot(x1, x2)
+           for x1, y1, a1 in support for x2, y2, a2 in support)
+dual_value = sum(a for _, _, a in support) - 0.5 * quad
+print("dual value =", dual_value)
+print("half of ||w||^2 =", 0.5 * dot(w, w))</code></pre>
+  <pre class="output">score of (2, 2) = 1
+score of (3, 3) = 3
+score of (1, 1) = -1
+score of (0, 0) = -3
+margin width = 1.414
+dual value = 1.0
+half of ||w||^2 = 1.0</pre>
+</section>
+
+<section class="unit" id="c5" data-title="Kernels: linear, polynomial and RBF">
+  <h2>Kernels: linear, polynomial and RBF</h2>
+  <h3>When a straight line is not enough</h3>
+  <p>Consider points on a single line. Class +1 sits at x = minus 2 and x = 2. Class minus 1 sits at x = minus 1 and x = 1. No single cut point on the line separates the classes, because the minus 1 points are sandwiched between the plus 1 points. A straight line cannot help in one dimension.</p>
+  <p>Now add a second feature, x², to each point. The points become (minus 2, 4), (2, 4), (minus 1, 1) and (1, 1). In this new space, a horizontal line at height 2.5 separates the classes perfectly. Mapping data into a richer space can make a non-linear problem linear. This mapping is written φ(x).</p>
+  <h3>The kernel trick</h3>
+  <p>The dual formulation uses only dot products between points. For the mapped points, the dot product is φ(x)·φ(z). Computing φ itself might be expensive, or even impossible when the new space is infinite. A kernel K(x, z) is a shortcut that returns φ(x)·φ(z) directly from x and z. We never need to build φ.</p>
+  <div class="formula">K(x, z) = φ(x)<sup>T</sup>φ(z)</div>
+  <div class="note key"><p><span class="t">Key idea</span>Replace every x<sub>i</sub><sup>T</sup>x<sub>j</sub> in the dual by K(x<sub>i</sub>, x<sub>j</sub>). The SVM then finds a maximum-margin boundary in the new space, and the cost is one kernel evaluation per pair of points.</p></div>
+  <h3>Three kernels you must know</h3>
+  <ul>
+    <li><strong>Linear kernel.</strong> K(x, z) = x<sup>T</sup>z. No mapping. The boundary is a hyperplane in the original space.</li>
+    <li><strong>Polynomial kernel.</strong> K(x, z) = (x<sup>T</sup>z + c)<sup>d</sup>. The degree d and constant c control how curved the boundary can be.</li>
+    <li><strong>RBF or Gaussian kernel.</strong> K(x, z) = exp(minus γ ||x minus z||²). It depends only on the distance between the points. Its feature space is infinite-dimensional, but the kernel is cheap to compute.</li>
+  </ul>
+  <h3>Worked check: the polynomial kernel</h3>
+  <p>Take the degree 2 kernel with c = 0, so K(x, z) = (x<sup>T</sup>z)². Let x = (1, 2) and z = (3, 1).</p>
+  <ol>
+    <li><strong>Kernel route.</strong> x<sup>T</sup>z = 1×3 + 2×1 = 5. Then K = 5² = 25.</li>
+    <li><strong>Explicit route.</strong> For this kernel one valid feature map is φ(x) = (x<sub>1</sub>², √2 x<sub>1</sub>x<sub>2</sub>, x<sub>2</sub>²). So φ(x) = (1, 2√2, 4) and φ(z) = (9, 3√2, 1).</li>
+    <li><strong>Dot product.</strong> 1×9 + (2√2)(3√2) + 4×1 = 9 + 12 + 4 = 25.</li>
+    <li><strong>Check.</strong> Both routes give 25. The kernel gave the same answer without building the three-dimensional vectors.</li>
+  </ol>
+  <h3>Worked check: the RBF kernel</h3>
+  <p>With γ = 0.5, take x = (0, 0) and z = (1, 1). The squared distance is 1 + 1 = 2. So K = exp(minus 0.5 × 2) = exp(minus 1), about 0.368. Two identical points give K = exp(0) = 1, and far apart points give values near 0. The RBF kernel is therefore a similarity score between 0 and 1.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Large γ makes the RBF kernel narrow, so each training point becomes a tiny island and the boundary can wiggle wildly, which overfits. Small γ makes the kernel broad, and the boundary becomes smooth. Tune γ and C together by cross-validation.</p></div>
+  <h3>Choosing a kernel</h3>
+  <ul>
+    <li><strong>Linear</strong> is a good first try when there are many features, such as text, because it is fast and often almost as accurate.</li>
+    <li><strong>RBF</strong> is a common default when you do not know the shape of the boundary.</li>
+    <li><strong>Polynomial</strong> suits problems where you believe interactions up to a certain degree matter.</li>
+  </ul>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Kernel</th><th>Boundary in the original space</th><th>Main parameters</th></tr></thead>
+    <tbody>
+      <tr><td>Linear</td><td>Straight line or plane</td><td>C</td></tr>
+      <tr><td>Polynomial</td><td>Curved, up to the chosen degree</td><td>C, degree d, constant c</td></tr>
+      <tr><td>RBF</td><td>Smoothly curved, flexible</td><td>C, γ</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>A common question asks which kernel gives a linear boundary. The answer is the linear kernel, and the polynomial kernel of degree 1 with zero constant is the same thing.</p></div>
+  <p>The code below checks the margin, slack, distance and kernel values in this topic.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+x, z = (1, 2), (3, 1)
+kernel = (x[0] * z[0] + x[1] * z[1]) ** 2
+phi_x = (x[0] ** 2, math.sqrt(2) * x[0] * x[1], x[1] ** 2)
+phi_z = (z[0] ** 2, math.sqrt(2) * z[0] * z[1], z[1] ** 2)
+explicit = sum(a * b for a, b in zip(phi_x, phi_z))
+print("polynomial kernel =", kernel)
+print("explicit feature dot =", round(explicit, 6))
+print("RBF gamma 0.5, (0,0) and (1,1) =", round(math.exp(-0.5 * 2), 3))</code></pre>
+  <pre class="output">polynomial kernel = 25
+explicit feature dot = 25.0
+RBF gamma 0.5, (0,0) and (1,1) = 0.368</pre>
+  <details class="check"><summary>Question: what is K(x, x) for the RBF kernel?</summary><div class="ans"><p>1, because the squared distance between a point and itself is 0, and exp(0) = 1.</p></div></details>
+  <details class="check"><summary>Question: why does the kernel trick save work?</summary><div class="ans"><p>It computes the dot product in a high-dimensional or infinite-dimensional space from the original points in one step. The mapped vectors never need to be stored or built.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close when you solve problems.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>w<sup>T</sup>x + b = 0</td><td>Hyperplane</td><td>Defining the boundary</td></tr>
+      <tr><td>margin width = 2/||w||</td><td>Gap between the margin edges</td><td>Measuring the margin</td></tr>
+      <tr><td>distance of x = |w<sup>T</sup>x + b| / ||w||</td><td>Perpendicular distance to the hyperplane</td><td>Geometry questions</td></tr>
+      <tr><td>ξ<sub>i</sub> = max(0, 1 minus y<sub>i</sub>(w<sup>T</sup>x<sub>i</sub> + b))</td><td>Slack, or hinge loss</td><td>Soft margin violations</td></tr>
+      <tr><td>minimise (1/2)||w||² + C Σ ξ<sub>i</sub></td><td>Soft-margin objective</td><td>Setting up the primal problem</td></tr>
+      <tr><td>w = Σ α<sub>i</sub> y<sub>i</sub> x<sub>i</sub>, with Σ α<sub>i</sub> y<sub>i</sub> = 0</td><td>Dual weight vector and constraint</td><td>Working in the dual</td></tr>
+      <tr><td>K(x, z) = (x<sup>T</sup>z + c)<sup>d</sup></td><td>Polynomial kernel</td><td>Curved boundaries of fixed degree</td></tr>
+      <tr><td>K(x, z) = exp(minus γ ||x minus z||²)</td><td>RBF kernel</td><td>Flexible default boundary</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems written for this page. They are not real past paper questions. Try each one before you read the answer. MSQ means more than one option can be correct. NAT means you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Width of the margin (NAT)</h3>
+    <div class="statement"><p>An SVM has weight vector w = (3, 4) in canonical form. Find the margin width. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The width of the gap between the margin edges.</li>
+      <li><strong>Which idea applies.</strong> Margin width = 2/||w||.</li>
+      <li><strong>Work it out.</strong> ||w|| = √(9 + 16) = √25 = 5. The width is 2/5 = 0.4.</li>
+      <li><strong>Check.</strong> A longer w gives a narrower margin, and here ||w|| = 5 is moderately long, so 0.4 is a small width.</li>
+    </ol>
+    <p class="cx">Answer: 0.4</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about SVM (MSQ)</h3>
+    <div class="statement"><p>Which statements are true? Select all that apply.</p>
+    <p>(A) The hard-margin SVM maximises the margin.</p>
+    <p>(B) Support vectors are the training points farthest from the boundary.</p>
+    <p>(C) The soft-margin SVM introduces slack variables.</p>
+    <p>(D) A larger C allows more violations of the margin.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about SVM are correct.</li>
+      <li><strong>Which idea applies.</strong> The margin is the target. Support vectors sit on the margin edges. Slack variables measure violations. A large C punishes violations more.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is false, support vectors are on the margin edges, not the farthest points. (C) is true. (D) is false, a small C allows more violations.</li>
+      <li><strong>Check.</strong> The false statements swap the meaning of "support" and of C.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Slack of a point inside the margin (NAT)</h3>
+    <div class="statement"><p>A training point has label y = minus 1 and score f(x) = w<sup>T</sup>x + b = minus 0.2. Find its slack variable ξ. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The slack of this point.</li>
+      <li><strong>Which idea applies.</strong> ξ = max(0, 1 minus y f).</li>
+      <li><strong>Work it out.</strong> y f = (minus 1)(minus 0.2) = 0.2. Then 1 minus 0.2 = 0.8. The maximum with 0 is 0.8.</li>
+      <li><strong>Check.</strong> The point is on the correct side (negative score) but inside the margin, since its score is above minus 1. A slack between 0 and 1 matches that.</li>
+    </ol>
+    <p class="cx">Answer: 0.8</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Distance to the hyperplane (NAT)</h3>
+    <div class="statement"><p>The hyperplane is x<sub>1</sub> + x<sub>2</sub> minus 3 = 0, so w = (1, 1) and b = minus 3. Find the perpendicular distance from the point (4, 0) to the hyperplane, to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The distance from a point to the boundary.</li>
+      <li><strong>Which idea applies.</strong> Distance = |w<sup>T</sup>x + b|/||w||.</li>
+      <li><strong>Work it out.</strong> w<sup>T</sup>x + b = 4 + 0 minus 3 = 1. The absolute value is 1. ||w|| = √2. Distance = 1/√2, about 0.707.</li>
+      <li><strong>Check.</strong> The point scores exactly 1, which is the margin edge. Its distance is the margin width divided by 2, which is 1/√2 for this w, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 0.707</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Polynomial kernel value (NAT)</h3>
+    <div class="statement"><p>Use the polynomial kernel K(x, z) = (x<sup>T</sup>z + 1)² with x = (1, 0) and z = (2, 3). Find K(x, z). (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The kernel value for two points.</li>
+      <li><strong>Which idea applies.</strong> Compute the ordinary dot product first, then add c and square.</li>
+      <li><strong>Work it out.</strong> x<sup>T</sup>z = 1×2 + 0×3 = 2. Add 1 to get 3. Square to get 9.</li>
+      <li><strong>Check.</strong> Only the first feature of x is non-zero, so x<sup>T</sup>z simply picks out the first feature of z, which is 2.</li>
+    </ol>
+    <p class="cx">Answer: 9</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Facts about the dual (MSQ)</h3>
+    <div class="statement"><p>Select all true statements about the dual formulation of the SVM.</p>
+    <p>(A) The weight vector is w = Σ α<sub>i</sub> y<sub>i</sub> x<sub>i</sub>.</p>
+    <p>(B) Only support vectors have a non-zero dual variable.</p>
+    <p>(C) The dual uses the training data only through dot products between points.</p>
+    <p>(D) The dual variables can take any real value.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about the dual are correct.</li>
+      <li><strong>Which idea applies.</strong> The dual weights recover w. Complementary slackness gives zero weights off the margin. The objective depends on dot products. The constraints α ≥ 0 and α ≤ C restrict the values.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is true. (D) is false, since α<sub>i</sub> ≥ 0 and in the soft margin α<sub>i</sub> ≤ C.</li>
+      <li><strong>Check.</strong> The false statement is the only one that ignores the non-negativity constraint.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>RBF similarity (NAT)</h3>
+    <div class="statement"><p>Use the RBF kernel K(x, z) = exp(minus γ ||x minus z||²) with γ = 0.5. Let x = (1, 1) and z = (2, 3). Find K(x, z), to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The RBF kernel value for two points.</li>
+      <li><strong>Which idea applies.</strong> Find the squared distance first, then the exponential.</li>
+      <li><strong>Work it out.</strong> ||x minus z||² = (1 minus 2)² + (1 minus 3)² = 1 + 4 = 5. Then γ times 5 = 2.5, and K = exp(minus 2.5), about 0.082.</li>
+      <li><strong>Check.</strong> The kernel must lie between 0 and 1, and 0.082 does. Far-apart points give small values, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 0.082</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which kernels and settings are sound? (MSQ)</h3>
+    <div class="statement"><p>Select all true statements.</p>
+    <p>(A) The linear kernel produces a boundary that is a hyperplane in the original space.</p>
+    <p>(B) The RBF kernel can produce curved boundaries.</p>
+    <p>(C) The polynomial kernel with degree 1 and constant 0 is the linear kernel.</p>
+    <p>(D) The kernel trick requires computing the explicit high-dimensional feature vectors.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims about kernels are correct.</li>
+      <li><strong>Which idea applies.</strong> A kernel is a dot product in a feature space. Degree 1 with zero constant gives x<sup>T</sup>z. RBF boundaries bend. The whole point of the kernel trick is to avoid building the features.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is true, since (x<sup>T</sup>z + 0)¹ = x<sup>T</sup>z. (D) is false, that is exactly what the trick avoids.</li>
+      <li><strong>Check.</strong> The only false claim describes the opposite of the kernel trick.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C)</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+print("P1 margin width =", 2 / math.sqrt(3 ** 2 + 4 ** 2))
+print("P3 slack =", max(0, 1 - (-1) * (-0.2)))
+print("P4 distance =", round(abs(4 + 0 - 3) / math.sqrt(2), 3))
+x, z = (1, 0), (2, 3)
+print("P5 kernel =", (x[0] * z[0] + x[1] * z[1] + 1) ** 2)
+print("P7 RBF =", round(math.exp(-0.5 * ((1 - 2) ** 2 + (1 - 3) ** 2)), 3))</code></pre>
+  <pre class="output">P1 margin width = 0.4
+P3 slack = 0.8
+P4 distance = 0.707
+P5 kernel = 9
+P7 RBF = 0.082</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Distance from a point to the boundary (NAT, 2 marks)</h3>
+    <div class="statement"><p>A linear SVM has the decision boundary 3x<sub>1</sub> plus 4x<sub>2</sub> minus 5 = 0, written as w dot x plus b = 0 with w = (3, 4) and b = minus 5. Find the perpendicular distance from the point (4, 3) to this boundary. Use the formula distance = |w dot x plus b| divided by the length of w. The length of w is the square root of 3 squared plus 4 squared. Give the distance to one decimal place. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One perpendicular distance from a point to a line.</li>
+      <li><strong>Which idea applies.</strong> The distance formula for a hyperplane divides the absolute value of the score by the length of the normal vector w.</li>
+      <li><strong>Work it out.</strong> The score is 3 times 4 plus 4 times 3 minus 5 = 12 + 12 - 5 = 19. The length of w is the square root of 9 + 16 = 25, which is 5. So the distance is 19 divided by 5 = 3.8.</li>
+      <li><strong>Check.</strong> The margin of a unit-scaled SVM is 1 divided by the length of w, which is 0.2 here. The point is much farther than that margin, which is consistent with a large score.</li>
+    </ol>
+    <p class="cx">Answer: 3.8</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Which SVM facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A student revises support vector machines. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) In a hard margin SVM, only the support vectors determine the separating hyperplane.</p><p>(B) In a soft margin SVM, a larger penalty parameter C penalises margin violations more strongly.</p><p>(C) The RBF kernel corresponds to an infinite dimensional feature space.</p><p>(D) A hard margin SVM can be trained on data that are not linearly separable.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four claims about SVMs are true.</li>
+      <li><strong>Which idea applies.</strong> Support vectors are the points on or inside the margin. The penalty C weights the slack. Kernels compute inner products in a feature space.</li>
+      <li><strong>Work it out.</strong> (A) is true: the other points can move without changing the solution. (B) is true, because a larger C makes slack expensive. (C) is true for the Gaussian RBF kernel. (D) is false: a hard margin SVM needs a perfect separating hyperplane, so non-separable data have no feasible solution; a soft margin SVM is the fix.</li>
+      <li><strong>Check.</strong> The code below computes a degree 2 polynomial kernel and an RBF kernel value, to show that kernels are simple functions of the inputs.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Option (D) is wrong because a hard margin SVM needs linearly separable data.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Soft margin objective value (NAT, 2 marks)</h3>
+    <div class="statement"><p>A soft margin linear SVM has a weight vector with squared length ||w||<sup>2</sup> = 4, so the regularisation term 0.5 times ||w||<sup>2</sup> equals 2. The penalty parameter is C = 2. Three training points have label y and decision score f(x): (+1, 0.4), (minus 1, minus 1.5) and (+1, minus 0.2). The slack of each point is max(0, 1 minus y f(x)). Find the value of the objective 0.5 times ||w||<sup>2</sup> plus C times the total slack. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The objective value, which combines the margin term and the slack penalty.</li>
+      <li><strong>Which idea applies.</strong> Compute the slack of each point with the hinge formula, add them, then combine with the margin term.</li>
+      <li><strong>Work it out.</strong> Point 1: 1 minus 0.4 = 0.6. Point 2: y f = 1.5, so 1 minus 1.5 = minus 0.5, and the slack is 0. Point 3: y f = minus 0.2, so 1 minus (minus 0.2) = 1.2. Total slack = 0.6 + 0 + 1.2 = 1.8. Objective = 2 + 2 times 1.8 = 2 + 3.6 = 5.6.</li>
+      <li><strong>Check.</strong> Point 2 has a score beyond the margin on the correct side, so it correctly has zero slack. Only the two points inside or on the wrong side of the margin add to the penalty.</li>
+    </ol>
+    <p class="cx">Answer: 5.6</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Dual decision value with a polynomial kernel (NAT, 2 marks)</h3>
+    <div class="statement"><p>A kernel SVM in dual form has two support vectors. Support vector s<sub>1</sub> = (1, 0) has label +1 and alpha = 0.5. Support vector s<sub>2</sub> = (0, 1) has label minus 1 and alpha = 0.5. The bias is b = 0 and the kernel is the degree 2 polynomial K(u, v) = (u dot v plus 1) squared. A new point q = (2, 1) gets the score f(q) = sum of alpha times label times K(s, q), plus b. Find f(q). (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The decision score of one new point.</li>
+      <li><strong>Which idea applies.</strong> The kernel trick: the score uses kernel values between the support vectors and the new point, with no explicit feature map.</li>
+      <li><strong>Work it out.</strong> K(s<sub>1</sub>, q) = ((1 times 2 + 0 times 1) plus 1) squared = 3 squared = 9. K(s<sub>2</sub>, q) = ((0 times 2 + 1 times 1) plus 1) squared = 2 squared = 4. Then f(q) = 0.5 times (+1) times 9 + 0.5 times (minus 1) times 4 + 0 = 4.5 minus 2 = 2.5.</li>
+      <li><strong>Check.</strong> The constraint sum of alpha times label must be 0 for the dual solution, and here 0.5 minus 0.5 = 0. The positive score 2.5 places q in class +1.</li>
+    </ol>
+    <p class="cx">Answer: 2.5 (so q is predicted as class +1)</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+# Exam-level 1: distance from a point to a hyperplane
+w = [3, 4]
+b = -5
+p = [4, 3]
+num = abs(w[0] * p[0] + w[1] * p[1] + b)
+length = math.sqrt(w[0] ** 2 + w[1] ** 2)
+print("E1 numerator =", num, " length of w =", length, " distance =", round(num / length, 3))
+
+# Exam-level 2: kernel values
+x = (1, 2)
+z = (3, 0)
+dot = x[0] * z[0] + x[1] * z[1]
+print("E2 polynomial degree 2 kernel =", (dot + 1) ** 2)
+d2 = (x[0] - z[0]) ** 2 + (x[1] - z[1]) ** 2
+print("E2 RBF kernel with gamma 0.5 =", round(math.exp(-0.5 * d2), 4))
+
+# Exam-level 3: soft margin objective
+pts = [(1, 0.4), (-1, -1.5), (1, -0.2)]
+slacks = [max(0, 1 - y * f) for y, f in pts]
+C = 2
+w2 = 4
+obj = 0.5 * w2 + C * sum(slacks)
+print("E3 slacks =", [round(s, 2) for s in slacks], " total =", round(sum(slacks), 2), " objective =", round(obj, 2))
+
+# Exam-level 4: dual decision value
+def K(u, v):
+    return (u[0] * v[0] + u[1] * v[1] + 1) ** 2
+sv = [((1, 0), 1, 0.5), ((0, 1), -1, 0.5)]
+q = (2, 1)
+k1 = K(sv[0][0], q)
+k2 = K(sv[1][0], q)
+f = sum(a * y * K(s, q) for s, y, a in sv)
+print("E4 sum alpha times label =", sum(a * y for s, y, a in sv), " K1 =", k1, " K2 =", k2, " decision value =", f)</code></pre>
+  <pre class="output">E1 numerator = 19  length of w = 5.0  distance = 3.8
+E2 polynomial degree 2 kernel = 16
+E2 RBF kernel with gamma 0.5 = 0.0183
+E3 slacks = [0.6, 0, 1.2]  total = 1.8  objective = 5.6
+E4 sum alpha times label = 0.0  K1 = 9  K2 = 4  decision value = 2.5</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>Support Vector Machine (SVM)</dt><dd>A classifier that chooses the boundary with the widest margin between classes.</dd></div>
+    <div><dt>Hyperplane</dt><dd>The flat boundary w<sup>T</sup>x + b = 0.</dd></div>
+    <div><dt>Margin</dt><dd>The gap between the two margin edges, with width 2/||w||.</dd></div>
+    <div><dt>Support vector</dt><dd>A training point on a margin edge that determines the boundary.</dd></div>
+    <div><dt>Hard margin</dt><dd>An SVM that requires every point to be outside the margin, possible only for separable data.</dd></div>
+    <div><dt>Soft margin</dt><dd>An SVM that allows violations with slack variables at cost C.</dd></div>
+    <div><dt>Slack variable</dt><dd>The amount a point violates its margin, zero when it is outside.</dd></div>
+    <div><dt>Parameter C</dt><dd>The cost per unit of slack. Large C focuses on correct classification.</dd></div>
+    <div><dt>Hinge loss</dt><dd>max(0, 1 minus y f), the slack for one point.</dd></div>
+    <div><dt>Dual formulation</dt><dd>A rewriting of the SVM in terms of dual variables α and dot products.</dd></div>
+    <div><dt>Kernel</dt><dd>A function that gives a dot product in a feature space, without computing the features.</dd></div>
+    <div><dt>Kernel trick</dt><dd>Replacing dot products in the dual with kernels to learn curved boundaries.</dd></div>
+    <div><dt>Polynomial kernel</dt><dd>(x<sup>T</sup>z + c)<sup>d</sup>, with degree d and constant c.</dd></div>
+    <div><dt>RBF kernel</dt><dd>exp(minus γ ||x minus z||²), a distance-based similarity.</dd></div>
+    <div><dt>Gamma γ</dt><dd>The width control of the RBF kernel. Large γ means narrow, more flexible regions.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>Maximising the margin means minimising ||w||, since the margin width is 2/||w||.</li>
+    <li>Only support vectors sit on the margin edges and determine the solution.</li>
+    <li>The slack ξ = max(0, 1 minus y f) measures how much a point violates the margin.</li>
+    <li>A large C means fewer tolerated violations, not a bigger margin.</li>
+    <li>In the dual, data appears only through dot products, which is what makes kernels possible.</li>
+    <li>The linear kernel gives a straight boundary, while the RBF kernel can bend it.</li>
+    <li>Tune C and γ together, using cross-validation.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 104?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 104 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-103.html"><small>Previous, topic 103</small>Decision Trees</a><a class="next" href="gate-105.html"><small>Next, topic 105</small>Bias-variance tradeoff</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

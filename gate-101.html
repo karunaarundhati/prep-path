@@ -1,0 +1,424 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 101: Naive Bayes classifier</title><meta name="description" content="The Naive Bayes classifier decides a class by combining how common each class is with how likely each clue is under that class. You will learn Bayes theorem from a frequency table, the independence assumption that makes the method simple, Laplace smoothing for unseen clues, and the Gaussian and multinomial versions for numbers and word counts."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g101" data-key="g101" data-noun="topic" data-num="101" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Naive Bayes classifier</h1>
+<p class="lede">The Naive Bayes classifier decides a class by combining how common each class is with how likely each clue is under that class. You will learn Bayes theorem from a frequency table, the independence assumption that makes the method simple, Laplace smoothing for unseen clues, and the Gaussian and multinomial versions for numbers and word counts.</p>
+<div class="station"><b>101</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Bayes theorem with a small example</li><li>The naive independence assumption</li><li>Scoring classes and picking the largest</li><li>Laplace smoothing for zero counts</li><li>Gaussian and multinomial versions</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a detective who sees a wet umbrella by the door. The detective asks two questions. How common are rainy days in general? And how often do people carry wet umbrellas on rainy days, compared with sunny days? Combining the common-ness of each explanation with how well each explanation fits the clue gives a verdict. The detective does not need certainty. A verdict is simply the explanation with the best combined score.</p>
+  <p>Naive Bayes works the same way. Given the features of a new item, it asks for each class: how common is this class, and how well does this item's feature pattern fit this class? It then picks the class with the highest combined score. The word <strong>naive</strong> refers to a simplifying assumption. We pretend that the clues are independent of each other once the class is known. In real life this is rarely exactly true, yet the method works surprisingly well.</p>
+  <p>For GATE, Naive Bayes is a standard classifier in the Machine Learning part of the Data Science and AI paper (DA). Questions ask you to apply Bayes theorem, compute a posterior score for each class, apply Laplace smoothing, and recognise the Gaussian and multinomial versions. The arithmetic is simple, but each step must be done carefully.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Each term returns later on the page.</p>
+  <dl>
+    <div><dt>Class C</dt><dd>One of the possible answers, such as spam or ham (not spam).</dd></div>
+    <div><dt>Feature vector x</dt><dd>The list of measured clues for one item, such as the words in an email.</dd></div>
+    <div><dt>Prior P(C)</dt><dd>How common class C is before looking at the clues. Estimated as the share of training items in class C.</dd></div>
+    <div><dt>Likelihood P(x | C)</dt><dd>How probable the clues are if the class is C.</dd></div>
+    <div><dt>Evidence P(x)</dt><dd>How probable the clues are overall, across all classes.</dd></div>
+    <div><dt>Posterior P(C | x)</dt><dd>How probable class C is after seeing the clues. This is what we want.</dd></div>
+    <div><dt>Bayes theorem</dt><dd>The rule P(C | x) = P(x | C) P(C) / P(x), which turns the likelihood into the posterior.</dd></div>
+    <div><dt>Conditional independence</dt><dd>Two clues are independent given the class if knowing one tells you nothing more about the other once the class is fixed.</dd></div>
+    <div><dt>Naive assumption</dt><dd>The assumption that all features are conditionally independent given the class.</dd></div>
+    <div><dt>Zero-frequency problem</dt><dd>A clue never seen with a class in training gives a likelihood of zero, which wipes out the whole product.</dd></div>
+    <div><dt>Laplace smoothing</dt><dd>Adding a small pseudo-count, usually 1, to every count so that no probability is exactly zero.</dd></div>
+    <div><dt>Gaussian distribution</dt><dd>The bell-shaped distribution with a mean μ and a variance σ², used for continuous features.</dd></div>
+    <div><dt>Multinomial model</dt><dd>A model for counts, such as how many times each word appears in a document.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Bayes theorem with a small example">
+  <h2>Bayes theorem with a small example</h2>
+  <h3>Why Bayes theorem is needed</h3>
+  <p>We usually know how the clues look for each class, because we have seen examples of each class. What we need is the reverse: given the clues, what is the class? Bayes theorem flips the question around.</p>
+  <div class="formula">P(C | x) = P(x | C) × P(C) / P(x)</div>
+  <p>Read it symbol by symbol. P(C | x) is the posterior, the probability of class C given the clues. P(x | C) is the likelihood, the probability of the clues given class C. P(C) is the prior, how common class C is. P(x) is the evidence, the probability of the clues overall. The vertical bar | means "given".</p>
+  <h3>A frequency table makes it concrete</h3>
+  <p>Suppose a clinic tests 1000 people for a disease. Imagine the numbers as a table, which is easier to follow than fractions alone.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Group</th><th>Number of people</th><th>Test positive</th><th>Test negative</th></tr></thead>
+    <tbody>
+      <tr><td>Has the disease</td><td>10</td><td>9</td><td>1</td></tr>
+      <tr><td>Does not have it</td><td>990</td><td>50</td><td>940</td></tr>
+      <tr><td>Total</td><td>1000</td><td>59</td><td>941</td></tr>
+    </tbody>
+  </table></div>
+  <p>Question: a person tests positive. What is the chance they have the disease? Count the positives. There are 59 positive tests in total, and 9 of them are real cases. So the answer is 9/59, about 0.153.</p>
+  <p>Now see how Bayes theorem gives the same answer. The prior P(disease) = 10/1000 = 0.01. The likelihood P(positive | disease) = 9/10 = 0.9. The evidence P(positive) = 59/1000 = 0.059. So the posterior is (0.9 × 0.01)/0.059 = 0.009/0.059, which is about 0.153. The numbers agree.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A positive result raises the probability from 1 percent to about 15 percent. It does not make the disease certain, because the disease is rare and many healthy people also test positive.</p></div>
+  <h3>Worked example with numbers</h3>
+  <p>Let P(A) = 0.3, P(B | A) = 0.5 and P(B) = 0.25. Find P(A | B).</p>
+  <ol>
+    <li><strong>Write the formula.</strong> P(A | B) = P(B | A) × P(A) / P(B).</li>
+    <li><strong>Multiply the top.</strong> 0.5 × 0.3 = 0.15.</li>
+    <li><strong>Divide by the evidence.</strong> 0.15 / 0.25 = 0.6.</li>
+    <li><strong>Check.</strong> A probability must be between 0 and 1. 0.6 is valid.</li>
+  </ol>
+  <details class="check"><summary>Question: if P(B | A) were 1, what would P(A | B) be?</summary><div class="ans"><p>P(A | B) = 1 × 0.3/0.25 = 1.2, which is impossible. This means the inputs in that case would be inconsistent. Real probabilities always produce a value between 0 and 1.</p></div></details>
+  <details class="check"><summary>Question: why can we skip P(x) when we only want to choose between classes?</summary><div class="ans"><p>P(x) is the same number for every class, because it is the overall probability of the clues. Dividing every score by the same number does not change which score is largest.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="The naive independence assumption">
+  <h2>The naive independence assumption</h2>
+  <h3>The problem with many clues</h3>
+  <p>Suppose an email has many words. To compute P(x | C) exactly, we would need the probability of the whole combination of words in each class. With even 20 words, the number of combinations is huge, and most combinations never appear in the training data. We cannot estimate them reliably.</p>
+  <h3>The shortcut</h3>
+  <p>The naive assumption says: once we know the class, each word is independent of the others. Then the probability of the whole combination is just the product of the individual probabilities.</p>
+  <div class="formula">P(x | C) = P(x<sub>1</sub> | C) × P(x<sub>2</sub> | C) × ... × P(x<sub>n</sub> | C)</div>
+  <p>Read it. Each factor is the probability of one clue given the class. The product gathers them all. Now we only need to estimate one probability per word per class, which is easy.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The independence is conditional on the class. Two words may be strongly related in general, for example "free" and "offer", but still be treated as independent once we know the email is spam. The model is a simplification, not a claim about the real world.</p></div>
+  <h3>Why naive Bayes still works</h3>
+  <p>Even if the probabilities are not accurate, the ranking of classes can still be right. The model only needs to put the correct class ahead of the others. This is why Naive Bayes is fast, needs little data, and is often a strong baseline for text.</p>
+  <details class="check"><summary>Question: what does the naive assumption let us avoid?</summary><div class="ans"><p>It avoids estimating the joint probability of every combination of features in each class. Instead we estimate only one probability per feature per class and multiply them.</p></div></details>
+  <details class="check"><summary>Question: is conditional independence the same as ordinary independence?</summary><div class="ans"><p>No. Conditional independence is measured given the class. Features can be dependent overall and still be conditionally independent once the class is known.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Scoring classes and picking the largest">
+  <h2>Scoring classes and picking the largest</h2>
+  <h3>The score for each class</h3>
+  <p>Put Bayes theorem and the naive assumption together. The posterior for class C is proportional to the prior times the product of the likelihoods. The sign ∝ means "is proportional to", that is, equal up to a constant factor that is the same for all classes.</p>
+  <div class="formula">P(C | x) ∝ P(C) × Π<sub>i</sub> P(x<sub>i</sub> | C)</div>
+  <p>The symbol Π (capital pi) means "multiply over all i", just as Σ means "add over all i". The right-hand side is the score for class C. We compute it for each class and pick the class with the largest score. We do not need P(x), because it is the same for every class.</p>
+  <h3>Worked example: spam or ham</h3>
+  <p>Suppose 40 percent of past emails are spam, so the prior for spam is 0.4 and for ham is 0.6. Let the word "free" appear in 50 percent of spam and 10 percent of ham. Let the word "meeting" appear in 10 percent of spam and 40 percent of ham. A new email contains both "free" and "meeting". Which class is more likely?</p>
+  <ol>
+    <li><strong>Score for spam.</strong> Prior 0.4, times P(free | spam) = 0.5, times P(meeting | spam) = 0.1. That is 0.4 × 0.5 × 0.1 = 0.020.</li>
+    <li><strong>Score for ham.</strong> Prior 0.6, times P(free | ham) = 0.1, times P(meeting | ham) = 0.4. That is 0.6 × 0.1 × 0.4 = 0.024.</li>
+    <li><strong>Pick the larger.</strong> 0.024 is larger than 0.020, so the model chooses ham.</li>
+    <li><strong>Get the true posterior if needed.</strong> Add the scores: 0.020 + 0.024 = 0.044. The posterior for spam is 0.020/0.044, about 0.455. For ham it is 0.545.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>The word "free" favours spam, but "meeting" is more typical of ham and has a larger effect here. Naive Bayes multiplies all the evidence, so each word pushes the score up or down.</p></div>
+  <h3>Use logarithms in practice</h3>
+  <p>When there are hundreds of words, multiplying small probabilities gives a number so tiny that a computer rounds it to zero. The fix is to take logarithms. A product becomes a sum: log of the score = log P(C) + Σ log P(x<sub>i</sub> | C). Since the logarithm is increasing, the largest log-score is the same class as the largest score.</p>
+  <details class="check"><summary>Question: in the example, why did we not divide by P(x) to choose the class?</summary><div class="ans"><p>Dividing both scores by the same total does not change which one is larger. The division is only needed when we want the actual posterior probability.</p></div></details>
+  <details class="check"><summary>Question: what changes if the spam prior becomes 0.9 and the ham prior becomes 0.1?</summary><div class="ans"><p>The same two words now give spam the larger score: 0.9 × 0.5 × 0.1 = 0.045 for spam, against 0.1 × 0.1 × 0.4 = 0.004 for ham. Priors matter, and a strong enough prior can outweigh the clues.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Laplace smoothing for zero counts">
+  <h2>Laplace smoothing for zero counts</h2>
+  <h3>The zero-frequency problem</h3>
+  <p>Look at the spam example again. Suppose the word "lottery" never appears in any ham email in training. Then P(lottery | ham) = 0. The ham score is 0.6 × 0.1 × 0.4 × 0 = 0. One zero kills the whole product, even if all the other words strongly favour ham. This is clearly unfair, because the training data is only a sample. The word "lottery" might appear in ham tomorrow.</p>
+  <h3>Laplace smoothing</h3>
+  <p>The fix is to add a small pseudo-count to every count before dividing. The usual choice is 1, which is called Laplace smoothing or add-one smoothing.</p>
+  <div class="formula">P(word | C) = (count of word in C + 1) / (total count in C + V)</div>
+  <p>Read it. The count is how often the word appears in class C in training. The total is the number of all word occurrences in class C. V is the vocabulary size, the number of distinct words in the whole training data. Adding 1 to the top and V to the bottom keeps the probabilities adding to 1 over all words.</p>
+  <h3>Worked example</h3>
+  <p>In ham emails there are 20 word occurrences in total. The vocabulary has 4 distinct words, so V = 4. The word "lottery" appears 0 times in ham. With smoothing:</p>
+  <ol>
+    <li><strong>Top.</strong> 0 + 1 = 1.</li>
+    <li><strong>Bottom.</strong> 20 + 4 = 24.</li>
+    <li><strong>Result.</strong> P(lottery | ham) = 1/24, about 0.042. It is small, but not zero.</li>
+  </ol>
+  <div class="note trap"><p><span class="t">Trap</span>Smoothing must be applied to every class and every word using the same vocabulary size. Forgetting V in the denominator breaks the probabilities.</p></div>
+  <details class="check"><summary>Question: a word appears 3 times in class C, which has 30 total words, and V = 10. What is its smoothed probability?</summary><div class="ans"><p>(3 + 1)/(30 + 10) = 4/40 = 0.1.</p></div></details>
+  <details class="check"><summary>Question: does Laplace smoothing change the answer for a word that appears often in training?</summary><div class="ans"><p>Only slightly. The added 1 matters a lot for rare or unseen words and very little for common words, because the counts are large compared with the pseudo-count.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Gaussian and multinomial versions">
+  <h2>Gaussian and multinomial versions</h2>
+  <h3>Gaussian Naive Bayes for numbers</h3>
+  <p>Word counts are not the only kind of clue. Suppose a feature is a measured number, such as the height of a person. We cannot count how often the exact height appears, because most heights appear only once. Instead we assume that, within each class, the feature follows a bell-shaped Gaussian distribution with mean μ and variance σ². We estimate μ and σ² for each class from the training data.</p>
+  <div class="formula">P(x | C) = (1 / √(2πσ²)) × e<sup>-(x minus μ)² / (2σ²)</sup></div>
+  <p>Read it. The term (x minus μ)² measures how far the value is from the class centre. The exponential shrinks the likelihood as that distance grows. The term 1/√(2πσ²) is a normalising constant. Important: this is a density, not a probability, so its value can be larger than 1.</p>
+  <p>Worked example. A class has mean μ = 4 and variance σ² = 4, so σ = 2. Find the density at x = 4. The distance is 0, so the exponential is 1. The constant is 1/√(2π × 4) = 1/√(8π) = 1/5.013, about 0.1995. So the density is about 0.199.</p>
+  <h3>Multinomial Naive Bayes for counts</h3>
+  <p>When the features are counts, such as how many times each word appears in a document, we use the multinomial model. The likelihood of a word given the class is the smoothed share of that word among all words of that class.</p>
+  <div class="formula">P(word<sub>i</sub> | C) = (count<sub>i,C</sub> + 1) / (total words in C + V)</div>
+  <p>This is the same smoothing as before. A document with several words multiplies these probabilities, once for each occurrence. Repeated words raise the power of their factor.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Version</th><th>Feature type</th><th>Likelihood comes from</th></tr></thead>
+    <tbody>
+      <tr><td>Gaussian</td><td>Continuous numbers</td><td>Bell curve with class mean and variance</td></tr>
+      <tr><td>Multinomial</td><td>Counts, such as word counts</td><td>Smoothed share of each word in the class</td></tr>
+      <tr><td>Bernoulli</td><td>Yes or no features</td><td>Probability that each feature is present</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect a question that asks which version to use for a given feature type. Continuous features call for Gaussian NB. Word counts call for multinomial NB.</p></div>
+  <details class="check"><summary>Question: can a Gaussian density be greater than 1?</summary><div class="ans"><p>Yes. A density is not a probability. When σ is small, the peak of the bell curve is tall, so the density can exceed 1.</p></div></details>
+  <details class="check"><summary>Question: why does the multinomial model use the total words in the class in its denominator?</summary><div class="ans"><p>Because the probabilities of all words in one class must add to 1. The denominator is the total number of word slots for that class, adjusted by V for smoothing.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close when you solve problems.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>P(C | x) = P(x | C)P(C)/P(x)</td><td>Bayes theorem</td><td>Turning likelihood into posterior</td></tr>
+      <tr><td>P(x | C) = Π P(x<sub>i</sub> | C)</td><td>Naive independence</td><td>Computing the likelihood of several features</td></tr>
+      <tr><td>score(C) = P(C) Π P(x<sub>i</sub> | C)</td><td>Unnormalised posterior</td><td>Choosing the best class</td></tr>
+      <tr><td>P(word | C) = (count + 1)/(total + V)</td><td>Laplace smoothing for counts</td><td>Multinomial NB and zero counts</td></tr>
+      <tr><td>P(x | C) = (1/√(2πσ²)) e<sup>-(x minus μ)²/(2σ²)</sup></td><td>Gaussian density</td><td>Continuous features</td></tr>
+      <tr><td>log score = log P(C) + Σ log P(x<sub>i</sub> | C)</td><td>Log-score</td><td>Avoiding underflow with many features</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems written for this page. They are not real past paper questions. Try each one before you read the answer. MSQ means more than one option can be correct. NAT means you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>A single Bayes update (NAT)</h3>
+    <div class="statement"><p>P(A) = 0.3, P(B | A) = 0.5 and P(B) = 0.25. Find P(A | B). (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The posterior probability of A after seeing B.</li>
+      <li><strong>Which idea applies.</strong> Bayes theorem: P(A | B) = P(B | A)P(A)/P(B).</li>
+      <li><strong>Work it out.</strong> 0.5 × 0.3 = 0.15. Then 0.15/0.25 = 0.6.</li>
+      <li><strong>Check.</strong> The answer is between 0 and 1, so it is a valid probability.</li>
+    </ol>
+    <p class="cx">Answer: 0.6</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about Naive Bayes (MSQ)</h3>
+    <div class="statement"><p>Which statements are true? Select all that apply.</p>
+    <p>(A) Naive Bayes assumes the features are independent given the class.</p>
+    <p>(B) When comparing classes for one item, the evidence P(x) can be ignored.</p>
+    <p>(C) Laplace smoothing can make a probability equal to zero.</p>
+    <p>(D) Gaussian Naive Bayes uses word counts as its features.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about Naive Bayes are correct.</li>
+      <li><strong>Which idea applies.</strong> The naive assumption, the role of the evidence, the purpose of smoothing, and which feature type each version uses.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true, because P(x) is the same for every class. (C) is false, smoothing exists to remove zeros. (D) is false, Gaussian NB is for continuous features, while word counts suit multinomial NB.</li>
+      <li><strong>Check.</strong> The two false statements mix up the purpose of smoothing and the feature type of Gaussian NB.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Spam or ham for an email with two words (NAT)</h3>
+    <div class="statement"><p>Priors are P(spam) = 0.3 and P(ham) = 0.7. The word "offer" has P(offer | spam) = 0.6 and P(offer | ham) = 0.2. The word "report" has P(report | spam) = 0.2 and P(report | ham) = 0.5. A new email contains both words. Using naive Bayes, find the posterior probability that the email is spam, to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The posterior of spam, rounded.</li>
+      <li><strong>Which idea applies.</strong> Compute the score for each class, then divide by the sum of the scores.</li>
+      <li><strong>Work it out.</strong> Spam score = 0.3 × 0.6 × 0.2 = 0.036. Ham score = 0.7 × 0.2 × 0.5 = 0.070. Total = 0.106. Posterior spam = 0.036/0.106, about 0.340.</li>
+      <li><strong>Check.</strong> Ham has the larger score, so a posterior below 0.5 for spam is expected.</li>
+    </ol>
+    <p class="cx">Answer: 0.340</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Laplace smoothing in ham (MCQ)</h3>
+    <div class="statement"><p>In the ham class there are 20 word occurrences in total. The vocabulary has V = 4 distinct words. The word "lottery" appears 0 times in ham. With add-one Laplace smoothing, what is P(lottery | ham)? Select the single correct option.</p>
+    <p>(A) 0 (B) 1/24 (C) 1/20 (D) 1/4</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smoothed probability of an unseen word.</li>
+      <li><strong>Which idea applies.</strong> (count + 1)/(total + V).</li>
+      <li><strong>Work it out.</strong> (0 + 1)/(20 + 4) = 1/24.</li>
+      <li><strong>Check.</strong> Option (C) forgets the smoothing, and (A) is the unsmoothed zero that smoothing is meant to remove.</li>
+    </ol>
+    <p class="cx">Answer: (B) 1/24</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Gaussian density at the mean (NAT)</h3>
+    <div class="statement"><p>Within one class, a feature is modelled as Gaussian with mean 4 and variance 9. Find the Gaussian density at x = 4, to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The density value at the mean.</li>
+      <li><strong>Which idea applies.</strong> P(x | C) = (1/√(2πσ²)) e<sup>-(x minus μ)²/(2σ²)</sup>.</li>
+      <li><strong>Work it out.</strong> The variance is 9, so σ = 3. At x = μ the exponential is 1. The constant is 1/√(2π × 9) = 1/(3√(2π)) = 1/7.520, about 0.133.</li>
+      <li><strong>Check.</strong> A larger variance gives a flatter curve, so the peak should be below the value 0.1995 found for variance 4. It is.</li>
+    </ol>
+    <p class="cx">Answer: 0.133</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Multinomial scores with smoothing (NAT)</h3>
+    <div class="statement"><p>Vocabulary has V = 3 words, a, b and c. Class Sports has 10 words in total, with counts a = 6, b = 3, c = 1. Class Politics has 8 words in total, with counts a = 1, b = 2, c = 5. The two priors are equal, 0.5 each. A new document contains the word a once and the word c once. Using add-one smoothing, find the posterior probability of Sports, to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The posterior of Sports for this document.</li>
+      <li><strong>Which idea applies.</strong> Smoothed word probabilities for each class, product with the prior, then normalise over the two classes.</li>
+      <li><strong>Work it out.</strong> Sports: P(a) = (6 + 1)/(10 + 3) = 7/13 and P(c) = (1 + 1)/13 = 2/13. The product is 14/169, about 0.08284. Politics: P(a) = (1 + 1)/(8 + 3) = 2/11 and P(c) = (5 + 1)/11 = 6/11. The product is 12/121, about 0.09917. The priors cancel because they are equal. Posterior Sports = 0.08284/(0.08284 + 0.09917) = 0.08284/0.18201, about 0.455.</li>
+      <li><strong>Check.</strong> Politics has more weight on c, which the document uses, so Politics should be slightly ahead. The result 0.455 is below 0.5, which agrees.</li>
+    </ol>
+    <p class="cx">Answer: 0.455</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements survive scrutiny? (MSQ)</h3>
+    <div class="statement"><p>Select all true statements about implementing and using Naive Bayes.</p>
+    <p>(A) Summing logarithms of probabilities avoids numerical underflow.</p>
+    <p>(B) Without smoothing, a word never seen with a class makes that class's score zero.</p>
+    <p>(C) Naive Bayes is a discriminative model that learns the boundary directly from the posterior.</p>
+    <p>(D) A Gaussian likelihood is a density and can exceed 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Recognise sound practical facts about Naive Bayes.</li>
+      <li><strong>Which idea applies.</strong> Logarithms turn products into sums. A zero factor kills a product. Naive Bayes models P(x | C) and P(C), so it is generative, not discriminative. Gaussian values are densities.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is false, Naive Bayes is a generative model because it models how the features look in each class. (D) is true.</li>
+      <li><strong>Check.</strong> The false one contains the word discriminative. Logistic regression is the usual discriminative example.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D)</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above.</p>
+  <pre class="code" data-lang="python"><code>import math
+from fractions import Fraction as F
+
+# Bayes with the clinic table
+print("disease given positive =", round((0.9 * 0.01) / 0.059, 3))
+
+# Problem 3: two-word spam check
+spam = F(3, 10) * F(6, 10) * F(2, 10)
+ham = F(7, 10) * F(2, 10) * F(5, 10)
+print("P3 posterior spam =", round(float(spam / (spam + ham)), 3))
+
+# Problem 4: smoothing
+print("P4 smoothed =", F(0 + 1, 20 + 4))
+
+# Problem 5: Gaussian density at the mean, variance 9
+sigma = 3
+print("P5 density =", round(1 / math.sqrt(2 * math.pi * sigma ** 2), 3))
+
+# Problem 6: multinomial with smoothing
+sports = F(7, 13) * F(2, 13)
+politics = F(2, 11) * F(6, 11)
+print("P6 posterior sports =", round(float(sports / (sports + politics)), 3))</code></pre>
+  <pre class="output">disease given positive = 0.153
+P3 posterior spam = 0.34
+P4 smoothed = 1/24
+P5 density = 0.133
+P6 posterior sports = 0.455</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Naive Bayes posterior for two words (NAT, 2 marks)</h3>
+    <div class="statement"><p>An email filter uses Naive Bayes with two words. The prior probability that an email is spam is 0.4, so the prior for ham (good mail) is 0.6. The word free appears in 50 percent of spam emails and in 10 percent of ham emails. The word meeting appears in 10 percent of spam emails and in 40 percent of ham emails. Assume the two words are independent given the class. A new email contains both free and meeting. Find P(spam given both words) to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The posterior probability of spam after seeing both words.</li>
+      <li><strong>Which idea applies.</strong> Multiply the prior by each word likelihood for each class, then divide by the sum of the two scores.</li>
+      <li><strong>Work it out.</strong> Spam score = 0.4 times 0.5 times 0.1 = 0.02. Ham score = 0.6 times 0.1 times 0.4 = 0.024. The posterior is 0.02 divided by (0.02 plus 0.024) = 0.02/0.044, which is about 0.455.</li>
+      <li><strong>Check.</strong> The spam score is smaller than the ham score, yet the answer is near one half. That is sensible, because free favours spam while meeting favours ham, so the evidence roughly cancels.</li>
+    </ol>
+    <p class="cx">Answer: 0.455</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Which Naive Bayes facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A student compares Naive Bayes classifiers. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) Naive Bayes assumes that the features are independent of each other given the class.</p><p>(B) Gaussian Naive Bayes estimates a mean and a variance for each class and each continuous feature.</p><p>(C) Laplace smoothing adds a constant alpha to every count, so no class-conditional probability is exactly zero.</p><p>(D) The denominator P(x) must be computed separately for each class, so it cannot be dropped when choosing the largest posterior.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four statements about Naive Bayes are true.</li>
+      <li><strong>Which idea applies.</strong> The independence assumption lets the likelihood factor into a product. Smoothing protects against zero counts. The denominator is shared by all classes.</li>
+      <li><strong>Work it out.</strong> (A) is true, which is the "naive" part of the name. (B) is true, because the Gaussian model needs those two numbers per class and feature. (C) is true, because adding alpha to each count keeps every probability above zero. (D) is false, because P(x) is the same number for every class, so it does not change which class has the largest posterior.</li>
+      <li><strong>Check.</strong> The code below shows smoothing on a word that never appears in spam. Its probability is 1/25, not zero, so one missing word cannot erase the whole product.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Option (D) is wrong because P(x) is the same for every class and can be dropped when comparing classes.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Smoothed word probabilities (NAT, 2 marks)</h3>
+    <div class="statement"><p>In a spam model, the spam class has 20 words in total after counting all training spam messages. The vocabulary has 5 distinct words. The word free never appears in spam, and the word win appears 6 times. Use Laplace smoothing with alpha = 1 for each word probability: P(word given spam) = (count plus alpha) divided by (total plus alpha times vocabulary size). For a message containing both free and win, assume the two words are independent given spam. Find P(free and win given spam). (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The joint likelihood of two words given the spam class.</li>
+      <li><strong>Which idea applies.</strong> Smoothed word probabilities, then multiply them because of the independence assumption.</li>
+      <li><strong>Work it out.</strong> The denominator is 20 plus 1 times 5 = 25. P(free given spam) = (0 plus 1)/25 = 1/25. P(win given spam) = (6 plus 1)/25 = 7/25. The product is 1/25 times 7/25 = 7/625, which equals 0.0112.</li>
+      <li><strong>Check.</strong> Without smoothing the free term would be 0 and the product would be 0. The smoothed answer 0.0112 is small but not zero, which is the whole purpose of smoothing.</li>
+    </ol>
+    <p class="cx">Answer: 0.0112 (7/625)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Gaussian Naive Bayes posterior (NAT, 2 marks)</h3>
+    <div class="statement"><p>A Gaussian Naive Bayes classifier predicts a class from one continuous feature, height in cm. Class A has prior 0.3, mean 170 and standard deviation 5. Class B has prior 0.7, mean 180 and standard deviation 6. The Gaussian density is N(x; mu, sd) = exp(minus (x minus mu) squared divided by (2 sd squared)) divided by (sd times the square root of 2 pi). A new person has height 176. Find P(class A given height 176) to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The posterior probability of class A for one height.</li>
+      <li><strong>Which idea applies.</strong> Multiply each prior by its Gaussian density at x, then divide by the sum over the two classes.</li>
+      <li><strong>Work it out.</strong> For class A, (176 minus 170) squared divided by (2 times 25) = 36/50 = 0.72, so the density is about 0.03884 after dividing by 5 times the square root of 2 pi. For class B, (176 minus 180) squared divided by (2 times 36) = 16/72, about 0.2222, so the density is about 0.05324. Weighted by priors: A gives 0.3 times 0.03883 = 0.01165 and B gives 0.7 times 0.05324 = 0.03727. The posterior is 0.01165 divided by 0.04892, about 0.238.</li>
+      <li><strong>Check.</strong> In units of each class's own spread, 176 sits 1.2 standard deviations above the mean of A and about 0.67 standard deviations below the mean of B, so the likelihood already favours B. A posterior of 0.238 for A, below one half, agrees with that.</li>
+    </ol>
+    <p class="cx">Answer: 0.238</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>import math
+from fractions import Fraction as F
+
+# Exam-level 1: Naive Bayes posterior for two words
+p_spam, p_ham = 0.4, 0.6
+spam_score = p_spam * 0.5 * 0.1
+ham_score = p_ham * 0.1 * 0.4
+print("E1 spam score =", round(spam_score, 4), " ham score =", round(ham_score, 4), " P(spam | words) =", round(spam_score / (spam_score + ham_score), 3))
+
+# Exam-level 2: Laplace smoothing gives no zero probability
+counts = {"free": 0, "win": 6}
+total, vocab, alpha = 20, 5, 1
+for word, c in counts.items():
+    print("E2", word, "smoothed P(word | spam) =", F(c + alpha, total + alpha * vocab))
+
+# Exam-level 3: two smoothed word probabilities multiplied
+p_free = F(0 + alpha, total + alpha * vocab)
+p_win = F(6 + alpha, total + alpha * vocab)
+print("E3 P(free | spam) =", p_free, " P(win | spam) =", p_win, " product =", p_free * p_win, "=", float(p_free * p_win))
+
+# Exam-level 4: Gaussian Naive Bayes posterior
+def gauss(x, mu, sd):
+    return math.exp(-(x - mu) ** 2 / (2 * sd * sd)) / (sd * math.sqrt(2 * math.pi))
+a = 0.3 * gauss(176, 170, 5)
+b = 0.7 * gauss(176, 180, 6)
+print("E4 density A =", round(gauss(176, 170, 5), 5), " density B =", round(gauss(176, 180, 6), 5))
+print("E4 P(A | height 176) =", round(a / (a + b), 3))</code></pre>
+  <pre class="output">E1 spam score = 0.02  ham score = 0.024  P(spam | words) = 0.455
+E2 free smoothed P(word | spam) = 1/25
+E2 win smoothed P(word | spam) = 7/25
+E3 P(free | spam) = 1/25  P(win | spam) = 7/25  product = 7/625 = 0.0112
+E4 density A = 0.03884  density B = 0.05324
+E4 P(A | height 176) = 0.238</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>Class</dt><dd>One of the possible answers the classifier can give.</dd></div>
+    <div><dt>Prior</dt><dd>How common a class is before looking at the clues.</dd></div>
+    <div><dt>Likelihood</dt><dd>How probable the clues are if the class is known.</dd></div>
+    <div><dt>Evidence</dt><dd>How probable the clues are overall. The same for all classes.</dd></div>
+    <div><dt>Posterior</dt><dd>How probable a class is after seeing the clues.</dd></div>
+    <div><dt>Bayes theorem</dt><dd>Posterior equals likelihood times prior divided by evidence.</dd></div>
+    <div><dt>Conditional independence</dt><dd>Features are independent once the class is known.</dd></div>
+    <div><dt>Naive assumption</dt><dd>The simplifying claim of conditional independence across all features.</dd></div>
+    <div><dt>Score</dt><dd>Prior times the product of likelihoods, compared across classes.</dd></div>
+    <div><dt>Zero-frequency problem</dt><dd>A zero likelihood that wipes out the whole product.</dd></div>
+    <div><dt>Laplace smoothing</dt><dd>Adding 1 to counts and V to totals so that no probability is zero.</dd></div>
+    <div><dt>Gaussian Naive Bayes</dt><dd>Naive Bayes for continuous features, using a bell curve per class.</dd></div>
+    <div><dt>Multinomial Naive Bayes</dt><dd>Naive Bayes for counts such as word frequencies.</dd></div>
+    <div><dt>Log-score</dt><dd>The sum of logarithms, used to avoid underflow.</dd></div>
+    <div><dt>Generative model</dt><dd>A model that describes how features look in each class, as Naive Bayes does.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>Bayes theorem turns how the clues look in each class into the probability of each class.</li>
+    <li>For classification, compare prior times the product of likelihoods. The evidence cancels.</li>
+    <li>The naive assumption treats features as independent once the class is known.</li>
+    <li>Always apply smoothing so that one unseen word does not zero out a class.</li>
+    <li>Use Gaussian Naive Bayes for continuous features and multinomial for counts.</li>
+    <li>A Gaussian value is a density and can be larger than 1.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 101?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 101 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-100.html"><small>Previous, topic 100</small>K-Nearest Neighbour</a><a class="next" href="gate-102.html"><small>Next, topic 102</small>Linear Discriminant Analysis</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,481 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 150: Rotation matrices in 2D and 3D</title><meta name="description" content="A rotation matrix is a grid of numbers that turns a point or an arrow about the origin without stretching it. Robots use rotation matrices to describe how each link is turned relative to the next. This topic builds the 2D and 3D rotation matrices, shows their properties, and explains why the order of rotations matters."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g150" data-key="g150" data-noun="topic" data-num="150" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Rotation matrices in 2D and 3D</h1>
+<p class="lede">A rotation matrix is a grid of numbers that turns a point or an arrow about the origin without stretching it. Robots use rotation matrices to describe how each link is turned relative to the next. This topic builds the 2D and 3D rotation matrices, shows their properties, and explains why the order of rotations matters.</p>
+<div class="station"><b>150</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Rotating a point in 2D</li><li>Properties of rotation matrices</li><li>Rotations about the X, Y and Z axes in 3D</li><li>Composing rotations and why order matters</li><li>Roll, pitch and yaw (Euler angles)</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine an arrow drawn on a sheet of paper, with its tail at the centre of the page. Turn the paper by 30 degrees. The arrow turns with it, but its length stays the same. A rotation keeps lengths and angles, and only changes direction. A <strong>rotation matrix</strong> is a small table of numbers that does this turning when we multiply it by the coordinates of a point.</p>
+  <p>Why use a table of numbers at all? A computer can multiply numbers quickly and reliably. A robot may need to turn points thousands of times a second, so a matrix is the natural tool. Once we know the matrix, we can also chain several turns together in one step.</p>
+  <p><strong>Everyday analogy.</strong> Think of a dance. Each dancer turns on the spot, and the turn is the same for each person in the group. A rotation matrix is like the instruction "turn left by 90 degrees" written as numbers, so a computer can apply it to every dancer at once.</p>
+  <p><strong>Why it matters.</strong> Each joint of a robot arm turns one link relative to the previous one. Rotation matrices give the orientation of every link and of the tool. Without them, we could not describe where the gripper is pointing.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper you may be asked for the rotated coordinates of a point, for a property of a rotation matrix, or for the effect of two rotations in a given order. These questions reward careful, step-by-step arithmetic.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Rotation matrix</dt><dd>A square array of numbers that rotates a vector about the origin, keeping its length. Plain meaning: a turning instruction written as a table.</dd></div>
+    <div><dt>Matrix</dt><dd>A rectangular array of numbers arranged in rows and columns. A 2 by 2 matrix has two rows and two columns.</dd></div>
+    <div><dt>Vector</dt><dd>A quantity with a size and a direction, written as a list of numbers such as (x, y) or (x, y, z).</dd></div>
+    <div><dt>Angle θ</dt><dd>The amount of turning, in degrees or radians. The conversion is radians = degrees × π/180.</dd></div>
+    <div><dt>Counterclockwise positive</dt><dd>The convention that a turn in the counterclockwise direction is a positive angle when seen from above the axis.</dd></div>
+    <div><dt>Orthogonal matrix</dt><dd>A matrix whose transpose is its inverse. Rotation matrices are orthogonal.</dd></div>
+    <div><dt>Transpose (A<sup>T</sup>)</dt><dd>The matrix formed by swapping rows and columns. Plain meaning: flip the table over its diagonal.</dd></div>
+    <div><dt>Identity matrix (I)</dt><dd>A square matrix with 1 on the diagonal and 0 elsewhere. Multiplying by I changes nothing.</dd></div>
+    <div><dt>Determinant (det)</dt><dd>A single number computed from a square matrix. For a 2 by 2 matrix [[a, b], [c, d]] it equals ad − bc.</dd></div>
+    <div><dt>Matrix product (composition)</dt><dd>Multiplying two rotation matrices gives a single rotation equal to doing both one after the other.</dd></div>
+    <div><dt>Euler angles (roll, pitch, yaw)</dt><dd>Three angles that describe an orientation as three successive rotations about the X, Y and Z axes.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Rotating a point in 2D">
+  <h2>Rotating a point in 2D</h2>
+  <h3>Starting from a picture</h3>
+  <p>Take a point at (x, y), and draw the arrow from the origin to it. Let the arrow have length r and make angle φ with the x-axis. Then x = r cos φ and y = r sin φ. Now rotate the arrow counterclockwise by an angle θ. The new arrow has length r and angle φ + θ, so its new coordinates are</p>
+  <div class="formula">x′ = r cos(φ + θ) = x cos θ − y sin θ</div>
+  <div class="formula">y′ = r sin(φ + θ) = x sin θ + y cos θ</div>
+  <p>The second form comes from the sine and cosine addition rules applied to r cos(φ + θ) and r sin(φ + θ). The two lines can be written as one multiplication. Here x′ and y′ are the new coordinates, and θ is the counterclockwise angle.</p>
+  <pre class="code" data-lang="text"><code>[ x′ ]   [ cos θ  −sin θ ] [ x ]
+[ y′ ] = [ sin θ   cos θ ] [ y ]</code></pre>
+  <p>The square array is the 2D rotation matrix R(θ). Its rows are written left to right, and the column of (x, y) is multiplied by it.</p>
+
+  <p>Try the picture below. Look at the orange square grid as it turns. Then drag the column vectors and notice how the grid stays square and never stretches.</p>
+  <div class="viz" data-viz="transform" data-m="0,-1,1,0"></div>
+
+  <h3>A check with 90 degrees</h3>
+  <p>For θ = 90°, cos θ = 0 and sin θ = 1. So R(90°) = [[0, −1], [1, 0]]. Apply it to (1, 0): x′ = 0 × 1 + (−1) × 0 = 0 and y′ = 1 × 1 + 0 × 0 = 1. The point (1, 0) moves to (0, 1), a quarter turn counterclockwise. The check works.</p>
+
+  <h3>Worked example</h3>
+  <p>Rotate the point (2, 1) by θ = 30°. Use cos 30° = 0.866 and sin 30° = 0.5.</p>
+  <ol>
+    <li>x′ = x cos θ − y sin θ = 2 × 0.866 − 1 × 0.5 = 1.732 − 0.5 = 1.232.</li>
+    <li>y′ = x sin θ + y cos θ = 2 × 0.5 + 1 × 0.866 = 1 + 0.866 = 1.866.</li>
+    <li>The new point is (1.23, 1.87), to two decimals.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+t = math.radians(30)
+R = [[math.cos(t), -math.sin(t)],
+     [math.sin(t),  math.cos(t)]]
+x, y = 2.0, 1.0
+xp = R[0][0] * x + R[0][1] * y
+yp = R[1][0] * x + R[1][1] * y
+print(f"rotated (2,1) = ({xp:.2f}, {yp:.2f})")</code></pre>
+  <pre class="output">rotated (2,1) = (1.23, 1.87)</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The sign of the sine term is easy to get wrong. In the first row it is minus, and in the second row it is plus. A quick check with 90 degrees, as above, catches the error.</p></div>
+
+  <details class="check"><summary>What are the coordinates of (1, 0) after a counterclockwise rotation of 90°?</summary><div class="ans"><p>(0, 1). The point moves a quarter turn up to the y-axis.</p></div></details>
+  <details class="check"><summary>What is the 2D rotation matrix for θ = 180°?</summary><div class="ans"><p>cos 180° = −1 and sin 180° = 0, so R = [[−1, 0], [0, −1]], which is −I. Every point is reflected through the origin.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Properties of rotation matrices">
+  <h2>Properties of rotation matrices</h2>
+  <h3>Why these properties matter</h3>
+  <p>Rotation matrices have special properties that let us check our work and speed up calculations. Three properties are used most often in GATE questions.</p>
+  <ul>
+    <li><strong>Lengths are preserved.</strong> A rotation keeps the size of a vector. So |R v| = |v|.</li>
+    <li><strong>Determinant is 1.</strong> A proper rotation has det R = +1. A reflection would have det R = −1, and it is not a rotation.</li>
+    <li><strong>Inverse equals transpose.</strong> R<sup>−1</sup> = R<sup>T</sup>. Undoing a rotation is the same as rotating the other way, and the transpose gives that.</li>
+  </ul>
+  <div class="formula">R<sup>T</sup> R = I, det R = 1, R<sup>−1</sup> = R<sup>T</sup></div>
+  <p>For the 2D matrix R(θ) = [[cos θ, −sin θ], [sin θ, cos θ]], the determinant is cos²θ + sin²θ = 1. Its transpose is [[cos θ, sin θ], [−sin θ, cos θ]], which is R(−θ).</p>
+  <pre class="code" data-lang="python"><code>import math
+t = math.radians(30)
+R = [[math.cos(t), -math.sin(t)],
+     [math.sin(t),  math.cos(t)]]
+det = R[0][0] * R[1][1] - R[0][1] * R[1][0]
+x, y = 2.0, 1.0
+xp = R[0][0] * x + R[0][1] * y
+yp = R[1][0] * x + R[1][1] * y
+print(f"det = {det:.2f}")
+print(f"length before = {math.hypot(x, y):.4f}, after = {math.hypot(xp, yp):.4f}")</code></pre>
+  <pre class="output">det = 1.00
+length before = 2.2361, after = 2.2361</pre>
+
+  <p>The first line confirms the determinant is 1. The second line confirms that the length is kept. Both checks are useful in GATE, where a wrong matrix often fails one of them.</p>
+
+  <p>In the next picture, try the 30 degree rotation. Watch what happens to the square grid, and try to drag the column vectors so that the determinant changes sign. The shape flips rather than turns, which is what a reflection does and not a rotation.</p>
+  <div class="viz" data-viz="transform" data-m="0.866,-0.5,0.5,0.866"></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>A rotation matrix is orthogonal: its columns are unit length, and they are at right angles to each other. This is why its inverse is just its transpose.</p></div>
+
+  <details class="check"><summary>What is the inverse of R(30°)?</summary><div class="ans"><p>Its transpose, which is R(−30°). Undoing a 30 degree turn is a 30 degree turn in the other direction.</p></div></details>
+  <details class="check"><summary>Does a rotation matrix ever have determinant −1?</summary><div class="ans"><p>No. A determinant of −1 means the matrix reflects the plane, which is not a pure rotation. Proper rotations always have determinant +1.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Rotations about the X, Y and Z axes in 3D">
+  <h2>Rotations about the X, Y and Z axes in 3D</h2>
+  <h3>Turning about one axis</h3>
+  <p>In 3D, a rotation needs an axis. A rotation about the Z axis keeps the z-coordinate unchanged and turns the x and y coordinates in the plane. That is exactly the 2D rotation, with z added as a spectator. Rotations about X and Y work the same way, but each one keeps a different coordinate fixed.</p>
+  <div class="formula">R<sub>z</sub>(θ) = [[cos θ, −sin θ, 0], [sin θ, cos θ, 0], [0, 0, 1]]</div>
+  <div class="formula">R<sub>x</sub>(θ) = [[1, 0, 0], [0, cos θ, −sin θ], [0, sin θ, cos θ]]</div>
+  <div class="formula">R<sub>y</sub>(θ) = [[cos θ, 0, sin θ], [0, 1, 0], [−sin θ, 0, cos θ]]</div>
+  <p>Read them with care. In R<sub>z</sub>, the third row and column are (0, 0, 1), so z is kept. In R<sub>x</sub>, the first row and column are (1, 0, 0), so x is kept. In R<sub>y</sub>, the middle row and column are (0, 1, 0), so y is kept. The signs of the sines change position in each matrix, which is a common source of mistakes.</p>
+
+  <pre class="code" data-lang="text"><code>  Rotation about Z (seen from above, looking down the Z axis)
+
+            y
+            |
+            |      x-y plane turns counterclockwise by θ
+            |     /
+            |   /
+            | /
+   ---------+---------- x
+
+  z is unchanged: a point above the plane stays at the same height.</code></pre>
+
+  <h3>Worked example</h3>
+  <p>Rotate the point (1, 0, 0) by 90° about Z. Use R<sub>z</sub>(90°) = [[0, −1, 0], [1, 0, 0], [0, 0, 1]].</p>
+  <ol>
+    <li>x′ = 0 × 1 + (−1) × 0 + 0 × 0 = 0.</li>
+    <li>y′ = 1 × 1 + 0 × 0 + 0 × 0 = 1.</li>
+    <li>z′ = 0 × 1 + 0 × 0 + 1 × 0 = 0.</li>
+    <li>The result is (0, 1, 0). The point moved from the x-axis to the y-axis, and stayed in the plane z = 0.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def rot_z(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0], [s, c, 0], [0, 0, 1]]
+
+def apply(R, p):
+    return [sum(R[i][k] * p[k] for k in range(3)) for i in range(3)]
+
+def clean(v):
+    return [round(x, 6) + 0.0 for x in v]
+
+print("Rz(90) applied to (1,0,0):", clean(apply(rot_z(math.pi / 2), [1, 0, 0])))</code></pre>
+  <pre class="output">Rz(90) applied to (1,0,0): [0.0, 1.0, 0.0]</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Rotation about Z does not change the z-coordinate. Students sometimes write a rotation about X that changes x, which is wrong. Rotation about X keeps x fixed.</p></div>
+
+  <details class="check"><summary>Which coordinate does R<sub>x</sub>(θ) keep unchanged?</summary><div class="ans"><p>The x-coordinate. The first row and column of R<sub>x</sub> are (1, 0, 0).</p></div></details>
+  <details class="check"><summary>What is R<sub>y</sub>(0°)?</summary><div class="ans"><p>The identity matrix, because cos 0° = 1 and sin 0° = 0. No turning means no change.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Composing rotations and why order matters">
+  <h2>Composing rotations and why order matters</h2>
+  <h3>Two turns in a row</h3>
+  <p>Suppose a point is first rotated by a matrix A, and then by a matrix B. The final point is B(A p), which we can write as (BA) p. The product BA is a single matrix that does both turns in one step. Notice the order: the matrix on the left is applied last.</p>
+  <p>In 2D, two rotations about the origin commute, which means the order does not matter. R(θ) R(φ) = R(θ + φ) = R(φ) R(θ). In 3D this is not true. Rotations about different axes do not commute, so the order changes the answer.</p>
+  <div class="formula">R<sub>1</sub> R<sub>2</sub> ≠ R<sub>2</sub> R<sub>1</sub> in general (3D)</div>
+
+  <h3>A worked example of order</h3>
+  <p>Let A = R<sub>x</sub>(90°) and B = R<sub>z</sub>(90°). Apply the point p = (1, 0, 0) in two orders.</p>
+  <ol>
+    <li><strong>Order 1, Rz first then Rx.</strong> Rz(90°) takes (1, 0, 0) to (0, 1, 0). Then Rx(90°) takes (0, 1, 0) to (0, 0, 1).</li>
+    <li><strong>Order 2, Rx first then Rz.</strong> Rx(90°) keeps (1, 0, 0) unchanged, because it lies on the x-axis. Then Rz(90°) takes (1, 0, 0) to (0, 1, 0).</li>
+    <li>The two answers are (0, 0, 1) and (0, 1, 0). They are different, so the order matters.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def rot_x(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[1, 0, 0], [0, c, -s], [0, s, c]]
+
+def rot_z(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0], [s, c, 0], [0, 0, 1]]
+
+def matmul(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+def apply(R, p):
+    return [sum(R[i][k] * p[k] for k in range(3)) for i in range(3)]
+
+def clean(v):
+    return [round(x, 6) + 0.0 for x in v]
+
+half_pi = math.pi / 2
+p = [1, 0, 0]
+print("Rz first, then Rx:", clean(apply(rot_x(half_pi), apply(rot_z(half_pi), p))))
+print("Rx first, then Rz:", clean(apply(rot_z(half_pi), apply(rot_x(half_pi), p))))
+print("matrix Rx*Rz applied:", clean(apply(matmul(rot_x(half_pi), rot_z(half_pi)), p)))</code></pre>
+  <pre class="output">Rz first, then Rx: [0.0, 0.0, 1.0]
+Rx first, then Rz: [0.0, 1.0, 0.0]
+matrix Rx*Rz applied: [0.0, 0.0, 1.0]</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>When you multiply matrices, the rightmost matrix acts first on the point. The product Rx·Rz therefore means "Rz first, then Rx". Read the product from right to left when you apply it to a point.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Rotations in 3D do not commute. A question that swaps two rotations is testing this exact fact. Always check whether the order changes the final point.</p></div>
+
+  <details class="check"><summary>In 2D, does R(30°) R(60°) equal R(60°) R(30°)?</summary><div class="ans"><p>Yes. Both equal R(90°), because rotations about the same point in 2D commute.</p></div></details>
+  <details class="check"><summary>For the product M = R<sub>z</sub>(90°) R<sub>x</sub>(90°), which rotation acts first on a point?</summary><div class="ans"><p>R<sub>x</sub>(90°), because it is the rightmost matrix.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Roll, pitch and yaw (Euler angles)">
+  <h2>Roll, pitch and yaw (Euler angles)</h2>
+  <h3>Three angles for one orientation</h3>
+  <p>Any orientation in 3D can be made by three successive rotations about the axes. Engineers usually name them after the motion of a vehicle or an aircraft. <strong>Roll</strong> is the turn about the X axis (the direction of travel), <strong>pitch</strong> is the turn about the Y axis (the nose up or down), and <strong>yaw</strong> is the turn about the Z axis (the nose left or right).</p>
+  <p>A common convention is the ZYX order. The overall rotation is</p>
+  <div class="formula">R = R<sub>z</sub>(yaw) R<sub>y</sub>(pitch) R<sub>x</sub>(roll)</div>
+  <p>Read it from right to left when applying it to a point. First roll is applied, then pitch, and finally yaw. Other books use other orders, so always check which convention a question uses.</p>
+
+  <h3>Worked example</h3>
+  <p>Take yaw = 90°, pitch = 90°, roll = 0°. Apply R to the point (1, 0, 0).</p>
+  <ol>
+    <li>Roll is zero, so R<sub>x</sub>(0°) is the identity and the point stays (1, 0, 0).</li>
+    <li>Pitch of 90° about Y: R<sub>y</sub>(90°) takes (1, 0, 0) to (0, 0, −1).</li>
+    <li>Yaw of 90° about Z: R<sub>z</sub>(90°) keeps the z-coordinate, so (0, 0, −1) stays (0, 0, −1).</li>
+    <li>The final point is (0, 0, −1).</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def rot_x(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[1, 0, 0], [0, c, -s], [0, s, c]]
+
+def rot_y(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, 0, s], [0, 1, 0], [-s, 0, c]]
+
+def rot_z(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0], [s, c, 0], [0, 0, 1]]
+
+def matmul(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+
+def apply(R, p):
+    return [sum(R[i][k] * p[k] for k in range(3)) for i in range(3)]
+
+def clean(v):
+    return [round(x, 6) + 0.0 for x in v]
+
+q = math.pi / 2
+R = matmul(rot_z(q), matmul(rot_y(q), rot_x(0.0)))
+print("Euler ZYX applied to (1,0,0):", clean(apply(R, [1, 0, 0])))</code></pre>
+  <pre class="output">Euler ZYX applied to (1,0,0): [0.0, 0.0, -1.0]</pre>
+
+  <div class="note tip"><p><span class="t">Tip</span>Euler angles are easy to misread. If a question gives the three angles, first state the convention it uses. Then build the matrix in that order, and only then apply it to the point.</p></div>
+
+  <details class="check"><summary>In the ZYX convention, which rotation is applied first to a point?</summary><div class="ans"><p>The roll, which is R<sub>x</sub>(roll), because it is the rightmost matrix.</p></div></details>
+  <details class="check"><summary>What does a yaw of 90° do to the point (1, 0, 0) if pitch and roll are zero?</summary><div class="ans"><p>It turns the point to (0, 1, 0), a quarter turn about the Z axis, with z unchanged.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>R(θ) = [[cos θ, −sin θ], [sin θ, cos θ]]</td><td>2D counterclockwise rotation by θ</td><td>Turning a point in the plane</td></tr>
+      <tr><td>R<sub>z</sub>(θ), R<sub>x</sub>(θ), R<sub>y</sub>(θ)</td><td>3D rotations about the Z, X and Y axes</td><td>Turning about one axis in space</td></tr>
+      <tr><td>R<sup>−1</sup> = R<sup>T</sup>, det R = 1</td><td>R<sup>T</sup> transpose, det determinant</td><td>Checking or undoing a rotation</td></tr>
+      <tr><td>R = R<sub>z</sub>(yaw) R<sub>y</sub>(pitch) R<sub>x</sub>(roll)</td><td>ZYX Euler angle convention</td><td>Orientation from roll, pitch and yaw</td></tr>
+      <tr><td>R(θ) R(φ) = R(θ + φ)</td><td>2D rotations about the origin</td><td>Combining planar turns</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE multiple select and numerical questions. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Rotate a point by 90 degrees</h3>
+    <div class="statement"><p>The point (1, 0) is rotated counterclockwise by 90° about the origin. What is the y-coordinate of the new point? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Only the y-coordinate after the turn.</li>
+      <li><strong>Which idea applies.</strong> y′ = x sin θ + y cos θ.</li>
+      <li><strong>Work it out.</strong> y′ = 1 × sin 90° + 0 × cos 90° = 1 × 1 + 0 = 1.</li>
+      <li><strong>Check.</strong> A quarter turn of (1, 0) lands on (0, 1), so the y-coordinate is 1.</li>
+    </ol>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Properties of rotation matrices</h3>
+    <div class="statement"><p>Select all that apply. Which statements are true for a 2D rotation matrix R(θ)?</p>
+    <p>(A) det R(θ) = 1.<br>(B) The inverse of R(θ) equals its transpose.<br>(C) R(θ) R(φ) = R(θ − φ).<br>(D) R(θ) preserves the length of every vector.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which properties hold for a 2D rotation.</li>
+      <li><strong>Which idea applies.</strong> Rotation matrices have determinant 1, are orthogonal, and preserve length. Two rotations about the origin add their angles.</li>
+      <li><strong>Work it out.</strong> (A) is true, since cos² + sin² = 1. (B) is true, since R is orthogonal. (C) is false, since the angles add, giving R(θ + φ). (D) is true.</li>
+      <li><strong>Check.</strong> Test (C) with θ = φ = 90°. R(90°)R(90°) = R(180°) = −I, while R(0°) = I. So (C) is wrong.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>The x-coordinate after a 90 degree turn</h3>
+    <div class="statement"><p>The point (3, 4) is rotated counterclockwise by 90° about the origin. What is the x-coordinate of the new point? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The new x-coordinate.</li>
+      <li><strong>Which idea applies.</strong> x′ = x cos θ − y sin θ.</li>
+      <li><strong>Work it out.</strong> x′ = 3 × 0 − 4 × 1 = −4.</li>
+      <li><strong>Check.</strong> A quarter turn sends the point (3, 4) to (−4, 3). The length is √25 = 5 before and after, as it should be.</li>
+    </ol>
+    <p class="cx">Answer: −4.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Rotate about Z, then about X</h3>
+    <div class="statement"><p>The point (1, 0, 0) is first rotated by 90° about the Z axis, and then by 90° about the X axis. What is the z-coordinate of the final point? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The z-coordinate after two rotations in the given order.</li>
+      <li><strong>Which idea applies.</strong> Apply R<sub>z</sub>(90°) first, then R<sub>x</sub>(90°).</li>
+      <li><strong>Work it out.</strong> R<sub>z</sub>(90°) takes (1, 0, 0) to (0, 1, 0). Then R<sub>x</sub>(90°) takes (0, 1, 0) to (0, 0, 1), since z′ = y sin θ + z cos θ = 1 × 1 + 0 = 1. The z-coordinate is 1.</li>
+      <li><strong>Check.</strong> The Python check below gives the same final point.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+def rot_x(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[1, 0, 0], [0, c, -s], [0, s, c]]
+def rot_z(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0], [s, c, 0], [0, 0, 1]]
+def apply(R, p):
+    return [sum(R[i][k] * p[k] for k in range(3)) for i in range(3)]
+q = math.pi / 2
+p = apply(rot_x(q), apply(rot_z(q), [1, 0, 0]))
+print(f"z = {round(p[2], 6) + 0.0:.1f}")</code></pre>
+    <pre class="output">z = 1.0</pre>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Does the order of rotations matter</h3>
+    <div class="statement"><p>Let A = R<sub>x</sub>(90°) and B = R<sub>z</sub>(90°). Select all that apply.</p>
+    <p>(A) A and B commute, so AB and BA are the same matrix.<br>(B) Applying BA to (1, 0, 0) gives (0, 1, 0).<br>(C) Applying AB to (1, 0, 0) gives (0, 0, 1).<br>(D) R<sub>x</sub>(30°) R<sub>x</sub>(60°) = R<sub>x</sub>(90°).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the order of these rotations are true.</li>
+      <li><strong>Which idea applies.</strong> The rightmost matrix acts first. Rotations about the same axis add their angles, but rotations about different axes do not commute in 3D.</li>
+      <li><strong>Work it out.</strong> (A) is false, since A and B do not commute. (B) is true: BA applies A first, which leaves (1, 0, 0) unchanged, then B gives (0, 1, 0). (C) is true: AB applies B first, giving (0, 1, 0), then A gives (0, 0, 1). (D) is true, since both are about X and the angles add.</li>
+      <li><strong>Check.</strong> The results in (B) and (C) are different points, which confirms that the order matters.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Rotate about X, then about Y</h3>
+    <div class="statement"><p>The point (0, 0, 1) is first rotated by 90° about the X axis, and then by 90° about the Y axis. What is the y-coordinate of the final point? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The y-coordinate after R<sub>y</sub>(90°) R<sub>x</sub>(90°) is applied to the point.</li>
+      <li><strong>Which idea applies.</strong> The rightmost matrix, R<sub>x</sub>(90°), acts first.</li>
+      <li><strong>Work it out.</strong> R<sub>x</sub>(90°) takes (0, 0, 1) to (0, −1, 0), since y′ = −z sin θ = −1 and z′ = z cos θ = 0. Then R<sub>y</sub>(90°) keeps y, so the y-coordinate stays −1.</li>
+      <li><strong>Check.</strong> The Python check below gives the same result.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+def rot_x(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[1, 0, 0], [0, c, -s], [0, s, c]]
+def rot_y(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, 0, s], [0, 1, 0], [-s, 0, c]]
+def apply(R, p):
+    return [sum(R[i][k] * p[k] for k in range(3)) for i in range(3)]
+q = math.pi / 2
+p = apply(rot_y(q), apply(rot_x(q), [0, 0, 1]))
+print(f"y = {round(p[1], 6) + 0.0:.1f}")</code></pre>
+    <pre class="output">y = -1.0</pre>
+    <p class="cx">Answer: −1.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about rotation matrices</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) The columns of a 2D rotation matrix are unit vectors at right angles.<br>(B) R(180°) = −I in 2D.<br>(C) R<sub>z</sub>(θ) changes the z-coordinate of every point.<br>(D) In 2D, R(a) R(b) = R(a + b).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about rotation matrices are true.</li>
+      <li><strong>Which idea applies.</strong> The columns of R(θ) are (cos θ, sin θ) and (−sin θ, cos θ), which are unit vectors at right angles. Two 2D rotations add their angles.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true, since cos 180° = −1 and sin 180° = 0. (C) is false, since R<sub>z</sub> keeps z fixed. (D) is true.</li>
+      <li><strong>Check.</strong> The statement in (C) fails the test with the third row of R<sub>z</sub>, which is (0, 0, 1). It leaves z unchanged.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Composite rotation (NAT, 2 marks)</h3>
+    <div class="statement"><p>R = R<sub>z</sub>(90°)R<sub>x</sub>(90°). Find R applied to the vector (0, 1, 0).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rotated vector.</li>
+      <li><strong>Which idea applies.</strong> Apply R<sub>x</sub> first, then R<sub>z</sub>.</li>
+      <li><strong>Work it out.</strong> R<sub>x</sub>(90°) sends (0, 1, 0) to (0, 0, 1). R<sub>z</sub>(90°) leaves (0, 0, 1) unchanged. Result (0, 0, 1).</li>
+      <li><strong>Check.</strong> The code multiplies the matrices.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>Rz = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]; Rx = [[1, 0, 0], [0, 0, -1], [0, 1, 0]]
+mv = lambda M, v: [sum(M[i][j] * v[j] for j in range(3)) for i in range(3)]
+print(mv(Rz, mv(Rx, [0, 1, 0])))
+</code></pre>
+    <pre class="output">[0, 0, 1]</pre>
+    <p class="cx">Answer: (0, 0, 1).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Rotation angle from trace (NAT, 2 marks)</h3>
+    <div class="statement"><p>A rotation matrix has trace 2. Find the rotation angle in degrees.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> θ from tr R = 1 + 2cos θ.</li>
+      <li><strong>Which idea applies.</strong> Every 3D rotation has eigenvalues 1, e<sup>iθ</sup>, e<sup>−iθ</sup>.</li>
+      <li><strong>Work it out.</strong> 1 + 2cos θ = 2, cos θ = 1/2, θ = 60°.</li>
+      <li><strong>Check.</strong> The identity has trace 3, θ = 0.</li>
+    </ol>
+    <p class="cx">Answer: 60°.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Rotation facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE for 3 × 3 rotation matrices? (A) Rᵀ = R<sup>−1</sup>. (B) det R = 1. (C) R<sub>1</sub>R<sub>2</sub> = R<sub>2</sub>R<sub>1</sub> always. (D) Each column has unit length.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of SO(3).</li>
+      <li><strong>Which idea applies.</strong> Rotations in 3D do not commute in general.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) False. (D) True.</li>
+      <li><strong>Check.</strong> R<sub>x</sub>(90°)R<sub>z</sub>(90°) differs from R<sub>z</sub>(90°)R<sub>x</sub>(90°).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Rotation matrix</dt><dd>A table of numbers that turns vectors about the origin without changing length.</dd></div>
+    <div><dt>2D rotation R(θ)</dt><dd>[[cos θ, −sin θ], [sin θ, cos θ]], counterclockwise for positive θ.</dd></div>
+    <div><dt>Orthogonal</dt><dd>R<sup>T</sup> R = I, so the inverse is the transpose.</dd></div>
+    <div><dt>Determinant of a rotation</dt><dd>Always +1 for a proper rotation.</dd></div>
+    <div><dt>R<sub>z</sub>(θ)</dt><dd>Turns x and y, keeps z.</dd></div>
+    <div><dt>R<sub>x</sub>(θ)</dt><dd>Turns y and z, keeps x.</dd></div>
+    <div><dt>R<sub>y</sub>(θ)</dt><dd>Turns z and x, keeps y.</dd></div>
+    <div><dt>Composition</dt><dd>The product of matrices gives one rotation equal to doing them in turn.</dd></div>
+    <div><dt>Order matters in 3D</dt><dd>R<sub>1</sub>R<sub>2</sub> is not R<sub>2</sub>R<sub>1</sub> in general.</dd></div>
+    <div><dt>Rightmost acts first</dt><dd>In R<sub>1</sub>R<sub>2</sub> p, R<sub>2</sub> acts first on p.</dd></div>
+    <div><dt>Roll</dt><dd>Rotation about the X axis.</dd></div>
+    <div><dt>Pitch</dt><dd>Rotation about the Y axis.</dd></div>
+    <div><dt>Yaw</dt><dd>Rotation about the Z axis.</dd></div>
+    <div><dt>ZYX convention</dt><dd>R = R<sub>z</sub>(yaw) R<sub>y</sub>(pitch) R<sub>x</sub>(roll).</dd></div>
+    <div><dt>Euler angles</dt><dd>Three successive rotations that describe any orientation.</dd></div>
+    <div><dt>Identity</dt><dd>I, which leaves every point unchanged.</dd></div>
+    <div><dt>Determinant check</dt><dd>A reflection has determinant −1, which is not a rotation.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A rotation matrix keeps lengths and has determinant +1.</li>
+    <li>The inverse of a rotation matrix is its transpose.</li>
+    <li>In 2D, rotations about the origin add their angles and commute.</li>
+    <li>In 3D, rotations generally do not commute, so the order matters.</li>
+    <li>The rightmost matrix in a product acts first on the point.</li>
+    <li>Rotation about Z keeps z, rotation about X keeps x, and rotation about Y keeps y.</li>
+    <li>Always state the Euler angle convention before you build the matrix.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 150?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 150 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-149.html"><small>Previous, topic 149</small>Coordinate systems and degrees of freedom</a><a class="next" href="gate-151.html"><small>Next, topic 151</small>Homogeneous transformations</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

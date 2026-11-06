@@ -1,0 +1,401 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 131: Combinational circuits: MUX, encoders, decoders</title><meta name="description" content="Multiplexers, decoders and encoders are the traffic police of digital circuits. A multiplexer chooses one input and passes it on, a decoder turns a binary address into a single active line, and an encoder does the reverse. This topic shows how each one works, how to read its truth table, and how to build any logic function from them."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g131" data-key="g131" data-noun="topic" data-num="131" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Combinational circuits: <em>MUX, encoders, decoders</em></h1>
+<p class="lede">Multiplexers, decoders and encoders are the traffic police of digital circuits. A multiplexer chooses one input and passes it on, a decoder turns a binary address into a single active line, and an encoder does the reverse. This topic shows how each one works, how to read its truth table, and how to build any logic function from them.</p>
+<div class="station"><b>131</b><span>Unit 11 · Digital circuits · Paper RA · New concept</span></div>
+<ul class="topics"><li>Multiplexer (MUX) and select lines</li><li>Using a MUX to build a Boolean function</li><li>Demultiplexer and decoder</li><li>Encoder and priority encoder</li><li>Building bigger MUXes from smaller ones</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a railway junction with one incoming track and many outgoing tracks. A switchman sets a lever, and the train goes down the chosen track. Or think of a school receptionist with several phone lines. She connects one caller at a time to the teacher, by choosing which line to answer. Digital circuits need the same kind of choice. A chip must often pick one of several signals, send one signal to one of several places, or turn a binary number into a single "on" wire.</p>
+  <p>Three building blocks do these jobs. A <strong>multiplexer (MUX)</strong> selects one of many inputs. A <strong>decoder</strong> takes a binary number and switches on exactly one output. An <strong>encoder</strong> does the reverse: it takes one active input and writes its position as a binary number. All three are <strong>combinational circuits</strong>, which means the output depends only on the present inputs, with no memory.</p>
+  <p>In GATE Robotics and Automation (RA) and Data Science and AI (DA), you will see these blocks as truth tables to read, as "implement this function using a MUX" questions, and as counting questions about how many blocks are needed. The method is always the same, so learn it once.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Combinational circuit</dt><dd>A circuit whose output depends only on its present inputs. Plain meaning: no memory of the past.</dd></div>
+    <div><dt>Multiplexer (MUX)</dt><dd>A circuit with 2<sup>n</sup> data inputs, n select lines and one output. The select lines pick which data input reaches the output.</dd></div>
+    <div><dt>Select line</dt><dd>An input that chooses which data input goes to the output. A 2<sup>n</sup>:1 MUX has n select lines.</dd></div>
+    <div><dt>Demultiplexer (DEMUX)</dt><dd>The opposite of a MUX. One data input is sent to one of 2<sup>n</sup> outputs, chosen by n select lines.</dd></div>
+    <div><dt>Decoder</dt><dd>A circuit with n inputs and 2<sup>n</sup> outputs. For each input code, exactly one output is 1. This is called one-hot output.</dd></div>
+    <div><dt>Enable</dt><dd>An extra input that switches a decoder or MUX on (1) or off (0).</dd></div>
+    <div><dt>Encoder</dt><dd>A circuit with 2<sup>n</sup> inputs and n outputs. It writes the position of the active input as a binary code.</dd></div>
+    <div><dt>Priority encoder</dt><dd>An encoder that still works when several inputs are active. It encodes the highest-numbered active input.</dd></div>
+    <div><dt>Valid output (V)</dt><dd>An extra output of a priority encoder. It is 1 when at least one input is active.</dd></div>
+    <div><dt>Minterm</dt><dd>An AND term that is 1 for exactly one input row. A decoder with no enable produces all the minterms.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Multiplexer and select lines">
+  <h2>Step 1: The multiplexer and its select lines</h2>
+  <p>A multiplexer is a selector. Suppose you have two signals, I0 and I1, and one select line S. When S = 0, the output Y should copy I0. When S = 1, Y should copy I1. The logic for this is:</p>
+  <div class="formula">Y = S'I0 + S I1</div>
+  <p>Symbols: S' is the complement of S. When S = 0, the first term is I0 and the second is 0, so Y = I0. When S = 1, the first term is 0 and the second is I1, so Y = I1. This is a 2:1 MUX.</p>
+  <p>For four data inputs, you need two select lines, because two bits can name four choices (00, 01, 10 and 11). This is a 4:1 MUX:</p>
+  <div class="formula">Y = S1'S0'I0 + S1'S0 I1 + S1 S0'I2 + S1 S0 I3</div>
+  <p>Each term is a minterm of the select lines. Exactly one term is switched on for any select value, and that term passes its data input. The general rule is that a 2<sup>n</sup>:1 MUX has 2<sup>n</sup> data inputs and n select lines.</p>
+  <h3>Worked example: reading a 4:1 MUX</h3>
+  <p>Let I0 = 1, I1 = 0, I2 = 1, I3 = 1, and set S1 = 1, S0 = 0. Step by step:</p>
+  <ol>
+    <li>Read the select value. S1 S0 = 10, which is decimal 2.</li>
+    <li>Pick the data input with that index. The index is 2, so the input is I2.</li>
+    <li>I2 = 1, so Y = 1.</li>
+    <li>Check with the formula: the term S1 S0' I2 = 1 × 1 × 1 = 1. All other terms are 0 because they need S1 = 0 or S0 = 1.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>The select lines work as a binary address. Write the select bits as a number, and that number tells you which data input is copied to the output.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The first select line is the most significant bit. For a 4:1 MUX, S1 is the left bit. Swapping S1 and S0 gives a different answer, so read the order carefully.</p></div>
+  <details class="check"><summary>In a 4:1 MUX, S1 = 0 and S0 = 1. Which data input reaches the output?</summary><div class="ans"><p>The select value is 01, which is decimal 1, so I1 reaches the output.</p></div></details>
+  <details class="check"><summary>How many select lines does an 8:1 MUX need?</summary><div class="ans"><p>Three, because 2<sup>3</sup> = 8.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Using a MUX to build a Boolean function">
+  <h2>Step 2: Using a MUX to build a Boolean function</h2>
+  <p>A MUX is more than a selector. It can also generate a logic function. The trick is to use some of the variables as select lines, and to connect the remaining variables, or constants, to the data inputs. This is often called the "cofactor" method, but you do not need that word. Just follow the steps.</p>
+  <p>Take F(A, B, C) = Σm(1, 2, 6, 7). Its rows with F = 1 are 001, 010, 110 and 111. Use A and B as select lines, with A as S1 and B as S0. Then each pair of values of A and B covers two rows, and the output depends only on C. Work out that little function for each pair:</p>
+  <ol>
+    <li><strong>AB = 00 (rows 000 and 001).</strong> F is 0 for C = 0 and 1 for C = 1. So F = C. Data input I0 = C.</li>
+    <li><strong>AB = 01 (rows 010 and 011).</strong> F is 1 for C = 0 and 0 for C = 1. So F = C'. Data input I1 = C'.</li>
+    <li><strong>AB = 10 (rows 100 and 101).</strong> F is 0 for both values of C. So I2 = 0.</li>
+    <li><strong>AB = 11 (rows 110 and 111).</strong> F is 1 for both values of C. So I3 = 1.</li>
+  </ol>
+  <p>The MUX then equals F for all eight rows. Here is the Python check. Each data input is computed from C, and the MUX output is compared with the truth table of F.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def mux4(s1, s0, i0, i1, i2, i3):
+    if s1 == 0 and s0 == 0: return i0
+    if s1 == 0 and s0 == 1: return i1
+    if s1 == 1 and s0 == 0: return i2
+    return i3
+
+def F(A, B, C):
+    return 1 if (4 * A + 2 * B + C) in [1, 2, 6, 7] else 0
+
+print("A B | I0 I1 I2 I3 | F  (check)")
+ok = True
+for A, B, C in product([0, 1], repeat=3):
+    i0, i1, i2, i3 = C, 1 - C, 0, 1       # data inputs as functions of C
+    y = mux4(A, B, i0, i1, i2, i3)
+    ok = ok and (y == F(A, B, C))
+    print(A, B, "|", i0, i1, i2, i3, "|", y, " ", F(A, B, C))
+print("mux matches F on all rows:", ok)</code></pre>
+  <pre class="output">A B | I0 I1 I2 I3 | F  (check)
+0 0 | 0 1 0 1 | 0   0
+0 0 | 1 0 0 1 | 1   1
+0 1 | 0 1 0 1 | 1   1
+0 1 | 1 0 0 1 | 0   0
+1 0 | 0 1 0 1 | 0   0
+1 0 | 1 0 0 1 | 0   0
+1 1 | 0 1 0 1 | 1   1
+1 1 | 1 0 0 1 | 1   1
+mux matches F on all rows: True</pre>
+  <p>Read the output carefully. The first columns show the data inputs for each (A, B) pair, which is the table we built by hand. The last two columns show the MUX output and the truth table value. They are equal on every row.</p>
+  <div class="note tip"><p><span class="t">Tip</span>With n select lines, you can implement any function of n + k variables by feeding each data input with a function of the k remaining variables. Choose the select lines to be the variables that make the table simplest.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>When you write a data input, check the row order. Row 001 means A = 0, B = 0, C = 1, which is row 1. Reading rows in the wrong order is the most common error in this method.</p></div>
+  <details class="check"><summary>Why is the data input for AB = 10 equal to 0?</summary><div class="ans"><p>Because F is 0 for both rows 100 and 101, which are the only rows with A = 1 and B = 0. A constant 0 data input gives 0 for both.</p></div></details>
+  <details class="check"><summary>Could you use C as the only select line here?</summary><div class="ans"><p>Yes, but then you would need a 2:1 MUX whose data inputs are functions of A and B. Each data input would be a 2-variable function, which is more work. Choose the select lines to keep the data inputs simple.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Demultiplexer and decoder">
+  <h2>Step 3: Demultiplexer and decoder</h2>
+  <p>A demultiplexer, or DEMUX, does the opposite of a MUX. It takes one data input D and sends it to one of 2<sup>n</sup> outputs, chosen by the n select lines. All the other outputs stay at 0. A decoder can be seen as a DEMUX whose data input is tied to 1.</p>
+  <p>A <strong>decoder</strong> is a box that turns a binary address into a single active line. A 2-to-4 decoder has two inputs A and B, and four outputs. For each input pair, exactly one output is 1, and the output number equals the binary value of the inputs. The rule is simple: each output is a minterm of the inputs. With an enable E, the outputs are:</p>
+  <div class="formula">Y0 = E A'B',  Y1 = E A'B,  Y2 = E AB',  Y3 = E AB</div>
+  <p>Symbols: E is the enable. When E = 0, every output is 0. When E = 1, the output chosen by AB is 1. Here is the full truth table in Python.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def decoder2to4(E, A, B):
+    return [
+        E &amp; (1 - A) &amp; (1 - B),
+        E &amp; (1 - A) &amp; B,
+        E &amp; A &amp; (1 - B),
+        E &amp; A &amp; B,
+    ]
+
+print("E A B | Y0 Y1 Y2 Y3")
+for E, A, B in product([0, 1], repeat=3):
+    print(E, A, B, "|", *decoder2to4(E, A, B))</code></pre>
+  <pre class="output">E A B | Y0 Y1 Y2 Y3
+0 0 0 | 0 0 0 0
+0 0 1 | 0 0 0 0
+0 1 0 | 0 0 0 0
+0 1 1 | 0 0 0 0
+1 0 0 | 1 0 0 0
+1 0 1 | 0 1 0 0
+1 1 0 | 0 0 1 0
+1 1 1 | 0 0 0 1</pre>
+  <p>Read the table row by row. The output that is 1 has the index equal to the binary value of A and B. With E = 0, all four outputs are 0, which is why E is called an enable.</p>
+  <p>A decoder is also a function generator. Every output is one minterm, so any function is the OR of the outputs for its 1 rows. For F(A, B, C) = Σm(1, 2, 6, 7), use a 3-to-8 decoder and write F = Y1 + Y2 + Y6 + Y7. That is a decoder plus one 4-input OR gate, with no simplification needed.</p>
+  <div class="note tip"><p><span class="t">Tip</span>A MUX and a decoder can both build any function. A MUX needs fewer gates when the data inputs are simple. A decoder plus OR gates is easier to design, because it needs no simplification.</p></div>
+  <details class="check"><summary>A 2-to-4 decoder has E = 1, A = 1 and B = 0. Which output is 1?</summary><div class="ans"><p>Y2, because AB' = 1 × 1 = 1 and the other three outputs are 0.</p></div></details>
+  <details class="check"><summary>How many output lines does a 4-to-16 decoder have?</summary><div class="ans"><p>2<sup>4</sup> = 16 outputs, one for each input code from 0000 to 1111.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Encoder and priority encoder">
+  <h2>Step 4: Encoder and priority encoder</h2>
+  <p>An encoder does the reverse of a decoder. It has 2<sup>n</sup> input lines, and exactly one of them is active. The output is the binary number of that line. A 4-to-2 encoder takes D0, D1, D2 and D3 and gives two outputs Y1 and Y0.</p>
+  <p>Look at the truth table. If D2 is the only active input, the binary number of 2 is 10, so Y1 = 1 and Y0 = 0. Each output is an OR of the inputs whose index has that bit set:</p>
+  <div class="formula">Y1 = D2 + D3,  Y0 = D1 + D3</div>
+  <p>Symbols: Y1 is the high bit of the index, and Y0 is the low bit. Index 2 (binary 10) and index 3 (binary 11) have bit Y1 = 1. Index 1 (01) and index 3 (11) have bit Y0 = 1.</p>
+  <div class="note trap"><p><span class="t">Trap</span>An ordinary encoder works only if one input is active at a time. If D1 and D2 are both 1, Y1 = 1 and Y0 = 1, which reads as 3. That is wrong. A priority encoder is needed when several inputs can be active.</p></div>
+  <p>A <strong>priority encoder</strong> solves this by giving priority to the highest-numbered active input. It also has a valid output V, which is 1 when at least one input is active. In the Python check below, the input is written as D3 D2 D1 D0, and the encoder returns Y1, Y0 and V.</p>
+  <pre class="code" data-lang="python"><code>def priority_encoder4(D3, D2, D1, D0):
+    if D3: return (1, 1, 1)      # index 3 = 11, valid
+    if D2: return (1, 0, 1)      # index 2 = 10, valid
+    if D1: return (0, 1, 1)      # index 1 = 01, valid
+    if D0: return (0, 0, 1)      # index 0 = 00, valid
+    return (0, 0, 0)             # no input active, not valid
+
+print("D3 D2 D1 D0 | Y1 Y0 V")
+for D in ["0110", "1010", "0001", "0000"]:
+    bits = [int(c) for c in D]
+    y1, y0, v = priority_encoder4(*bits)
+    print(" ".join(D), "|", y1, y0, v)</code></pre>
+  <pre class="output">D3 D2 D1 D0 | Y1 Y0 V
+0 1 1 0 | 1 0 1
+1 0 1 0 | 1 1 1
+0 0 0 1 | 0 0 1
+0 0 0 0 | 0 0 0</pre>
+  <p>Check the rows. For 0110, the highest active input is D2, so the output is 10 and V = 1. For 1010, D3 wins, so the output is 11. The last row has no active input, so V = 0 tells you that the output is not meaningful.</p>
+  <details class="check"><summary>For a 4-to-2 priority encoder, the inputs are D3 = 0, D2 = 0, D1 = 1 and D0 = 1. What is the output?</summary><div class="ans"><p>The highest active input is D1, so the output is 01 and V = 1.</p></div></details>
+  <details class="check"><summary>Why do we need the valid output V?</summary><div class="ans"><p>When no input is active, the encoder output is 00, which looks the same as input D0 being active. V tells the user which case it is.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Building bigger MUXes from smaller ones">
+  <h2>Step 5: Building bigger MUXes from smaller ones</h2>
+  <p>Chips come in limited sizes, so a large MUX is often built as a tree of small ones. The select lines control the tree level by level. Take an 8:1 MUX built from 2:1 MUXes. The first level has four 2:1 MUXes, controlled by S0. Their four outputs go into two 2:1 MUXes controlled by S1. Their two outputs go into one final 2:1 MUX controlled by S2. Count the blocks: 4 + 2 + 1 = 7 MUXes.</p>
+  <p>A general rule follows from the same idea. For a 2<sup>n</sup>:1 MUX built from 2:1 MUXes, you need 2<sup>n</sup> − 1 blocks, because the tree has one fewer block than it has inputs. A 16:1 MUX can also be built from 4:1 MUXes. The first level has 16 / 4 = 4 blocks, and the second level has one block that takes their four outputs. That is 5 blocks in total.</p>
+  <pre class="code" data-lang="python"><code>import math
+n = 3
+print("2:1 MUXes needed for 8:1 =", 2**n - 1)
+print("select lines for 16:1 =", int(math.log2(16)))
+print("4:1 MUXes needed for 16:1 =", 16 // 4 + 4 // 4)</code></pre>
+  <pre class="output">2:1 MUXes needed for 8:1 = 7
+select lines for 16:1 = 4
+4:1 MUXes needed for 16:1 = 5</pre>
+  <div class="note key"><p><span class="t">Key idea</span>A big MUX is a tree. The first level uses the lowest select line, and each later level uses the next select line. The last level uses the most significant select line.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect counting questions. The usual pattern is "how many blocks of this size are needed to build a block of that size". Divide the sizes, then add the levels.</p></div>
+  <details class="check"><summary>How many 2:1 MUXes build a 4:1 MUX?</summary><div class="ans"><p>Three: two at the first level, controlled by S0, and one at the second level, controlled by S1. That is 2 + 1 = 3, which equals 4 − 1.</p></div></details>
+  <details class="check"><summary>Which select line controls the final output MUX of an 8:1 tree?</summary><div class="ans"><p>The most significant select line, S2, because the last level is controlled by the highest bit of the address.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close while you practise.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Y = S'I0 + SI1</td><td>2:1 MUX</td><td>Selecting one of two inputs</td></tr>
+      <tr><td>Select lines = log<sub>2</sub>(number of inputs)</td><td>Size rule for a MUX</td><td>Finding how many select lines are needed</td></tr>
+      <tr><td>Y<sub>k</sub> = E × minterm k</td><td>Decoder output</td><td>Writing a decoder output as a minterm</td></tr>
+      <tr><td>F = OR of the decoder outputs for the 1 rows</td><td>Decoder as function generator</td><td>Building a function from a decoder</td></tr>
+      <tr><td>Y1 = D2 + D3, Y0 = D1 + D3</td><td>4-to-2 encoder</td><td>When only one input is active</td></tr>
+      <tr><td>2<sup>n</sup> − 1 MUXes</td><td>Tree of 2:1 MUXes</td><td>Counting blocks in a bigger MUX</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>GATE questions, solved</h2>
+  <p>This set covers multiplexers, decoders and encoders, the three building blocks you use to turn truth tables into circuits.</p>
+  <h3>Real past GATE questions</h3>
+  <div class="note key"><p><span class="t">Real questions</span>No past GATE question on this exact topic could be verified, so the exam-level set below is longer.</p></div>
+  <h3>Exam-level practice</h3>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: function from an 8:1 MUX with D as the data (NAT, 2 marks)</h3>
+    <div class="statement"><p>A Boolean function F(A, B, C, D) = Σm(1, 3, 4, 6, 9, 11, 12, 14) is to be built with one 8:1 MUX. The select lines are S2 = A, S1 = B and S0 = C, so each of the eight data inputs I0 to I7 depends only on D. Each data input is one of 0, 1, D or D'. How many of the eight data inputs must be connected to D' (give the number)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of data inputs equal to D'.</li>
+      <li><strong>Which idea applies.</strong> For each select row ABC, look at F with D = 0 and with D = 1. The pair of values decides the data input.</li>
+      <li><strong>Work it out.</strong> For ABC = 000 the minterms are 0 and 1. F is 0 for D = 0 and 1 for D = 1, so I0 = D. For ABC = 010 the minterms are 4 and 5. F is 1 for D = 0 and 0 for D = 1, so I2 = D'. Doing this for all eight rows gives I0 to I7 = D, D, D', D', D, D, D', D'. There are four D' inputs.</li>
+      <li><strong>Check.</strong> The code rebuilds the eight inputs from the minterm list.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>ones = {1, 3, 4, 6, 9, 11, 12, 14}
+labels = []
+for k in range(8):
+    A, B, C = (k &gt;&gt; 2) &amp; 1, (k &gt;&gt; 1) &amp; 1, k &amp; 1
+    f0 = int((8*A + 4*B + 2*C + 0) in ones)
+    f1 = int((8*A + 4*B + 2*C + 1) in ones)
+    labels.append({(0, 0): "0", (1, 1): "1", (0, 1): "D", (1, 0): "D'"}[(f0, f1)])
+print("I0..I7 =", " ".join(labels))
+print("number equal to D' =", labels.count("D'"))</code></pre>
+    <pre class="output">I0..I7 = D D D' D' D D D' D'
+number equal to D' = 4</pre>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: which expressions match a 4:1 MUX (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A 4:1 MUX has select lines S1 and S0, with S1 = X and S0 = Y. Its data inputs are I0 = Z, I1 = Z', I2 = 1 and I3 = 0, where X, Y and Z are three Boolean variables. The MUX output is F(X, Y, Z). Select all that apply.<br>(A) F = Σm(1, 2, 4, 5)<br>(B) F = X'Y'Z + X'YZ' + XY'<br>(C) F = Σm(0, 1, 4, 5)<br>(D) F = Σm(1, 2, 4, 5, 6)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four expressions equal the MUX output.</li>
+      <li><strong>Which idea applies.</strong> Write the output for each value of XY, then compare minterm lists.</li>
+      <li><strong>Work it out.</strong> XY = 00 gives Z, which is 1 at minterm 1. XY = 01 gives Z', which is 1 at minterm 2. XY = 10 gives 1, at minterms 4 and 5. XY = 11 gives 0. So F = Σm(1, 2, 4, 5). Option (A) is true. Option (B) is the same sum of products: X'Y'Z is minterm 1, X'YZ' is minterm 2, and XY' covers minterms 4 and 5. It is true. Option (C) includes minterm 0, where F is 0, so it is false. Option (D) includes minterm 6, where F is 0, so it is false.</li>
+      <li><strong>Check.</strong> The code tests each option on all eight rows.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+
+def F(X, Y, Z):
+    data = [Z, 1 - Z, 1, 0]          # I0, I1, I2, I3
+    return data[2 * X + Y]           # S1 = X, S0 = Y
+
+def minterm_list(f):
+    return [4 * X + 2 * Y + Z for X, Y, Z in product([0, 1], repeat=3) if f(X, Y, Z)]
+
+optA = lambda X, Y, Z: int((4*X + 2*Y + Z) in [1, 2, 4, 5])
+optB = lambda X, Y, Z: ((1 - X) * (1 - Y) * Z) | ((1 - X) * Y * (1 - Z)) | (X * (1 - Y))
+optC = lambda X, Y, Z: int((4*X + 2*Y + Z) in [0, 1, 4, 5])
+optD = lambda X, Y, Z: int((4*X + 2*Y + Z) in [1, 2, 4, 5, 6])
+
+print("F minterms:", minterm_list(F))
+for name, g in [("A", optA), ("B", optB), ("C", optC), ("D", optD)]:
+    same = all(F(X, Y, Z) == g(X, Y, Z) for X, Y, Z in product([0, 1], repeat=3))
+    print("(" + name + ")", "true" if same else "false")</code></pre>
+    <pre class="output">F minterms: [1, 2, 4, 5]
+(A) true
+(B) true
+(C) false
+(D) false</pre>
+    <p class="cx">Answer: (A) and (B). Option (C) is wrong because it includes minterm 0, where F = 0. Option (D) is wrong because it includes minterm 6, where F = 0, so the trap is adding one extra minterm.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 3: NAND of decoder outputs (NAT, 2 marks)</h3>
+    <div class="statement"><p>A 3-to-8 decoder has active-low outputs, so output k is 0 only when the input ABC equals k in binary. Its outputs are wired to a NAND gate so that the circuit realizes F(A, B, C) = A'B + BC'. The NAND gate takes exactly those decoder outputs whose minterms appear in F. Find the sum of the minterm indices that the NAND gate uses (give a number).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sum of the indices of the decoder outputs wired to the NAND gate.</li>
+      <li><strong>Which idea applies.</strong> A NAND of active-low decoder outputs gives an OR of the selected minterms, so the NAND inputs are exactly the minterms of F.</li>
+      <li><strong>Work it out.</strong> A'B is 1 when A = 0 and B = 1, which is minterms 2 and 3. BC' is 1 when B = 1 and C = 0, which is minterms 2 and 6. The union is {2, 3, 6}. The sum is 2 + 3 + 6 = 11.</li>
+      <li><strong>Check.</strong> The code lists the minterms of F directly from the expression.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+
+def F(A, B, C):
+    return ((1 - A) * B) | (B * (1 - C))
+
+minterms = [4*A + 2*B + C for A, B, C in product([0, 1], repeat=3) if F(A, B, C)]
+print("minterms of F:", minterms)
+print("sum of indices:", sum(minterms))</code></pre>
+    <pre class="output">minterms of F: [2, 3, 6]
+sum of indices: 11</pre>
+    <p class="cx">Answer: 11.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: priority encoder feeding a decoder (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A 4-to-2 priority encoder has inputs D3 (highest priority) down to D0, outputs Y1 Y0 and a valid bit V. Its outputs Y1 Y0 drive the select inputs of a 2-to-4 decoder, whose active-high enable is tied to V. The encoder input is D3 D2 D1 D0 = 1 0 1 0. Which decoder output is 1?<br>(A) Y0<br>(B) Y1<br>(C) Y2<br>(D) Y3</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The single decoder output that is 1.</li>
+      <li><strong>Which idea applies.</strong> A priority encoder reports the highest active input, and a decoder turns its two-bit input into one active output, but only when the enable is 1.</li>
+      <li><strong>Work it out.</strong> D3 = 1 is the highest active input, so Y1 Y0 = 11 (decimal 3) and V = 1. The enable is 1. The decoder input is 11, so output Y3 is 1. Option (B) is the trap: it would come from taking the lowest active input, D1, which is wrong for a priority encoder.</li>
+      <li><strong>Check.</strong> The code runs both blocks in sequence.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def priority_encoder(D3, D2, D1, D0):
+    if D3: return 3, 1
+    if D2: return 2, 1
+    if D1: return 1, 1
+    if D0: return 0, 1
+    return 0, 0
+
+def decoder(sel, enable):
+    return [int(enable == 1 and sel == k) for k in range(4)]
+
+idx, valid = priority_encoder(1, 0, 1, 0)
+outs = decoder(idx, valid)
+print("encoder index:", idx, "valid V:", valid)
+print("decoder outputs Y0..Y3:", outs)
+print("active output: Y" + str(outs.index(1)))</code></pre>
+    <pre class="output">encoder index: 3 valid V: 1
+decoder outputs Y0..Y3: [0, 0, 0, 1]
+active output: Y3</pre>
+    <p class="cx">Answer: (D) Y3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 5: MUX driven by a counter (NAT, 2 marks)</h3>
+    <div class="statement"><p>A 4:1 MUX has data inputs I0 = 1, I1 = 0, I2 = 1 and I3 = 1. Its select lines S1 S0 are driven by a 2-bit counter that starts at 00 and adds one on each clock pulse, returning to 00 after 11. Before each clock pulse the MUX output Y is read. Cycle 0 uses the select 00, cycle 1 uses 01, and so on. Over cycles 0 to 9, how many cycles give Y = 1? Give the number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of ones in the output over ten cycles.</li>
+      <li><strong>Which idea applies.</strong> The MUX passes the data input chosen by the counter, and the counter repeats every four cycles.</li>
+      <li><strong>Work it out.</strong> The select sequence is 0, 1, 2, 3, 0, 1, 2, 3, 0, 1. The data values picked are 1, 0, 1, 1, 1, 0, 1, 1, 1, 0. Counting the ones gives 3 + 3 + 1 = 7.</li>
+      <li><strong>Check.</strong> The code builds the same list and counts the ones.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>data = [1, 0, 1, 1]
+outputs = [data[t % 4] for t in range(10)]
+print("outputs over cycles 0 to 9:", " ".join(map(str, outputs)))
+print("number of cycles with Y = 1:", sum(outputs))</code></pre>
+    <pre class="output">outputs over cycles 0 to 9: 1 0 1 1 1 0 1 1 1 0
+number of cycles with Y = 1: 7</pre>
+    <p class="cx">Answer: 7.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 6: a 2:1 MUX as a sum of products (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A 2:1 MUX has select input A, data input I0 = B and data input I1 = C. Its output is F(A, B, C) = A'B + AC. Select all that apply.<br>(A) F = 1 when A = 1, B = 0 and C = 1<br>(B) F = Σm(2, 3, 5, 7)<br>(C) F = Σm(1, 3, 5, 7)<br>(D) F is the three-input XOR of A, B and C</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims about the MUX output are true.</li>
+      <li><strong>Which idea applies.</strong> When A = 0 the output is B, and when A = 1 the output is C.</li>
+      <li><strong>Work it out.</strong> Option (A): A = 1 gives F = C = 1, so it is true. Option (B): A = 0 gives F = B, which is 1 at minterms 2 and 3. A = 1 gives F = C, which is 1 at minterms 5 and 7. So F = Σm(2, 3, 5, 7), and (B) is true. Option (C) includes minterm 1 (A = 0, B = 0, C = 1), where F = B = 0, so it is false. Option (D) is false because the XOR is 1 at (1, 0, 0) but F is 0 there.</li>
+      <li><strong>Check.</strong> The code compares F with the list of minterms and with the XOR.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+
+def F(A, B, C):
+    return B if A == 0 else C
+
+mt = [4*A + 2*B + C for A, B, C in product([0, 1], repeat=3) if F(A, B, C)]
+print("minterms of F:", mt)
+print("F(1, 0, 1) =", F(1, 0, 1))
+print("F equals the 3-input XOR everywhere:", all(F(A, B, C) == (A ^ B ^ C) for A, B, C in product([0, 1], repeat=3)))</code></pre>
+    <pre class="output">minterms of F: [2, 3, 5, 7]
+F(1, 0, 1) = 1
+F equals the 3-input XOR everywhere: False</pre>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Combinational circuit</dt><dd>Output depends only on present inputs.</dd></div>
+    <div><dt>MUX</dt><dd>Selects one of 2<sup>n</sup> data inputs using n select lines.</dd></div>
+    <div><dt>Select line</dt><dd>A bit of the address that chooses the data input.</dd></div>
+    <div><dt>MUX as function generator</dt><dd>Use some variables as select lines and feed the rest, or constants, to the data inputs.</dd></div>
+    <div><dt>DEMUX</dt><dd>Sends one data input to one of 2<sup>n</sup> outputs.</dd></div>
+    <div><dt>Decoder</dt><dd>n inputs, 2<sup>n</sup> outputs, exactly one output is 1 for each input code.</dd></div>
+    <div><dt>Enable</dt><dd>When 0, a decoder or MUX output is forced off.</dd></div>
+    <div><dt>Decoder output</dt><dd>Each output is one minterm of the inputs.</dd></div>
+    <div><dt>Encoder</dt><dd>Writes the index of the single active input as a binary code.</dd></div>
+    <div><dt>Priority encoder</dt><dd>Encodes the highest-numbered active input when several are active.</dd></div>
+    <div><dt>Valid output V</dt><dd>1 when at least one input is active.</dd></div>
+    <div><dt>MUX tree</dt><dd>A 2<sup>n</sup>:1 MUX needs 2<sup>n</sup> − 1 blocks of 2:1 MUX.</dd></div>
+    <div><dt>Index from select</dt><dd>Read the select lines as a binary number, most significant bit first.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A 2<sup>n</sup>:1 MUX has n select lines.</li>
+    <li>A decoder output is 1 for exactly one input code.</li>
+    <li>A plain encoder fails when two inputs are active. Use a priority encoder.</li>
+    <li>To build a function from a MUX, put the simplest variables on the select lines.</li>
+    <li>A decoder plus OR gates builds any function from its minterms.</li>
+    <li>Count the blocks level by level when building a bigger MUX.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 131?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 131 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-130.html"><small>Previous, topic 130</small>Boolean algebra basics</a><a class="next" href="gate-132.html"><small>Next, topic 132</small>Sequential circuits: flip-flops &amp; counters</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

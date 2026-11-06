@@ -1,0 +1,292 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 118: Approximate inference: Sampling</title><meta name="description" content="When exact probability calculations in a Bayesian network become too large, we can estimate the answer by generating many random samples of the network. This topic covers prior sampling, rejection sampling, likelihood weighting and Gibbs sampling."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g118" data-key="g118" data-noun="topic" data-num="118" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Approximate inference: <em>Sampling</em></h1>
+<p class="lede">When exact probability calculations in a Bayesian network become too large, we can estimate the answer by generating many random samples of the network. This topic covers prior sampling, rejection sampling, likelihood weighting and Gibbs sampling.</p>
+<div class="station"><b>118</b><span>Unit 9 · Artificial intelligence · Paper DA · Quick Recap</span></div>
+<ul class="topics"><li>Why approximate inference is needed</li><li>Prior sampling and rejection sampling</li><li>Likelihood weighting</li><li>Gibbs sampling</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you want to know how likely it is that a random person in a city is left-handed, but you cannot check the whole city. You ask 1000 people at random and count. Your count is not exactly right, but it is usually close. With more people you get closer. This is the idea of <strong>approximate inference by sampling</strong>.</p>
+  <p>In a Bayesian network, exact inference means adding up many products of table entries, as in variable elimination. For large networks this can take far too long. Sampling is different. We generate complete random examples of the network, look at the examples that match what we care about, and estimate the probability from their counts.</p>
+  <p>Everyday analogy: a bag with red and blue marbles, where you want the fraction of red marbles. You do not need to count every marble in the factory. Taking a few hundred random marbles gives a good estimate.</p>
+  <p><strong>Why it matters for GATE.</strong> In the Data Science and AI (DA) paper, you may get a conceptual question. Which sampling method throws away samples? Which one keeps every sample but gives them weights? You should know how each one works, not just the names.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Sample</dt><dd>One complete random assignment of values to all variables in the network.</dd></div>
+    <div><dt>Prior sampling</dt><dd>Generating samples from the network without any evidence, one variable at a time in an order where parents come before children.</dd></div>
+    <div><dt>Evidence</dt><dd>Variables whose values we have observed, such as W = 1.</dd></div>
+    <div><dt>Rejection sampling</dt><dd>Generating prior samples and discarding those that disagree with the evidence.</dd></div>
+    <div><dt>Likelihood weighting</dt><dd>Fixing the evidence variables to their observed values and giving each sample a weight equal to how likely the evidence is.</dd></div>
+    <div><dt>Weight</dt><dd>A number attached to a sample that tells us how much to count it.</dd></div>
+    <div><dt>Gibbs sampling</dt><dd>A Markov chain Monte Carlo (MCMC) method that repeatedly resamples one variable at a time, given the values of the others.</dd></div>
+    <div><dt>Burn-in</dt><dd>The early steps of a Gibbs chain that are discarded before the samples settle down.</dd></div>
+    <div><dt>Estimate</dt><dd>A number computed from samples that approximates the true probability.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Prior sampling">
+  <h2>Concept 1: Prior sampling</h2>
+  <p>Use the small network Rain (R) → Wet grass (W). The numbers are P(R = 1) = 1/5, P(W = 1 | R = 1) = 9/10 and P(W = 1 | R = 0) = 1/10. To produce one sample:</p>
+  <ol>
+    <li>Choose an order in which parents come before children. Here it is R, then W.</li>
+    <li>For R, draw a random number u between 0 and 1. If u is less than 1/5, set R = 1. Otherwise set R = 0.</li>
+    <li>For W, use the value of R. If R = 1, draw v and set W = 1 when v is less than 9/10. If R = 0, set W = 1 when v is less than 1/10.</li>
+  </ol>
+  <p>Each sample is a full row, such as R = 1, W = 1. Over many samples, the fraction of rows with R = 1 approaches 1/5. This is the law of large numbers, a basic idea of probability: the average of many fair trials settles near the true value.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Prior sampling is exact in the limit. With enough samples, the frequencies match the joint distribution. The error shrinks roughly like 1 over the square root of the number of samples.</p></div>
+  <p>Why is this useful? Exact inference might need to add up 2<sup>n</sup> rows for n binary variables. Sampling needs only a few passes through the network for each sample. The trade-off is that the answer is approximate.</p>
+  <details class="check"><summary>Question: In prior sampling, why must parents be sampled before children?</summary><div class="ans"><p>A child's probability depends on its parents' values. The parents must be known first, so the child's table can be used.</p></div></details>
+  <details class="check"><summary>Question: With P(R = 1) = 1/5 and 1000 samples, about how many samples have R = 1?</summary><div class="ans"><p>About 1000 × 1/5 = 200.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Prior sampling and rejection sampling">
+  <h2>Concept 2: Rejection sampling</h2>
+  <p>Suppose we want P(R = 1 | W = 1). Prior sampling gives samples over all variables, but we only care about samples where the evidence holds. <strong>Rejection sampling</strong> keeps a sample only if it agrees with W = 1, and throws away the rest. The estimate is:</p>
+  <div class="formula">P(R = 1 | W = 1) ≈ (number of accepted samples with R = 1) / (number of accepted samples)</div>
+  <p>The symbol ≈ means approximately equal to. The numerator counts accepted samples with R = 1. The denominator counts all accepted samples.</p>
+  <p>The exact answer is 9/13 ≈ 0.692. The reason: P(R = 1, W = 1) = 1/5 × 9/10 = 9/50, and P(W = 1) = 9/50 + 4/5 × 1/10 = 9/50 + 4/50 = 13/50. So the ratio is (9/50) / (13/50) = 9/13.</p>
+  <p>The Python program below uses an evenly spaced grid of values in place of random numbers. It is a deterministic way to show the method, and the count is exact, so the printed answers can be checked by hand.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+N = 100                        # grid size for each "random" number
+accepted = 0                   # samples that agree with the evidence W = 1
+accepted_rain = 0              # accepted samples where Rain = 1
+for i in range(N):
+    for j in range(N):
+        u = (i + 0.5) / N      # stands in for a random number used for Rain
+        v = (j + 0.5) / N      # stands in for a random number used for WetGrass
+        rain = 1 if u &lt; 0.2 else 0
+        p_wet = 0.9 if rain == 1 else 0.1
+        wet = 1 if v &lt; p_wet else 0
+        if wet == 1:           # rejection step: keep only samples with W = 1
+            accepted += 1
+            if rain == 1:
+                accepted_rain += 1
+print("Samples generated:", N * N)
+print("Samples accepted:", accepted)
+print("Estimate of P(Rain=1 | Wet=1):", Fraction(accepted_rain, accepted))
+print("Exact value:", Fraction(9, 13))</code></pre>
+  <pre class="output">Samples generated: 10000
+Samples accepted: 2600
+Estimate of P(Rain=1 | Wet=1): 9/13
+Exact value: 9/13</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Rejection sampling wastes work when the evidence is rare. Here 7400 of the 10000 samples were rejected. If P(e) were 1/1000, almost every sample would be thrown away, and the method would be very slow.</p></div>
+  <details class="check"><summary>Question: Rejection sampling keeps samples with W = 0 for a query P(R | W = 1). True or false?</summary><div class="ans"><p>False. It keeps only samples where the evidence W = 1 holds.</p></div></details>
+  <details class="check"><summary>Question: Why does the estimate match the exact answer in the Python program?</summary><div class="ans"><p>The grid is evenly spaced, so the fraction of grid points below each threshold is exact. Random sampling only matches approximately, but the grid shows the method cleanly.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Likelihood weighting">
+  <h2>Concept 3: Likelihood weighting</h2>
+  <p><strong>Likelihood weighting</strong> avoids wasting samples. It fixes each evidence variable to its observed value, instead of sampling it. Other variables are sampled as usual. Each sample then gets a <strong>weight</strong>: the probability of the evidence values given the sampled parents. In our network, if W = 1 is fixed and R = 1 was sampled, the weight is P(W = 1 | R = 1) = 9/10. If R = 0 was sampled, the weight is P(W = 1 | R = 0) = 1/10.</p>
+  <p>Every sample is kept, but a sample that makes the evidence likely gets a bigger weight. The estimate is a weighted average:</p>
+  <div class="formula">P(R = 1 | W = 1) ≈ (sum of weights of samples with R = 1) / (sum of weights of all samples)</div>
+  <p>Worked example with two samples. Sample 1 has R = 1, so its weight is 9/10. Sample 2 has R = 0, so its weight is 1/10.</p>
+  <ol>
+    <li>Sum of weights with R = 1: 9/10.</li>
+    <li>Sum of all weights: 9/10 + 1/10 = 10/10 = 1.</li>
+    <li>Estimate: (9/10) / 1 = 9/10.</li>
+  </ol>
+  <p>Two samples are far too few for a real estimate, so this is only to show the arithmetic. The exact answer is 9/13 ≈ 0.692, and more samples would bring the estimate closer to it. In a full run, each sample is drawn from the prior, and its weight is what corrects the estimate for the evidence.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Likelihood weighting is usually better than rejection sampling when the evidence is unlikely. Every sample counts, although some counts more than others.</p></div>
+  <p>A caution: if a few samples get very large weights, the estimate is dominated by them and becomes unreliable. This is a real weakness of the method, and a common GATE conceptual point.</p>
+  <details class="check"><summary>Question: A sample has R = 0 and the evidence is W = 1. What is its weight?</summary><div class="ans"><p>1/10, which is P(W = 1 | R = 0).</p></div></details>
+  <details class="check"><summary>Question: Does likelihood weighting throw away any samples?</summary><div class="ans"><p>No. Every sample is kept and given a weight.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Gibbs sampling">
+  <h2>Concept 4: Gibbs sampling</h2>
+  <p><strong>Gibbs sampling</strong> is a Markov chain Monte Carlo (MCMC) method. Instead of generating a whole sample from scratch, it starts with a full assignment, then updates one non-evidence variable at a time. For each variable, it draws a new value from its distribution given the current values of the others. In a Bayesian network, the distribution only needs the variable's Markov blanket, which is its parents, children and children's other parents.</p>
+  <p>Example: the network has evidence W = 1 fixed, and the variable R is free. Gibbs sampling starts with some value for R, then resamples R from P(R | W = 1, the other variables). This keeps W = 1 at every step, so evidence is never changed.</p>
+  <p>The first few values depend on the starting point, so we discard them as <strong>burn-in</strong>. After that, the chain's values behave like samples from the posterior distribution, the probability after the evidence is known. In practice, we count the values after burn-in.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Gibbs sampling never changes the evidence variables. It only resamples the hidden ones. It also needs burn-in, because the first samples depend on where the chain started.</p></div>
+  <details class="check"><summary>Question: In Gibbs sampling, which variables are resampled when W = 1 is evidence?</summary><div class="ans"><p>Only the non-evidence variables, such as R. The evidence variable W stays fixed at 1.</p></div></details>
+  <details class="check"><summary>Question: Why are the first Gibbs samples discarded?</summary><div class="ans"><p>They depend on the starting values, so they are not yet typical. This early phase is called burn-in.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Estimate</th><th>What happens to samples</th></tr></thead>
+    <tbody>
+      <tr><td>Prior sampling</td><td>Frequency of the query in all samples</td><td>All samples are kept, and evidence is ignored</td></tr>
+      <tr><td>Rejection sampling</td><td>Accepted samples with the query / accepted samples</td><td>Samples that disagree with the evidence are discarded</td></tr>
+      <tr><td>Likelihood weighting</td><td>Sum of weights with the query / sum of all weights</td><td>Evidence is fixed, and each sample has weight P(evidence | parents)</td></tr>
+      <tr><td>Gibbs sampling</td><td>Frequency of the query after burn-in</td><td>Hidden variables are resampled one at a time</td></tr>
+    </tbody>
+  </table></div>
+  <p>Expected accepted samples in rejection sampling: if the evidence has probability P(e), then out of N samples about N × P(e) are accepted.</p>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Expected accepted samples</h3>
+    <div class="statement"><p>In rejection sampling, the evidence has probability P(e) = 0.01. How many of 1000 prior samples are expected to be accepted?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The expected number of accepted samples.</li>
+      <li><strong>Which idea applies.</strong> Expected accepted = N × P(e).</li>
+      <li><strong>Work it out.</strong> 1000 × 0.01 = 10.</li>
+      <li><strong>Check.</strong> One percent of 1000 is 10, which is a sensible size for a rare event.</li>
+    </ol>
+    <p class="cx">Answer: 10.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Sampling methods (select all that apply)</h3>
+    <div class="statement"><p>Which statements are true? Select all that apply.</p>
+    <p>(A) Rejection sampling discards samples that are inconsistent with the evidence.<br>(B) Likelihood weighting samples the evidence variables from the prior.<br>(C) Gibbs sampling never changes the values of the evidence variables.<br>(D) Exact inference is always faster than sampling.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> What each method does with the evidence.</li>
+      <li><strong>Work it out.</strong> (A) is true, that is the definition of rejection. (B) is false, likelihood weighting fixes the evidence and does not sample it. (C) is true, evidence stays fixed. (D) is false, exact inference can be very slow on large networks.</li>
+      <li><strong>Check.</strong> Look at the Python program. Rejection removed 7400 samples, which confirms (A).</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Weighted estimate from two samples</h3>
+    <div class="statement"><p>The network is Rain → Wet grass, with P(W = 1 | R = 1) = 9/10 and P(W = 1 | R = 0) = 1/10. Likelihood weighting with evidence W = 1 produces two samples. Sample 1 has R = 1. Sample 2 has R = 0. Estimate P(R = 1 | W = 1) from these two samples.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A weighted estimate from two samples.</li>
+      <li><strong>Which idea applies.</strong> Each weight is P(evidence | parents). The estimate divides the weight of R = 1 by the total weight.</li>
+      <li><strong>Work it out.</strong> Weight of sample 1 = 9/10. Weight of sample 2 = 1/10. Estimate = (9/10) / (9/10 + 1/10) = (9/10) / 1 = 9/10.</li>
+      <li><strong>Check.</strong> The estimate lies between 0 and 1, as a probability must.</li>
+    </ol>
+    <p class="cx">Answer: 9/10.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Expected total samples</h3>
+    <div class="statement"><p>Rejection sampling is used for a query where the evidence has probability P(e) = 1/8. The analyst wants 400 accepted samples. How many prior samples are needed, on average? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The expected number of total samples.</li>
+      <li><strong>Which idea applies.</strong> Accepted = total × P(e), so total = accepted / P(e).</li>
+      <li><strong>Work it out.</strong> Total = 400 / (1/8) = 400 × 8 = 3200.</li>
+      <li><strong>Check.</strong> 3200 × 1/8 = 400, which matches the target.</li>
+    </ol>
+    <p class="cx">Answer: 3200.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which variables does Gibbs resample?</h3>
+    <div class="statement"><p>The network has arrows A → B and C → B. The evidence is B = 1. Which variables does Gibbs sampling resample? Give the answer as a set.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The set of hidden variables that are updated.</li>
+      <li><strong>Which idea applies.</strong> Evidence stays fixed. Every other variable is resampled given its Markov blanket.</li>
+      <li><strong>Work it out.</strong> The variables are A, B and C. B is evidence, so it is fixed. The hidden variables are A and C.</li>
+      <li><strong>Check.</strong> A has child B and co-parent C, and C has child B and co-parent A. Both are in the blanket of each other, so both are updated.</li>
+    </ol>
+    <p class="cx">Answer: {A, C}.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Likelihood weighting on a two-node network</h3>
+    <div class="statement"><p>The network is A → B with P(A = 1) = 1/2, P(B = 1 | A = 1) = 3/4 and P(B = 1 | A = 0) = 1/4. The evidence is B = 1 and the query is A = 1. Using one sample with A = 1 and one with A = 0, each with the same prior weight, estimate P(A = 1 | B = 1). Then compute the exact answer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A weighted estimate, and the exact value to compare.</li>
+      <li><strong>Which idea applies.</strong> Weights are P(B = 1 | A). Compare with the exact formula P(A = 1 | B = 1) = P(A = 1, B = 1) / P(B = 1).</li>
+      <li><strong>Work it out.</strong> Weights: sample with A = 1 gets 3/4, sample with A = 0 gets 1/4. Estimate = (3/4) / (3/4 + 1/4) = 3/4. Exact: P(A = 1, B = 1) = 1/2 × 3/4 = 3/8. P(B = 1) = 3/8 + 1/2 × 1/4 = 3/8 + 1/8 = 1/2. So P(A = 1 | B = 1) = (3/8) / (1/2) = 3/4.</li>
+      <li><strong>Check.</strong> The estimate and the exact answer are both 3/4. This works because the two samples have equal prior weight, which matches P(A = 1) = P(A = 0) = 1/2.</li>
+    </ol>
+    <p class="cx">Answer: The estimate is 3/4, and the exact answer is also 3/4.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Estimate from four weighted samples</h3>
+    <div class="statement"><p>Likelihood weighting is run on the Rain → Wet grass network with evidence W = 1. Four samples are drawn. Two samples have R = 1, and two have R = 0. Using P(W = 1 | R = 1) = 9/10 and P(W = 1 | R = 0) = 1/10 as weights, estimate P(R = 1 | W = 1). Give a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A decimal estimate from four weighted samples.</li>
+      <li><strong>Which idea applies.</strong> Estimate = sum of weights with R = 1 / sum of all weights.</li>
+      <li><strong>Work it out.</strong> Sum of weights with R = 1 = 9/10 + 9/10 = 18/10 = 1.8. Sum of weights with R = 0 = 1/10 + 1/10 = 0.2. Total = 1.8 + 0.2 = 2.0. Estimate = 1.8 / 2.0 = 0.9.</li>
+      <li><strong>Check.</strong> The estimate 0.9 is between 0 and 1. It differs from the exact value 9/13 ≈ 0.692 because four samples are far too few. This is typical of a small run, and more samples would shrink the gap.</li>
+    </ol>
+    <p class="cx">Answer: 0.9.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Rejection sampling acceptance (NAT, 2 marks)</h3>
+    <div class="statement"><p>Using the chain above (P(C = 1) = 0.6), rejection sampling is used to estimate a query given C = 1. Out of 10000 prior samples, about how many are kept?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The expected number of accepted samples.</li>
+      <li><strong>Which idea applies.</strong> A sample is kept exactly when it agrees with the evidence.</li>
+      <li><strong>Work it out.</strong> 10000 · 0.6 = 6000.</li>
+      <li><strong>Check.</strong> Rare evidence makes rejection sampling waste most samples.</li>
+    </ol>
+    <p class="cx">Answer: About 6000.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Likelihood weighting (NAT, 2 marks)</h3>
+    <div class="statement"><p>In likelihood weighting for the chain A → B → C with evidence C = 1, a sample draws A = 1, B = 0. What is its weight?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sample's weight.</li>
+      <li><strong>Which idea applies.</strong> The weight is the product of P(evidence | parents) for evidence variables.</li>
+      <li><strong>Work it out.</strong> Weight = P(C = 1 | B = 0) = 0.3.</li>
+      <li><strong>Check.</strong> Non-evidence variables are sampled, so they do not contribute to the weight.</li>
+    </ol>
+    <p class="cx">Answer: 0.3.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Monte Carlo error (NAT, 2 marks)</h3>
+    <div class="statement"><p>A probability near p = 0.2 is estimated by the fraction of N independent samples. How many samples are needed for the standard error to be 0.01?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> N for a target standard error.</li>
+      <li><strong>Which idea applies.</strong> Standard error = √(p(1 − p)/N).</li>
+      <li><strong>Work it out.</strong> √(0.16/N) = 0.01 gives N = 0.16/0.0001 = 1600.</li>
+      <li><strong>Check.</strong> Halving the error would need four times as many samples.</li>
+    </ol>
+    <p class="cx">Answer: 1600.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Approximate inference</dt><dd>Estimating a probability from samples when exact computation is too costly.</dd></div>
+    <div><dt>Sample</dt><dd>One full random assignment to all variables.</dd></div>
+    <div><dt>Prior sampling</dt><dd>Sampling a network with no evidence, parents before children.</dd></div>
+    <div><dt>Rejection sampling</dt><dd>Discarding samples that disagree with the evidence.</dd></div>
+    <div><dt>Likelihood weighting</dt><dd>Fixing evidence and weighting each sample by P(evidence | parents).</dd></div>
+    <div><dt>Weight</dt><dd>How much a sample counts in the estimate.</dd></div>
+    <div><dt>Gibbs sampling</dt><dd>MCMC: resampling each hidden variable given its Markov blanket.</dd></div>
+    <div><dt>MCMC</dt><dd>Markov chain Monte Carlo, a family of methods that build a chain of samples.</dd></div>
+    <div><dt>Burn-in</dt><dd>The early Gibbs samples that are discarded.</dd></div>
+    <div><dt>Evidence</dt><dd>Variables whose values are observed.</dd></div>
+    <div><dt>Posterior</dt><dd>The probability of the query after the evidence is known.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Prior sampling generates samples in parents-before-children order.</li>
+    <li>Rejection sampling keeps only the samples that match the evidence.</li>
+    <li>Likelihood weighting keeps every sample, fixes the evidence, and weights each sample.</li>
+    <li>Gibbs sampling never changes the evidence, and it needs burn-in.</li>
+    <li>Rejection sampling is wasteful when the evidence is rare.</li>
+    <li>The estimate is always a ratio: query count over total count, or weight over total weight.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 118?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 118 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-117.html"><small>Previous, topic 117</small>Exact inference: Variable elimination</a><a class="next" href="gate-119.html"><small>Next, topic 119</small>R, L, C, M elements</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

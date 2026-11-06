@@ -1,0 +1,433 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 132: Sequential circuits: flip-flops & counters</title><meta name="description" content="Combinational circuits forget everything as soon as the inputs change. Sequential circuits remember. The flip-flop is the basic memory cell, and a counter is a set of flip-flops that steps through a sequence of numbers on each clock pulse. This topic explains the four flip-flop types, how to read and write their tables, and how ripple and synchronous counters work."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g132" data-key="g132" data-noun="topic" data-num="132" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Sequential circuits: <em>flip-flops &amp; counters</em></h1>
+<p class="lede">Combinational circuits forget everything as soon as the inputs change. Sequential circuits remember. The flip-flop is the basic memory cell, and a counter is a set of flip-flops that steps through a sequence of numbers on each clock pulse. This topic explains the four flip-flop types, how to read and write their tables, and how ripple and synchronous counters work.</p>
+<div class="station"><b>132</b><span>Unit 11 · Digital circuits · Paper RA · New concept</span></div>
+<ul class="topics"><li>Flip-flops: SR, D, JK and T</li><li>Excitation tables and characteristic equations</li><li>Edge triggering</li><li>Ripple (asynchronous) counters</li><li>Synchronous counters and mod-N counters</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a light switch with a memory. You press it, and the light stays in the new state until you press again. A flip-flop is an electronic version of that idea. It stores one bit, a 0 or a 1, and it keeps that value until a control signal tells it to change. The control signal is usually a <strong>clock</strong>, a signal that switches between high and low in a steady rhythm. Each change of the clock is a <strong>clock pulse</strong>, and most flip-flops only look at their inputs at the instant of the change.</p>
+  <p>A <strong>sequential circuit</strong> is a circuit built from flip-flops and gates. Its output depends on the present inputs and on what it stored earlier. A <strong>counter</strong> is the simplest useful example. It is a sequential circuit that steps through a fixed list of states, such as 00, 01, 10, 11, and then starts again. Counters are used for timing, for dividing clock frequencies and for controlling the order of operations in a robot.</p>
+  <p>In GATE Robotics and Automation (RA) and Data Science and AI (DA), you will be asked to trace a flip-flop's output over several clock pulses, to fill in an excitation table, or to find the number of flip-flops needed for a counter. These are all step-by-step tasks, so we will practise each one with a clear method.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Sequential circuit</dt><dd>A circuit whose output depends on present inputs and stored state. Plain meaning: a circuit with memory.</dd></div>
+    <div><dt>Flip-flop</dt><dd>A one-bit memory cell. It stores 0 or 1 and changes only at a clock edge.</dd></div>
+    <div><dt>Clock</dt><dd>A signal that alternates between 0 and 1 at a steady rate. Each change is an edge.</dd></div>
+    <div><dt>Edge triggering</dt><dd>The flip-flop reads its inputs only at a rising edge (0 to 1) or a falling edge (1 to 0).</dd></div>
+    <div><dt>Present state, Q</dt><dd>The value stored before a clock edge.</dd></div>
+    <div><dt>Next state, Q+</dt><dd>The value stored after a clock edge. Also written Q(t+1).</dd></div>
+    <div><dt>Characteristic equation</dt><dd>An equation that gives Q+ in terms of the inputs and Q.</dd></div>
+    <div><dt>Excitation table</dt><dd>A table that gives the inputs needed to move from Q to a chosen Q+.</dd></div>
+    <div><dt>Don't care (X)</dt><dd>An input value that does not matter for the result. Written X.</dd></div>
+    <div><dt>Counter</dt><dd>A sequential circuit that cycles through a fixed list of states on each clock pulse.</dd></div>
+    <div><dt>Ripple counter</dt><dd>A counter in which each flip-flop is clocked by the output of the previous one, so the changes ripple along the chain. Also called asynchronous.</dd></div>
+    <div><dt>Synchronous counter</dt><dd>A counter in which all flip-flops share the same clock, so they change together.</dd></div>
+    <div><dt>Mod-N counter</dt><dd>A counter that cycles through N states, 0 to N − 1, and then returns to 0.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Flip-flops: SR, D, JK and T">
+  <h2>Step 1: The four flip-flop types</h2>
+  <p>There are four common flip-flop types. Each one has its own input rule. The easiest way to learn them is to see what each does to the stored bit when a clock edge arrives.</p>
+  <ul>
+    <li><strong>SR flip-flop:</strong> S sets the output to 1, R resets it to 0, and S = R = 1 is not allowed. When S = R = 0, it holds.</li>
+    <li><strong>D flip-flop:</strong> the output copies D at the clock edge. It is the simplest, and the most used for storing data.</li>
+    <li><strong>JK flip-flop:</strong> J acts like S and K acts like R, but J = K = 1 is allowed and makes the output toggle, which means flip to the opposite value.</li>
+    <li><strong>T flip-flop:</strong> when T = 1 it toggles on each clock edge. When T = 0 it holds.</li>
+  </ul>
+  <p>Each type has a <strong>characteristic equation</strong>, which gives the next state:</p>
+  <div class="formula">SR: Q+ = S + R'Q (with SR = 0)</div>
+  <div class="formula">D: Q+ = D</div>
+  <div class="formula">JK: Q+ = JQ' + K'Q</div>
+  <div class="formula">T: Q+ = T ⊕ Q = TQ' + T'Q</div>
+  <p>Symbols: Q is the present state, Q+ is the next state, and Q' is the complement of Q. The equations say that the next value depends on the present value and the inputs.</p>
+  <h3>Worked example: the JK equation on a number</h3>
+  <p>Take Q = 1, J = 0 and K = 1. Find Q+ step by step:</p>
+  <ol>
+    <li>JQ' = 0 × 0 = 0, because Q' = 0.</li>
+    <li>K' = 0, so K'Q = 0 × 1 = 0.</li>
+    <li>Q+ = 0 + 0 = 0.</li>
+    <li>Meaning: K = 1 with J = 0 is a reset, so the output goes to 0. The equation agrees.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>The JK flip-flop is the most general of the four. The others can be made from it. A D flip-flop is a JK with J = D and K = D', and a T flip-flop is a JK with J = K = T.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>For an SR flip-flop, the input S = R = 1 is forbidden. Do not assume it is a toggle. That behaviour belongs to the JK flip-flop.</p></div>
+  <details class="check"><summary>What is Q+ for a D flip-flop with D = 1 and Q = 0?</summary><div class="ans"><p>Q+ = D = 1. The D flip-flop ignores the present state, so the answer is 1 whatever Q was.</p></div></details>
+  <details class="check"><summary>What does a T flip-flop do when T = 1 and Q = 1?</summary><div class="ans"><p>It toggles, so Q+ = T ⊕ Q = 1 ⊕ 1 = 0. The output goes from 1 to 0 at the clock edge.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Excitation tables and characteristic equations">
+  <h2>Step 2: Excitation tables</h2>
+  <p>A characteristic table tells you the next state for given inputs. An <strong>excitation table</strong> does the reverse. It says: if I want the output to go from Q to Q+, what inputs must I apply? This is the question designers ask, and it is a common GATE question.</p>
+  <p>Let us build the excitation table of the JK flip-flop with a short Python check. For each present state Q and each desired next state, the code finds which (J, K) pairs give that result. If every valid pair has the same J, that value is required. If the valid pairs disagree, the value is a don't care, X.</p>
+  <pre class="code" data-lang="python"><code>def jk_next(Q, J, K):
+    return (J &amp; (1 - Q)) | ((1 - K) &amp; Q)
+
+print("Q  Q+ | J K")
+for Q in [0, 1]:
+    for Qn in [0, 1]:
+        needs = []
+        for J in [0, 1]:
+            for K in [0, 1]:
+                if jk_next(Q, J, K) == Qn:
+                    needs.append((J, K))
+        Js = sorted({j for j, k in needs})
+        Ks = sorted({k for j, k in needs})
+        J_txt = str(Js[0]) if len(Js) == 1 else "X"
+        K_txt = str(Ks[0]) if len(Ks) == 1 else "X"
+        print(Q, " ", Qn, "|", J_txt, K_txt)</code></pre>
+  <pre class="output">Q  Q+ | J K
+0   0 | 0 X
+0   1 | 1 X
+1   0 | X 1
+1   1 | X 0</pre>
+  <p>Read the rows. To go from 0 to 0, J must be 0, and K can be anything (X). To go from 0 to 1, J must be 1, and K can be anything. To go from 1 to 0, K must be 1, and J can be anything. To stay at 1, K must be 0. This is the standard JK excitation table, and it is worth memorising because it appears in many questions.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Remember the pattern: to set a bit, J = 1. To reset it, K = 1. To hold a 1, K = 0. To hold a 0, J = 0. The X entries are free choices, which can make a circuit simpler.</p></div>
+  <details class="check"><summary>Which JK inputs take a flip-flop from 1 to 0?</summary><div class="ans"><p>K = 1. J can be 0 or 1, so J is a don't care.</p></div></details>
+  <details class="check"><summary>Why is J a don't care when Q = 1 and Q+ = 0?</summary><div class="ans"><p>Because when Q = 1 and K = 1, the flip-flop resets to 0 whatever J is. The J input has no effect in that case.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Edge triggering">
+  <h2>Step 3: Edge triggering and reading the clock</h2>
+  <p>A flip-flop with a <strong>level-triggered</strong> input responds for as long as the clock is high. A flip-flop that is <strong>edge-triggered</strong> responds only at the instant the clock changes, usually from 0 to 1 (rising edge) or from 1 to 0 (falling edge). Most counters and registers use edge-triggered flip-flops, because they change only once per pulse.</p>
+  <p>Why does this matter? Suppose a level-triggered D flip-flop is high for a long pulse, and D changes during that time. The output would follow D through the whole pulse. An edge-triggered flip-flop ignores D except at the edge, so its output changes once per pulse.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Read the question carefully. Some questions say "negative edge triggered", which means the flip-flop changes at the falling edge. Others say "positive edge triggered". The answer changes with the edge, so mark it on your working.</p></div>
+  <details class="check"><summary>What is the difference between a level-triggered and an edge-triggered flip-flop?</summary><div class="ans"><p>A level-triggered flip-flop responds while the clock is at a certain level. An edge-triggered flip-flop responds only at the instant of a rising or falling edge.</p></div></details>
+  <details class="check"><summary>Why do counters usually use edge-triggered flip-flops?</summary><div class="ans"><p>Because the counter must change exactly once per clock pulse. An edge-triggered flip-flop changes only at the edge, so each pulse produces one step.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Ripple (asynchronous) counters">
+  <h2>Step 4: Ripple (asynchronous) counters</h2>
+  <p>The simplest counter is a chain. Use T flip-flops with T = 1, so each flip-flop toggles on its clock edge. Connect the clock of the first flip-flop to the external clock. Then connect the output of each flip-flop to the clock of the next one. Because the changes travel down the chain one after another, this is called a <strong>ripple counter</strong>, or an asynchronous counter.</p>
+  <p>Picture a row of dominoes. The first domino falls, which knocks over the second, and so on. The last domino falls a little later than the first. In the same way, the last output of a ripple counter settles a little later than the first.</p>
+  <p>Consider a 2-bit ripple counter with negative-edge triggered T flip-flops. Q0 is the first flip-flop, and Q1 is the second, which is clocked by Q0. Q0 toggles on each falling clock edge. Q1 toggles only when Q0 falls from 1 to 0. Start from Q1Q0 = 00 and trace the pattern in Python:</p>
+  <pre class="code" data-lang="python"><code>state = [0, 0]          # [Q1, Q0]
+def ripple_pulse(state):
+    Q1, Q0 = state
+    new_Q0 = 1 - Q0                      # Q0 toggles on every falling clock edge
+    new_Q1 = Q1
+    if Q0 == 1 and new_Q0 == 0:          # Q0 fell from 1 to 0, so Q1 toggles
+        new_Q1 = 1 - Q1
+    return [new_Q1, new_Q0]
+
+print("pulse | Q1 Q0 | decimal")
+for n in range(1, 12):
+    state = ripple_pulse(state)
+    print(n, "|", state[0], state[1], "|", state[0] * 2 + state[1])</code></pre>
+  <pre class="output">pulse | Q1 Q0 | decimal
+1 | 0 1 | 1
+2 | 1 0 | 2
+3 | 1 1 | 3
+4 | 0 0 | 0
+5 | 0 1 | 1
+6 | 1 0 | 2
+7 | 1 1 | 3
+8 | 0 0 | 0
+9 | 0 1 | 1
+10 | 1 0 | 2
+11 | 1 1 | 3</pre>
+  <p>Read the trace. The count goes 1, 2, 3, 0, and then repeats. That is a mod-4 counter, because it has four states, 0 to 3. After 11 pulses from 00, the count is 3. The pattern is 11 = 2 × 4 + 3, so the remainder is 3. This is a quick check you can use in exams.</p>
+  <div class="note trap"><p><span class="t">Trap</span>In a ripple counter, the bits do not change at exactly the same instant. The state can briefly show a wrong value while the changes ripple. This is the main disadvantage, and it limits the speed of the counter.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>To find the count after n pulses in a mod-N counter, take n modulo N. Then read the state for that remainder. This works for ripple and synchronous counters alike.</p></div>
+  <details class="check"><summary>A mod-4 ripple counter starts at 00. What is the count after 6 pulses?</summary><div class="ans"><p>6 mod 4 = 2, so the count is 2, which is 10 in binary.</p></div></details>
+  <details class="check"><summary>What is the main drawback of a ripple counter?</summary><div class="ans"><p>The flip-flops change at different times, so the output can show wrong intermediate states. The total delay also grows with the number of bits.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Synchronous counters and mod-N counters">
+  <h2>Step 5: Synchronous counters and mod-N counters</h2>
+  <p>In a <strong>synchronous counter</strong> all flip-flops share the same clock. Each flip-flop decides whether to toggle, using logic that looks at the other bits. This removes the ripple delay, so all bits change at the same time.</p>
+  <p>A 2-bit synchronous up counter is easy to design with JK flip-flops. Use J0 = K0 = 1, so Q0 toggles on every pulse. For Q1, toggle only when Q0 = 1, so J1 = K1 = Q0. The next states follow directly.</p>
+  <p>A <strong>mod-N counter</strong> stops at N − 1 and returns to 0. For a mod-5 counter, the states are 0, 1, 2, 3, 4 and then 0 again. The number of flip-flops is the smallest n with 2<sup>n</sup> ≥ N, which is:</p>
+  <div class="formula">n = ⌈log₂ N⌉</div>
+  <p>Symbols: ⌈ ⌉ means round up to the next whole number. For N = 5, log₂ 5 = 2.32, which rounds up to 3. So a mod-5 counter needs 3 flip-flops. The Python check below prints the count sequence.</p>
+  <pre class="code" data-lang="python"><code>import math
+N = 5
+bits = math.ceil(math.log2(N))
+print("flip-flops for mod-5 =", bits)
+seq = []
+Q = 0
+for _ in range(7):
+    seq.append(Q)
+    Q = 0 if Q == N - 1 else Q + 1       # synchronous count, reset to 0 at the end
+print("sequence =", seq)</code></pre>
+  <pre class="output">flip-flops for mod-5 = 3
+sequence = [0, 1, 2, 3, 4, 0, 1]</pre>
+  <p>The sequence 0, 1, 2, 3, 4 repeats every five pulses. Each step adds one, except that 4 goes back to 0. Only five of the eight possible 3-bit codes are used. The unused codes 5, 6 and 7 are never reached from 0 in normal operation, which is a point worth noting for design questions.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A synchronous counter changes all bits on the same edge, so its output is clean. A mod-N counter needs extra logic to reset at N − 1, because a binary counter naturally counts to 2<sup>n</sup> − 1.</p></div>
+  <details class="check"><summary>How many flip-flops does a mod-8 counter need?</summary><div class="ans"><p>Three, because log₂ 8 = 3 exactly, and 2<sup>3</sup> = 8.</p></div></details>
+  <details class="check"><summary>How many flip-flops does a mod-6 counter need?</summary><div class="ans"><p>Three, because log₂ 6 = 2.58 rounds up to 3. Two flip-flops give only 4 states, which is not enough.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close while you practise.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>D: Q+ = D</td><td>D flip-flop next state</td><td>Storing a data bit</td></tr>
+      <tr><td>JK: Q+ = JQ' + K'Q</td><td>JK flip-flop next state</td><td>Tracing a JK trace or building its table</td></tr>
+      <tr><td>T: Q+ = T ⊕ Q</td><td>T flip-flop next state</td><td>Counters that toggle</td></tr>
+      <tr><td>J = 1 for 0 to 1, K = 1 for 1 to 0</td><td>JK excitation (core rules)</td><td>Designing with JK flip-flops</td></tr>
+      <tr><td>n = ⌈log₂ N⌉</td><td>Flip-flops for a mod-N counter</td><td>Counting the memory needed</td></tr>
+      <tr><td>state = n mod N</td><td>State after n pulses from 0</td><td>Tracing a mod-N counter</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style questions for practice. They are not real past paper questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>D flip-flop after one clock edge</h3>
+    <div class="statement"><p>A positive-edge triggered D flip-flop has D = 1 just before a rising clock edge. Its output before the edge is Q = 0. What is Q just after the edge?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of Q after the edge.</li>
+      <li><strong>Which idea applies.</strong> The D flip-flop copies D at the active edge: Q+ = D.</li>
+      <li><strong>Work it out.</strong> D = 1 at the rising edge, so Q+ = 1. The old value 0 does not matter.</li>
+      <li><strong>Check.</strong> The code gives the same result.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def d_next(D):
+    return D
+
+print("Q after the clock edge =", d_next(1))</code></pre>
+    <pre class="output">Q after the clock edge = 1</pre>
+    <p class="cx">Answer: Q = 1.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which flip-flop statements are true?</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) For a D flip-flop, Q+ = D.<br>(B) A T flip-flop toggles on each clock edge when T = 1.<br>(C) A JK flip-flop toggles when J = K = 1.<br>(D) An SR flip-flop allows S = R = 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements match the flip-flop rules.</li>
+      <li><strong>Which idea applies.</strong> The characteristic equations and input rules.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True, J = K = 1 is the toggle case. (D) False, S = R = 1 is forbidden.</li>
+      <li><strong>Check.</strong> Only the SR case is the forbidden one.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting pulses in a ripple counter</h3>
+    <div class="statement"><p>A 2-bit ripple counter with negative-edge triggered T flip-flops starts at Q1Q0 = 00. It receives 11 clock pulses. What is the final count in decimal?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count after 11 pulses.</li>
+      <li><strong>Which idea applies.</strong> The counter is mod 4, so take 11 mod 4.</li>
+      <li><strong>Work it out.</strong> 11 = 2 × 4 + 3, so the remainder is 3. The count is 3, which is 11 in binary.</li>
+      <li><strong>Check.</strong> The trace in Step 4 gives 3 at pulse 11.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>state = [0, 0]          # [Q1, Q0]
+def ripple_pulse(state):
+    Q1, Q0 = state
+    new_Q0 = 1 - Q0
+    new_Q1 = Q1
+    if Q0 == 1 and new_Q0 == 0:
+        new_Q1 = 1 - Q1
+    return [new_Q1, new_Q0]
+
+for n in range(1, 12):
+    state = ripple_pulse(state)
+print("after 11 pulses, decimal =", state[0] * 2 + state[1])</code></pre>
+    <pre class="output">after 11 pulses, decimal = 3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>JK input for a given change</h3>
+    <div class="statement"><p>A JK flip-flop has Q = 0 and must go to Q+ = 1 at the next clock edge. Which input values are required for J and K? Use X for a don't care.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> J and K for the change 0 to 1.</li>
+      <li><strong>Which idea applies.</strong> The JK excitation table.</li>
+      <li><strong>Work it out.</strong> With Q = 0, Q+ = JQ' + K'Q = J. So J must be 1. The K term is 0 whatever K is, so K is X.</li>
+      <li><strong>Check.</strong> The table in Step 2 shows the row 0 to 1 as J = 1, K = X.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def jk_next(Q, J, K):
+    return (J &amp; (1 - Q)) | ((1 - K) &amp; Q)
+
+print("J = 1, K = 0 gives Q+ =", jk_next(0, 1, 0))
+print("J = 1, K = 1 gives Q+ =", jk_next(0, 1, 1))</code></pre>
+    <pre class="output">J = 1, K = 0 gives Q+ = 1
+J = 1, K = 1 gives Q+ = 1</pre>
+    <p class="cx">Answer: J = 1, K = X.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Flip-flops for a mod-5 counter</h3>
+    <div class="statement"><p>A synchronous counter counts 0, 1, 2, 3, 4 and then returns to 0. How many flip-flops are needed? Give a number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of flip-flops.</li>
+      <li><strong>Which idea applies.</strong> The smallest n with 2<sup>n</sup> ≥ N.</li>
+      <li><strong>Work it out.</strong> N = 5. 2<sup>2</sup> = 4 is too small. 2<sup>3</sup> = 8 is enough. So n = 3.</li>
+      <li><strong>Check.</strong> The code also prints the sequence, which repeats every five pulses.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+N = 5
+bits = math.ceil(math.log2(N))
+print("flip-flops for mod-5 =", bits)</code></pre>
+    <pre class="output">flip-flops for mod-5 = 3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Tracing a JK flip-flop</h3>
+    <div class="statement"><p>A JK flip-flop starts with Q = 1. Before each of five clock edges, the inputs (J, K) are (1, 0), (0, 0), (1, 1), (0, 1) and (0, 0), in that order. Find the value of Q after the fifth edge.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Q after the fifth pulse.</li>
+      <li><strong>Which idea applies.</strong> Use Q+ = JQ' + K'Q at each edge, one at a time.</li>
+      <li><strong>Work it out.</strong> Edge 1: (1, 0) sets, Q = 1. Edge 2: (0, 0) holds, Q = 1. Edge 3: (1, 1) toggles, Q = 0. Edge 4: (0, 1) resets, Q = 0. Edge 5: (0, 0) holds, Q = 0.</li>
+      <li><strong>Check.</strong> The trace below reproduces each step.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def jk_next(Q, J, K):
+    return (J &amp; (1 - Q)) | ((1 - K) &amp; Q)
+
+Q = 1
+inputs = [(1, 0), (0, 0), (1, 1), (0, 1), (0, 0)]
+for n, (J, K) in enumerate(inputs, start=1):
+    Q = jk_next(Q, J, K)
+    print(n, "|", J, K, "|", Q)
+print("final Q =", Q)</code></pre>
+    <pre class="output">1 | 1 0 | 1
+2 | 0 0 | 1
+3 | 1 1 | 0
+4 | 0 1 | 0
+5 | 0 0 | 0
+final Q = 0</pre>
+    <p class="cx">Answer: Q = 0 after the fifth edge.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about ripple and synchronous counters</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) In a ripple counter, all flip-flops share the same clock.<br>(B) In a ripple counter, the delays of the stages add up along the chain.<br>(C) In a synchronous counter, all flip-flops use the same clock.<br>(D) A mod-6 counter needs 3 flip-flops.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims describe these counters correctly.</li>
+      <li><strong>Which idea applies.</strong> Ripple counters chain the clocks, synchronous counters share one clock. Count bits with ⌈log₂ N⌉.</li>
+      <li><strong>Work it out.</strong> (A) False, the clocks are chained, not shared. (B) True, each stage waits for the one before. (C) True. (D) True, because ⌈log₂ 6⌉ = 3.</li>
+      <li><strong>Check.</strong> A 2-bit counter has only 4 states, so it cannot make 6 states, which confirms (D).</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D). Option (A) is false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Three-bit down counter</h3>
+    <div class="statement"><p>A 3-bit down counter starts at 000. On each clock pulse it counts down by one, and it wraps from 000 to 111. What is the state, in decimal, after 3 pulses?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The decimal state after three down steps.</li>
+      <li><strong>Which idea applies.</strong> Subtract one each pulse, modulo 8.</li>
+      <li><strong>Work it out.</strong> 0 goes to 7 (wrap), then 7 goes to 6, then 6 goes to 5. The state is 5.</li>
+      <li><strong>Check.</strong> The code lists the sequence, which is 0, 7, 6, 5.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>state = 0
+seq = [state]
+for _ in range(3):
+    state = (state - 1) % 8
+    seq.append(state)
+print("down count sequence =", seq)
+print("state after 3 pulses =", state)</code></pre>
+    <pre class="output">down count sequence = [0, 7, 6, 5]
+state after 3 pulses = 5</pre>
+    <p class="cx">Answer: 5.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Counter modulus (NAT, 2 marks)</h3>
+    <div class="statement"><p>A 4-bit ripple counter is reset when the count reaches 1010 (decimal 10). How many distinct states does it pass through in steady operation?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The modulus of the counter.</li>
+      <li><strong>Which idea applies.</strong> The reset state is transient, so the counter shows 0 to 9.</li>
+      <li><strong>Work it out.</strong> Mod 10.</li>
+      <li><strong>Check.</strong> This is a decade (BCD) counter.</li>
+    </ol>
+    <p class="cx">Answer: 10.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: JK flip-flop sequence (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A JK flip-flop starts at Q = 0. The inputs at four clock edges are (J, K) = (1, 0), (1, 1), (1, 1), (0, 1). What is Q after the fourth edge? (A) 0 (B) 1 (C) toggles forever (D) undefined</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The final state.</li>
+      <li><strong>Which idea applies.</strong> JK: 10 sets, 01 resets, 11 toggles, 00 holds.</li>
+      <li><strong>Work it out.</strong> 0 → 1 (set) → 0 (toggle) → 1 (toggle) → 0 (reset).</li>
+      <li><strong>Check.</strong> The code steps through it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>q = 0
+for j, k in [(1, 0), (1, 1), (1, 1), (0, 1)]:
+    q = (j &amp; (1 - q)) | ((1 - k) &amp; q)
+    print(q, end=" ")
+print()
+</code></pre>
+    <pre class="output">1 0 1 0 </pre>
+    <p class="cx">Answer: (A).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Johnson counter (NAT, 2 marks)</h3>
+    <div class="statement"><p>How many states does a 5 flip-flop Johnson (twisted ring) counter cycle through, and how many for a 5 flip-flop ring counter?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The two moduli.</li>
+      <li><strong>Which idea applies.</strong> Johnson: 2n states. Ring: n states.</li>
+      <li><strong>Work it out.</strong> Johnson 10, ring 5.</li>
+      <li><strong>Check.</strong> The code simulates the Johnson counter.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>s = (0,) * 5; seen = []
+while s not in seen:
+    seen.append(s); s = (1 - s[-1],) + s[:-1]
+print(len(seen))
+</code></pre>
+    <pre class="output">10</pre>
+    <p class="cx">Answer: 10 and 5.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Sequential circuit</dt><dd>Output depends on present inputs and stored state.</dd></div>
+    <div><dt>Flip-flop</dt><dd>A one-bit memory that changes only at a clock edge.</dd></div>
+    <div><dt>SR flip-flop</dt><dd>Set and reset. S = R = 1 is forbidden.</dd></div>
+    <div><dt>D flip-flop</dt><dd>Next state equals D. Q+ = D.</dd></div>
+    <div><dt>JK flip-flop</dt><dd>Q+ = JQ' + K'Q. J = K = 1 toggles.</dd></div>
+    <div><dt>T flip-flop</dt><dd>Q+ = T ⊕ Q. Toggles when T = 1.</dd></div>
+    <div><dt>Characteristic equation</dt><dd>Gives Q+ from the inputs and the present Q.</dd></div>
+    <div><dt>Excitation table</dt><dd>Gives the inputs needed to move from Q to Q+.</dd></div>
+    <div><dt>Don't care</dt><dd>An input that does not change the result, written X.</dd></div>
+    <div><dt>Edge triggering</dt><dd>The flip-flop reads its inputs only at a rising or falling edge.</dd></div>
+    <div><dt>Ripple counter</dt><dd>Each stage is clocked by the previous stage. Asynchronous and slower.</dd></div>
+    <div><dt>Synchronous counter</dt><dd>All stages share one clock. The bits change together.</dd></div>
+    <div><dt>Mod-N counter</dt><dd>Cycles through N states, 0 to N − 1.</dd></div>
+    <div><dt>Flip-flops for mod-N</dt><dd>n = ⌈log₂ N⌉.</dd></div>
+    <div><dt>State after n pulses</dt><dd>Take n mod N and read the state for that remainder.</dd></div>
+    <div><dt>Down counter</dt><dd>Subtracts one each pulse and wraps from 0 to the largest state.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Set J = 1 to go 0 to 1. Set K = 1 to go 1 to 0.</li>
+    <li>JK with J = K = 1 toggles. SR with S = R = 1 is forbidden.</li>
+    <li>In a ripple counter the delays add up. In a synchronous counter the bits change together.</li>
+    <li>Flip-flops for mod-N: take the ceiling of log base 2 of N.</li>
+    <li>Count after n pulses in a mod-N counter is n mod N.</li>
+    <li>Always write the edge type (rising or falling) on your working.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 132?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 132 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-131.html"><small>Previous, topic 131</small>Combinational circuits: MUX, encoders, decoders</a><a class="next" href="gate-133.html"><small>Next, topic 133</small>Resistive, capacitive, inductive sensors</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

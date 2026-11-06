@@ -1,0 +1,550 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 137: Transducers: force, torque, pressure</title><meta name="description" content="A transducer turns a physical quantity such as force, torque or pressure into a signal that a computer can read. Robots and process plants depend on these devices, and GATE asks about their working principles and simple calculations."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g137" data-key="g137" data-noun="topic" data-num="137" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Transducers: <em>force, torque, pressure</em></h1>
+<p class="lede">A transducer turns a physical quantity such as force, torque or pressure into a signal that a computer can read. Robots and process plants depend on these devices, and GATE asks about their working principles and simple calculations.</p>
+<div class="station"><b>137</b><span>Unit 12 · Sensors · Paper RA · New concept</span></div>
+<ul class="topics"><li>What a transducer is</li><li>Strain gauges and the Wheatstone bridge</li><li>Load cells and force</li><li>Torque transducers</li><li>Pressure transducers</li><li>Signal conditioning and robot use</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you want to know how hard a robot hand is squeezing an egg. You cannot see the force. You cannot read it with a ruler. What you need is a device that changes its behaviour when it is pushed, and a way to turn that change into a number. That device is a <strong>transducer</strong>.</p>
+  <p>A transducer is a device that converts one kind of energy or quantity into another kind. Most transducers used in engineering convert a mechanical quantity (force, torque, pressure, position) into an electrical quantity (voltage, current, resistance, capacitance). The electrical signal is easy to copy, store, amplify and send to a microcontroller.</p>
+  <p><strong>Everyday analogy.</strong> A bathroom scale is a force transducer in disguise. You stand on it, the spring or the sensing element is squeezed, and a needle or digital display shows a number. Inside a modern digital scale, the squeeze changes an electrical resistance, and a chip turns that change into kilograms.</p>
+  <p><strong>Why it matters.</strong> A robot arm that cannot feel its own force will crush a soft object or drop a hard one. A pressure transducer tells a hydraulic pump when a tank is full. A torque transducer tells a motor test bench how hard a shaft is twisting. In each case, the transducer is the eyes and fingers of the control system.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper, transducers appear in the sensors part of the syllabus. You may be asked for the working principle of a load cell, the sensitivity of a pressure transducer, the shear stress in a shaft, or the output voltage of a strain gauge bridge. In the Data Science and AI (DA) paper, the same ideas can appear in sensor data questions.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now, and come back to it whenever a word feels unfamiliar.</p>
+  <dl>
+    <div><dt>Transducer</dt><dd>A device that converts a physical quantity into another form, usually an electrical signal. Precisely: a device that maps an input quantity (force, pressure, torque) to an output quantity (voltage, resistance, capacitance) in a known way.</dd></div>
+    <div><dt>Sensor</dt><dd>A device that detects or measures something. Many sensors are transducers. In this page the two words mean the same thing.</dd></div>
+    <div><dt>Strain</dt><dd>How much a material stretches or squeezes, compared with its original length. Precisely: strain ε = ΔL/L, where ΔL is the change in length and L is the original length. Strain has no unit because it is a ratio.</dd></div>
+    <div><dt>Stress</dt><dd>The force spread over an area. Precisely: σ = F/A, where F is the force in newtons and A is the area in square metres. Its unit is the pascal (Pa), where 1 Pa = 1 N/m².</dd></div>
+    <div><dt>Young's modulus (E)</dt><dd>How stiff a material is. Precisely: the ratio of stress to strain in the elastic region, E = σ/ε. Steel has E about 200 GPa.</dd></div>
+    <div><dt>Strain gauge</dt><dd>A thin metal wire or foil pattern glued to a surface. When the surface stretches, the wire stretches, and its electrical resistance changes.</dd></div>
+    <div><dt>Gauge factor (GF)</dt><dd>How sensitive a strain gauge is. Precisely: GF = (ΔR/R)/ε. A typical metal foil gauge has GF about 2.</dd></div>
+    <div><dt>Wheatstone bridge</dt><dd>A four-resistor circuit that turns a tiny resistance change into a small voltage that is easy to measure.</dd></div>
+    <div><dt>Excitation voltage (V<sub>ex</sub>)</dt><dd>The voltage supplied to a bridge circuit. The output of the bridge is a fraction of this voltage.</dd></div>
+    <div><dt>Load cell</dt><dd>A force transducer. It has a metal body that bends or compresses a little under load, with strain gauges bonded to it.</dd></div>
+    <div><dt>Torque</dt><dd>A twisting effect. Precisely: torque T = F × r, the force times the distance from the axis, measured in newton metres (N·m).</dd></div>
+    <div><dt>Shear stress (τ)</dt><dd>Stress that acts sideways, parallel to a surface, as in a twisted shaft.</dd></div>
+    <div><dt>Pressure</dt><dd>Force per unit area, p = F/A, measured in pascals.</dd></div>
+    <div><dt>Diaphragm</dt><dd>A thin flexible disc that bends when pressure is applied to one side. Most pressure transducers have one.</dd></div>
+    <div><dt>Piezoresistive</dt><dd>Describes a material whose resistance changes when it is strained. Silicon strain gauges are piezoresistive.</dd></div>
+    <div><dt>Capacitance (C)</dt><dd>How much electric charge a pair of conductors can store for a given voltage. Precisely: C = ε<sub>0</sub>ε<sub>r</sub>A/d for two parallel plates.</dd></div>
+    <div><dt>Sensitivity</dt><dd>How much the output changes for a given change in input. Precisely: sensitivity = change in output / change in input.</dd></div>
+    <div><dt>Hysteresis</dt><dd>A difference in the output depending on whether the input is going up or down. A good transducer has very little.</dd></div>
+    <div><dt>Signal conditioning</dt><dd>The electronics that clean up a raw sensor signal: amplifying it, filtering noise, and shifting its zero level.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Strain gauges and the bridge">
+  <h2>Strain gauges and the Wheatstone bridge</h2>
+
+  <h3>Step 1: why a wire changes resistance when it is stretched</h3>
+  <p>Every wire resists the flow of electric current. The resistance R depends on three things: the material, the length and the thickness of the wire. Engineers write this as R = ρL/A, where ρ is the resistivity of the material, L is the length and A is the cross-sectional area.</p>
+  <p>Stretch the wire and its length goes up while its thickness goes down. Both changes push the resistance up. So the resistance change tells you the strain.</p>
+  <p>The gauge factor tells you the size of that change. Here is the formula, with each symbol explained:</p>
+  <div class="formula">GF = (ΔR/R) / ε</div>
+  <p>Here <strong>ΔR</strong> is the change in resistance, <strong>R</strong> is the original resistance (for example 350 Ω), <strong>ε</strong> is the strain, and <strong>GF</strong> is the gauge factor. Rearranged, the formula gives the resistance change directly: ΔR = GF × ε × R.</p>
+
+  <h3>Step 2: a number example</h3>
+  <p>A gauge has R = 350 Ω and GF = 2. It is stretched so that the strain is 500 microstrain. In maths, micro means 10<sup>-6</sup>, so 500 microstrain is 500 × 10<sup>-6</sup> = 0.0005.</p>
+  <ol>
+    <li>Write the strain: ε = 0.0005.</li>
+    <li>Multiply the gauge factor by the strain: 2 × 0.0005 = 0.001.</li>
+    <li>Multiply by the original resistance: 0.001 × 350 = 0.35 Ω.</li>
+    <li>So the resistance goes from 350 Ω to 350.35 Ω.</li>
+  </ol>
+  <p>The check is in Python. It uses only the standard library, and the output below is what it prints.</p>
+  <pre class="code" data-lang="python"><code># Strain gauge: a resistor that changes when it is stretched
+R = 350.0        # gauge resistance in ohms (before strain)
+GF = 2.0         # gauge factor (how sensitive the gauge is)
+strain = 500e-6  # 500 microstrain
+
+dR = GF * strain * R
+print("Change in resistance dR =", round(dR, 4), "ohm")
+print("New resistance =", round(R + dR, 4), "ohm")</code></pre>
+<pre class="output">Change in resistance dR = 0.35 ohm
+New resistance = 350.35 ohm</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often write microstrain as 500 and forget to convert it. Always convert micro to 10<sup>-6</sup> first. A strain of 500 microstrain is 0.0005, never 500.</p></div>
+
+  <h3>Step 3: why one gauge is not enough, and the bridge</h3>
+  <p>A change of 0.35 Ω on a 350 Ω gauge is only 0.1 percent. A simple ohmmeter cannot see that reliably, and the reading would drift with temperature. The fix is a <strong>Wheatstone bridge</strong>.</p>
+  <p><strong>Everyday analogy.</strong> Think of a seesaw with four weights. When the seesaw is level, nothing moves. If one weight changes slightly, the seesaw tilts a little, and the tilt is easy to see. The bridge is a balanced electrical seesaw. When all four resistors are equal, the output voltage is zero. When one resistor changes, the output voltage tilts away from zero.</p>
+  <pre class="code" data-lang="text"><code>      Vex (+)
+        |
+   +----+----+
+   |         |
+  R1 (gauge) R3
+   |         |
+   +--- Vout +---   (Vout is measured between the two middle points)
+   |         |
+  R2        R4
+   |         |
+   +----+----+
+        |
+      Vex (-)
+</code></pre>
+  <p>In the quarter bridge, only R1 is the gauge. The other three resistors are fixed and equal to R. When the gauge stretches, R1 becomes R + ΔR, and the output voltage is:</p>
+  <div class="formula">Vout = Vex × ΔR / (4R + 2ΔR)</div>
+  <p>For a small change, the term 2ΔR in the bottom is tiny compared with 4R, so the formula becomes the simpler approximation Vout is about Vex × ΔR / (4R). Both forms appear in GATE questions, so learn both.</p>
+
+  <h3>Step 4: a worked bridge example, every step shown</h3>
+  <p>Use the same gauge: R = 350 Ω, ΔR = 0.35 Ω, and an excitation voltage V<sub>ex</sub> = 5 V.</p>
+  <ol>
+    <li>Write the exact formula: Vout = 5 × 0.35 / (4 × 350 + 2 × 0.35).</li>
+    <li>Work the top: 5 × 0.35 = 1.75.</li>
+    <li>Work the bottom: 4 × 350 = 1400, and 2 × 0.35 = 0.7, so the bottom is 1400.7.</li>
+    <li>Divide: 1.75 / 1400.7 = 0.0012494 V, which is about 1.249 mV.</li>
+    <li>The approximate formula gives 1.75 / 1400 = 0.00125 V, which is 1.250 mV.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+Vex = Fraction(5)        # excitation voltage in volts
+R = Fraction(350)        # gauge resistance in ohms
+dR = Fraction(35, 100)   # change in resistance: 0.35 ohm
+
+exact = Vex * dR / (4 * R + 2 * dR)
+approx = Vex * dR / (4 * R)
+print("Exact Vout = %.3f mV" % (float(exact) * 1000))
+print("Approximate Vout = %.3f mV" % (float(approx) * 1000))</code></pre>
+<pre class="output">Exact Vout = 1.249 mV
+Approximate Vout = 1.250 mV</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>The bridge output is tiny, about one millivolt here. A signal conditioning amplifier must boost it before the microcontroller can read it. That is why a real load cell has an amplifier close to the bridge.</p></div>
+
+  <details class="check"><summary>Question: if the gauge factor doubles but the strain stays the same, what happens to ΔR?</summary><div class="ans"><p>ΔR = GF × ε × R, so doubling GF doubles ΔR. The bridge output also doubles, which is why a high gauge factor is valuable.</p></div></details>
+  <details class="check"><summary>Question: why do engineers use four gauges in a full bridge?</summary><div class="ans"><p>Four active gauges give about four times the output of one gauge, if they are placed so that some are stretched and some are squeezed. The output is also less sensitive to temperature, because the temperature effects cancel out in the bridge.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Load cells and force">
+  <h2>Load cells and force</h2>
+
+  <h3>What a load cell is made of</h3>
+  <p>A load cell is a force transducer. It has three parts. The first is a <strong>spring element</strong>, a metal block that bends or squeezes a tiny amount when it carries a load. The second is a set of <strong>strain gauges</strong> bonded to the spring element. The third is the <strong>bridge and amplifier</strong> that turns the gauge changes into a voltage.</p>
+  <p>The spring element must bend only a tiny amount, so that the metal stays in its elastic region.</p>
+  <pre class="code" data-lang="text"><code>   Column-type load cell (side view)
+
+        load F (down)
+            |
+   +--------v--------+
+   |  metal column   |  &lt;- strain gauges glued on the sides
+   |  squeezed a bit |
+   +-----------------+
+            |
+        fixed base
+</code></pre>
+
+  <h3>The chain of calculations</h3>
+  <p>Force is what you want to measure. The chain goes like this: force F gives stress σ, stress gives strain ε, strain gives gauge resistance change ΔR, and ΔR gives the bridge voltage.</p>
+  <div class="formula">σ = F / A  and  ε = σ / E</div>
+  <p>Here <strong>F</strong> is the force in newtons, <strong>A</strong> is the cross-sectional area of the column in square metres, <strong>σ</strong> is the stress in pascals, <strong>E</strong> is Young's modulus in pascals, and <strong>ε</strong> is the strain (no unit). The second equation is Hooke's law for the elastic region.</p>
+
+  <h3>Worked example</h3>
+  <p>A steel column has area A = 100 mm² and carries a load F = 1000 N. Steel has E = 200 GPa. The gauge has GF = 2 and R = 350 Ω.</p>
+  <ol>
+    <li>Convert the area to square metres. 100 mm² = 100 × 10<sup>-6</sup> m² = 1 × 10<sup>-4</sup> m².</li>
+    <li>Stress: σ = 1000 / (1 × 10<sup>-4</sup>) = 10 000 000 Pa = 10 MPa.</li>
+    <li>Strain: ε = 10 × 10<sup>6</sup> / (200 × 10<sup>9</sup>) = 0.00005, which is 50 microstrain.</li>
+    <li>Gauge change: ΔR = 2 × 0.00005 × 350 = 0.035 Ω.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>F = 1000.0          # force in newtons
+A = 100e-6          # area: 100 mm^2 in square metres
+E = 200e9           # Young's modulus of steel in pascals
+GF = 2.0
+R = 350.0
+
+sigma = F / A       # stress in pascals
+eps = sigma / E     # strain, no unit
+dR = GF * eps * R   # change in gauge resistance in ohms
+
+print("Stress = %.1f MPa" % (sigma / 1e6))
+print("Strain = %.1f microstrain" % (eps * 1e6))
+print("Gauge change = %.3f ohm" % dR)</code></pre>
+<pre class="output">Stress = 10.0 MPa
+Strain = 50.0 microstrain
+Gauge change = 0.035 ohm</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The area must be in square metres, not square millimetres. If you forget the conversion, the stress is a million times too small. Always convert before dividing.</p></div>
+
+  <details class="check"><summary>Question: a load cell gives 0.035 Ω change for 1000 N. What is its sensitivity in ohms per newton?</summary><div class="ans"><p>Sensitivity = change in output / change in input = 0.035 Ω / 1000 N = 0.000035 Ω per newton, or 35 µΩ per newton.</p></div></details>
+  <details class="check"><summary>Question: why is a load cell made of steel and not rubber?</summary><div class="ans"><p>Steel has a high and stable Young's modulus. Its strain is small and predictable under load, and it returns to its original shape. Rubber stretches far more, so the strain would not be proportional to the force in the same simple way.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Torque transducers">
+  <h2>Torque transducers</h2>
+
+  <h3>What torque is and how a shaft carries it</h3>
+  <p>Torque is a twisting effect. If you push a spanner handle 0.2 m long at right angles with 50 N, the torque on the bolt is 50 × 0.2 = 10 N·m. Inside a rotating shaft, torque creates shear stress, a sideways push between the layers of material. A torque transducer measures this shear stress, or the tiny twist it causes.</p>
+
+  <h3>The shear stress formula</h3>
+  <p>For a solid circular shaft of diameter d, the maximum shear stress caused by a torque T is:</p>
+  <div class="formula">τ = 16T / (π d³)</div>
+  <p>Here <strong>τ</strong> (tau) is the shear stress in pascals, <strong>T</strong> is the torque in newton metres, <strong>d</strong> is the shaft diameter in metres, and <strong>π</strong> is about 3.14159. The d<sup>3</sup> means d × d × d, so a small change in diameter has a big effect on the stress.</p>
+
+  <h3>How the gauges sit on the shaft</h3>
+  <p>Shear stress is hard to measure directly. A clever trick helps. A pure shear state is the same as a pair of tension and compression stresses along diagonal directions at 45 degrees. So the gauges are glued at 45 degrees to the shaft axis. One gauge runs in the tension direction and one runs in the compression direction. A full bridge with these gauges gives a large output that is proportional to the torque.</p>
+  <pre class="code" data-lang="text"><code>      Side view of a shaft with torque gauges
+
+            ______________
+   ---------|  /  /  /  /  |----------   shaft axis
+            |  \  \  \  \  |
+            |______________|
+
+   "/" = gauge at 45 degrees, tension direction
+   "\" = gauge at 45 degrees, compression direction
+   Two gauges in the bridge arms, one of each kind.
+</code></pre>
+
+  <h3>Worked example</h3>
+  <p>A solid steel shaft has diameter d = 20 mm and carries a torque T = 100 N·m. Find the maximum shear stress.</p>
+  <ol>
+    <li>Convert the diameter: d = 20 mm = 0.02 m.</li>
+    <li>Compute d<sup>3</sup>: 0.02 × 0.02 × 0.02 = 0.000008 m³.</li>
+    <li>Compute the denominator: π × 0.000008 = 0.00002513 m³.</li>
+    <li>Compute the numerator: 16 × 100 = 1600 N·m.</li>
+    <li>Divide: 1600 / 0.00002513 = 63 660 000 Pa, which is 63.7 MPa.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+T = 100.0        # torque in newton metres
+d = 0.020        # diameter in metres (20 mm)
+
+tau = 16 * T / (math.pi * d ** 3)   # maximum shear stress in pascals
+print("Shear stress = %.1f MPa" % (tau / 1e6))</code></pre>
+<pre class="output">Shear stress = 63.7 MPa</pre>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Shear stress scales with 1/d<sup>3</sup>. If you double the shaft diameter, the shear stress for the same torque falls to one eighth. Expect a question that asks how the stress changes when the diameter changes.</p></div>
+
+  <details class="check"><summary>Question: the diameter is halved and the torque stays the same. By what factor does the shear stress change?</summary><div class="ans"><p>Halving d makes d<sup>3</sup> one eighth as large, so the stress becomes 8 times larger. Halving the diameter makes the shaft much weaker.</p></div></details>
+  <details class="check"><summary>Question: why are gauges placed at 45 degrees and not along the shaft?</summary><div class="ans"><p>A gauge along the shaft axis sees only a small shear strain. At 45 degrees the gauge sees the full principal strain, which is the largest and easiest to measure. The bridge then gives a large, clean output.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Pressure transducers">
+  <h2>Pressure transducers</h2>
+
+  <h3>Pressure is force per area</h3>
+  <p>Pressure is the force spread over an area. A drawing pin has a tiny point, so a small push creates a large pressure.</p>
+  <div class="formula">p = F / A</div>
+  <p>Here <strong>p</strong> is the pressure in pascals, <strong>F</strong> is the force in newtons, and <strong>A</strong> is the area in square metres. One pascal is one newton per square metre. Engineers often use kilopascals (kPa) and megapascals (MPa). One kPa is 1000 Pa.</p>
+
+  <h3>The diaphragm</h3>
+  <p>Most pressure transducers use a thin metal or silicon disc called a <strong>diaphragm</strong>. One side of the diaphragm sees the pressure to be measured. The other side is either sealed to a reference pressure or open to the air. When the pressure rises, the diaphragm bends. Its bending is the mechanical signal that the transducer needs to convert.</p>
+  <pre class="code" data-lang="text"><code>        pressure p (from the pipe)
+              |  |  |  |
+   +----------vvvvvvvvvv----------+
+   |      flexible diaphragm      |   &lt;- bends when p rises
+   +------------------------------+
+   |  sealed chamber / reference  |
+   +------------------------------+
+</code></pre>
+
+  <h3>Two main types</h3>
+  <p><strong>Piezoresistive type.</strong> Strain gauges, often made of silicon, are formed on the diaphragm. When it bends, the resistance changes, and a bridge converts the change to a voltage. This is the most common type in industry because it is cheap and rugged.</p>
+  <p><strong>Capacitive type.</strong> The diaphragm is one plate of a capacitor. A fixed plate sits a small gap away. When pressure bends the diaphragm, the gap changes, and so does the capacitance. A circuit measures the capacitance and gives the pressure. This type is very accurate for small pressures.</p>
+  <p>The capacitance of two parallel plates is:</p>
+  <div class="formula">C = ε<sub>0</sub> × A / d</div>
+  <p>Here <strong>C</strong> is the capacitance in farads, <strong>ε<sub>0</sub></strong> is the permittivity of free space, about 8.854 × 10<sup>-12</sup> F/m, <strong>A</strong> is the plate area in square metres, and <strong>d</strong> is the gap between the plates in metres. Notice that a smaller gap gives a larger capacitance.</p>
+
+  <h3>Worked example: capacitive sensing</h3>
+  <p>A capacitive pressure cell has plate area A = 100 mm² = 1 × 10<sup>-4</sup> m² and a gap d = 0.1 mm = 1 × 10<sup>-4</sup> m. Pressure squeezes the gap to 0.09 mm.</p>
+  <ol>
+    <li>At rest: C = 8.854 × 10<sup>-12</sup> × 1 × 10<sup>-4</sup> / 1 × 10<sup>-4</sup> = 8.854 × 10<sup>-12</sup> F, which is 8.854 pF.</li>
+    <li>Under pressure: the gap is 0.9 × 10<sup>-4</sup> m, so C = 8.854 × 10<sup>-12</sup> × 1 × 10<sup>-4</sup> / 0.9 × 10<sup>-4</sup>.</li>
+    <li>Simplify: C = 8.854 / 0.9 pF = 9.838 pF.</li>
+    <li>The capacitance went up by about 11 percent, so the pressure caused a clear change.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>eps0 = 8.854e-12       # permittivity of free space in F/m
+A = 100e-6             # plate area in square metres (100 mm^2)
+d_rest = 0.1e-3        # gap at rest, in metres
+d_press = 0.09e-3      # gap under pressure, in metres
+
+C_rest = eps0 * A / d_rest
+C_press = eps0 * A / d_press
+print("Capacitance at rest = %.3f pF" % (C_rest * 1e12))
+print("Capacitance under pressure = %.3f pF" % (C_press * 1e12))</code></pre>
+<pre class="output">Capacitance at rest = 8.854 pF
+Capacitance under pressure = 9.838 pF</pre>
+
+  <div class="note tip"><p><span class="t">Tip</span>In every pressure problem, write p = F/A first. If the question gives a force and an area, find the pressure. If it gives a pressure and an area, the force is F = p × A.</p></div>
+
+  <details class="check"><summary>Question: a diaphragm of area 1 × 10<sup>-4</sup> m² sees a force of 20 N. What is the pressure in kPa?</summary><div class="ans"><p>p = F/A = 20 / (1 × 10<sup>-4</sup>) = 200 000 Pa = 200 kPa.</p></div></details>
+  <details class="check"><summary>Question: why does a capacitive sensor give a larger change for a smaller gap?</summary><div class="ans"><p>Capacitance is inversely proportional to the gap d. Halving the gap doubles the capacitance. So a small gap gives a strong, easy-to-read signal.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Signal conditioning and robot use">
+  <h2>Signal conditioning and robot use</h2>
+
+  <h3>From a tiny signal to a clean number</h3>
+  <p>A bridge gives millivolts. A microcontroller may need volts. A real signal also has electrical noise from motors and cables. <strong>Signal conditioning</strong> is the chain of electronics that solves these problems. It usually does four jobs, in this order:</p>
+  <ol>
+    <li><strong>Amplify.</strong> A precise instrumentation amplifier multiplies the small bridge voltage, often by 100 to 1000.</li>
+    <li><strong>Filter.</strong> A low-pass filter removes fast electrical noise but keeps the slow force or pressure changes.</li>
+    <li><strong>Offset and zero.</strong> The circuit shifts the output so that zero load gives a known zero voltage.</li>
+    <li><strong>Convert.</strong> An analogue to digital converter (ADC) turns the voltage into numbers for the controller.</li>
+  </ol>
+  <p>Temperature also matters. A metal gauge changes resistance when it gets warm, even with no load, so good transducers compensate for it.</p>
+
+  <h3>Choosing the right transducer</h3>
+  <p>Here is a simple comparison. Use it to remember which device to pick.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Quantity</th><th>Typical transducer</th><th>Core principle</th><th>Robot or plant example</th></tr></thead>
+    <tbody>
+      <tr><td>Force</td><td>Load cell (strain gauges on a metal column)</td><td>Metal strain changes gauge resistance</td><td>Gripper force on an object</td></tr>
+      <tr><td>Torque</td><td>Strain gauge torque sensor on a shaft</td><td>Shear strain at 45 degrees</td><td>Joint torque sensing in a robot arm</td></tr>
+      <tr><td>Pressure</td><td>Diaphragm sensor (piezoresistive or capacitive)</td><td>Diaphragm bending changes resistance or gap</td><td>Pneumatic gripper line, tank level</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Where these sensors help a robot</h3>
+  <p>A six-axis force and torque sensor fitted between a robot wrist and its tool measures three forces and three torques at once. The robot can then follow a surface gently, or stop when it touches a person. A pneumatic gripper uses a pressure transducer to confirm that the air line has enough pressure to hold a part. A joint torque sensor lets a collaborative robot detect a collision by noticing a sudden rise in torque.</p>
+
+  <details class="check"><summary>Question: why does a bridge need an amplifier close to it?</summary><div class="ans"><p>The bridge output is a few millivolts. Long wires pick up noise, which can be bigger than the signal. Amplifying close to the bridge keeps the signal strong.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table open when you practise. Each row says what the formula means and when you need it.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>ε = ΔL / L</td><td>Strain: change in length divided by original length</td><td>Any stretch or squeeze question</td></tr>
+      <tr><td>σ = F / A</td><td>Stress: force per area (pascals)</td><td>Load cells, shafts, pressure questions</td></tr>
+      <tr><td>σ = E × ε</td><td>Hooke's law in the elastic region</td><td>Converting between stress and strain</td></tr>
+      <tr><td>GF = (ΔR / R) / ε</td><td>Gauge factor: sensitivity of a strain gauge</td><td>Finding the resistance change</td></tr>
+      <tr><td>ΔR = GF × ε × R</td><td>Resistance change of a gauge</td><td>Start of every bridge calculation</td></tr>
+      <tr><td>V<sub>out</sub> = V<sub>ex</sub> × ΔR / (4R + 2ΔR)</td><td>Exact quarter bridge output</td><td>When ΔR is not tiny compared with R</td></tr>
+      <tr><td>V<sub>out</sub> is about V<sub>ex</sub> × ΔR / (4R)</td><td>Approximate quarter bridge output</td><td>Small strains, quick estimates</td></tr>
+      <tr><td>T = F × r</td><td>Torque: force times lever arm</td><td>Turning effect questions</td></tr>
+      <tr><td>τ = 16T / (π d<sup>3</sup>)</td><td>Maximum shear stress in a solid shaft</td><td>Torque transducer and shaft questions</td></tr>
+      <tr><td>p = F / A</td><td>Pressure: force per area</td><td>Pressure transducer questions</td></tr>
+      <tr><td>C = ε<sub>0</sub> A / d</td><td>Capacitance of parallel plates</td><td>Capacitive pressure sensors</td></tr>
+      <tr><td>Sensitivity = Δoutput / Δinput</td><td>How much output changes per unit of input</td><td>Comparing transducers</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original problems written in the GATE style. They are not real past paper questions. Try each one on paper before you read the answer. Hide the answer with your hand if you need to.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Stress in a steel rod</h3>
+    <div class="statement"><p>A steel rod has a cross-sectional area of 50 mm². It carries an axial tensile force of 2000 N. Find the stress in the rod in MPa.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The stress in MPa, so we need σ = F/A with F in newtons and A in square metres, then convert to MPa.</li>
+      <li><strong>Which idea applies.</strong> Stress is force divided by area.</li>
+      <li><strong>Work it out.</strong> A = 50 mm² = 50 × 10<sup>-6</sup> m² = 5 × 10<sup>-5</sup> m². Then σ = 2000 / (5 × 10<sup>-5</sup>) = 40 000 000 Pa = 40 MPa.</li>
+      <li><strong>Check.</strong> Stress in MPa is roughly force in newtons divided by area in mm², since 1 N/mm² = 1 MPa. Here 2000 / 50 = 40. Yes.</li>
+    </ol>
+    <p class="cx">Answer: 40 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Sensitivity of a pressure transducer</h3>
+    <div class="statement"><p>A pressure transducer gives an output of 0 V at 0 kPa and 5 V at 200 kPa, with a straight-line response. (a) What is its sensitivity in V per kPa? (b) What output does it give at 80 kPa?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Part (a) asks for sensitivity, which is change in output divided by change in input. Part (b) asks for an output at a given pressure.</li>
+      <li><strong>Which idea applies.</strong> A straight-line response means the output is proportional to the input, so the sensitivity is the same everywhere.</li>
+      <li><strong>Work it out.</strong> (a) Sensitivity = (5 - 0) V / (200 - 0) kPa = 5 / 200 = 0.025 V per kPa. (b) Output = 0.025 × 80 = 2.0 V.</li>
+      <li><strong>Check.</strong> At 200 kPa, the output is 0.025 × 200 = 5 V, which matches the given data.</li>
+    </ol>
+    <p class="cx">Answer: (a) 0.025 V/kPa. (b) 2.0 V.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about strain gauges are true?</h3>
+    <div class="statement"><p>Consider the following statements about strain gauges and bridges. Select all that apply.</p>
+    <p>(A) The gauge factor is defined as (ΔR/R) divided by the strain.<br>(B) A metal foil strain gauge works because its resistance changes when it is strained.<br>(C) A piezoresistive pressure sensor works by changing the gap between two plates.<br>(D) Using four active gauges in a full bridge gives more output than using one gauge in a quarter bridge.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are correct. More than one may be correct.</li>
+      <li><strong>Which idea applies.</strong> The definition of gauge factor, the working of a strain gauge, the difference between piezoresistive and capacitive sensors, and the bridge arrangements.</li>
+      <li><strong>Work it out.</strong> (A) True. GF = (ΔR/R)/ε is the standard definition. (B) True. The resistance change is the signal. (C) False. A piezoresistive sensor uses resistance change in gauges on the diaphragm. The gap change belongs to the capacitive type. (D) True. Four active gauges in a full bridge give roughly four times the quarter bridge output, when arranged correctly.</li>
+      <li><strong>Check.</strong> Each true statement matches the definitions in this page, and the false one describes the other sensor type.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Statement (C) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Shaft torque from stress</h3>
+    <div class="statement"><p>A solid shaft of diameter 30 mm carries a torque of 300 N·m. Find the maximum shear stress in MPa, correct to one decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The maximum shear stress τ in MPa.</li>
+      <li><strong>Which idea applies.</strong> For a solid circular shaft, τ = 16T / (π d<sup>3</sup>).</li>
+      <li><strong>Work it out.</strong> d = 0.030 m, so d<sup>3</sup> = 0.000027 m³. Then π × 0.000027 = 0.00008482 m³. The numerator is 16 × 300 = 4800. So τ = 4800 / 0.00008482 = 56 588 000 Pa, which is 56.6 MPa.</li>
+      <li><strong>Check.</strong> A 60 mm shaft at the same torque would have one eighth of this stress, about 7.1 MPa. This shaft is half that diameter, so its stress is eight times larger, about 57 MPa. Yes.</li>
+    </ol>
+    <p class="cx">Answer: about 56.6 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Capacitive gap change</h3>
+    <div class="statement"><p>A capacitive pressure sensor has a capacitance of 10 pF at rest. Pressure reduces the gap to 80 percent of its rest value. What is the new capacitance in pF? (Assume the plate area does not change.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The new capacitance in pF.</li>
+      <li><strong>Which idea applies.</strong> C = ε<sub>0</sub> A / d. Capacitance is inversely proportional to the gap.</li>
+      <li><strong>Work it out.</strong> If the gap becomes 0.8 d, then C_new = ε<sub>0</sub> A / (0.8 d) = C_old / 0.8 = 10 / 0.8 = 12.5 pF.</li>
+      <li><strong>Check.</strong> A smaller gap must give a larger capacitance, and 12.5 is larger than 10. Yes.</li>
+    </ol>
+    <p class="cx">Answer: 12.5 pF.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exact bridge output with a large strain</h3>
+    <div class="statement"><p>A quarter bridge uses a gauge of R = 350 Ω with GF = 2.1. The gauge strain is 800 microstrain. The excitation voltage is 10 V. Using the exact formula, find V<sub>out</sub> in mV, correct to three decimal places. Then find the error, in percent, that the approximate formula would make.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The exact output in mV, and the percentage error of the approximation.</li>
+      <li><strong>Which idea applies.</strong> First find ΔR = GF × ε × R. Then use V<sub>out</sub> = V<sub>ex</sub> × ΔR / (4R + 2ΔR), and compare with V<sub>ex</sub> × ΔR / (4R).</li>
+      <li><strong>Work it out.</strong> ε = 800 × 10<sup>-6</sup> = 0.0008. ΔR = 2.1 × 0.0008 × 350 = 0.588 Ω. The exact output is 10 × 0.588 / (1400 + 1.176) = 5.88 / 1401.176, which is about 0.0041963 V = 4.196 mV. The approximate output is 5.88 / 1400 = 0.0042 V = 4.200 mV. The error is (4.200 - 4.196) / 4.196, about 0.08 percent.</li>
+      <li><strong>Check.</strong> Since ΔR is small compared with 4R, the two answers should agree to well under one percent. They do.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>GF = 2.1
+eps = 800e-6
+R = 350.0
+Vex = 10.0
+
+dR = GF * eps * R
+exact = Vex * dR / (4 * R + 2 * dR)
+approx = Vex * dR / (4 * R)
+err = (approx - exact) / exact * 100
+
+print("dR = %.3f ohm" % dR)
+print("Exact Vout = %.3f mV" % (exact * 1000))
+print("Approximate Vout = %.3f mV" % (approx * 1000))
+print("Error of approximation = %.2f percent" % err)</code></pre>
+<pre class="output">dR = 0.588 ohm
+Exact Vout = 4.196 mV
+Approximate Vout = 4.200 mV
+Error of approximation = 0.08 percent</pre>
+    <p class="cx">Answer: V<sub>out</sub> = 4.196 mV exactly, and the approximation is about 0.08 percent high.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Torque sensor and shaft design</h3>
+    <div class="statement"><p>A robot joint shaft must carry a maximum torque of 150 N·m. The maximum allowed shear stress is 60 MPa. Select all that apply to the design.</p>
+    <p>(A) A solid shaft of diameter 25 mm is safe, since its stress is below 60 MPa.<br>(B) Halving the diameter of a solid shaft at the same torque doubles the stress.<br>(C) Halving the diameter of a solid shaft at the same torque makes the stress eight times larger.<br>(D) A torque sensor measures the shear stress and converts it to a torque reading.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the design and the sensor are true.</li>
+      <li><strong>Which idea applies.</strong> τ = 16T / (π d<sup>3</sup>), where stress scales with 1/d<sup>3</sup>.</li>
+      <li><strong>Work it out.</strong> (A) For d = 0.025 m, the stress is 16 × 150 / (π × 0.025<sup>3</sup>), which is about 48.9 MPa. That is below 60 MPa, so (A) is true. (B) False, because the stress scales with 1/d<sup>3</sup>, so halving d gives eight times the stress. (C) True. (D) True, since this is the working principle of a torque transducer.</li>
+      <li><strong>Check.</strong> Compare (B) and (C): both talk about halving the diameter, and only the cube rule is correct.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+T = 150.0
+d = 0.025
+tau = 16 * T / (math.pi * d ** 3)
+print("Stress for 25 mm shaft = %.1f MPa" % (tau / 1e6))
+print("Ratio when diameter is halved = %.1f" % ((1 / 0.5) ** 3))</code></pre>
+<pre class="output">Stress for 25 mm shaft = 48.9 MPa
+Ratio when diameter is halved = 8.0</pre>
+    <p class="cx">Answer: (A), (C) and (D). Statement (B) is false, because stress scales with 1/d<sup>3</sup>, so halving the diameter multiplies the stress by 8.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Strain gauge load cell (NAT, 2 marks)</h3>
+    <div class="statement"><p>A steel column (E = 200 GPa, area 400 mm²) carries a compressive load of 40 kN. A gauge with gauge factor 2 is bonded along the axis. Find ΔR/R in units of 10<sup>−6</sup>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The fractional resistance change.</li>
+      <li><strong>Which idea applies.</strong> ε = F/(AE), and ΔR/R = GF · ε.</li>
+      <li><strong>Work it out.</strong> σ = 40000/400 = 100 MPa. ε = 100/200000 = 5 × 10<sup>−4</sup>. ΔR/R = 10<sup>−3</sup> = 1000 × 10<sup>−6</sup> (a decrease).</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>eps = 40e3 / 400e-6 / 200e9
+print("strain = %.1e, dR/R = %.0f x 1e-6" % (eps, 2 * eps * 1e6))
+</code></pre>
+    <pre class="output">strain = 5.0e-04, dR/R = 1000 x 1e-6</pre>
+    <p class="cx">Answer: 1000 × 10<sup>−6</sup> (resistance falls).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Torque from shear strain (NAT, 2 marks)</h3>
+    <div class="statement"><p>A solid shaft of diameter 40 mm, G = 80 GPa, carries a torque. A 45° strain gauge reads a normal strain of 200 × 10<sup>−6</sup>. Find the torque in N·m, correct to 1 decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The torque from gauge strain.</li>
+      <li><strong>Which idea applies.</strong> At 45°, ε = γ/2, so γ = 400 × 10<sup>−6</sup>. τ = Gγ and T = τπd³/16.</li>
+      <li><strong>Work it out.</strong> τ = 80e9 · 4e−4 = 32 MPa. T = 32e6 · π · 0.04³/16 = 402.1 N·m.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+tau = 80e9 * 400e-6
+print("%.1f N m" % (tau * math.pi * 0.04 ** 3 / 16))
+</code></pre>
+    <pre class="output">402.1 N m</pre>
+    <p class="cx">Answer: about 402.1 N·m.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Manometer (NAT, 2 marks)</h3>
+    <div class="statement"><p>A mercury manometer (density 13600 kg/m³) shows a 150 mm difference for an air pressure. Take g = 9.81 m/s². Find the gauge pressure in kPa.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> ρgh.</li>
+      <li><strong>Which idea applies.</strong> Air density is negligible.</li>
+      <li><strong>Work it out.</strong> 13600 · 9.81 · 0.15 = 20012 Pa ≈ 20.01 kPa.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print("%.2f kPa" % (13600 * 9.81 * 0.15 / 1000))
+</code></pre>
+    <pre class="output">20.01 kPa</pre>
+    <p class="cx">Answer: about 20.01 kPa.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Each line gives the plain idea first, then the short definition.</p>
+  <dl>
+    <div><dt>Transducer</dt><dd>A device that converts a physical quantity, such as force, into a signal, usually electrical.</dd></div>
+    <div><dt>Strain</dt><dd>Change in length divided by original length. It has no unit.</dd></div>
+    <div><dt>Stress</dt><dd>Force divided by area, measured in pascals.</dd></div>
+    <div><dt>Young's modulus</dt><dd>Stress divided by strain in the elastic region. Stiffness of the material.</dd></div>
+    <div><dt>Strain gauge</dt><dd>A metal wire or foil whose resistance changes when it is stretched or squeezed.</dd></div>
+    <div><dt>Gauge factor</dt><dd>(ΔR/R) divided by strain. About 2 for metal foil gauges.</dd></div>
+    <div><dt>Wheatstone bridge</dt><dd>Four resistors that turn a small resistance change into a small voltage.</dd></div>
+    <div><dt>Quarter bridge output</dt><dd>V<sub>ex</sub> × ΔR / (4R + 2ΔR), or about V<sub>ex</sub> × ΔR / (4R) for small changes.</dd></div>
+    <div><dt>Load cell</dt><dd>A force transducer made of a spring element with strain gauges bonded to it.</dd></div>
+    <div><dt>Torque</dt><dd>Force times lever arm, measured in newton metres.</dd></div>
+    <div><dt>Shear stress in a solid shaft</dt><dd>16T divided by (π d<sup>3</sup>).</dd></div>
+    <div><dt>Torque transducer</dt><dd>A shaft sensor with gauges at 45 degrees that measures the shear strain caused by torque.</dd></div>
+    <div><dt>Pressure</dt><dd>Force divided by area, measured in pascals.</dd></div>
+    <div><dt>Diaphragm</dt><dd>A thin flexible disc that bends when pressure is applied to it.</dd></div>
+    <div><dt>Piezoresistive sensor</dt><dd>A pressure sensor whose gauges change resistance when the diaphragm bends.</dd></div>
+    <div><dt>Capacitive sensor</dt><dd>A pressure sensor whose capacitance changes when the diaphragm moves the gap.</dd></div>
+    <div><dt>Capacitance of parallel plates</dt><dd>ε<sub>0</sub> times area divided by gap.</dd></div>
+    <div><dt>Sensitivity</dt><dd>Change in output divided by change in input.</dd></div>
+    <div><dt>Hysteresis</dt><dd>A difference in output on the way up and on the way down.</dd></div>
+    <div><dt>Signal conditioning</dt><dd>Amplifying, filtering, offsetting and converting a raw sensor signal.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Convert micro to 10<sup>-6</sup> and mm² to m² before you calculate.</li>
+    <li>A strain gauge output is ΔR = GF × ε × R.</li>
+    <li>A quarter bridge gives only millivolts, so it needs amplification.</li>
+    <li>Pressure and stress are both force per area, in pascals.</li>
+    <li>Shear stress in a solid shaft falls with the cube of the diameter.</li>
+    <li>A capacitive pressure sensor gives a larger capacitance for a smaller gap.</li>
+    <li>Temperature changes can cause false readings in strain gauges.</li>
+  </ol>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 137?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 137 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-136.html"><small>Previous, topic 136</small>Transducers: velocity &amp; acceleration</a><a class="next" href="gate-138.html"><small>Next, topic 138</small>DC motors: principles &amp; performance</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

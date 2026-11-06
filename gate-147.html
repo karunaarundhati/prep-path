@@ -1,0 +1,399 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 147: Robot classification: serial & parallel manipulators</title><meta name="description" content="A manipulator is the moving arm or structure of a robot that places a tool in space. A serial manipulator is one chain of links, while a parallel manipulator uses several legs that all hold one platform. Each design has clear strengths, and GATE Robotics questions often ask you to compare them."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g147" data-key="g147" data-noun="topic" data-num="147" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Robot classification: <em>serial &amp; parallel manipulators</em></h1>
+<p class="lede">A manipulator is the moving arm or structure of a robot that places a tool in space. A serial manipulator is one chain of links, while a parallel manipulator uses several legs that all hold one platform. Each design has clear strengths, and GATE Robotics questions often ask you to compare them.</p>
+<div class="station"><b>147</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>What a manipulator is</li><li>Serial manipulators and their reach</li><li>Parallel manipulators and load sharing</li><li>Comparing workspace, stiffness and accuracy</li><li>Forward and inverse kinematics in each design</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Hold your arm out in front of you. Your shoulder, elbow and wrist are joints, and your upper arm, forearm and hand are links. Together they form a chain that carries your hand to any place you can reach. A robot arm works the same way. The chain of links and joints that moves the tool is called a <strong>manipulator</strong>.</p>
+  <p>There are two main ways to build a manipulator. In a <strong>serial manipulator</strong>, the links form one open chain, like your arm. In a <strong>parallel manipulator</strong>, several chains, called legs, connect one moving platform to a fixed base at the same time, like the fingers of a hand pressing on a table top.</p>
+  <p><strong>Everyday analogy.</strong> Compare a human arm with a sturdy table supported by three legs. The arm reaches far but wobbles at the end. The table is steady and can carry a heavy load, but it cannot reach far beyond its legs. Robot designers face the same trade-off.</p>
+  <p><strong>Why it matters.</strong> Industrial arms that paint cars are usually serial, because they must reach around a car body. Fast pick-and-place machines in food factories are often parallel, because they must move light objects very quickly and accurately. Choosing the right design is a core robotics skill.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper you may be asked to classify a manipulator, to compare workspace or stiffness, or to say which kinematic problem is easy and which is hard. These are conceptual questions, but a few use short calculations.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Manipulator</dt><dd>A mechanical arm or structure made of links and joints, which moves a tool or end-effector to a position.</dd></div>
+    <div><dt>Link</dt><dd>A rigid part of the manipulator, such as an upper arm. Plain meaning: a bar. Precisely: a body that does not change shape.</dd></div>
+    <div><dt>Joint</dt><dd>A connection between two links that allows relative motion. A revolute joint turns and a prismatic joint slides.</dd></div>
+    <div><dt>Base</dt><dd>The fixed part of the manipulator, which is attached to the floor or a frame.</dd></div>
+    <div><dt>End-effector</dt><dd>The tool at the end of the manipulator, such as a gripper or a welding torch.</dd></div>
+    <div><dt>Open kinematic chain</dt><dd>A chain of links where one end is free. Each link is connected to the next, with no loops. Serial manipulators are open chains.</dd></div>
+    <div><dt>Closed kinematic chain</dt><dd>A chain with a loop, where the links connect back to the start. Parallel manipulators contain closed loops.</dd></div>
+    <div><dt>Serial manipulator</dt><dd>A manipulator built as one open chain of links and joints from the base to the end-effector.</dd></div>
+    <div><dt>Parallel manipulator</dt><dd>A manipulator in which a moving platform is connected to the base by several legs at once.</dd></div>
+    <div><dt>Leg</dt><dd>One of the chains in a parallel manipulator that links the platform to the base.</dd></div>
+    <div><dt>Workspace</dt><dd>The set of all points the end-effector can reach.</dd></div>
+    <div><dt>Stiffness</dt><dd>How much force is needed to produce a unit displacement. Precisely: k = F/x, in N/m or N/mm. A stiff structure bends very little under load.</dd></div>
+    <div><dt>Accuracy</dt><dd>How close the actual position of the end-effector is to the commanded position.</dd></div>
+    <div><dt>Forward kinematics</dt><dd>Given the joint values, find the position and orientation of the end-effector.</dd></div>
+    <div><dt>Inverse kinematics</dt><dd>Given a desired end-effector pose, find the joint values that achieve it.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="What a manipulator is">
+  <h2>What a manipulator is</h2>
+  <h3>The parts of the chain</h3>
+  <p>Every manipulator has the same basic parts: a base, links, joints and an end-effector. The joints determine how the links can move, and the links carry the motion from the base to the tool. The joint values, such as angles or slide distances, are what the motors control.</p>
+  <p>A simple serial arm can be drawn as a row of boxes, each one joined to the next by a joint. A parallel robot can be drawn as a platform held up by several parallel chains. The pictures below are rough sketches. They show the structure, not the exact shape of a real robot.</p>
+
+  <h3>A picture of each design</h3>
+  <pre class="code" data-lang="text"><code>SERIAL: one open chain, base to tool
+
+   base ==[J1]== link 1 ==[J2]== link 2 ==[J3]== tool (end-effector)
+   (fixed)      (rigid)        (rigid)           free end
+
+PARALLEL: several legs hold one platform
+
+            [ platform, holds the tool ]
+           /        |         \
+          /         |          \         three legs, each a chain
+         o          o           o         each leg has its own joints
+          \         |          /
+           \        |         /
+   ========[ fixed base ]========</code></pre>
+  <p>Notice the difference. In the serial sketch there is one path from the base to the tool. In the parallel sketch there are several paths, so the tool is held by more than one chain at the same time. This single fact explains almost everything else in this topic.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Serial means one chain, so the tool is at the end of a line. Parallel means many chains, so the tool is held in a web of connections.</p></div>
+
+  <details class="check"><summary>In a serial arm, how many chains connect the tool to the base?</summary><div class="ans"><p>One. The chain runs from the base through each link and joint to the tool, with no loops.</p></div></details>
+  <details class="check"><summary>What is the main structural difference between serial and parallel manipulators?</summary><div class="ans"><p>A serial manipulator is an open chain with one path to the tool. A parallel manipulator has closed loops, with several legs connecting the platform to the base.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Serial manipulators and their reach">
+  <h2>Serial manipulators and their reach</h2>
+  <h3>Why serial arms reach far</h3>
+  <p>A serial arm can extend each link in turn, so its tool can go far from the base. Each joint adds one degree of freedom, and the workspace can be large and complex in shape. Many industrial arms have six joints, which lets the tool reach almost any position and pose inside its workspace.</p>
+  <p>To see the idea of reach, take the simplest case: two links with lengths L<sub>1</sub> and L<sub>2</sub>, joined by a revolute joint. The tool reaches a circle around the base.</p>
+  <ul>
+    <li><strong>Maximum reach</strong>: the links point in the same direction, so the distance is L<sub>1</sub> + L<sub>2</sub>.</li>
+    <li><strong>Minimum reach</strong>: the links fold back on each other, so the distance is |L<sub>1</sub> − L<sub>2</sub>|.</li>
+  </ul>
+  <p>For a planar arm that can turn fully, the workspace is a ring, called an annulus, between the minimum and maximum reach.</p>
+  <pre class="code" data-lang="python"><code>L1, L2 = 0.5, 0.3
+print(f"max reach = {L1 + L2:.1f} m")
+print(f"min reach = {abs(L1 - L2):.1f} m")</code></pre>
+  <pre class="output">max reach = 0.8 m
+min reach = 0.2 m</pre>
+
+  <h3>The weak point of a serial chain</h3>
+  <p>The same chain that gives reach also has weaknesses. Each joint has a small error, from gear backlash, encoder resolution or link flex. These errors add up along the chain. The end-effector sits at the end of all the links, so it collects the errors of every joint before it. Stiffness is also weaker: a load at the tool bends every joint and link in turn.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often think a serial arm's workspace is just a circle. For a planar arm it is an annulus, and for a spatial six-joint arm it can have a complicated shape with holes, because joint limits block some poses.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Serial arms have a large workspace and simple forward kinematics. Their errors and flexibility build up along the chain. Remember this pairing, because it appears in many comparison questions.</p></div>
+
+  <details class="check"><summary>A serial arm has links of 0.4 m and 0.3 m. What is its maximum reach?</summary><div class="ans"><p>The maximum reach is 0.4 + 0.3 = 0.7 m, when the links point in the same direction.</p></div></details>
+  <details class="check"><summary>Why do serial arm errors accumulate?</summary><div class="ans"><p>The tool is at the end of the whole chain. Each joint's small error moves all the links after it, so the errors add up at the tool.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Parallel manipulators and load sharing">
+  <h2>Parallel manipulators and load sharing</h2>
+  <h3>Several legs, one platform</h3>
+  <p>A parallel manipulator has a moving platform joined to the fixed base by several legs. Each leg is a short chain, often with one or two actuated joints near the base. Because all legs act on the same platform at once, the load is split among the legs.</p>
+  <p>Two famous examples show the idea. The <strong>Stewart platform</strong> uses six legs, each with a linear actuator, to move a platform in all six degrees of freedom. It is used in flight simulators and vibration tables. The <strong>Delta robot</strong> uses three arms that move a small, light platform very quickly. It is used for fast pick-and-place of food and small parts.</p>
+
+  <h3>Why parallel designs are stiff</h3>
+  <p>Think of each leg as a spring. When several springs hold the same platform, they share the load, so the platform moves less. The effective stiffness adds up, as we will see in the next unit. A serial arm is different: its links and joints act in a line, so their flexibility adds up instead of their stiffness.</p>
+
+  <h3>Why parallel designs have small workspaces</h3>
+  <p>Each leg has a limited length and range of motion. The platform can only go where all legs can reach at the same time. The workspace is the overlap of the reachable regions of all the legs. This overlap is usually smaller than the reach of one serial arm of similar size.</p>
+  <pre class="code" data-lang="text"><code>  Serial workspace: one big region, reached by the whole chain
+
+        .-------------.
+       /               \
+      |     reachable   |
+       \     region     /
+        '-------------'
+
+  Parallel workspace: only the overlap of all legs' reachable regions
+
+        .-----.
+       ( overlap )   <- small shared region
+        '-----'</code></pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>Parallel robots trade reach for stiffness and speed. Their legs share the load, but the platform can only move where every leg can reach.</p></div>
+
+  <details class="check"><summary>Name one parallel manipulator and one use.</summary><div class="ans"><p>The Stewart platform, used in flight simulators and vibration tables. The Delta robot, used for fast pick-and-place of light objects, also counts.</p></div></details>
+  <details class="check"><summary>Why does the workspace of a parallel robot shrink compared with a serial arm?</summary><div class="ans"><p>The platform must be reachable by every leg at the same time. The workspace is the intersection of the individual reachable regions, which is usually smaller.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Comparing workspace, stiffness and accuracy">
+  <h2>Comparing workspace, stiffness and accuracy</h2>
+  <h3>Stiffness as springs in series and parallel</h3>
+  <p>Stiffness is the force needed to produce a unit displacement, k = F/x. Two simple rules from spring systems explain most of the comparison.</p>
+  <ul>
+    <li><strong>Springs in parallel</strong> (all share the same displacement): stiffnesses add. k<sub>total</sub> = k<sub>1</sub> + k<sub>2</sub> + ...</li>
+    <li><strong>Springs in series</strong> (one after another, each carries the same force): compliances add, where compliance is 1/k. So 1/k<sub>total</sub> = 1/k<sub>1</sub> + 1/k<sub>2</sub> + ...</li>
+  </ul>
+  <p>A serial arm behaves like springs in series, because each joint and link adds its flexibility along the chain. A parallel manipulator behaves like springs in parallel, because its legs share the same platform.</p>
+  <p><strong>Worked example.</strong> Suppose one element has stiffness 100 N/mm. Two of them in series give 1/k = 1/100 + 1/100 = 2/100, so k = 50 N/mm. Three identical legs in parallel give k = 3 × 100 = 300 N/mm. The parallel structure is six times stiffer than the series chain in this simple comparison.</p>
+  <pre class="code" data-lang="python"><code>k1 = 100.0                              # stiffness of one element in N/mm
+k_series = 1 / (1 / k1 + 1 / k1)       # two elements in series
+k_parallel = 3 * k1                    # three identical legs in parallel
+print(f"series of two = {k_series:.0f} N/mm")
+print(f"three legs in parallel = {k_parallel:.0f} N/mm")</code></pre>
+  <pre class="output">series of two = 50 N/mm
+three legs in parallel = 300 N/mm</pre>
+
+  <h3>Accuracy and speed</h3>
+  <p>Accuracy depends on how errors reach the tool. In a serial arm, each joint error adds to the others, and the tool collects them all. In a parallel robot, the platform is held by several legs, so errors are shared and partly cancel. Parallel robots also have less moving mass, because the motors sit near the base. Less moving mass means faster, more precise motion. The trade-off is that parallel robots are harder to calibrate, because each leg must be measured.</p>
+
+  <h3>Summary table of the comparison</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Property</th><th>Serial manipulator</th><th>Parallel manipulator</th></tr></thead>
+    <tbody>
+      <tr><td>Chain type</td><td>Open chain, one path</td><td>Closed loops, several legs</td></tr>
+      <tr><td>Workspace</td><td>Large, complex shape</td><td>Smaller, overlap of legs</td></tr>
+      <tr><td>Stiffness</td><td>Lower, flexibility adds in series</td><td>Higher, legs share the load</td></tr>
+      <tr><td>Accuracy</td><td>Errors add up along the chain</td><td>Errors shared, generally better</td></tr>
+      <tr><td>Payload relative to mass</td><td>Lower</td><td>Higher</td></tr>
+      <tr><td>Moving mass</td><td>Higher, motors on the arm</td><td>Lower, motors near the base</td></tr>
+      <tr><td>Forward kinematics</td><td>Easy (multiply the chain)</td><td>Hard (solve loop equations)</td></tr>
+      <tr><td>Inverse kinematics</td><td>Harder, may have several solutions</td><td>Often easy (each leg separately)</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not say parallel robots are always better. They are stiffer and often faster, but they have smaller workspaces, and their joint limits and singular poses make the design harder. The right choice depends on the task.</p></div>
+
+  <details class="check"><summary>Two springs of 200 N/mm each act in series. What is the total stiffness?</summary><div class="ans"><p>1/k = 1/200 + 1/200 = 2/200 = 1/100, so k = 100 N/mm.</p></div></details>
+  <details class="check"><summary>Why is a parallel robot's moving mass often lower?</summary><div class="ans"><p>Its motors can sit near the fixed base and drive the legs through light links. In a serial arm, the motors for the later joints are carried along by the earlier links.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Forward and inverse kinematics in each design">
+  <h2>Forward and inverse kinematics in each design</h2>
+  <h3>The two kinematic questions</h3>
+  <p><strong>Forward kinematics</strong> asks: given the joint values, where is the tool? <strong>Inverse kinematics</strong> asks: given a desired tool position, what joint values are needed? Designers and controllers need both. The difficulty of each question depends strongly on the design.</p>
+  <p>For a serial arm, forward kinematics is easy. You multiply the transformation matrices of the links, one after another, and the answer comes out directly. Inverse kinematics is harder. There may be several joint solutions for one tool position, such as an elbow pointing up or down, and some positions may have none.</p>
+  <p>For a parallel robot, the situation is reversed. Each leg is a simple chain, so inverse kinematics is often easy: for a desired platform pose, each leg's length is found separately. Forward kinematics is harder, because the legs must all meet at the same platform, which gives a set of coupled equations that may have several solutions.</p>
+
+  <h3>Worked example: a 2-link arm, two solutions</h3>
+  <p>Take L<sub>1</sub> = L<sub>2</sub> = 1 m and target point (1, 1). The forward equations are x = cos θ<sub>1</sub> + cos(θ<sub>1</sub> + θ<sub>2</sub>) and y = sin θ<sub>1</sub> + sin(θ<sub>1</sub> + θ<sub>2</sub>). Solving for the joint angles gives two answers.</p>
+  <ul>
+    <li>Solution 1: θ<sub>2</sub> = +90°, θ<sub>1</sub> = 0°. Check: x = cos 0° + cos 90° = 1 + 0 = 1, and y = sin 0° + sin 90° = 0 + 1 = 1. Correct.</li>
+    <li>Solution 2: θ<sub>2</sub> = −90°, θ<sub>1</sub> = 90°. Check: x = cos 90° + cos 0° = 0 + 1 = 1, and y = sin 90° + sin 0° = 1 + 0 = 1. Correct.</li>
+  </ul>
+  <p>The elbow can point one way or the other. This is why inverse kinematics of a serial arm can have several solutions.</p>
+  <pre class="code" data-lang="python"><code>import math
+L1, L2 = 1.0, 1.0
+x, y = 1.0, 1.0                              # target point
+c2 = (x * x + y * y - L1 * L1 - L2 * L2) / (2 * L1 * L2)
+for sign in (1, -1):
+    th2 = sign * math.acos(c2)
+    th1 = math.atan2(y, x) - math.atan2(L2 * math.sin(th2), L1 + L2 * math.cos(th2))
+    px = L1 * math.cos(th1) + L2 * math.cos(th1 + th2)
+    py = L1 * math.sin(th1) + L2 * math.sin(th1 + th2)
+    print(f"theta1 = {round(math.degrees(th1), 1)} deg, theta2 = {round(math.degrees(th2), 1)} deg, reaches ({round(px, 1)}, {round(py, 1)})")</code></pre>
+  <pre class="output">theta1 = 0.0 deg, theta2 = 90.0 deg, reaches (1.0, 1.0)
+theta1 = 90.0 deg, theta2 = -90.0 deg, reaches (1.0, 1.0)</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>Serial arms: forward is easy, inverse is harder. Parallel robots: inverse is easy, forward is harder. Keep this pairing in mind for every comparison question.</p></div>
+
+  <details class="check"><summary>Why does a serial arm have two inverse kinematics solutions for the example?</summary><div class="ans"><p>Both elbow positions, one above and one below the line joining the base and the target, reach the same point. The two sign choices of θ<sub>2</sub> give these two positions.</p></div></details>
+  <details class="check"><summary>For a parallel robot, why is inverse kinematics usually easy?</summary><div class="ans"><p>For a given platform pose, each leg can be solved on its own, because each leg connects one fixed base point to one fixed platform point. The leg length follows directly from the distance between the two points.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Max reach = L<sub>1</sub> + L<sub>2</sub></td><td>link lengths in m</td><td>Two-link serial arm</td></tr>
+      <tr><td>Min reach = |L<sub>1</sub> − L<sub>2</sub>|</td><td>link lengths in m</td><td>Two-link serial arm with a hole</td></tr>
+      <tr><td>Annulus area = π(R<sub>max</sub>² − R<sub>min</sub>²)</td><td>R<sub>max</sub>, R<sub>min</sub> reaches in m, area in m²</td><td>Planar workspace of a fully turning arm</td></tr>
+      <tr><td>k = F/x</td><td>k stiffness, F force, x displacement</td><td>Definition of stiffness</td></tr>
+      <tr><td>1/k = 1/k<sub>1</sub> + 1/k<sub>2</sub> + ...</td><td>springs in series</td><td>Serial chain flexibility</td></tr>
+      <tr><td>k = k<sub>1</sub> + k<sub>2</sub> + ...</td><td>springs in parallel</td><td>Legs sharing a load</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE multiple select and numerical questions. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Properties of serial manipulators</h3>
+    <div class="statement"><p>Select all that apply. Which statements are true for a serial manipulator?</p>
+    <p>(A) It is a closed kinematic chain.<br>(B) It typically has a larger workspace than a parallel manipulator of similar size.<br>(C) Errors at its joints accumulate along the chain to the end-effector.<br>(D) The Stewart platform is a serial manipulator.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements describe serial manipulators correctly.</li>
+      <li><strong>Which idea applies.</strong> A serial manipulator is an open chain, with one path from base to tool.</li>
+      <li><strong>Work it out.</strong> (A) is false, because open chains have no loops. (B) is true, since a single chain can reach far. (C) is true, since each joint error moves all later links. (D) is false, because the Stewart platform has six legs and is parallel.</li>
+      <li><strong>Check.</strong> Statement (A) fails the definition: "closed" means there is a loop, and a serial arm has none.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Maximum reach of a two-link arm</h3>
+    <div class="statement"><p>A planar two-link serial arm has links of length 0.4 m and 0.3 m. What is its maximum reach from the base, in metres? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest distance the tool can be from the base.</li>
+      <li><strong>Which idea applies.</strong> The maximum reach is L<sub>1</sub> + L<sub>2</sub>, when the links are straight and in line.</li>
+      <li><strong>Work it out.</strong> 0.4 + 0.3 = 0.7 m.</li>
+      <li><strong>Check.</strong> The minimum reach is |0.4 − 0.3| = 0.1 m, which is smaller, as it should be.</li>
+    </ol>
+    <p class="cx">Answer: 0.7 m.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about parallel robots are true</h3>
+    <div class="statement"><p>Select all that apply. Which statements are true for a parallel manipulator?</p>
+    <p>(A) Several legs connect the moving platform to the base.<br>(B) It contains closed kinematic loops.<br>(C) For the same size, it is generally stiffer than a serial arm.<br>(D) It generally has a larger workspace than a serial arm of similar size.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Find the true statements about parallel manipulators.</li>
+      <li><strong>Which idea applies.</strong> Parallel manipulators have legs that form closed loops with the platform and the base. Legs share the load, which raises stiffness, but the workspace is the overlap of all legs.</li>
+      <li><strong>Work it out.</strong> (A) is true by definition. (B) is true, since each leg with the platform and base forms a loop. (C) is true, since legs share load. (D) is false, since the overlap is usually smaller.</li>
+      <li><strong>Check.</strong> A good test: if a statement says "larger workspace", ask whether the workspace is the overlap of legs or one long chain. For parallel robots it is the overlap, so it is smaller.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Stiffness of two compliant joints in series</h3>
+    <div class="statement"><p>Two joints in a serial chain each have stiffness 200 N/mm, and they act in series along the same load path. What is the effective stiffness of the chain, in N/mm? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The stiffness of two springs in series.</li>
+      <li><strong>Which idea applies.</strong> For springs in series, 1/k = 1/k<sub>1</sub> + 1/k<sub>2</sub>.</li>
+      <li><strong>Work it out.</strong> 1/k = 1/200 + 1/200 = 2/200 = 1/100. So k = 100 N/mm.</li>
+      <li><strong>Check.</strong> The answer must be less than either single stiffness, 200 N/mm. Yes, 100 is smaller, as a series chain should be.</li>
+    </ol>
+    <p class="cx">Answer: 100 N/mm.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Stiffness of three parallel legs</h3>
+    <div class="statement"><p>Three identical legs, each of stiffness 150 N/mm, support the same platform in parallel. The platform is displaced by a small amount, and each leg shares the same displacement. What is the total stiffness of the platform, in N/mm? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total stiffness of legs in parallel.</li>
+      <li><strong>Which idea applies.</strong> For springs in parallel, the stiffnesses add: k = k<sub>1</sub> + k<sub>2</sub> + k<sub>3</sub>.</li>
+      <li><strong>Work it out.</strong> k = 150 + 150 + 150 = 450 N/mm.</li>
+      <li><strong>Check.</strong> The total must be bigger than one leg (150). Yes, 450 is three times bigger, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 450 N/mm.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Workspace of a two-link arm that turns fully</h3>
+    <div class="statement"><p>A planar two-link arm has link lengths 0.5 m and 0.2 m. Assume the joints can turn through a full circle, so the workspace is the full annulus between the minimum and maximum reach. What is the area of the workspace, in m²? Give your answer to two decimal places. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The area of the full planar workspace.</li>
+      <li><strong>Which idea applies.</strong> Maximum reach R<sub>max</sub> = L<sub>1</sub> + L<sub>2</sub> and minimum reach R<sub>min</sub> = |L<sub>1</sub> − L<sub>2</sub>|. The workspace area is π(R<sub>max</sub>² − R<sub>min</sub>²).</li>
+      <li><strong>Work it out.</strong> R<sub>max</sub> = 0.7 m and R<sub>min</sub> = 0.3 m. The squares are 0.49 and 0.09. The difference is 0.40. The area is π × 0.40 = 1.2566..., which is 1.26 m².</li>
+      <li><strong>Check.</strong> The area must be less than the disc of radius 0.7, which has area π × 0.49 = 1.54. Our answer 1.26 is smaller, as it should be.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+L1, L2 = 0.5, 0.2
+R_max = L1 + L2
+R_min = abs(L1 - L2)
+area = math.pi * (R_max ** 2 - R_min ** 2)
+print(f"workspace area = {area:.2f} m^2")</code></pre>
+    <pre class="output">workspace area = 1.26 m^2</pre>
+    <p class="cx">Answer: 1.26 m².</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Forward and inverse kinematics in each design</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) For a serial arm, forward kinematics is usually easier than inverse kinematics.<br>(B) For a parallel robot, inverse kinematics is often easier than forward kinematics.<br>(C) A parallel robot always has a larger workspace than a serial arm.<br>(D) A parallel robot generally has lower stiffness than a serial arm.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the two kinematic problems and the two designs are true.</li>
+      <li><strong>Which idea applies.</strong> Serial forward kinematics multiplies a chain of transforms. Parallel inverse kinematics solves each leg alone. Parallel workspaces are overlaps, and parallel legs share load.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is false, because overlapping legs usually give a smaller workspace. (D) is false, because parallel designs are generally stiffer.</li>
+      <li><strong>Check.</strong> The pairing "serial forward easy, parallel inverse easy" matches the table in this topic. The two false statements both reverse a known trade-off.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Classifying a robot (MCQ, 1 mark)</h3>
+    <div class="statement"><p>A robot with joints R-R-P (two revolute and one prismatic, with the prismatic last and vertical, both revolute axes vertical) is a (A) Cartesian (B) cylindrical (C) SCARA (D) spherical robot.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The configuration name.</li>
+      <li><strong>Which idea applies.</strong> SCARA has two parallel vertical revolute axes and a vertical prismatic joint.</li>
+      <li><strong>Work it out.</strong> That matches RRP with vertical axes.</li>
+      <li><strong>Check.</strong> SCARA is common for assembly.</li>
+    </ol>
+    <p class="cx">Answer: (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Mobility of a parallel robot (NAT, 2 marks)</h3>
+    <div class="statement"><p>A planar parallel robot has 8 links (including the ground) and 9 revolute joints. Use Grübler's formula to find its degrees of freedom.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> M = 3(n − 1) − 2j.</li>
+      <li><strong>Which idea applies.</strong> Planar joints with one freedom each.</li>
+      <li><strong>Work it out.</strong> 3 · 7 − 18 = 3.</li>
+      <li><strong>Check.</strong> Three actuated joints control x, y and rotation of the platform.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Serial versus parallel (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Parallel manipulators are usually stiffer. (B) Serial manipulators usually have a larger workspace. (C) Forward kinematics is usually easy for parallel robots. (D) Errors add up along a serial chain.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Comparisons.</li>
+      <li><strong>Which idea applies.</strong> In parallel robots inverse kinematics is easy and forward kinematics is hard.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) False. (D) True.</li>
+      <li><strong>Check.</strong> Hexapods and delta robots show the trade-off.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Manipulator</dt><dd>The arm or structure of links and joints that places the tool.</dd></div>
+    <div><dt>Link and joint</dt><dd>Rigid parts, and the connections that allow relative motion.</dd></div>
+    <div><dt>Serial manipulator</dt><dd>One open chain from base to tool.</dd></div>
+    <div><dt>Parallel manipulator</dt><dd>Several legs holding one platform, forming closed loops.</dd></div>
+    <div><dt>Workspace</dt><dd>The set of points the tool can reach.</dd></div>
+    <div><dt>Serial workspace</dt><dd>Large and complex, since one chain reaches far.</dd></div>
+    <div><dt>Parallel workspace</dt><dd>The overlap of all legs' reachable regions, usually smaller.</dd></div>
+    <div><dt>Stiffness</dt><dd>k = F/x, the force per unit displacement.</dd></div>
+    <div><dt>Springs in series</dt><dd>1/k = 1/k<sub>1</sub> + 1/k<sub>2</sub>, which is how a serial chain behaves.</dd></div>
+    <div><dt>Springs in parallel</dt><dd>k = k<sub>1</sub> + k<sub>2</sub>, which is how legs sharing a load behave.</dd></div>
+    <div><dt>Accuracy</dt><dd>Closeness of the actual tool position to the commanded one.</dd></div>
+    <div><dt>Error accumulation</dt><dd>Joint errors add along a serial chain, but are shared in parallel robots.</dd></div>
+    <div><dt>Forward kinematics</dt><dd>From joint values to tool position.</dd></div>
+    <div><dt>Inverse kinematics</dt><dd>From tool position to joint values.</dd></div>
+    <div><dt>Serial kinematics</dt><dd>Forward is easy, inverse can have several solutions.</dd></div>
+    <div><dt>Parallel kinematics</dt><dd>Inverse is often easy, forward is harder.</dd></div>
+    <div><dt>Stewart platform</dt><dd>A six-leg parallel robot used in simulators and vibration tables.</dd></div>
+    <div><dt>Delta robot</dt><dd>A three-arm parallel robot for fast pick-and-place of light objects.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Serial means one open chain. Parallel means several legs and closed loops.</li>
+    <li>Serial arms reach far and have large workspaces, but errors and flexibility build up along the chain.</li>
+    <li>Parallel robots are stiffer and often more accurate, but have smaller workspaces.</li>
+    <li>Springs in series combine by adding compliances, and springs in parallel combine by adding stiffnesses.</li>
+    <li>Serial forward kinematics is easy. Parallel inverse kinematics is easy.</li>
+    <li>A two-link arm reaches from |L<sub>1</sub> − L<sub>2</sub>| to L<sub>1</sub> + L<sub>2</sub>.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 147?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 147 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-146.html"><small>Previous, topic 146</small>Dynamics of rigid bodies in plane motion</a><a class="next" href="gate-148.html"><small>Next, topic 148</small>Geometrical configuration, links &amp; joints</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

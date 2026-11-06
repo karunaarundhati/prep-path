@@ -1,0 +1,393 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 135: Piezoelectric & Hall effect sensors + signal conditioning</title><meta name="description" content="Some sensors make their own electricity, and some sense magnetism. The piezoelectric sensor turns a squeeze into a charge, and the Hall effect sensor turns a magnetic field into a voltage. Their signals are often tiny or noisy, so signal conditioning, the amplifying and filtering that cleans a signal up, is needed before a robot can use it. This topic covers both sensor types and the main conditioning circuits."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g135" data-key="g135" data-noun="topic" data-num="135" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Piezoelectric &amp; Hall effect sensors + signal conditioning</h1>
+<p class="lede">Some sensors make their own electricity, and some sense magnetism. The piezoelectric sensor turns a squeeze into a charge, and the Hall effect sensor turns a magnetic field into a voltage. Their signals are often tiny or noisy, so signal conditioning, the amplifying and filtering that cleans a signal up, is needed before a robot can use it. This topic covers both sensor types and the main conditioning circuits.</p>
+<div class="station"><b>135</b><span>Unit 12 · Sensors · Paper RA · New concept</span></div>
+<ul class="topics"><li>Piezoelectric effect and force sensing</li><li>Hall effect sensors</li><li>Charge amplifier for piezo sensors</li><li>Signal conditioning: amplification and filtering</li><li>Choosing and conditioning a sensor signal</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine squeezing a sugar cube and hearing a tiny click. The click is energy that came out of the squeeze. A <strong>piezoelectric</strong> material does something similar, but with electricity. When you press or bend it, it produces an electric charge. The name comes from the Greek word for pressing. Because the material makes its own charge, the sensor needs no external power to produce the signal.</p>
+  <p>A <strong>Hall effect</strong> sensor works in a different way. If you run a current through a thin strip of material and place a magnetic field across it, a small voltage appears across the strip, at right angles to the current. This voltage is the Hall voltage. It grows with the magnetic field, so a Hall sensor can detect a magnet, a gear tooth passing by, or the field around a current-carrying wire.</p>
+  <p>Both sensors give small or messy signals. A robot's controller needs a clean, strong, well-scaled voltage. The job of <strong>signal conditioning</strong> is to amplify the signal and filter out the noise. In GATE Robotics and Automation (RA), you may be asked to compute a Hall voltage, an amplifier output, a charge amplifier output or a filter cut-off frequency. All of these are short calculations, and we will practise each one.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Piezoelectric effect</dt><dd>The generation of electric charge in certain crystals when they are mechanically stressed. Precise: charge q = d × F, where d is the charge constant and F is the force.</dd></div>
+    <div><dt>Charge constant (d)</dt><dd>How much charge a piezoelectric material produces per unit force, in coulombs per newton.</dd></div>
+    <div><dt>Self-generating sensor</dt><dd>A sensor that produces its own signal without an external supply for the sensing element.</dd></div>
+    <div><dt>Charge amplifier</dt><dd>An op-amp circuit with a feedback capacitor that converts a charge into a voltage, with output V = −q/C<sub>f</sub>.</dd></div>
+    <div><dt>Hall effect</dt><dd>The appearance of a voltage across a current-carrying conductor when a magnetic field is applied at right angles to the current.</dd></div>
+    <div><dt>Hall voltage (V<sub>H</sub>)</dt><dd>The transverse voltage produced by the Hall effect. Precise: V<sub>H</sub> = I B / (n e t).</dd></div>
+    <div><dt>Carrier density (n)</dt><dd>The number of charge carriers per unit volume in the conductor, per cubic metre.</dd></div>
+    <div><dt>Signal conditioning</dt><dd>Circuits that amplify, filter, isolate or otherwise prepare a sensor signal for the controller.</dd></div>
+    <div><dt>Op-amp</dt><dd>An operational amplifier. A high-gain amplifier whose gain is set by external resistors or capacitors.</dd></div>
+    <div><dt>Inverting amplifier</dt><dd>An op-amp circuit whose output is the input multiplied by −R<sub>f</sub>/R<sub>in</sub>.</dd></div>
+    <div><dt>Low-pass filter</dt><dd>A circuit that passes low frequencies and reduces high frequencies, such as noise.</dd></div>
+    <div><dt>Cut-off frequency (f<sub>c</sub>)</dt><dd>The frequency at which a filter starts to attenuate the signal. For an RC filter, f<sub>c</sub> = 1 / (2π R C).</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Piezoelectric effect and force sensing">
+  <h2>Step 1: The piezoelectric effect</h2>
+  <p>Some crystals, such as quartz, have a special property. Their atoms are arranged so that pressing the crystal shifts the positive and negative charges slightly apart. The shifted charges appear as a voltage across the faces of the crystal. Pull the crystal instead of pressing it, and the charge has the opposite sign.</p>
+  <p>The charge produced is proportional to the force:</p>
+  <div class="formula">q = d × F</div>
+  <p>Symbols: q is the charge in coulombs, F is the force in newtons, and d is the charge constant in coulombs per newton. For quartz, d is typically a few picocoulombs per newton. A picocoulomb is 10⁻¹² C. Because the output is a charge and not a voltage, the voltage depends on the capacitance it sees, through V = q / C.</p>
+  <h3>Why piezo sensors suit dynamic signals</h3>
+  <p>The charge does not stay on the crystal forever. It leaks away through the electronics and the cable. A piezoelectric sensor is therefore good at measuring changing forces, such as vibration, impact and rapid pressure changes, but poor at measuring a force that stays constant for a long time. This is an important exam point.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Piezoelectric sensors are self-generating and suit dynamic measurements. They do not suit steady forces, because the charge leaks away.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Do not compute a piezo output as a voltage directly from d and F. The first result is a charge. You need a capacitance, or a charge amplifier, to get a voltage.</p></div>
+  <details class="check"><summary>A piezo sensor produces 100 pC when a steady force is applied for a long time. Why might the reading drop?</summary><div class="ans"><p>The charge leaks away through the electronics and the cable, so the stored charge falls over time. This is why piezo sensors are used for changing forces.</p></div></details>
+  <details class="check"><summary>What does "self-generating" mean for a piezo sensor?</summary><div class="ans"><p>It produces its own charge from the applied force, so the sensing element needs no external power supply.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Hall effect sensors">
+  <h2>Step 2: Hall effect sensors</h2>
+  <p>Imagine a thin strip of conducting material with a current I flowing along its length. Electrons drift steadily along the strip. Now place the strip in a magnetic field B that is perpendicular to the strip. The magnetic force pushes the electrons sideways, to one edge of the strip. The electrons pile up on that edge, leaving the other edge with a shortage. This difference is a voltage across the strip, called the Hall voltage.</p>
+  <div class="formula">V<sub>H</sub> = I × B / (n × e × t)</div>
+  <p>Symbols: I is the current in amperes, B is the magnetic flux density in tesla, n is the carrier density per cubic metre, e is the electron charge, 1.602 × 10⁻¹⁹ C, and t is the thickness of the strip in metres. The key point is that V<sub>H</sub> is proportional to both I and B. Double the field, and the Hall voltage doubles.</p>
+  <h3>Worked example: a Hall sensor in a magnet field</h3>
+  <p>A thin semiconductor strip has carrier density n = 1.0 × 10<sup>22</sup> m⁻³ and thickness t = 0.5 mm. It carries I = 10 mA in a field of B = 0.5 T. Find V<sub>H</sub>.</p>
+  <ol>
+    <li><strong>Convert units.</strong> I = 0.01 A, t = 0.0005 m, B = 0.5 T.</li>
+    <li><strong>Denominator.</strong> n × e × t = 10<sup>22</sup> × 1.602 × 10⁻¹⁹ × 0.0005 = 1602 × 0.0005 = 0.801.</li>
+    <li><strong>Numerator.</strong> I × B = 0.01 × 0.5 = 0.005.</li>
+    <li><strong>Divide.</strong> V<sub>H</sub> = 0.005 / 0.801 = 0.00624 V, which is 6.24 mV.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>I = 0.01          # current through the Hall element, 10 mA
+B = 0.5           # magnetic flux density, 0.5 T
+n = 1.0e22        # carrier density, per cubic metre
+e = 1.602e-19     # electron charge, C
+t = 0.5e-3        # element thickness, 0.5 mm
+VH = I * B / (n * e * t)
+print("VH =", round(VH * 1000, 2), "mV")</code></pre>
+  <pre class="output">VH = 6.24 mV</pre>
+  <p>Hall sensors are used for proximity (a magnet near the sensor changes its field), speed (a rotating gear tooth changes the field each time it passes), and current sensing (the field around a current-carrying wire is proportional to the current). In each case the sensor output is a voltage related to a field.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The Hall voltage depends on the field component perpendicular to the strip. If the field is parallel to the strip, there is no Hall voltage, even if the field is strong.</p></div>
+  <details class="check"><summary>If the current in a Hall element is doubled and the field is also doubled, by what factor does V<sub>H</sub> change?</summary><div class="ans"><p>By 4, because V<sub>H</sub> is proportional to I and to B. 2 × 2 = 4.</p></div></details>
+  <details class="check"><summary>Why does a Hall sensor give a voltage even when the magnetic field is constant?</summary><div class="ans"><p>Because the field pushes the carriers sideways continuously while the current flows, so the charge separation and the Hall voltage stay in place.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Charge amplifier for piezo sensors">
+  <h2>Step 3: The charge amplifier</h2>
+  <p>The piezo sensor gives a charge, but the controller needs a voltage. Connecting the sensor straight to a voltage meter is a poor idea. The cable and the meter add capacitance in parallel, and the voltage then depends on the cable length. A <strong>charge amplifier</strong> avoids this. It is an op-amp with a feedback capacitor C<sub>f</sub> connected from its output back to its inverting input. The sensor charge is forced to flow onto C<sub>f</sub>, and the output voltage is set by C<sub>f</sub> alone:</p>
+  <div class="formula">V<sub>out</sub> = −q / C<sub>f</sub></div>
+  <p>Symbols: q is the sensor charge, C<sub>f</sub> is the feedback capacitance, and the minus sign shows that the output is inverted. The cable capacitance does not appear, which is the great advantage. You can make a cable longer without changing the reading.</p>
+  <h3>Worked example: charge amplifier output</h3>
+  <p>A quartz sensor with d = 2.3 pC/N is loaded with F = 50 N. The feedback capacitor is C<sub>f</sub> = 10 pF.</p>
+  <ol>
+    <li><strong>Charge.</strong> q = d × F = 2.3 × 10⁻¹² × 50 = 1.15 × 10⁻¹⁰ C, which is 115 pC.</li>
+    <li><strong>Output.</strong> V<sub>out</sub> = −q / C<sub>f</sub> = −115 × 10⁻¹² / 10 × 10⁻¹² = −11.5 V.</li>
+    <li><strong>Sense check.</strong> The output is a sensible few volts, and the minus sign comes from the inverting circuit.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>d = 2.3e-12        # piezoelectric charge constant, C per newton (quartz, typical)
+F = 50.0           # applied force in newtons
+q = d * F          # generated charge in coulombs
+Cf = 10e-12        # feedback capacitor of the charge amplifier, 10 pF
+Vout = -q / Cf     # ideal charge amplifier output (inverting)
+print("q =", round(q * 1e12, 1), "pC")
+print("Vout =", round(Vout, 2), "V")</code></pre>
+  <pre class="output">q = 115.0 pC
+Vout = -11.5 V</pre>
+  <div class="note key"><p><span class="t">Key idea</span>A charge amplifier output depends only on the charge and the feedback capacitor, so the cable length does not change the reading.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Doubling C<sub>f</sub> halves the output. A bigger feedback capacitor gives a smaller voltage for the same charge, which is a common error in questions.</p></div>
+  <details class="check"><summary>If C<sub>f</sub> is changed from 10 pF to 20 pF, what happens to V<sub>out</sub> for the same charge?</summary><div class="ans"><p>It halves, because V<sub>out</sub> = −q / C<sub>f</sub> and C<sub>f</sub> has doubled.</p></div></details>
+  <details class="check"><summary>Why is the charge amplifier better than a plain voltage meter across a piezo sensor?</summary><div class="ans"><p>The plain meter forms a divider with the cable capacitance, so the reading depends on the cable. The charge amplifier fixes the output by C<sub>f</sub> alone.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Signal conditioning: amplification and filtering">
+  <h2>Step 4: Amplification and filtering</h2>
+  <p>Signal conditioning does two main jobs. The first is <strong>amplification</strong>, which makes a small signal large enough to use. The second is <strong>filtering</strong>, which removes unwanted frequencies, such as electrical hum at 50 Hz or fast noise.</p>
+  <h3>The inverting amplifier</h3>
+  <p>An op-amp with a feedback resistor R<sub>f</sub> and an input resistor R<sub>in</sub> gives an output that is the input multiplied by a gain. The gain is set by the ratio of the two resistors, and the output is inverted:</p>
+  <div class="formula">V<sub>out</sub> = −(R<sub>f</sub> / R<sub>in</sub>) × V<sub>in</sub></div>
+  <p>Symbols: R<sub>f</sub> is the feedback resistance and R<sub>in</sub> the input resistance, both in ohms, and V<sub>in</sub> is the input voltage. Example: R<sub>f</sub> = 100 kΩ, R<sub>in</sub> = 10 kΩ, V<sub>in</sub> = 0.2 V. The gain is −100 / 10 = −10. The output is −10 × 0.2 = −2.0 V.</p>
+  <pre class="code" data-lang="python"><code>Rf = 100e3
+Rin = 10e3
+Vin = 0.2
+gain = -Rf / Rin
+Vout = gain * Vin
+print("gain =", gain)
+print("Vout =", round(Vout, 2), "V")</code></pre>
+  <pre class="output">gain = -10.0
+Vout = -2.0 V</pre>
+  <h3>The RC low-pass filter</h3>
+  <p>A resistor and a capacitor in series form a low-pass filter when the output is taken across the capacitor. Frequencies well below the cut-off pass through. Frequencies well above it are attenuated, which means they are made smaller. The cut-off frequency, where the output has fallen to about 70% of its low-frequency value, is:</p>
+  <div class="formula">f<sub>c</sub> = 1 / (2π R C)</div>
+  <p>Symbols: R is the resistance in ohms, C is the capacitance in farads, and π is about 3.1416. Example: R = 10 kΩ and C = 100 nF. Then 2π R C = 2π × 10 000 × 10 × 10⁻⁸ = 0.006283, and f<sub>c</sub> = 1 / 0.006283 = 159.2 Hz.</p>
+  <pre class="code" data-lang="python"><code>import math
+R = 10e3
+C = 100e-9
+fc = 1 / (2 * math.pi * R * C)
+print("cut-off =", round(fc, 1), "Hz")</code></pre>
+  <pre class="output">cut-off = 159.2 Hz</pre>
+  <div class="note tip"><p><span class="t">Tip</span>To keep the amplifier from clipping, choose a gain that makes the largest expected signal stay below the supply limit. Then check the cut-off so that the wanted signal passes and the noise is reduced.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The inverting amplifier gain is negative. A question that asks for the magnitude of the gain wants 10, but the output sign is negative. Read the question carefully.</p></div>
+  <details class="check"><summary>What gain does an inverting amplifier have with R<sub>f</sub> = 50 kΩ and R<sub>in</sub> = 5 kΩ?</summary><div class="ans"><p>−50 / 5 = −10.</p></div></details>
+  <details class="check"><summary>If R is doubled in an RC low-pass filter, what happens to the cut-off frequency?</summary><div class="ans"><p>It halves, because f<sub>c</sub> is proportional to 1 / (RC).</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Choosing and conditioning a sensor signal">
+  <h2>Step 5: Choosing and conditioning a sensor signal</h2>
+  <p>Designers choose the sensor first, then the conditioning circuit. A piezo sensor needs a charge amplifier, and it suits changing forces. A Hall sensor gives a voltage proportional to the field, which is often small, so it usually needs amplification. Both need filtering if the environment is noisy.</p>
+  <p>One more point matters in practice. A piezo sensor that is connected directly to a voltage meter gives a very small voltage, because the cable capacitance shares the charge. The Python check below compares the two cases, using the same 50 N force as before. The sensor capacitance and cable capacitance are both 1000 pF.</p>
+  <pre class="code" data-lang="python"><code>q = 2.3e-12 * 50.0
+Cs = 1000e-12
+Ccable = 1000e-12
+V_no_amp = q / (Cs + Ccable)
+V_charge_amp = q / 10e-12
+print("without amplifier =", round(V_no_amp * 1000, 1), "mV")
+print("ratio =", round(V_charge_amp / V_no_amp))</code></pre>
+  <pre class="output">without amplifier = 57.5 mV
+ratio = 200</pre>
+  <p>Without the charge amplifier, the same force produces only 57.5 mV, because the 1000 pF cable shares the charge with the sensor. With the charge amplifier, the output is 200 times larger, and it stays the same however long the cable is. That is the practical reason for the circuit.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect a question that gives a sensor, a conditioning circuit and a numerical value, and asks for the output. Write the sensor relation first (charge, Hall voltage or resistance), then the circuit relation (gain or cut-off), and multiply or divide in that order.</p></div>
+  <details class="check"><summary>Why is a piezo sensor paired with a charge amplifier rather than a voltage amplifier?</summary><div class="ans"><p>The sensor output is a charge, and the charge amplifier converts charge to voltage using only C<sub>f</sub>. A voltage amplifier would still see the cable capacitance, so its reading would depend on the cable.</p></div></details>
+  <details class="check"><summary>Why is a filter often needed after a Hall sensor?</summary><div class="ans"><p>A Hall sensor output is small and can pick up noise. A low-pass filter removes high-frequency noise and passes the slower signal the controller needs.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close while you practise.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>q = d × F</td><td>Charge from a piezo sensor</td><td>First step for any piezo problem</td></tr>
+      <tr><td>V<sub>out</sub> = −q / C<sub>f</sub></td><td>Charge amplifier output</td><td>Converting piezo charge to voltage</td></tr>
+      <tr><td>V<sub>H</sub> = I B / (n e t)</td><td>Hall voltage</td><td>Hall sensor output</td></tr>
+      <tr><td>V<sub>out</sub> = −(R<sub>f</sub> / R<sub>in</sub>) V<sub>in</sub></td><td>Inverting amplifier</td><td>Amplifying a sensor signal</td></tr>
+      <tr><td>f<sub>c</sub> = 1 / (2π R C)</td><td>RC low-pass cut-off</td><td>Choosing a noise filter</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style questions for practice. They are not real past paper questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Charge amplifier output from a charge</h3>
+    <div class="statement"><p>A piezoelectric sensor produces a charge of 100 pC. It is connected to a charge amplifier with feedback capacitance C<sub>f</sub> = 10 pF. Find V<sub>out</sub>, including its sign.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V<sub>out</sub> with sign.</li>
+      <li><strong>Which idea applies.</strong> V<sub>out</sub> = −q / C<sub>f</sub>.</li>
+      <li><strong>Work it out.</strong> V<sub>out</sub> = −100 × 10⁻¹² / 10 × 10⁻¹² = −10 V.</li>
+      <li><strong>Check.</strong> Charge divided by capacitance gives volts, and the minus sign comes from the inverting amplifier.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>q = 100e-12
+Cf = 10e-12
+print("Vout =", round(-q / Cf, 2), "V")</code></pre>
+    <pre class="output">Vout = -10.0 V</pre>
+    <p class="cx">Answer: V<sub>out</sub> = −10 V.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which sensor statements are true?</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) A piezoelectric sensor can measure a steady force indefinitely.<br>(B) A piezoelectric sensor is self-generating.<br>(C) The Hall voltage is proportional to the magnetic flux density B.<br>(D) The gain of an inverting amplifier is +R<sub>f</sub> / R<sub>in</sub>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements match the sensor and amplifier rules.</li>
+      <li><strong>Which idea applies.</strong> Piezo charge leakage, self-generation, the Hall relation, and the inverting gain.</li>
+      <li><strong>Work it out.</strong> (A) False, the charge leaks away. (B) True. (C) True, V<sub>H</sub> ∝ B. (D) False, the gain is negative.</li>
+      <li><strong>Check.</strong> Statement (D) has the wrong sign, which is the usual trap.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Hall voltage in a magnetic field</h3>
+    <div class="statement"><p>A Hall element with carrier density n = 1.0 × 10<sup>22</sup> m⁻³ and thickness 0.5 mm carries a current of 10 mA in a field of 0.5 T. Find the Hall voltage in millivolts, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V<sub>H</sub> in mV.</li>
+      <li><strong>Which idea applies.</strong> V<sub>H</sub> = I B / (n e t).</li>
+      <li><strong>Work it out.</strong> Denominator: 10<sup>22</sup> × 1.602 × 10⁻¹⁹ × 5 × 10⁻⁴ = 0.801. Numerator: 0.01 × 0.5 = 0.005. V<sub>H</sub> = 0.005 / 0.801 = 0.00624 V = 6.24 mV.</li>
+      <li><strong>Check.</strong> A few millivolts is a typical Hall output for a field of half a tesla, so the size is sensible.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>I = 0.01
+B = 0.5
+n = 1.0e22
+e = 1.602e-19
+t = 0.5e-3
+VH = I * B / (n * e * t)
+print("VH =", round(VH * 1000, 2), "mV")</code></pre>
+    <pre class="output">VH = 6.24 mV</pre>
+    <p class="cx">Answer: 6.24 mV.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Gain and output of an inverting amplifier</h3>
+    <div class="statement"><p>An inverting op-amp amplifier has R<sub>f</sub> = 100 kΩ and R<sub>in</sub> = 10 kΩ. The input is V<sub>in</sub> = 0.2 V. Find the gain and the output voltage.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The gain and V<sub>out</sub>.</li>
+      <li><strong>Which idea applies.</strong> Gain = −R<sub>f</sub> / R<sub>in</sub>.</li>
+      <li><strong>Work it out.</strong> Gain = −100 / 10 = −10. V<sub>out</sub> = −10 × 0.2 = −2.0 V.</li>
+      <li><strong>Check.</strong> A gain of 10 on 0.2 V gives 2 V in size, so the magnitude is right.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>Rf = 100e3
+Rin = 10e3
+Vin = 0.2
+gain = -Rf / Rin
+print("gain =", gain)
+print("Vout =", round(gain * Vin, 2), "V")</code></pre>
+    <pre class="output">gain = -10.0
+Vout = -2.0 V</pre>
+    <p class="cx">Answer: gain = −10, V<sub>out</sub> = −2.0 V.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Charge amplifier output for a force</h3>
+    <div class="statement"><p>A quartz sensor with charge constant d = 2.3 pC/N is loaded with 50 N. It feeds a charge amplifier with C<sub>f</sub> = 10 pF. Find V<sub>out</sub> in volts, including its sign.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V<sub>out</sub>.</li>
+      <li><strong>Which idea applies.</strong> q = d F, then V<sub>out</sub> = −q / C<sub>f</sub>.</li>
+      <li><strong>Work it out.</strong> q = 2.3 × 50 = 115 pC. V<sub>out</sub> = −115 / 10 = −11.5 V.</li>
+      <li><strong>Check.</strong> If C<sub>f</sub> were doubled, the output would halve to −5.75 V, which matches the rule.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>d = 2.3e-12
+F = 50.0
+q = d * F
+Cf = 10e-12
+Vout = -q / Cf
+print("q =", round(q * 1e12, 1), "pC")
+print("Vout =", round(Vout, 2), "V")</code></pre>
+    <pre class="output">q = 115.0 pC
+Vout = -11.5 V</pre>
+    <p class="cx">Answer: V<sub>out</sub> = −11.5 V.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Cut-off frequency of a filter</h3>
+    <div class="statement"><p>A low-pass RC filter has R = 10 kΩ and C = 100 nF. Find the cut-off frequency in hertz, to one decimal place. A 50 Hz hum is applied to the input. Is it near the cut-off?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> f<sub>c</sub> in Hz, and a comment on the 50 Hz hum.</li>
+      <li><strong>Which idea applies.</strong> f<sub>c</sub> = 1 / (2π R C).</li>
+      <li><strong>Work it out.</strong> 2π × 10 000 × 100 × 10⁻⁹ = 0.006283, so f<sub>c</sub> = 159.2 Hz. The 50 Hz hum is well below this, so it passes largely unchanged.</li>
+      <li><strong>Check.</strong> Using a larger C lowers f<sub>c</sub>, which would start to attenuate the hum.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+R = 10e3
+C = 100e-9
+fc = 1 / (2 * math.pi * R * C)
+print("cut-off =", round(fc, 1), "Hz")</code></pre>
+    <pre class="output">cut-off = 159.2 Hz</pre>
+    <p class="cx">Answer: f<sub>c</sub> = 159.2 Hz. The 50 Hz hum is below the cut-off, so it passes mostly unchanged.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Piezo sensor with and without a charge amplifier</h3>
+    <div class="statement"><p>A piezo sensor produces the same charge as in the previous problem, 115 pC. The sensor capacitance is 1000 pF and the cable capacitance is 1000 pF, and the cable is connected directly to a voltmeter. How many times smaller is this reading than the output of a charge amplifier with C<sub>f</sub> = 10 pF? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The ratio of the two voltages.</li>
+      <li><strong>Which idea applies.</strong> Without an amplifier, V = q / (C<sub>s</sub> + C<sub>cable</sub>). With the amplifier, V = q / C<sub>f</sub>.</li>
+      <li><strong>Work it out.</strong> Direct: 115 / 2000 = 0.0575 V = 57.5 mV. Amplifier: 11.5 V. Ratio: 11.5 / 0.0575 = 200.</li>
+      <li><strong>Check.</strong> The amplifier output is much bigger, as expected.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>q = 115e-12
+V_direct = q / (1000e-12 + 1000e-12)
+V_amp = q / 10e-12
+print("ratio =", round(V_amp / V_direct))</code></pre>
+    <pre class="output">ratio = 200</pre>
+    <p class="cx">Answer: 200 times smaller.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about conditioning circuits</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) The output of a charge amplifier does not depend on the cable capacitance.<br>(B) Doubling C<sub>f</sub> in a charge amplifier doubles the output voltage.<br>(C) Doubling R in an RC low-pass filter halves its cut-off frequency.<br>(D) A Hall voltage is zero if the field is parallel to the strip.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> V<sub>out</sub> = −q / C<sub>f</sub>, f<sub>c</sub> = 1 / (2π R C), and the Hall geometry.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, doubling C<sub>f</sub> halves the output. (C) True, f<sub>c</sub> is proportional to 1 / R. (D) True, the Hall voltage needs a perpendicular field component.</li>
+      <li><strong>Check.</strong> Statement (B) is the common error. A bigger feedback capacitor gives a smaller output.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D). Option (B) is false.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Piezo charge and voltage (NAT, 2 marks)</h3>
+    <div class="statement"><p>A quartz crystal has d = 2.3 pC/N and capacitance 100 pF. A force of 50 N is applied. Find the open circuit voltage in volts.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V = Q/C.</li>
+      <li><strong>Which idea applies.</strong> Q = dF.</li>
+      <li><strong>Work it out.</strong> Q = 115 pC. V = 115/100 = 1.15 V.</li>
+      <li><strong>Check.</strong> Units: pC/pF = V.</li>
+    </ol>
+    <p class="cx">Answer: 1.15 V.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Hall voltage (NAT, 2 marks)</h3>
+    <div class="statement"><p>A Hall plate of thickness 0.5 mm carries 10 mA in a field of 0.4 T. The Hall coefficient is 5 × 10<sup>−4</sup> m³/C. Find the Hall voltage in mV.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V<sub>H</sub> = R<sub>H</sub>IB/t.</li>
+      <li><strong>Which idea applies.</strong> Use SI units.</li>
+      <li><strong>Work it out.</strong> 5e−4 · 0.01 · 0.4/5e−4 = 0.004 V = 4 mV.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print("%.2f mV" % (1000 * 5e-4 * 0.01 * 0.4 / 0.5e-3))
+</code></pre>
+    <pre class="output">4.00 mV</pre>
+    <p class="cx">Answer: 4 mV.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Piezo response (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) A piezoelectric sensor cannot measure truly static force. (B) A charge amplifier makes the output independent of cable capacitance. (C) Hall sensors need a magnetic field to give output. (D) Piezo sensors suit dynamic pressure measurement.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of these sensors.</li>
+      <li><strong>Which idea applies.</strong> Piezo charge leaks away through finite resistance.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True to first order. (C) True. (D) True.</li>
+      <li><strong>Check.</strong> All four are standard textbook facts.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Piezoelectric effect</dt><dd>Stress produces a charge. Self-generating.</dd></div>
+    <div><dt>Piezo charge</dt><dd>q = d F, with d in coulombs per newton.</dd></div>
+    <div><dt>Piezo use</dt><dd>Suits dynamic signals. Charge leaks away with steady force.</dd></div>
+    <div><dt>Charge amplifier</dt><dd>V<sub>out</sub> = −q / C<sub>f</sub>. Cable capacitance does not matter.</dd></div>
+    <div><dt>Hall effect</dt><dd>A transverse voltage appears across a current-carrying strip in a perpendicular field.</dd></div>
+    <div><dt>Hall voltage</dt><dd>V<sub>H</sub> = I B / (n e t). Proportional to I and B.</dd></div>
+    <div><dt>Hall uses</dt><dd>Proximity, speed and current sensing.</dd></div>
+    <div><dt>Inverting amplifier</dt><dd>Gain = −R<sub>f</sub> / R<sub>in</sub>. Output is inverted.</dd></div>
+    <div><dt>RC low-pass filter</dt><dd>Passes low frequencies and attenuates high ones.</dd></div>
+    <div><dt>Cut-off frequency</dt><dd>f<sub>c</sub> = 1 / (2π R C).</dd></div>
+    <div><dt>Signal conditioning</dt><dd>Amplifying and filtering a sensor signal for the controller.</dd></div>
+    <div><dt>Direct piezo reading</dt><dd>Small, because the cable capacitance shares the charge.</dd></div>
+    <div><dt>Carrier density</dt><dd>Number of charge carriers per cubic metre, in the Hall formula.</dd></div>
+    <div><dt>Op-amp</dt><dd>A high-gain amplifier whose gain is set by external components.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Piezo sensors make a charge, not a voltage. Convert with a charge amplifier.</li>
+    <li>Charge amplifier output is −q / C<sub>f</sub>. A bigger C<sub>f</sub> gives a smaller output.</li>
+    <li>Hall voltage is proportional to both current and field.</li>
+    <li>Inverting amplifier gain is negative: −R<sub>f</sub> / R<sub>in</sub>.</li>
+    <li>RC cut-off is 1 / (2π R C). Doubling R or C halves the cut-off.</li>
+    <li>Piezo sensors suit changing forces, not steady ones.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 135?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 135 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-134.html"><small>Previous, topic 134</small>Transducers: displacement (linear &amp; angular)</a><a class="next" href="gate-136.html"><small>Next, topic 136</small>Transducers: velocity &amp; acceleration</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

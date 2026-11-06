@@ -1,0 +1,522 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 161: Concurrent design & manufacturing planning for automation</title><meta name="description" content="Concurrent engineering means designing a product and the way it will be made at the same time, instead of one step after the other. This page also shows how a factory plans a production line so that work is shared fairly among workers and machines, a common theme in GATE Robotics and Automation questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g161" data-key="g161" data-noun="topic" data-num="161" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Concurrent design &amp; manufacturing planning for automation</h1>
+<p class="lede">Concurrent engineering means designing a product and the way it will be made at the same time, instead of one step after the other. This page also shows how a factory plans a production line so that work is shared fairly among workers and machines, a common theme in GATE Robotics and Automation questions.</p>
+<div class="station"><b>161</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Sequential design versus concurrent design</li><li>What concurrent engineering asks teams to do</li><li>Manufacturing process planning</li><li>Line balancing: cycle time, stations and efficiency</li><li>Cell layout and material flow</li><li>Automation and CIM as the wider setting</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Welcome. This page is about two things that work together. The first is the design of a product, meaning what it looks like and how it works. The second is the plan for making that product in a factory. Most beginners think these are two separate jobs done by two separate people, one after the other. In modern industry, the best teams do them at the same time. That is the whole idea of <strong>concurrent engineering</strong>, and it is the reason this topic exists.</p>
+  <p>Here is an everyday picture. Imagine you are building a new kind of wooden chair. In the old way, one person draws the chair completely, then throws the drawing over a wall to a second person, who has to figure out how to cut and join the wood. The second person finds that one leg is impossible to join without a special tool, so the drawing goes back over the wall for changes. Every trip over the wall costs days. This is called <strong>sequential</strong> or "over the wall" engineering.</p>
+  <p>Now imagine the same chair built by a small team sitting at one table. The designer, the joiner and the person who buys the wood all talk while the drawing is still soft. The joiner says, "Make this leg a little thicker and this joint will be easy." The designer agrees in five minutes. Nothing has to go back over a wall. This is the picture behind concurrent engineering: <strong>the people who design and the people who make work together, early, and at the same time.</strong></p>
+  <p>Why does this matter for GATE? Two reasons. First, the idea of concurrent engineering appears in questions about product development, time to market and quality. Second, the planning side (process planning, line balancing and cell layout) appears in Robotics and Automation questions, because a robot or a machine on a production line needs a well shared job. GATE Robotics and Automation (RA) and GATE Data Science and AI (DA) both use simple numerical problems here, such as computing the cycle time of a line, the minimum number of stations, or the efficiency of a balanced line. These are easy marks if you know the definitions and the steps.</p>
+  <p>We will move slowly. Each section adds one idea, explains why it is needed, shows it with small numbers, and ends with self-check questions you can answer before you look at the answers.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now, and return to it whenever a word feels unfamiliar. Each term has a plain meaning first, then a more precise definition.</p>
+  <dl>
+    <div><dt>Concurrent engineering</dt><dd>Working on product design and manufacturing planning at the same time, with the teams sharing information early. Plain meaning: designers and makers talk while the design is still changing. Precise definition: a systematic approach that integrates product and process design, with parallel activities and cross-functional teams.</dd></div>
+    <div><dt>Sequential (over the wall) engineering</dt><dd>Finishing one stage completely before the next stage starts. Plain meaning: finish, then hand it on. Precise definition: a linear development process in which design is completed and then passed to manufacturing.</dd></div>
+    <div><dt>Time to market</dt><dd>The time from the start of a product idea to the day the product is sold. Plain meaning: how long you wait before customers can buy it.</dd></div>
+    <div><dt>Design for manufacture (DFM)</dt><dd>Designing a part so that it is easy and cheap to make. Plain meaning: design with the factory in mind.</dd></div>
+    <div><dt>Design for assembly (DFA)</dt><dd>Designing a product so that its parts are easy to put together. Plain meaning: fewer parts and simple joins.</dd></div>
+    <div><dt>Cross-functional team</dt><dd>A group of people from different departments, such as design, production, purchasing and quality, who work on one product together.</dd></div>
+    <div><dt>Process planning</dt><dd>Deciding how a part or product will be made: which operations, in what order, on which machines, with which tools. Plain meaning: the recipe for making the thing.</dd></div>
+    <div><dt>Task (or element)</dt><dd>One small piece of work in an assembly or production job, such as fitting a screw. Each task has a time, usually in minutes.</dd></div>
+    <div><dt>Precedence</dt><dd>A rule that one task must finish before another can start. Plain meaning: some jobs must wait for others.</dd></div>
+    <div><dt>Precedence diagram</dt><dd>A drawing of tasks as boxes with arrows showing which task must come before which. Plain meaning: a flow chart of the order of work.</dd></div>
+    <div><dt>Line balancing</dt><dd>Sharing the tasks among the workstations so that each station has about the same amount of work. Plain meaning: fair shares for every station.</dd></div>
+    <div><dt>Workstation (station)</dt><dd>A place on a line where one worker or one machine does a group of tasks.</dd></div>
+    <div><dt>Cycle time (CT)</dt><dd>The longest time a station is allowed to spend on its tasks for each finished unit. Plain meaning: how often a finished unit must leave the line. Precise definition: available production time divided by the required output.</dd></div>
+    <div><dt>Idle time</dt><dd>Time at a station when no task is being done. Plain meaning: waiting time at a station.</dd></div>
+    <div><dt>Line efficiency</dt><dd>The share of the total time paid for at all stations that is actually used for useful work.</dd></div>
+    <div><dt>Balance delay</dt><dd>The share of the paid time that is lost to idle time. It is 100 minus the line efficiency, in percent.</dd></div>
+    <div><dt>Cell layout</dt><dd>The arrangement of machines and workers in a small group (a cell) that makes a family of similar parts.</dd></div>
+    <div><dt>Material flow</dt><dd>The path that parts take from one machine to the next. Plain meaning: how things travel through the shop.</dd></div>
+    <div><dt>Computer integrated manufacturing (CIM)</dt><dd>A way of running a factory where design (CAD), planning (CAPP), production control and machines are linked by computers. Plain meaning: computers connected to every stage of making.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Sequential versus concurrent design">
+  <h2>Sequential versus concurrent design</h2>
+  <h3>Why the old way causes trouble</h3>
+  <p>In a sequential process, each department works alone. Design finishes first. Then manufacturing planning starts, and only then does the factory try to make the first sample. Each step depends on the one before it, and nobody looks back until the end. The trouble is that many problems only show up late. A part that is hard to machine may be found only when the factory tries to cut it. A joint that is hard to assemble may be found only when workers try to fit it.</p>
+  <p>When a problem is found late, the fix is expensive. The designer must redraw the part, the planners must redo their plans, the buyers may have already ordered the wrong material, and the test samples must be made again. The general rule is simple: <strong>the cost of changing a design grows steeply the later the change is made.</strong> A change on a drawing costs very little. The same change after tooling has been built may cost a great deal. We will not put a number on this growth here, because the size depends on the industry. The direction is what matters for GATE.</p>
+  <h3>What the new way changes</h3>
+  <p>Concurrent engineering overlaps the stages. Manufacturing planners look at the design while it is still being drawn. They suggest changes, and the designers accept the good ones. The stages still have an order, but they no longer wait for each other to finish completely. A simple picture helps:</p>
+  <pre class="code" data-lang="text"><code>Sequential (time runs left to right):
+
+Design     [##########]
+Planning                [##########]
+Pilot run                            [#####]
+Total time = design + planning + pilot
+
+Concurrent (planning starts while design is still going):
+
+Design     [##########]
+Planning          [##########]
+Pilot run                    [#####]
+Total time is shorter because the bars overlap</code></pre>
+  <p>The bars show work. In the sequential picture, nothing overlaps, so the total time is the sum of all the bars. In the concurrent picture, the planning bar starts before the design bar ends. The total time becomes shorter. Notice that this is not magic. The planners may need to redo part of their work if the design changes, but the overall time is still usually less than doing everything one after the other.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Concurrent engineering does not mean "do everything at once with no order". It means "start the next stage early, share information often, and accept that some earlier work will be revised".</p></div>
+  <details class="check"><summary>In one sentence, what is the main difference between sequential and concurrent engineering?</summary><div class="ans"><p>Sequential engineering finishes one stage before the next begins. Concurrent engineering lets the stages overlap and shares information between the teams early.</p></div></details>
+  <details class="check"><summary>Why does a late design change usually cost more than an early one?</summary><div class="ans"><p>Later changes can affect drawings, plans, tools, orders and test samples that have already been made. Each of these must be redone, so the cost adds up.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="What concurrent engineering asks teams to do">
+  <h2>What concurrent engineering asks teams to do</h2>
+  <h3>Four habits that make it work</h3>
+  <p>Concurrent engineering is not a single tool. It is a set of habits. The four most important habits are:</p>
+  <ol>
+    <li><strong>Form cross-functional teams.</strong> Put the designer, the process planner, the buyer, the quality engineer and sometimes a supplier in one team. Each person sees the product from a different side.</li>
+    <li><strong>Use design for manufacture and design for assembly.</strong> Ask, for every part, "Can this be made easily?" and, for every joint, "Can this be assembled easily?" A part with fewer parts and simpler shapes is usually cheaper to make and quicker to join.</li>
+    <li><strong>Share data early.</strong> Use common computer models (CAD files) and common lists of parts so that everybody works from the same information.</li>
+    <li><strong>Involve suppliers early.</strong> A supplier who knows the design early can suggest a cheaper material or a standard size that the designer did not know about.</li>
+  </ol>
+  <h3>Benefits and costs</h3>
+  <p>The usual benefits are shorter time to market, fewer design changes after release, lower total cost, and better quality. Shorter time to market matters because a product sold first often gains the most customers. Fewer changes matter because each change is expensive. Better quality follows from catching problems early.</p>
+  <p>There are costs too. Meetings take time. The team must agree on a shared computer system. Some designers find it hard to let others comment on their work. Sometimes the planners cannot start properly because the design is still changing. A good manager balances these costs. In GATE questions, the expected answer is usually the list of benefits, and the costs appear only as a short contrast.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Concurrent engineering does not remove the need for testing. It makes testing earlier and more useful. A good answer never says that testing is no longer needed.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect a question that lists several statements and asks which are benefits of concurrent engineering. Shorter time to market, fewer late design changes and better use of the team are typical correct statements. "Planning must wait until the design is frozen" is the sequential idea, so it is not a benefit of the concurrent approach.</p></div>
+  <details class="check"><summary>Name one reason why a supplier should join the team early.</summary><div class="ans"><p>A supplier can suggest a cheaper material or a standard part size, and can warn the team if a shape is hard for them to make. Both points reduce cost and risk.</p></div></details>
+  <details class="check"><summary>Is design for assembly about making parts stronger?</summary><div class="ans"><p>No. Design for assembly is about making the product easier to put together. Fewer parts, simple joins and parts that fit only one way are typical goals.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Manufacturing process planning">
+  <h2>Manufacturing process planning</h2>
+  <h3>What a process plan contains</h3>
+  <p>A <strong>process plan</strong> is the written recipe for making a part or an assembly. It answers six simple questions: what is done, in what order, on which machine, with which tool, at what speed, and how long it takes. For a metal part, the plan may say: first face the end, then drill the hole, then turn the outside diameter, then deburr the edges, then inspect. Each line of this list is an operation. The list in order is the route.</p>
+  <p>A route sheet is a document that lists these operations with their machines and times. Planners use it to decide how many machines are needed, how many workers, and how the material will move. This is why process planning is a key link between design and production. Without it, nobody knows whether the factory can make the product at the rate the customer needs.</p>
+  <h3>Computer help for planning</h3>
+  <p>Computer aided process planning (CAPP) uses a computer to produce the route sheet from the design file. The computer looks at features such as holes, slots and threads, and picks the operations that make each feature. CAPP is one of the links in CIM, which we meet at the end of this page. In a GATE question, you may simply be asked what process planning produces. The answer is an ordered set of operations with machines, tools and times.</p>
+  <div class="note tip"><p><span class="t">Tip</span>If a question asks "what is the output of process planning", a safe answer is "an ordered list of operations, each with a machine, a tool and a time".</p></div>
+  <h3>Why planning and design must talk</h3>
+  <p>Suppose the designer makes a hole so deep that the drill cannot reach it in one pass. The planner must then add a second operation, perhaps a special tool, and the time for the part goes up. If the planner and designer talk early, the hole can be made shallower or the part can be split into two. The overall cost falls. This is the everyday meaning of design for manufacture, and it is the link that concurrent engineering makes strong.</p>
+  <details class="check"><summary>What is a route in process planning?</summary><div class="ans"><p>The route is the ordered list of operations that make the part, from raw material to finished part.</p></div></details>
+  <details class="check"><summary>Give two items that a route sheet typically lists for each operation.</summary><div class="ans"><p>Any two of: the machine, the tool, the cutting speed or setting, and the time for the operation.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Line balancing">
+  <h2>Line balancing: cycle time, stations and efficiency</h2>
+  <h3>Why a line needs balancing</h3>
+  <p>Imagine a row of five workers who each add one piece to a bicycle as it moves past them on a belt. If worker 1 needs 9 minutes for each bicycle and the others need 3 minutes, the belt cannot run faster than the slowest worker. The other four spend most of their time waiting. Line balancing means moving tasks between the workers so that each one has about the same amount of work. The aim is to keep every station busy and to keep the output steady.</p>
+  <p>Think of a line of people passing buckets of water. If one person carries twice as much as the others, the whole line moves at that person's pace, and the others stand idle. Balancing shares the load.</p>
+  <h3>Step 1: list the tasks and their precedence</h3>
+  <p>Start with a table of tasks. Each task has a time, and some tasks must come before others. For example, you cannot paint a car body before you have welded it. Write these rules as a precedence diagram: each task is a box, and an arrow from task X to task Y means "X must be finished before Y starts". The diagram stops the planner from making an impossible order.</p>
+  <h3>Step 2: find the cycle time</h3>
+  <p>The cycle time is the time each station has for its tasks for each finished unit. In a simple form:</p>
+  <div class="formula">CT = available production time / required output</div>
+  <p>Here <em>available production time</em> is the working time of the line, in minutes, and <em>required output</em> is the number of units needed in that time. Each symbol has a plain meaning. CT is how often a finished unit must come off the end of the line.</p>
+  <p>Worked example. A line runs for 480 minutes in a shift. The customer needs 120 units in that shift. The cycle time is 480/120 = 4 minutes. So every station must finish its share of work in 4 minutes or less, for each unit.</p>
+  <h3>Step 3: find the minimum number of stations</h3>
+  <p>Add up all the task times to get the total work content, T. Each station can give at most CT minutes of work. The smallest possible number of stations is therefore:</p>
+  <div class="formula">N<sub>min</sub> = ceiling of (T / CT)</div>
+  <p>The ceiling means "round up to the next whole number". If T/CT is 2.1, you need 3 stations, because 2 stations are not enough and you cannot have 0.1 of a station. For example, if T = 21 minutes and CT = 8 minutes, then T/CT = 2.625, and N<sub>min</sub> = 3.</p>
+  <h3>Step 4: assign tasks to stations</h3>
+  <p>Finding the exact best assignment is hard for large lines, so planners use simple rules. A common one is the <strong>largest candidate rule</strong>. Here is how it works, one station at a time:</p>
+  <ol>
+    <li>Start a new station with CT minutes free.</li>
+    <li>List the candidate tasks: those whose predecessors are all already assigned, and whose time fits in the free time.</li>
+    <li>Pick the candidate with the largest time, and assign it to the station. Reduce the free time by its time.</li>
+    <li>Repeat until no candidate fits. Then the station is full, or it has idle time left over. Open the next station.</li>
+  </ol>
+  <h3>Step 5: efficiency, idle time and balance delay</h3>
+  <p>Once the stations are set, measure how well the line is balanced. Let N be the number of stations used.</p>
+  <div class="formula">Efficiency = T / (N x CT)</div>
+  <div class="formula">Idle time = (N x CT) - T</div>
+  <div class="formula">Balance delay = 100 - efficiency, in percent</div>
+  <p>T is the total work content, N is the number of stations and CT is the cycle time. The product N x CT is the total time paid for at all stations. The efficiency is the share of that time used for real work. The idle time is the rest. A perfectly balanced line has efficiency 100 percent and idle time 0.</p>
+  <h3>A complete worked example</h3>
+  <p>Take six tasks. The times are A = 4, B = 3, C = 5, D = 2, E = 6 and F = 1 minutes. The rules are: A before C, B before D, C before E, and D before F. The cycle time is 8 minutes.</p>
+  <p>Step 1, total work: 4 + 3 + 5 + 2 + 6 + 1 = 21 minutes. Step 2, the minimum number of stations: 21/8 = 2.625, so N<sub>min</sub> = 3. Step 3, assign with the largest candidate rule.</p>
+  <ul>
+    <li>Station 1 has 8 minutes. Candidates are A (4) and B (3). Pick A, which leaves 4. Now B (3) fits and C (5) does not. Pick B, which leaves 1. Station 1 is A and B, with 1 minute idle.</li>
+    <li>Station 2 has 8 minutes. Candidates are C (5) and D (2). Pick C, which leaves 3. Now D (2) fits, and E (6) does not. Pick D, which leaves 1. Now F (1) fits, so pick F, which leaves 0. Station 2 is C, D and F, with no idle time.</li>
+    <li>Station 3 has 8 minutes. The only task left is E (6). Pick E, which leaves 2. Station 3 is E alone, with 2 minutes idle.</li>
+  </ul>
+  <p>So three stations are used, which equals the minimum. The efficiency is 21/(3 x 8) = 21/24 = 0.875, or 87.5 percent. The idle time is 24 - 21 = 3 minutes, and the balance delay is 12.5 percent. The Python check below repeats the same steps, so you can see that the numbers agree.</p>
+  <pre class="code" data-lang="python"><code>import math
+times = {"A": 4, "B": 3, "C": 5, "D": 2, "E": 6, "F": 1}
+pred = {"A": [], "B": [], "C": ["A"], "D": ["B"], "E": ["C"], "F": ["D"]}
+CT = 8
+total = sum(times.values())
+done = set()
+stations = []
+while len(done) < len(times):
+    left = CT
+    current = []
+    while True:
+        cands = [t for t in times if t not in done
+                 and all(p in done for p in pred[t]) and times[t] <= left]
+        if not cands:
+            break
+        pick = max(cands, key=lambda t: times[t])
+        current.append(pick)
+        done.add(pick)
+        left -= times[pick]
+    stations.append((current, left))
+N = len(stations)
+print("total task time:", total)
+print("minimum stations:", math.ceil(total / CT))
+for i, (tasks, idle) in enumerate(stations, 1):
+    print("station", i, tasks, "idle", idle)
+print("stations used:", N)
+print("efficiency:", round(100 * total / (N * CT), 1), "%")</code></pre>
+  <pre class="output">total task time: 21
+minimum stations: 3
+station 1 ['A', 'B'] idle 1
+station 2 ['C', 'D', 'F'] idle 0
+station 3 ['E'] idle 2
+stations used: 3
+efficiency: 87.5 %</pre>
+  <div class="note trap"><p><span class="t">Trap</span>The minimum number of stations is a lower bound, not a promise. The largest candidate rule may need more stations than the minimum. Always run the rule to the end and count the stations it actually uses.</p></div>
+  <details class="check"><summary>A line has total task time 30 minutes and cycle time 7 minutes. What is N<sub>min</sub>?</summary><div class="ans"><p>30/7 = 4.28 (about). Round up to the next whole number, so N<sub>min</sub> = 5. Four stations give only 28 minutes of time, which is not enough for 30 minutes of work.</p></div></details>
+  <details class="check"><summary>Five stations with cycle time 6 minutes carry total work 24 minutes. What is the efficiency?</summary><div class="ans"><p>The paid time is 5 x 6 = 30 minutes. Efficiency = 24/30 = 0.8, or 80 percent. The balance delay is 20 percent.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Cell layout and material flow">
+  <h2>Cell layout and material flow</h2>
+  <h3>Grouping similar parts</h3>
+  <p>A large factory can have one department for all the drilling machines, another for all the lathes, and a third for all the paint booths. This is the <strong>functional layout</strong>. It is simple, but a part must travel a long way between departments. Many parts travel back and forth, and each trip waits in a queue. <strong>Cellular manufacturing</strong> takes a different view. Parts that are similar in shape or process are grouped into a family. A small cell of machines is set up to make that family, placed close together, so that each part moves only a short way. Grouping parts into families is called group technology.</p>
+  <p>Think of a kitchen. A functional kitchen has one area for all the chopping, one for all the frying and one for all the plating. A cell kitchen gives one small station to each dish family, with all the tools for that dish close at hand. The second kitchen wastes fewer steps.</p>
+  <h3>Layout shapes</h3>
+  <p>Inside a cell, the machines can be placed in a straight line, in a U shape, or in other forms. A U shape is popular because the operator can reach the first and last machine from one spot, and the material enters and leaves near each other. The picture below shows a simple U-shaped cell with four machines (M1 to M4) and one worker in the middle.</p>
+  <pre class="code" data-lang="text"><code>      raw parts in                  finished parts out
+          |                                 ^
+          v                                 |
+     +---------+                     +---------+
+     |   M1    |-------------------->|   M2    |
+     +---------+                     +---------+
+          ^                                 |
+          |        worker stands here       v
+     +---------+                     +---------+
+     |   M4    |<--------------------|   M3    |
+     +---------+                     +---------+</code></pre>
+  <p>The worker walks along the inside of the U. Material moves in a loop with short steps. The worker can see all four machines at once, which helps quality and safety.</p>
+  <h3>Measuring material flow with a from-to chart</h3>
+  <p>How do we choose between two layouts? One simple tool is the <strong>from-to chart</strong>. It counts how many trips parts make from one machine to another in a day. Multiply each count by the distance between the two machines, then add all the products. A smaller total means less travel.</p>
+  <div class="formula">Total travel = sum over all pairs of (number of trips x distance between the pair)</div>
+  <p>Worked example. Three machines M1, M2 and M3 have these trip counts per day: M1 and M2 share 20 trips, M2 and M3 share 15 trips, and M1 and M3 share 5 trips. Layout X puts M1 at position 0, M2 at 4 and M3 at 10 (distances in metres along a line). The distances are M1 to M2 = 4, M2 to M3 = 6, and M1 to M3 = 10. The total travel is 20 x 4 + 15 x 6 + 5 x 10 = 80 + 90 + 50 = 220 metres a day.</p>
+  <p>Layout Y puts M2 at position 0, M1 at 4 and M3 at 10. Now M1 to M2 = 4, M2 to M3 = 10 and M1 to M3 = 6. The total is 20 x 4 + 15 x 10 + 5 x 6 = 80 + 150 + 30 = 260 metres. Layout X is better by 40 metres a day. The Python check below repeats both sums.</p>
+  <pre class="code" data-lang="python"><code>trips = {("M1", "M2"): 20, ("M2", "M3"): 15, ("M1", "M3"): 5}
+def total_travel(pos):
+    return sum(n * abs(pos[a] - pos[b]) for (a, b), n in trips.items())
+X = {"M1": 0, "M2": 4, "M3": 10}
+Y = {"M2": 0, "M1": 4, "M3": 10}
+print("Layout X:", total_travel(X), "metres a day")
+print("Layout Y:", total_travel(Y), "metres a day")
+print("X is better by:", total_travel(Y) - total_travel(X), "metres a day")</code></pre>
+  <pre class="output">Layout X: 220 metres a day
+Layout Y: 260 metres a day
+X is better by: 40 metres a day</pre>
+  <div class="note tip"><p><span class="t">Tip</span>Put the machines that exchange the most parts next to each other. This is the simplest rule for a good cell layout, and it often gives the answer to layout questions.</p></div>
+  <details class="check"><summary>Why does a cell layout usually reduce material handling?</summary><div class="ans"><p>Parts in one family visit machines that are close together, so each move is short and fewer parts wait in queues between far apart departments.</p></div></details>
+  <details class="check"><summary>In a from-to chart, what does a smaller total travel mean?</summary><div class="ans"><p>It means less distance is covered by parts in a day, so the layout is better for material flow, all other things being equal.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Automation and CIM as the wider setting">
+  <h2>Automation and CIM as the wider setting</h2>
+  <h3>What automation adds</h3>
+  <p><strong>Automation</strong> means using machines, robots and control systems to do work that people used to do by hand. A programmable logic controller (PLC) can switch conveyors on and off in a set order. A robot can load parts into a machine. Automation makes the cycle time steady, because a machine does the same task in the same time every cycle. It also makes the line easier to measure, which helps the balancing steps above.</p>
+  <p>Automation does not remove the need for balancing. A robot that is faster than a human still needs its tasks shared fairly. If a robot is given too much work, it becomes the bottleneck, and the whole line waits for it. The bottleneck is the station with the longest time, and it sets the pace of the line.</p>
+  <h3>Computer integrated manufacturing</h3>
+  <p><strong>Computer integrated manufacturing (CIM)</strong> connects the whole factory. The design (CAD) passes to process planning (CAPP), then to the production plan, then to the machines (CAM and machine control), and quality data flows back to the designers. In a CIM factory, a design change can be sent electronically to the planners and the machines, which speeds up the concurrent loop. CIM is the setting in which concurrent engineering becomes practical. Without shared computer data, the teams would still pass paper over the wall.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Concurrent engineering is the way of working. Line balancing and cell layout are the tools for planning the factory. CIM is the computer system that links them together.</p></div>
+  <h3>How the topics fit together</h3>
+  <p>Here is one chain of thought you can use in an exam. First, the design team and the planning team agree on the product early, which is concurrent engineering. Second, the planners write a process plan with operations, machines and times. Third, the operations are grouped into a line, and the line is balanced using a cycle time. Fourth, the machines are placed in cells, and the layout is checked with a from-to chart. Fifth, the whole chain is supported by CIM and automation.</p>
+  <details class="check"><summary>Which technology links design, process planning and production data in one system?</summary><div class="ans"><p>Computer integrated manufacturing (CIM) links these stages with shared computer data.</p></div></details>
+  <details class="check"><summary>Why is a bottleneck station important in a line?</summary><div class="ans"><p>The bottleneck has the longest time at its station, so it sets the pace of the whole line. Other stations must wait for it, which lowers the output and the efficiency.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table handy. Every formula is a short way of writing an idea you have just met.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>CT = available time / required output</td><td>Cycle time: how often a finished unit must leave the line</td><td>First step of line balancing</td></tr>
+      <tr><td>N<sub>min</sub> = ceiling of (T / CT)</td><td>Smallest possible number of stations</td><td>Checking a balancing answer</td></tr>
+      <tr><td>Efficiency = T / (N x CT)</td><td>Share of the paid time used for work</td><td>After the stations are set</td></tr>
+      <tr><td>Idle time = (N x CT) - T</td><td>Time paid for but not used</td><td>Finding the waste on a line</td></tr>
+      <tr><td>Balance delay = 100 - efficiency (percent)</td><td>Share of paid time lost</td><td>Reporting how well a line is balanced</td></tr>
+      <tr><td>Total travel = sum of (trips x distance)</td><td>Material flow measure for a layout</td><td>Comparing two cell layouts</td></tr>
+      <tr><td>Overall time with overlap = latest finish time</td><td>Concurrent stages can overlap</td><td>Scheduling a concurrent project</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE. They are not real past questions. Read the question twice, then follow the four steps in the "How to think about it" list before you look at the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>What is concurrent engineering?</h3>
+    <div class="statement"><p>Which statement best describes concurrent engineering?</p>
+    <p>(A) Design is finished completely before manufacturing planning starts<br>(B) Product design and manufacturing planning overlap, and the teams share information early<br>(C) Only the manufacturing team makes decisions about the product<br>(D) Testing is removed from the development process</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The best description of concurrent engineering.</li>
+      <li><strong>Which idea applies.</strong> Concurrent engineering means working in parallel, with shared early information.</li>
+      <li><strong>Work it out.</strong> Option A is the sequential idea. Option C leaves out the design team. Option D removes testing, which is never a goal. Option B matches the parallel and shared idea.</li>
+      <li><strong>Check.</strong> Does option B say "overlap" and "share early"? Yes, so it is the answer.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Cycle time for a shift</h3>
+    <div class="statement"><p>A production line runs for 600 minutes in a shift. The customer needs 150 finished units in that shift. Find the cycle time in minutes per unit. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The cycle time CT in minutes.</li>
+      <li><strong>Which idea applies.</strong> CT = available production time / required output.</li>
+      <li><strong>Work it out.</strong> CT = 600 / 150 = 4 minutes per unit. The Python check below confirms the division.</li>
+      <li><strong>Check.</strong> 150 units x 4 minutes = 600 minutes, which is the whole shift. The check works.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>available = 600
+required = 150
+CT = available / required
+print("cycle time:", CT, "minutes per unit")
+print("check, units x CT:", required * CT, "minutes")</code></pre>
+    <pre class="output">cycle time: 4.0 minutes per unit
+check, units x CT: 600.0 minutes</pre>
+    <p class="cx">Answer: 4 minutes per unit.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Minimum number of stations (NAT)</h3>
+    <div class="statement"><p>The total task time on an assembly line is 37 minutes. The cycle time is 8 minutes. What is the minimum number of workstations needed? Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest whole number of stations, N<sub>min</sub>.</li>
+      <li><strong>Which idea applies.</strong> N<sub>min</sub> = ceiling of (T / CT).</li>
+      <li><strong>Work it out.</strong> T/CT = 37/8 = 4.625. Round up to 5. The Python check below repeats this.</li>
+      <li><strong>Check.</strong> Four stations give only 32 minutes, which is less than 37. Five stations give 40 minutes, which is enough.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+T = 37
+CT = 8
+print("T/CT =", T / CT)
+print("N min =", math.ceil(T / CT))</code></pre>
+    <pre class="output">T/CT = 4.625
+N min = 5</pre>
+    <p class="cx">Answer: 5 stations.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Benefits of concurrent engineering (MSQ)</h3>
+    <div class="statement"><p>Which of the following statements about concurrent engineering are correct? Select all that apply.</p>
+    <p>(A) It can shorten the time to market for a new product<br>(B) It brings suppliers into the design work early<br>(C) It removes the need for any testing of the product<br>(D) It means late design changes cost nothing</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every correct statement, possibly more than one.</li>
+      <li><strong>Which idea applies.</strong> Benefits come from overlap, early sharing and cross-functional teams. Costs of changes still exist.</li>
+      <li><strong>Work it out.</strong> (A) is a benefit, because overlapping stages shorten the schedule. (B) is a benefit, because early supplier input lowers cost and risk. (C) is wrong, since testing is still needed. (D) is wrong, since late changes are still expensive.</li>
+      <li><strong>Check.</strong> Two statements are true and two are false, which matches the reasoning.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Largest candidate rule on a new line (NAT)</h3>
+    <div class="statement"><p>Five tasks have times P = 5, Q = 4, R = 3, S = 6 and T = 2 minutes. The precedence rules are: P before R, Q before S, and R before T. The cycle time is 7 minutes. Use the largest candidate rule. How many stations are used? Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of stations the rule actually uses.</li>
+      <li><strong>Which idea applies.</strong> Fill one station at a time. Among the tasks that are allowed and fit, pick the largest.</li>
+      <li><strong>Work it out.</strong> Station 1 (7 minutes): P (5) is the largest candidate, so P is picked, leaving 2. Nothing else fits. Station 2: Q (4) is picked, leaving 3, then R (3) fits, leaving 0. Station 3: S (6) is picked, leaving 1. Station 4: T (2) is the last task. Four stations are used. The Python check below confirms the steps.</li>
+      <li><strong>Check.</strong> The minimum is ceiling(20/7) = 3, so four stations is one more than the minimum. This is allowed, because the rule is a heuristic.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+times = {"P": 5, "Q": 4, "R": 3, "S": 6, "T": 2}
+pred = {"P": [], "Q": [], "R": ["P"], "S": ["Q"], "T": ["R"]}
+CT = 7
+total = sum(times.values())
+done = set()
+stations = []
+while len(done) < len(times):
+    left = CT
+    current = []
+    while True:
+        cands = [t for t in times if t not in done
+                 and all(p in done for p in pred[t]) and times[t] <= left]
+        if not cands:
+            break
+        pick = max(cands, key=lambda t: times[t])
+        current.append(pick)
+        done.add(pick)
+        left -= times[pick]
+    stations.append((current, left))
+for i, (tasks, idle) in enumerate(stations, 1):
+    print("station", i, tasks, "idle", idle)
+print("stations used:", len(stations))
+print("minimum possible:", math.ceil(total / CT))
+print("efficiency:", round(100 * total / (len(stations) * CT), 1), "%")</code></pre>
+    <pre class="output">station 1 ['P'] idle 2
+station 2 ['Q', 'R'] idle 0
+station 3 ['S'] idle 1
+station 4 ['T'] idle 5
+stations used: 4
+minimum possible: 3
+efficiency: 71.4 %</pre>
+    <p class="cx">Answer: 4 stations. The efficiency is 20/28 = 71.4 percent.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which layout travels less? (NAT)</h3>
+    <div class="statement"><p>Three machines M1, M2 and M3 exchange parts. The number of trips per day is 20 between M1 and M2, 15 between M2 and M3, and 5 between M1 and M3. Layout X places M1 at 0 m, M2 at 4 m and M3 at 10 m along a line. Layout Y places M2 at 0 m, M1 at 4 m and M3 at 10 m. Using total travel = sum of (trips x distance), find how many more metres per day layout Y travels than layout X. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The difference in total daily travel between Y and X.</li>
+      <li><strong>Which idea applies.</strong> The from-to chart: for each pair, multiply trips by the distance between the machines, then add.</li>
+      <li><strong>Work it out.</strong> In X the distances are 4, 6 and 10 for the pairs (M1, M2), (M2, M3) and (M1, M3). Total = 20 x 4 + 15 x 6 + 5 x 10 = 220. In Y the distances are 4, 10 and 6. Total = 20 x 4 + 15 x 10 + 5 x 6 = 260. The difference is 260 - 220 = 40.</li>
+      <li><strong>Check.</strong> The pair with the most trips (M1 and M2) has the same distance of 4 in both layouts, which is why the big difference comes from the other pairs. The Python check repeats the sums.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>trips = {("M1", "M2"): 20, ("M2", "M3"): 15, ("M1", "M3"): 5}
+def travel(pos):
+    return sum(n * abs(pos[a] - pos[b]) for (a, b), n in trips.items())
+X = {"M1": 0, "M2": 4, "M3": 10}
+Y = {"M2": 0, "M1": 4, "M3": 10}
+print("extra metres for Y:", travel(Y) - travel(X))</code></pre>
+    <pre class="output">extra metres for Y: 40</pre>
+    <p class="cx">Answer: 40 metres per day.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Overlapping design and planning (NAT)</h3>
+    <div class="statement"><p>A team designs a new product in 6 months. Manufacturing planning can start after the first 3 months of design, and planning takes 4 months. A pilot production run takes 2 months and can start only when both the design and the planning are finished. The same work done one stage after another would take 6 + 4 + 2 = 12 months. Using concurrent overlap, how many months does the whole project take? Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The finish time of the whole project when stages overlap.</li>
+      <li><strong>Which idea applies.</strong> Lay out each stage on a time line. A stage starts when its inputs are ready. The project ends when the last stage ends.</li>
+      <li><strong>Work it out.</strong> Design runs from month 0 to month 6. Planning starts at month 3 and runs 4 months, so it ends at month 7. The pilot must wait for both, so it starts at month 7 (the later of 6 and 7) and runs 2 months, ending at month 9. The Python check below repeats this.</li>
+      <li><strong>Check.</strong> The saving is 12 - 9 = 3 months. The saving cannot be more than the planning time that overlaps, which is 3 months, so the answer is reasonable.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>design_end = 6
+plan_start = 3
+plan_end = plan_start + 4
+pilot_start = max(design_end, plan_end)
+project_end = pilot_start + 2
+print("project ends at month", project_end)
+print("months saved:", 6 + 4 + 2 - project_end)</code></pre>
+    <pre class="output">project ends at month 9
+months saved: 3</pre>
+    <p class="cx">Answer: 9 months.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Checking a balanced line (MSQ)</h3>
+    <div class="statement"><p>A line has 5 stations and a cycle time of 6 minutes. Its efficiency is 80 percent. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) The total task time is 24 minutes<br>(B) The idle time is 6 minutes<br>(C) The balance delay is 20 percent<br>(D) The minimum number of stations for this total task time is 5</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every correct statement about this line.</li>
+      <li><strong>Which idea applies.</strong> Paid time = N x CT = 30 minutes. Efficiency = T / 30. Idle = 30 - T. Balance delay = 100 - efficiency.</li>
+      <li><strong>Work it out.</strong> Efficiency 80 percent of 30 gives T = 24 minutes, so (A) is correct. Idle = 30 - 24 = 6, so (B) is correct. Balance delay = 100 - 80 = 20 percent, so (C) is correct. The minimum stations = ceiling(24/6) = 4, not 5, so (D) is wrong. The Python check below confirms the numbers.</li>
+      <li><strong>Check.</strong> Idle time and efficiency must add up to the paid time: 24 + 6 = 30.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+N, CT, eff = 5, 6, 0.8
+paid = N * CT
+T = paid * eff
+print("paid time:", paid)
+print("total task time:", round(T, 2))
+print("idle time:", round(paid - T, 2))
+print("balance delay %:", round(100 - 100 * eff, 1))
+print("minimum stations:", math.ceil(round(T, 6) / CT))</code></pre>
+    <pre class="output">paid time: 30
+total task time: 24.0
+idle time: 6.0
+balance delay %: 20.0
+minimum stations: 4</pre>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Line balancing efficiency (NAT, 2 marks)</h3>
+    <div class="statement"><p>Total work content is 45 min. With a cycle time of 10 min, 5 stations are used. Find the balance efficiency.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> E = T<sub>wc</sub>/(n · T<sub>c</sub>).</li>
+      <li><strong>Which idea applies.</strong> The minimum stations is ⌈45/10⌉ = 5.</li>
+      <li><strong>Work it out.</strong> 45/50 = 0.9.</li>
+      <li><strong>Check.</strong> Balance delay is 10%.</li>
+    </ol>
+    <p class="cx">Answer: 0.9 (90%).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Rated production (NAT, 2 marks)</h3>
+    <div class="statement"><p>A line runs 2 shifts of 8 hours, 5 days a week, with 95% uptime. Demand is 4000 units per week. Find the required cycle time in minutes, correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Cycle time.</li>
+      <li><strong>Which idea applies.</strong> T<sub>c</sub> = available time/demand.</li>
+      <li><strong>Work it out.</strong> 80 · 60 · 0.95 = 4560 min. 4560/4000 = 1.14 min.</li>
+      <li><strong>Check.</strong> A faster cycle wastes capacity.</li>
+    </ol>
+    <p class="cx">Answer: 1.14 min.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Concurrent engineering (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Concurrent engineering overlaps design and process planning. (B) DFM aims to reduce manufacturing cost. (C) DFA often reduces the part count. (D) Concurrent engineering usually lengthens time to market.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Principles of concurrent design.</li>
+      <li><strong>Which idea applies.</strong> Early cross-functional input cuts redesign loops.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) False.</li>
+      <li><strong>Check.</strong> Fewer parts also means fewer joints to assemble.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Concurrent engineering</dt><dd>Designing the product and planning its making at the same time, with shared early information.</dd></div>
+    <div><dt>Sequential engineering</dt><dd>One stage finishes completely before the next starts. Also called over the wall engineering.</dd></div>
+    <div><dt>Time to market</dt><dd>The time from the start of the idea to the day the product is sold.</dd></div>
+    <div><dt>Design for manufacture</dt><dd>Designing parts so that they are easy and cheap to make.</dd></div>
+    <div><dt>Design for assembly</dt><dd>Designing a product so that its parts are easy to put together.</dd></div>
+    <div><dt>Cross-functional team</dt><dd>A team with members from design, production, purchasing and quality.</dd></div>
+    <div><dt>Process planning</dt><dd>Deciding the operations, their order, machines, tools and times.</dd></div>
+    <div><dt>Route</dt><dd>The ordered list of operations that makes a part.</dd></div>
+    <div><dt>Precedence</dt><dd>A rule that one task must finish before another starts.</dd></div>
+    <div><dt>Line balancing</dt><dd>Sharing tasks among stations so that the work is fair.</dd></div>
+    <div><dt>Cycle time</dt><dd>Available production time divided by required output.</dd></div>
+    <div><dt>Minimum stations</dt><dd>The total task time divided by the cycle time, rounded up.</dd></div>
+    <div><dt>Largest candidate rule</dt><dd>Fill each station with the largest allowed task that still fits.</dd></div>
+    <div><dt>Line efficiency</dt><dd>Total task time divided by (stations x cycle time).</dd></div>
+    <div><dt>Idle time</dt><dd>Paid station time that is not used for work.</dd></div>
+    <div><dt>Balance delay</dt><dd>100 minus the efficiency, in percent.</dd></div>
+    <div><dt>Bottleneck</dt><dd>The station with the longest time, which sets the pace of the line.</dd></div>
+    <div><dt>Cell layout</dt><dd>Machines for one family of parts placed close together.</dd></div>
+    <div><dt>Group technology</dt><dd>Grouping similar parts into families for cellular manufacturing.</dd></div>
+    <div><dt>From-to chart</dt><dd>A table of trips between machines, used to measure material flow.</dd></div>
+    <div><dt>Total travel</dt><dd>The sum of trips times distance over all pairs of machines. Smaller is better.</dd></div>
+    <div><dt>Automation</dt><dd>Using machines, robots and control systems to do work without hand labour.</dd></div>
+    <div><dt>CIM</dt><dd>Computer integrated manufacturing, which links design, planning and production with shared data.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Concurrent engineering overlaps the stages and shares information early. It does not remove testing.</li>
+    <li>The cost of a design change grows the later it is made.</li>
+    <li>Cycle time = available production time / required output.</li>
+    <li>Minimum stations = ceiling of (total task time / cycle time).</li>
+    <li>Efficiency = total task time / (N x CT). Idle time = N x CT minus total task time.</li>
+    <li>The largest candidate rule can need more stations than the minimum. Always count the stations it really uses.</li>
+    <li>Total travel in a from-to chart is the sum of trips times distance. A smaller total is a better layout.</li>
+  </ol>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 161?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 161 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-160.html"><small>Previous, topic 160</small>Single &amp; multi-axis positioning systems</a><a class="next" href="gate-162.html"><small>Next, topic 162</small>Mohr&#x27;s circle for plane stress &amp; plane strain</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

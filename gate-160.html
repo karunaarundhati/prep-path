@@ -1,0 +1,470 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 160: Single & multi-axis positioning systems</title><meta name="description" content="A positioning system moves a load to a set place, for example a table that holds a part under a drill. A single-axis stage moves in one straight line, and a multi-axis system stacks several stages to reach any point on a plane or in space. GATE asks how these stages are driven, how their position is measured, and how errors and speeds combine."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g160" data-key="g160" data-noun="topic" data-num="160" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Single &amp; multi-axis positioning systems</h1>
+<p class="lede">A positioning system moves a load to a set place, for example a table that holds a part under a drill. A single-axis stage moves in one straight line, and a multi-axis system stacks several stages to reach any point on a plane or in space. GATE asks how these stages are driven, how their position is measured, and how errors and speeds combine.</p>
+<div class="station"><b>160</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>What a positioning system does</li><li>Single-axis stages: parts and drive</li><li>Position feedback: motor encoder or linear scale</li><li>Multi-axis stacks: XY and XYZ</li><li>Coordinated motion and speed limits</li><li>Combining position errors</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Think about a drawer in a kitchen unit. It slides out along one straight line. You can pull it out a little or a lot, and you can stop it where you want. Now think about a sliding table in a workshop that moves left and right and also front and back, so you can put any point of a sheet of paper under a pen. That table has two drawers stacked on top of each other, one for each direction.</p>
+
+  <p>A <strong>positioning system</strong> is a machine that moves a load to a chosen place and holds it there. A <strong>stage</strong> (also called a slide) is one unit that moves in one straight direction. A <strong>single-axis</strong> positioning system has one stage. A <strong>multi-axis</strong> system combines two or three stages so that the load can reach a point in a plane (two axes, X and Y) or in space (three axes, X, Y and Z).</p>
+
+  <p>Positioning systems appear in CNC machines, pick-and-place machines, inspection tables, and robot cells. Their job is always the same: go to the right place, and know that you have arrived.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A single stage gives motion along one line. Stacking stages at right angles gives motion over a plane, and stacking a third gives motion in space.</p></div>
+
+  <h3>Where this appears in GATE</h3>
+  <p>In the RA paper, questions in this area test the difference between direct and indirect position measurement, the idea of closed-loop positioning, and how stacked axes are arranged. Some questions ask for a short calculation, such as the resolution of a screw-driven stage, the speed of a slide through a gearbox, or the time for a coordinated move. This page covers both.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these now. Each one is used again below.</p>
+
+  <dl>
+    <div><dt>Positioning system</dt><dd>A machine that moves a load to a chosen place and holds it. Precise definition: a motion system that controls the position of a load along one or more axes.</dd></div>
+    <div><dt>Stage (slide)</dt><dd>One unit that moves along one straight line. Precise definition: a guided platform driven along one axis by a motor and a transmission.</dd></div>
+    <div><dt>Single-axis system</dt><dd>A positioning system with one axis of motion.</dd></div>
+    <div><dt>Multi-axis system</dt><dd>A positioning system with two or more axes of motion. Precise definition: a system of stages stacked or combined so that the load reaches points in two or three dimensions.</dd></div>
+    <div><dt>Linear guide</dt><dd>The rail and bearing that keep a stage on a straight path. Precise definition: a guide that constrains the motion of a stage to one straight direction.</dd></div>
+    <div><dt>Lead screw (ball screw)</dt><dd>A screw that turns a nut to move a stage. Precise definition: a threaded shaft whose rotation moves a nut along its axis by the lead for each turn.</dd></div>
+    <div><dt>Lead</dt><dd>The distance moved in one turn of the screw. Precise definition: the axial travel per revolution, in mm.</dd></div>
+    <div><dt>Gear ratio</dt><dd>How many motor turns are needed for one output turn. Precise definition: the input speed divided by the output speed of a gearbox, written as a ratio.</dd></div>
+    <div><dt>Encoder</dt><dd>A sensor that gives a digital count proportional to an angle. Precise definition: a device that produces counts as a shaft turns, used to measure position.</dd></div>
+    <div><dt>Counts per revolution</dt><dd>The number of encoder counts in one full turn of the encoder shaft. Precise definition: the number of distinct position counts the encoder produces in one turn.</dd></div>
+    <div><dt>Indirect measurement</dt><dd>Measuring position at the motor, not at the load. Precise definition: a feedback method where the sensor is on the motor shaft, and the load position is inferred through the screw and gears.</dd></div>
+    <div><dt>Direct measurement</dt><dd>Measuring position at the load. Precise definition: a feedback method where a linear scale or sensor is fixed to the slide, measuring the load position itself.</dd></div>
+    <div><dt>Closed-loop positioning</dt><dd>Positioning with feedback. Precise definition: a control method that measures the actual position and drives the stage to reduce the position error to zero.</dd></div>
+    <div><dt>Resolution (of a stage)</dt><dd>The smallest step the stage can be moved by. Precise definition: the smallest position change the feedback can measure, set by counts per revolution and the lead.</dd></div>
+    <div><dt>Coordinated motion</dt><dd>Several axes moving together so that the load follows a chosen path. Precise definition: a motion in which the axes start and stop together, with speeds set so the path is achieved.</dd></div>
+    <div><dt>Random error</dt><dd>An error that changes unpredictably from one measurement to another. Precise definition: an error with zero average whose size is described by its spread.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Single-axis stages: parts and drive">
+  <h2>Single-axis stages: parts and drive</h2>
+
+  <p>A single-axis stage has four main parts. Here is a side view as a text picture.</p>
+
+<pre class="code" data-lang="text"><code>        +--------------------------------+
+        |          LOAD (table)           |   stage (moves left and right)
+        +--------------------------------+
+         [ nut ]          [ nut ]          linear guide blocks
+   =====================================   guide rail (fixed)
+   |                                   |
+   [ motor ]--[ coupling ]--[ lead screw ]   fixed base
+</code></pre>
+
+  <p>Read the picture from top to bottom. The load sits on a table. The table is carried by guide blocks that slide on a fixed rail, so it can move only in one straight direction. A motor turns a lead screw through a coupling. The screw passes through a nut that is fixed to the table, so each turn of the screw moves the nut, and the table, by the lead.</p>
+
+  <p>The four parts are:</p>
+  <ul>
+    <li><strong>The guide</strong>: keeps the table on a straight line.</li>
+    <li><strong>The drive</strong>: the motor, plus the screw, belt, or linear motor that moves the table.</li>
+    <li><strong>The feedback</strong>: the sensor that measures the position.</li>
+    <li><strong>The controller</strong>: the unit that compares the commanded and actual positions and drives the motor.</li>
+  </ul>
+
+  <p>Many drives use a <strong>ball screw</strong>, which has balls between the screw and the nut. The balls roll instead of slide, so there is less friction and less play. A belt drive is cheaper and faster, but it is less stiff. A <strong>linear motor</strong> drives the table directly with no screw at all, which gives high speed and no backlash, at a higher cost.</p>
+
+  <details class="check"><summary>Question: Why does a linear guide matter in a single-axis stage?</summary><div class="ans"><p>It keeps the table on one straight path, so that the only motion is along the axis of the stage.</p></div></details>
+
+  <details class="check"><summary>Question: What does a lead screw convert?</summary><div class="ans"><p>It converts the rotation of the motor shaft into straight-line motion of the nut and the table.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Position feedback: motor encoder or linear scale">
+  <h2>Position feedback: motor encoder or linear scale</h2>
+
+  <p>To position a stage well, the controller must know where the stage is. There are two places the sensor can go.</p>
+
+  <h3>Indirect measurement: encoder on the motor</h3>
+  <p>The most common setup puts a rotary encoder on the motor shaft. The encoder counts the motor turns, and the controller converts the count into table position using the lead and the gear ratio. This is cheap and easy. However, it is <strong>indirect</strong>, so it does not see anything between the motor and the table. Errors in the screw pitch, backlash in the nut, and the stretch of the screw under load all go unseen.</p>
+
+  <h3>Direct measurement: linear scale on the table</h3>
+  <p>A linear scale is a strip with fine markings, fixed along the stage, and a reader fixed to the table. It measures the table position directly. The result includes every error between the motor and the table, so the accuracy is better. It costs more, and it must be protected from dust and chips.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The feedback sensor sees what it measures. An encoder on the motor sees the motor. A linear scale on the table sees the table. Only direct measurement sees the errors in the screw and the nut.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>A motor encoder with very high counts does not give an accurate table position if the screw has a pitch error. High resolution and high accuracy are different things, as the next section explains.</p></div>
+
+  <details class="check"><summary>Question: Which feedback method detects backlash in the nut?</summary><div class="ans"><p>Direct measurement with a linear scale on the table. A motor encoder cannot see backlash between the screw and the table.</p></div></details>
+
+  <details class="check"><summary>Question: Why is a motor encoder cheaper than a linear scale?</summary><div class="ans"><p>A rotary encoder is a small, standard sensor on a spinning shaft, while a linear scale is a long precision strip that must be fixed along the full travel of the stage.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Resolution of a screw-driven stage">
+  <h2>Resolution of a screw-driven stage</h2>
+
+  <p>Resolution is the smallest step the stage can be measured or moved by. For an indirect system, it depends on the encoder counts, the gear ratio, and the lead. The rule is:</p>
+
+  <div class="formula">resolution = lead / (counts per revolution × gear ratio)</div>
+
+  <p>Here the lead is in mm per screw turn, the counts per revolution are the encoder counts per motor turn, and the gear ratio is the number of motor turns for one screw turn. With no gearbox, the gear ratio is 1.</p>
+
+  <p>Worked example. A ball screw has a lead of 10 mm. The encoder gives 4000 counts per motor turn. There is no gearbox, so the gear ratio is 1. Find the resolution.</p>
+  <ol>
+    <li><strong>Counts per screw turn.</strong> 4000 × 1 = 4000 counts.</li>
+    <li><strong>Divide the lead by the counts.</strong> 10 / 4000 = 0.0025 mm.</li>
+    <li><strong>Check.</strong> 4000 steps of 0.0025 mm make 10 mm, which is one lead. The numbers agree.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>lead_mm = 10.0
+counts_per_rev = 4000
+gear_ratio = 1.0
+resolution = lead_mm / (counts_per_rev * gear_ratio)
+print("Resolution (mm):", round(resolution, 4))</code></pre>
+<pre class="output">Resolution (mm): 0.0025</pre>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Resolution is a step size. Accuracy is how close the stage gets to the target. A stage can have a fine step and still miss the target because of screw error or thermal growth. Do not mix these two words.</p></div>
+
+  <h3>Speed through a gearbox</h3>
+  <p>A gearbox changes the speed. If the gear ratio is 5, the motor turns 5 times for each turn of the screw. So the screw speed is the motor speed divided by 5. The linear speed of the stage is then:</p>
+
+  <div class="formula">v = (motor rpm / gear ratio) × lead</div>
+
+  <p>Worked example. A motor runs at 3000 rpm, the gear ratio is 5, and the lead is 8 mm. The screw turns at 3000 / 5 = 600 rpm. The stage moves at 600 × 8 = 4800 mm/min, which is 4.8 m/min.</p>
+
+  <pre class="code" data-lang="python"><code>motor_rpm = 3000
+gear_ratio = 5.0
+screw_rpm = motor_rpm / gear_ratio
+lead_mm = 8.0
+speed_mm_per_min = screw_rpm * lead_mm
+print("Screw speed (rpm):", screw_rpm)
+print("Slide speed (mm/min):", speed_mm_per_min)
+print("Slide speed (m/min):", speed_mm_per_min / 1000)</code></pre>
+<pre class="output">Screw speed (rpm): 600.0
+Slide speed (mm/min): 4800.0
+Slide speed (m/min): 4.8</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>A gear ratio of 5 means the screw is slower, not faster. Dividing the motor speed by the ratio gives the screw speed. Multiplying would give a wrong answer.</p></div>
+
+  <details class="check"><summary>Question: A stage has a lead of 5 mm and a motor encoder with 2000 counts per turn, with no gearbox. What is the resolution?</summary><div class="ans"><p>5 / 2000 = 0.0025 mm.</p></div></details>
+
+  <details class="check"><summary>Question: What happens to the stage speed if the gear ratio doubles and the motor speed stays the same?</summary><div class="ans"><p>The screw speed halves, so the stage speed halves too, because v = (motor rpm / gear ratio) × lead.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Multi-axis stacks: XY and XYZ">
+  <h2>Multi-axis stacks: XY and XYZ</h2>
+
+  <p>To reach a point on a plane, a system needs two axes at right angles. The simplest way is to stack two stages, one on the other. The bottom stage (here, X) moves the whole assembly, and the top stage (here, Y) moves only the load on top of it.</p>
+
+<pre class="code" data-lang="text"><code>        +-----------------------+
+        |   LOAD                |     top axis: Y (moves on X)
+        +-----------------------+
+     +-----------------------------+
+     |   Y stage (carriage)        |
+     +-----------------------------+
+  +-----------------------------------+
+  |   X stage (base carriage)         |   bottom axis: X (moves everything above)
+  +-----------------------------------+
+  ===================================   fixed base
+</code></pre>
+
+  <p>Read the picture from bottom to top. The X stage is the base. It moves the Y stage, and the Y stage moves the load. Each stage must carry everything above it, so the bottom axis must be stronger and its motor larger.</p>
+
+  <p>A third stage placed at right angles to both gives X, Y and Z. A <strong>gantry</strong> is a related design in which a beam spans two rails, and the beam carries the Z axis across them. Gantries are common in large machines because they cover a big area.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>In a stack, the bottom axis moves the most mass, because it carries the upper stage and the load. Put the heaviest, slowest motion at the bottom, and the fastest, lightest motion at the top.</p></div>
+
+  <details class="check"><summary>Question: In an XY stack, which axis carries the most mass?</summary><div class="ans"><p>The bottom axis, because it carries the upper axis and the load.</p></div></details>
+
+  <details class="check"><summary>Question: What does a Z axis add to an XY system?</summary><div class="ans"><p>Motion in the third direction, up and down, so the load can reach any point in a volume instead of a plane.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Coordinated motion and speed limits">
+  <h2>Coordinated motion and speed limits</h2>
+
+  <p>To move a load in a straight diagonal line on an XY table, both axes must move together. Each axis must move a fraction of the total distance, and both must finish at the same time. This is coordinated motion.</p>
+
+  <p>Suppose the total distance is L, and the move has components dx and dy along the two axes. The path speed is v. The speeds on each axis are then:</p>
+
+  <div class="formula">v<sub>x</sub> = v × dx / L    and    v<sub>y</sub> = v × dy / L</div>
+
+  <p>Each axis has a maximum speed. The largest path speed that keeps both axes within their limits is:</p>
+
+  <div class="formula">v<sub>max</sub> = min(v<sub>x,max</sub> × L / dx, v<sub>y,max</sub> × L / dy)</div>
+
+  <p>Worked example. An XY table moves from (0, 0) to (300, 400) mm. The X axis can go at most 50 mm/s, and the Y axis at most 80 mm/s.</p>
+  <ol>
+    <li><strong>Path length.</strong> L = √(300² + 400²) = 500 mm.</li>
+    <li><strong>Limit from X.</strong> v ≤ 50 × 500 / 300 = 83.33 mm/s.</li>
+    <li><strong>Limit from Y.</strong> v ≤ 80 × 500 / 400 = 100 mm/s.</li>
+    <li><strong>Choose the smaller.</strong> v<sub>max</sub> = 83.33 mm/s. At this speed, the X axis runs at its limit of 50 mm/s and the Y axis runs at 66.7 mm/s, which is safe.</li>
+    <li><strong>Time.</strong> t = 500 / 83.33 = 6.0 s.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>import math
+dx, dy = 300.0, 400.0
+L = math.sqrt(dx**2 + dy**2)
+vx_max, vy_max = 50.0, 80.0
+v_max = min(vx_max * L / dx, vy_max * L / dy)
+print("Path length (mm):", L)
+print("Max path speed (mm/s):", round(v_max, 2))
+print("Time (s):", round(L / v_max, 2))</code></pre>
+<pre class="output">Path length (mm): 500.0
+Max path speed (mm/s): 83.33
+Time (s): 6.0</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The axis that reaches its limit first sets the speed. Here X is the limit, even though Y has the larger maximum speed. Check every axis, not only the one you expect.</p></div>
+
+  <details class="check"><summary>Question: Why must both axes finish together for a straight diagonal move?</summary><div class="ans"><p>If one axis finished first, the load would stop and then move in one direction only, so the path would bend away from the straight line.</p></div></details>
+
+  <details class="check"><summary>Question: On a 3 4 5 path scaled to 300 and 400 mm, what fraction of the speed does the X axis take?</summary><div class="ans"><p>dx / L = 300 / 500 = 0.6, so the X axis moves at 60 percent of the path speed.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Combining position errors">
+  <h2>Combining position errors</h2>
+
+  <p>Each axis has its own small error, and the errors add up at the load. How they add depends on whether they are always in the same direction or change at random.</p>
+
+  <p>For errors that are <strong>independent</strong> and <strong>random</strong>, the usual rule is the root-sum-square (RSS). Square each error, add them, and take the square root:</p>
+
+  <div class="formula">e<sub>total</sub> = √(e<sub>1</sub>² + e<sub>2</sub>² + e<sub>3</sub>²)</div>
+
+  <p>Here e<sub>1</sub>, e<sub>2</sub> and e<sub>3</sub> are the errors of the three axes, in mm. RSS gives a smaller answer than simply adding the errors, because the random errors sometimes cancel. If the errors are always in the same direction (systematic), they add directly, and the simple sum is the worst case.</p>
+
+  <p>Worked example. Three axes have random position errors of 0.012 mm, 0.009 mm, and 0.015 mm. Find the combined error.</p>
+  <ol>
+    <li><strong>Square each error.</strong> 0.012² = 0.000144, 0.009² = 0.000081, 0.015² = 0.000225.</li>
+    <li><strong>Add.</strong> 0.000144 + 0.000081 + 0.000225 = 0.00045.</li>
+    <li><strong>Square root.</strong> √0.00045 = 0.0212 mm.</li>
+    <li><strong>Check.</strong> The simple sum would be 0.036 mm. The RSS of 0.0212 mm is smaller, as expected for random errors.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>import math
+errs = [0.012, 0.009, 0.015]
+rss = math.sqrt(sum(e * e for e in errs))
+print("Combined error (mm):", round(rss, 4))</code></pre>
+<pre class="output">Combined error (mm): 0.0212</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>RSS is for independent random errors only. A systematic error, such as a constant offset in every move, must be added directly. Using RSS on a systematic error gives an answer that is too small.</p></div>
+
+  <details class="check"><summary>Question: Two random errors are 0.03 mm and 0.04 mm. What is the RSS combined error?</summary><div class="ans"><p>√(0.03² + 0.04²) = √(0.0009 + 0.0016) = √0.0025 = 0.05 mm.</p></div></details>
+
+  <details class="check"><summary>Question: Which combination rule applies to a fixed offset that is the same in every move?</summary><div class="ans"><p>The direct sum, because a fixed offset does not cancel.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Use this table as a quick reminder. Each row is explained above.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>resolution = lead / (counts per rev × gear ratio)</td><td>Lead in mm, counts per motor turn, gear ratio</td><td>Smallest step of an encoder-driven stage</td></tr>
+      <tr><td>v = (motor rpm / gear ratio) × lead</td><td>Speed in mm/min when the lead is in mm</td><td>Linear speed of a screw-driven stage</td></tr>
+      <tr><td>v<sub>x</sub> = v × dx / L, v<sub>y</sub> = v × dy / L</td><td>Path speed v, path length L, axis moves dx and dy</td><td>Coordinated XY motion</td></tr>
+      <tr><td>v<sub>max</sub> = min(v<sub>x,max</sub> × L / dx, v<sub>y,max</sub> × L / dy)</td><td>Axis speed limits</td><td>Largest allowed path speed</td></tr>
+      <tr><td>e<sub>total</sub> = √(e<sub>1</sub>² + e<sub>2</sub>² + …)</td><td>Independent random errors in mm</td><td>Combined position error (RSS)</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Keep the units the same across each formula. A lead in mm gives a speed in mm/min when the rpm is in revolutions per minute.</p></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems, not real past exam questions. Try each one before reading the method.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Direct or indirect?</h3>
+    <div class="statement"><p>A stage has a motor encoder and a linear scale fixed to the table. Which feedback gives the better measure of the table position?</p>
+    <p>(A) The motor encoder, because it has more counts &nbsp; (B) The linear scale on the table, because it measures the load directly &nbsp; (C) Neither, the stage needs no feedback &nbsp; (D) Both are the same</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which feedback measures the table position best.</li>
+      <li><strong>Which idea applies.</strong> Direct measurement sees the load. Indirect measurement sees only the motor.</li>
+      <li><strong>Work it out.</strong> The linear scale is fixed to the table, so it sees the true table position, including screw and nut errors. Option (B) is correct.</li>
+      <li><strong>Check.</strong> Counts alone do not decide the answer, because the motor encoder cannot see errors after the motor.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Why a stronger bottom axis?</h3>
+    <div class="statement"><p>In a stacked XY table, the bottom X stage must be built to carry a heavier load than the top Y stage. What is the main reason?</p>
+    <p>(A) The bottom stage must carry the top stage and the load on it &nbsp; (B) The bottom stage is always made of steel &nbsp; (C) The bottom stage has no guide &nbsp; (D) The top stage needs more encoder counts</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The reason the bottom stage is stronger.</li>
+      <li><strong>Which idea applies.</strong> In a stack, each stage carries everything above it.</li>
+      <li><strong>Work it out.</strong> The bottom stage carries the Y stage and the load. Option (A) states this.</li>
+      <li><strong>Check.</strong> The other options do not follow from how a stack works.</li>
+    </ol>
+    <p class="cx">Answer: (A).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Resolution of a stage</h3>
+    <div class="statement"><p>A ball screw stage has a lead of 10 mm. The motor encoder gives 4000 counts per turn, and the gear ratio is 1. Find the smallest step of the stage, in mm, to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The resolution in mm.</li>
+      <li><strong>Which idea applies.</strong> resolution = lead / (counts per rev × gear ratio).</li>
+      <li><strong>Work it out.</strong> 10 / (4000 × 1) = 0.0025 mm.</li>
+      <li><strong>Check.</strong> 4000 steps of 0.0025 mm make 10 mm, one full lead.</li>
+    </ol>
+    <p class="cx">Answer: 0.0025 mm.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about positioning (select all that apply)</h3>
+    <div class="statement"><p>Select all the statements that are correct.</p>
+    <p>(A) A linear guide keeps a stage on one straight path. &nbsp; (B) A single-axis stage can reach any point on a plane. &nbsp; (C) Stacking an X and a Y stage gives a planar reach. &nbsp; (D) A gear ratio of 5 makes the screw turn five times faster than the motor.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> Guides constrain motion. One axis gives one line. Two stacked axes give a plane. A gear ratio of 5 slows the screw.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, one axis is a line. (C) True. (D) False, the screw is five times slower than the motor.</li>
+      <li><strong>Check.</strong> Statements (B) and (D) describe a wrong dimension and a wrong direction, which are the two traps here.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Slide speed through a gearbox</h3>
+    <div class="statement"><p>A motor runs at 1800 rpm. A gearbox with ratio 3 drives a lead screw of lead 6 mm. Find the linear speed of the stage in m/min.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The stage speed in m/min.</li>
+      <li><strong>Which idea applies.</strong> Screw rpm = motor rpm / gear ratio. Linear speed = screw rpm × lead, in mm/min.</li>
+      <li><strong>Work it out.</strong> Screw rpm = 1800 / 3 = 600 rpm. Speed = 600 × 6 = 3600 mm/min = 3.6 m/min.</li>
+      <li><strong>Check.</strong> The stage moves 6 mm per screw turn, and the screw turns 10 times a second, so 60 mm/s, which is 3600 mm/min. This matches.</li>
+    </ol>
+    <p class="cx">Answer: 3.6 m/min.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Fastest diagonal move</h3>
+    <div class="statement"><p>An XY table moves from (0, 0) to (120, 160) mm along a straight line, with coordinated motion. The X axis has a maximum speed of 40 mm/s and the Y axis has a maximum speed of 60 mm/s. Find the fastest path speed that keeps both axes within limits, in mm/s, and the time for the move, in seconds.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The maximum path speed and the time.</li>
+      <li><strong>Which idea applies.</strong> Path length L = √(dx² + dy²). Each axis limit gives v ≤ v<sub>axis,max</sub> × L / d<sub>axis</sub>. The smaller limit sets the speed.</li>
+      <li><strong>Work it out.</strong> L = √(14 400 + 25 600) = 200 mm. X limit: 40 × 200 / 120 = 66.67 mm/s. Y limit: 60 × 200 / 160 = 75 mm/s. The smaller is 66.67 mm/s. Time = 200 / 66.67 = 3.0 s.</li>
+      <li><strong>Check.</strong> At 66.67 mm/s the X axis runs at 66.67 × 120 / 200 = 40 mm/s, which is exactly its limit. The Y axis runs at 53.3 mm/s, which is within 60 mm/s.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+dx, dy = 120.0, 160.0
+L = math.sqrt(dx**2 + dy**2)
+v_max = min(40.0 * L / dx, 60.0 * L / dy)
+print("Path length (mm):", L)
+print("Max path speed (mm/s):", round(v_max, 2))
+print("Time (s):", round(L / v_max, 2))</code></pre>
+<pre class="output">Path length (mm): 200.0
+Max path speed (mm/s): 66.67
+Time (s): 3.0</pre>
+    <p class="cx">Answer: 66.67 mm/s, and 3.0 s.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Combined error of three axes</h3>
+    <div class="statement"><p>Three axes of a positioning system have random errors of 0.010 mm, 0.020 mm and 0.020 mm. The errors are independent. Find the combined error in mm, to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The combined error.</li>
+      <li><strong>Which idea applies.</strong> Independent random errors combine by root-sum-square.</li>
+      <li><strong>Work it out.</strong> 0.01² + 0.02² + 0.02² = 0.0001 + 0.0004 + 0.0004 = 0.0009. √0.0009 = 0.03 mm.</li>
+      <li><strong>Check.</strong> The simple sum would be 0.05 mm. The RSS of 0.03 mm is smaller, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 0.0300 mm.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about stages (select all that apply)</h3>
+    <div class="statement"><p>Select all the statements that are correct.</p>
+    <p>(A) Direct feedback from a linear scale detects backlash in the nut. &nbsp; (B) A motor encoder alone cannot detect a pitch error in the lead screw. &nbsp; (C) A high count per turn guarantees that the table is accurate. &nbsp; (D) In an XY stack, the top stage must carry the bottom stage.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> Feedback sees only what it is fixed to. Resolution is not accuracy. In a stack, each upper stage rides on the lower one.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True, the motor encoder sees only the motor. (C) False, resolution is not accuracy. (D) False, the bottom stage carries the top one.</li>
+      <li><strong>Check.</strong> Statements (C) and (D) both reverse a key idea, which is the trap in this question.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Open loop positioning (NAT, 2 marks)</h3>
+    <div class="statement"><p>A stepper with 200 steps/rev drives a leadscrew of pitch 4 mm directly. How many pulses move the table 50 mm, and what pulse rate gives 20 mm/s?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Pulse count and frequency.</li>
+      <li><strong>Which idea applies.</strong> Each pulse moves 4/200 = 0.02 mm.</li>
+      <li><strong>Work it out.</strong> 50/0.02 = 2500 pulses. 20/0.02 = 1000 Hz.</li>
+      <li><strong>Check.</strong> Missed steps are not detected in open loop.</li>
+    </ol>
+    <p class="cx">Answer: 2500 pulses and 1000 Hz.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Closed loop resolution (NAT, 2 marks)</h3>
+    <div class="statement"><p>A rotary encoder with 500 lines and quadrature (4×) decoding sits on a leadscrew of pitch 5 mm. Find the resolution in µm.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Travel per count.</li>
+      <li><strong>Which idea applies.</strong> Counts per revolution = 2000.</li>
+      <li><strong>Work it out.</strong> 5/2000 = 0.0025 mm = 2.5 µm.</li>
+      <li><strong>Check.</strong> Quadrature gives 4 counts per line.</li>
+    </ol>
+    <p class="cx">Answer: 2.5 µm.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Multi-axis time (NAT, 2 marks)</h3>
+    <div class="statement"><p>An x-y table moves (300, 400) mm with independent axes each at 50 mm/s. How long does the move take, and how long would a straight line move at 50 mm/s along the path take?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two times.</li>
+      <li><strong>Which idea applies.</strong> Independent axes finish when the slower axis finishes. A linear interpolation move travels the diagonal.</li>
+      <li><strong>Work it out.</strong> Independent: max(6, 8) = 8 s. Straight line: 500/50 = 10 s.</li>
+      <li><strong>Check.</strong> Interpolated moves follow the exact line but take longer here.</li>
+    </ol>
+    <p class="cx">Answer: 8 s and 10 s.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+
+  <dl>
+    <div><dt>Positioning system</dt><dd>A machine that moves a load to a chosen place and holds it there.</dd></div>
+    <div><dt>Stage</dt><dd>One unit that moves along one straight line.</dd></div>
+    <div><dt>Single-axis system</dt><dd>A positioning system with one axis of motion.</dd></div>
+    <div><dt>Multi-axis system</dt><dd>Stacked or combined stages that reach points in a plane or in space.</dd></div>
+    <div><dt>Linear guide</dt><dd>The rail and bearing that keep a stage on a straight path.</dd></div>
+    <div><dt>Lead screw</dt><dd>A screw whose turning moves a nut along its axis by the lead per turn.</dd></div>
+    <div><dt>Lead</dt><dd>The axial travel per screw turn, in mm.</dd></div>
+    <div><dt>Gear ratio</dt><dd>Motor turns per output turn, so a ratio of 5 slows the output by five.</dd></div>
+    <div><dt>Encoder</dt><dd>A sensor that gives counts as a shaft turns.</dd></div>
+    <div><dt>Indirect measurement</dt><dd>Measuring position at the motor, so screw and nut errors are not seen.</dd></div>
+    <div><dt>Direct measurement</dt><dd>Measuring position at the load, using a linear scale fixed to the table.</dd></div>
+    <div><dt>Closed-loop positioning</dt><dd>Control that measures the actual position and drives the error to zero.</dd></div>
+    <div><dt>Resolution</dt><dd>The smallest step a stage can be measured or moved by.</dd></div>
+    <div><dt>Coordinated motion</dt><dd>Several axes moving together and finishing together so the load follows a path.</dd></div>
+    <div><dt>Gantry</dt><dd>A beam supported by two rails, used to cover a large area.</dd></div>
+    <div><dt>Random error</dt><dd>An error that changes unpredictably, which combines by root-sum-square.</dd></div>
+    <div><dt>RSS</dt><dd>Root-sum-square, the square root of the sum of squared independent errors.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>One stage gives a line. Two stacked stages give a plane. Three give a volume.</li>
+    <li>An encoder on the motor sees the motor, not the table. A linear scale on the table sees the table.</li>
+    <li>Resolution = lead / (counts per rev × gear ratio). Resolution is not accuracy.</li>
+    <li>Screw speed = motor speed / gear ratio, and the stage speed = screw speed × lead.</li>
+    <li>For coordinated motion, the axis that reaches its limit first sets the path speed.</li>
+    <li>Independent random errors combine by root-sum-square, but systematic errors add directly.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 160?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 160 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-159.html"><small>Previous, topic 159</small>Computer Numerical Control (CNC)</a><a class="next" href="gate-161.html"><small>Next, topic 161</small>Concurrent design &amp; manufacturing planning for automation</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

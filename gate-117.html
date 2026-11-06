@@ -1,0 +1,323 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 117: Exact inference: Variable elimination</title><meta name="description" content="Variable elimination answers a probability question in a Bayesian network by repeatedly multiplying small tables and adding out variables we do not care about. It is the standard exact method, and its speed depends on the order we choose."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g117" data-key="g117" data-noun="topic" data-num="117" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Exact inference: <em>Variable elimination</em></h1>
+<p class="lede">Variable elimination answers a probability question in a Bayesian network by repeatedly multiplying small tables and adding out variables we do not care about. It is the standard exact method, and its speed depends on the order we choose.</p>
+<div class="station"><b>117</b><span>Unit 9 · Artificial intelligence · Paper DA · Quick Recap</span></div>
+<ul class="topics"><li>Factors: the tables behind a network</li><li>Four operations: restrict, multiply, sum out, normalize</li><li>Elimination order and cost</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a detective with a list of clues. Each clue links a few suspects. The detective does not need to think about everyone at once. She can combine two clues, write down what they say together about fewer people, and then forget a suspect she no longer needs. Step by step, the list shrinks until only the answer is left.</p>
+  <p><strong>Variable elimination</strong> works in the same way on a Bayesian network. We want a probability, such as the chance that it was cloudy given that the grass is wet. Instead of building the full joint table of every combination, we work with small tables, called <strong>factors</strong>. We multiply the tables that share a variable, then add up (sum out) that variable. Each variable we no longer need is eliminated.</p>
+  <p>Everyday analogy: adding a long column of numbers. You do not write every partial sum on one huge sheet. You add a few at a time and keep only the running total.</p>
+  <p><strong>Why it matters for GATE.</strong> In the Data Science and AI (DA) paper, you may be given a small network with its tables and asked for a query probability. You will need to show the factor steps, or choose a good elimination order. The arithmetic is short, but every step must be written out.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Bayesian network</dt><dd>A directed acyclic graph (DAG) of variables, where each variable has a conditional probability table (CPT) given its parents.</dd></div>
+    <div><dt>Factor</dt><dd>Plain: a table of numbers over some variables. Precise: a function that gives a number for each assignment to its variables.</dd></div>
+    <div><dt>Query</dt><dd>The probability we want, such as P(C = 1 | W = 1).</dd></div>
+    <div><dt>Evidence</dt><dd>Variables whose values we know, such as W = 1.</dd></div>
+    <div><dt>Restrict (condition)</dt><dd>Keep only the rows of a factor that agree with the evidence.</dd></div>
+    <div><dt>Multiply factors</dt><dd>For each assignment, multiply the values of the factors. The result is over the union of their variables.</dd></div>
+    <div><dt>Sum out (marginalize)</dt><dd>Remove a variable by adding its values together for each assignment of the others.</dd></div>
+    <div><dt>Normalize</dt><dd>Divide each value by the total, so that the values add up to 1.</dd></div>
+    <div><dt>Elimination order</dt><dd>The order in which the hidden variables are summed out.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Factors: the tables behind a network">
+  <h2>Concept 1: Factors: the tables behind a network</h2>
+  <p>Use a small network to start. Cloudy (C) affects Rain (R), and Rain affects Wet grass (W). Each variable is yes (1) or no (0).</p>
+  <pre class="code" data-lang="text"><code>      Cloudy (C)  -&gt;  Rain (R)  -&gt;  Wet grass (W)</code></pre>
+  <p>Here are the numbers. Read each one carefully, because the conditioning variable is always the one after the bar.</p>
+  <ul>
+    <li>P(C = 1) = 1/2, so P(C = 0) = 1/2.</li>
+    <li>P(R = 1 | C = 1) = 4/5, and P(R = 1 | C = 0) = 1/5.</li>
+    <li>P(W = 1 | R = 1) = 9/10, and P(W = 1 | R = 0) = 1/10.</li>
+  </ul>
+  <p>Each CPT is already a factor. P(C) is a factor over C alone. P(R | C) is a factor over R and C, with four entries. P(W | R) is a factor over W and R. The network's joint probability is the product of these three factors:</p>
+  <div class="formula">P(C, R, W) = P(C) × P(R | C) × P(W | R)</div>
+  <p>Here × means multiply. To get the probability of one row, multiply one entry from each factor. For example, P(C = 1, R = 1, W = 1) = 1/2 × 4/5 × 9/10 = 36/100 = 9/25.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Variable elimination never builds the full joint table on purpose. It multiplies and sums factors in an order that keeps each table small.</p></div>
+  <h3>The four operations</h3>
+  <ol>
+    <li><strong>Restrict.</strong> If we know W = 1, keep only the entries of P(W | R) where W = 1. This gives a factor over R alone: 9/10 when R = 1 and 1/10 when R = 0.</li>
+    <li><strong>Multiply.</strong> Multiply factors that share a variable, one entry at a time.</li>
+    <li><strong>Sum out.</strong> Remove a variable X by adding the two values for X = 0 and X = 1. For each setting of the other variables, add across X.</li>
+    <li><strong>Normalize.</strong> At the end, divide by the total so the probabilities add to 1.</li>
+  </ol>
+  <details class="check"><summary>Question: A factor has two binary variables. How many entries does it have?</summary><div class="ans"><p>4, because each variable has 2 values and 2 × 2 = 4.</p></div></details>
+  <details class="check"><summary>Question: After restricting P(W | R) to W = 1, what is the value when R = 0?</summary><div class="ans"><p>1/10. The table says P(W = 1 | R = 0) = 1/10.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Four operations in a worked example">
+  <h2>Concept 2: Variable elimination in a worked example</h2>
+  <p>The query is P(C = c | W = 1) for each value of C. Variables C and R are not in the query, so R is hidden and we eliminate it. C is the query variable, so it stays. The steps follow the four operations.</p>
+  <ol>
+    <li><strong>Start with the factors.</strong> P(C), P(R | C), and P(W = 1 | R).</li>
+    <li><strong>Restrict.</strong> The factor P(W = 1 | R) is already over R alone: value 9/10 at R = 1 and 1/10 at R = 0.</li>
+    <li><strong>Multiply and sum out R.</strong> Form the new factor f(C) = sum over R of P(R | C) × P(W = 1 | R).
+      <ul>
+        <li>For C = 1: P(R = 1 | C = 1) × 9/10 + P(R = 0 | C = 1) × 1/10 = 4/5 × 9/10 + 1/5 × 1/10 = 36/50 + 1/50 = 37/50.</li>
+        <li>For C = 0: P(R = 1 | C = 0) × 9/10 + P(R = 0 | C = 0) × 1/10 = 1/5 × 9/10 + 4/5 × 1/10 = 9/50 + 4/50 = 13/50.</li>
+      </ul>
+    </li>
+    <li><strong>Multiply by P(C).</strong> P(C = 1) × 37/50 = 37/100. P(C = 0) × 13/50 = 13/100.</li>
+    <li><strong>Normalize.</strong> The total is 37/100 + 13/100 = 50/100 = 1/2. This total is P(W = 1), the chance of wet grass.</li>
+    <li><strong>Divide.</strong> P(C = 1 | W = 1) = (37/100) / (1/2) = 37/50. P(C = 0 | W = 1) = (13/100) / (1/2) = 13/50.</li>
+  </ol>
+  <p>Here is the same calculation in Python. Exact fractions keep every number exact, so the printed answers can be checked by hand. The last block checks the answer by brute force, adding up every row of the full joint table.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+from itertools import product
+
+pC = {1: F(1, 2), 0: F(1, 2)}     # P(C = c)
+pR = {1: F(4, 5), 0: F(1, 5)}     # pR[c] = P(R = 1 | C = c)
+pW = {1: F(9, 10), 0: F(1, 10)}   # pW[r] = P(W = 1 | R = r)
+
+def prob_r(r, c):
+    return pR[c] if r == 1 else 1 - pR[c]
+
+# Step 1: restrict the factor for W to the evidence W = 1
+f_w = {r: pW[r] for r in (0, 1)}
+
+# Step 2: multiply P(R | C) by the evidence factor, then sum out R
+f_c = {}
+for c in (0, 1):
+    f_c[c] = sum(prob_r(r, c) * f_w[r] for r in (0, 1))
+print("f(C=0) after summing out R =", f_c[0])
+print("f(C=1) after summing out R =", f_c[1])
+
+# Step 3: multiply by P(C) and normalize
+unnorm = {c: pC[c] * f_c[c] for c in (0, 1)}
+Z = sum(unnorm.values())
+print("P(W=1) =", Z)
+for c in (0, 1):
+    print("P(C=%d | W=1) = %s" % (c, unnorm[c] / Z))
+
+# Brute-force check over all rows of the joint distribution
+def joint(c, r, w):
+    pw = pW[r] if w == 1 else 1 - pW[r]
+    return pC[c] * prob_r(r, c) * pw
+
+num = sum(joint(1, r, 1) for r in (0, 1))
+den = sum(joint(c, r, 1) for c in (0, 1) for r in (0, 1))
+print("Brute force P(C=1 | W=1) =", num / den)</code></pre>
+  <pre class="output">f(C=0) after summing out R = 13/50
+f(C=1) after summing out R = 37/50
+P(W=1) = 1/2
+P(C=0 | W=1) = 13/50
+P(C=1 | W=1) = 37/50
+Brute force P(C=1 | W=1) = 37/50</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Do not forget to normalize. The numbers 37/100 and 13/100 do not add to 1 for the query. They add to P(W = 1) = 1/2. Dividing by that total gives the conditional probability.</p></div>
+  <details class="check"><summary>Question: Why did we sum out R and not C?</summary><div class="ans"><p>R is hidden and not in the query, and not given as evidence. C is the query variable, so it must stay in the answer.</p></div></details>
+  <details class="check"><summary>Question: What does the total 1/2 in the worked example mean?</summary><div class="ans"><p>It is P(W = 1), the probability that the grass is wet before we normalize.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Elimination order and cost">
+  <h2>Concept 3: Elimination order and cost</h2>
+  <p>The answer does not depend on the order in which hidden variables are summed out. The work does. Each factor has a size, which is the number of entries. For binary variables, a factor over k variables has 2<sup>k</sup> entries. Variable elimination is fast when every factor it creates stays small.</p>
+  <p>Take the chain A → B → C and the query P(C). A and B are hidden.</p>
+  <ul>
+    <li><strong>Order A, then B.</strong> Summing out A gives a factor over B alone, with 2 entries. Then summing out B gives a factor over C, with 2 entries. Both steps are small.</li>
+    <li><strong>Order B, then A.</strong> Summing out B first needs the factor P(B | A) and P(C | B) together, which gives a factor over A and C with 4 entries. This is larger, but the answer is still the same.</li>
+  </ul>
+  <div class="note tip"><p><span class="t">Tip</span>In a GATE question, prefer the order that eliminates a variable which touches the fewest other variables. Each step's new factor contains all the variables that were attached to the eliminated one.</p></div>
+  <p>The worst case grows fast. If a hidden variable is linked to many others, eliminating it first creates one large factor. Choosing a good order is one reason exact inference is hard for large networks.</p>
+  <details class="check"><summary>Question: A chain A → B → C has two hidden variables. Which order gives smaller factors?</summary><div class="ans"><p>Eliminating A first. Its factor is over B alone, which is small. The other order creates a factor over A and C.</p></div></details>
+  <details class="check"><summary>Question: How many entries does a factor over three binary variables have?</summary><div class="ans"><p>2<sup>3</sup> = 8 entries.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or step</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>P(C, R, W) = P(C) P(R | C) P(W | R)</td><td>Joint probability as a product of CPT factors</td><td>Setting up the factors</td></tr>
+      <tr><td>f(X) = sum over Y of g(X, Y)</td><td>Summing out Y from a factor</td><td>Removing a hidden variable</td></tr>
+      <tr><td>P(q | e) = P(q, e) / P(e)</td><td>Conditional probability from a joint</td><td>Normalizing at the end</td></tr>
+      <tr><td>Entries in a factor = 2<sup>k</sup></td><td>k binary variables give 2<sup>k</sup> entries</td><td>Estimating factor size</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Marginal probability in a chain</h3>
+    <div class="statement"><p>The network is A → B. P(A = 1) = 1/3, P(B = 1 | A = 1) = 1/2 and P(B = 1 | A = 0) = 1/4. Find P(B = 1).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The probability that B is 1, with A not known.</li>
+      <li><strong>Which idea applies.</strong> Sum out A from the product P(A) P(B | A).</li>
+      <li><strong>Work it out.</strong> P(B = 1) = P(A = 1) P(B = 1 | A = 1) + P(A = 0) P(B = 1 | A = 0) = 1/3 × 1/2 + 2/3 × 1/4 = 1/6 + 1/6 = 1/3.</li>
+      <li><strong>Check.</strong> The answer must lie between P(B = 1 | A = 0) = 1/4 and P(B = 1 | A = 1) = 1/2. 1/3 does.</li>
+    </ol>
+    <p class="cx">Answer: 1/3.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Steps of variable elimination (select all that apply)</h3>
+    <div class="statement"><p>Which of the following are steps in variable elimination? Select all that apply.</p>
+    <p>(A) Multiply factors that share a variable.<br>(B) Sum out a hidden variable.<br>(C) Differentiate a factor with respect to a variable.<br>(D) Normalize the final factor so it sums to 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which operations belong to the method.</li>
+      <li><strong>Which idea applies.</strong> The four operations: restrict, multiply, sum out, normalize.</li>
+      <li><strong>Work it out.</strong> (A) is a multiply step. (B) is a sum-out step. (C) is not an operation in the method, since factors are tables of probabilities, not functions to differentiate. (D) is the final normalize step.</li>
+      <li><strong>Check.</strong> Count the operations in the worked example: multiply, sum out, multiply, normalize, divide. None is differentiation.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Posterior in a two-node network</h3>
+    <div class="statement"><p>The network is A → B, with the same numbers as the first problem: P(A = 1) = 1/3, P(B = 1 | A = 1) = 1/2 and P(B = 1 | A = 0) = 1/4. Find P(A = 1 | B = 1).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The probability that A is 1 after we see B = 1.</li>
+      <li><strong>Which idea applies.</strong> Compute the joint for B = 1, then normalize.</li>
+      <li><strong>Work it out.</strong> P(A = 1, B = 1) = 1/3 × 1/2 = 1/6. P(A = 0, B = 1) = 2/3 × 1/4 = 1/6. Their sum is P(B = 1) = 1/3. So P(A = 1 | B = 1) = (1/6) / (1/3) = 1/2.</li>
+      <li><strong>Check.</strong> The two unnormalized values are equal, so the normalized answer is 1/2 for each. The two probabilities add to 1.</li>
+    </ol>
+    <p class="cx">Answer: 1/2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Size of a factor after summing out</h3>
+    <div class="statement"><p>A factor f(A, B, C) has three binary variables. Summing out A gives a new factor. How many entries does the new factor have? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of entries after removing A.</li>
+      <li><strong>Which idea applies.</strong> A factor over k binary variables has 2<sup>k</sup> entries.</li>
+      <li><strong>Work it out.</strong> After summing out A, the new factor is over B and C only. That is k = 2 binary variables, so 2<sup>2</sup> = 4 entries.</li>
+      <li><strong>Check.</strong> The original factor had 2<sup>3</sup> = 8 entries, and each pair of entries for A = 0 and A = 1 became one entry, so 8 / 2 = 4.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Conditional probability with a query</h3>
+    <div class="statement"><p>The network is X → Y with P(X = 1) = 3/5, P(Y = 1 | X = 1) = 1/2 and P(Y = 1 | X = 0) = 1/4. Use variable elimination to find P(X = 1 | Y = 1).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The chance that X = 1 after observing Y = 1.</li>
+      <li><strong>Which idea applies.</strong> Restrict to Y = 1, multiply by P(X), then normalize.</li>
+      <li><strong>Work it out.</strong> Unnormalized values: X = 1 gives 3/5 × 1/2 = 3/10. X = 0 gives 2/5 × 1/4 = 1/10. Total = 4/10 = 2/5. So P(X = 1 | Y = 1) = (3/10) / (2/5) = 3/10 × 5/2 = 15/20 = 3/4.</li>
+      <li><strong>Check.</strong> The other answer is P(X = 0 | Y = 1) = (1/10) / (2/5) = 1/4. The two add to 1.</li>
+    </ol>
+    <p class="cx">Answer: 3/4.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Chain of three with a hidden middle variable</h3>
+    <div class="statement"><p>The network is A → B → C with P(A = 1) = 1/2, P(B = 1 | A = 1) = 1/2, P(B = 1 | A = 0) = 1/4, P(C = 1 | B = 1) = 4/5 and P(C = 1 | B = 0) = 1/5. Use variable elimination to find P(C = 1). Eliminate A first, then B.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(C = 1), with A and B hidden.</li>
+      <li><strong>Which idea applies.</strong> Sum out A to get a factor over B, then sum out B to get a factor over C.</li>
+      <li><strong>Work it out.</strong> Sum out A: f(B = 1) = 1/2 × 1/2 + 1/2 × 1/4 = 1/4 + 1/8 = 3/8. f(B = 0) = 1/2 × 1/2 + 1/2 × 3/4 = 1/4 + 3/8 = 5/8. Sum out B: P(C = 1) = 3/8 × 4/5 + 5/8 × 1/5 = 12/40 + 5/40 = 17/40.</li>
+      <li><strong>Check.</strong> The factor over B adds to 3/8 + 5/8 = 1, as it should. The answer 17/40 = 0.425 lies between 1/5 and 4/5, as it should.</li>
+    </ol>
+    <p class="cx">Answer: 17/40.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Count the multiplications</h3>
+    <div class="statement"><p>Factor f1(A, B) has four entries and factor f2(B, C) has four entries, all binary. The product f(A, B, C) is formed entry by entry, with one multiplication for each entry of the product. How many multiplications are needed? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of single multiplications.</li>
+      <li><strong>Which idea applies.</strong> The product factor is over A, B and C, so it has 2<sup>3</sup> entries.</li>
+      <li><strong>Work it out.</strong> The product has 2<sup>3</sup> = 8 entries. Each entry is one multiplication of an entry from f1 and an entry from f2.</li>
+      <li><strong>Check.</strong> For each of the 2 values of B, f1 has 2 entries (one for each A) and f2 has 2 entries (one for each C). That is 2 × 2 × 2 = 8 pairs, one for each entry of the product.</li>
+    </ol>
+    <p class="cx">Answer: 8.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Variable elimination on a chain (NAT, 2 marks)</h3>
+    <div class="statement"><p>Chain A → B → C, all binary. P(A = 1) = 0.6. P(B = 1 | A = 1) = 0.7, P(B = 1 | A = 0) = 0.2. P(C = 1 | B = 1) = 0.9, P(C = 1 | B = 0) = 0.3. Find P(C = 1).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A marginal by summing out A and then B.</li>
+      <li><strong>Which idea applies.</strong> First compute P(B = 1) = Σ<sub>a</sub> P(a)P(B = 1 | a).</li>
+      <li><strong>Work it out.</strong> P(B = 1) = 0.6·0.7 + 0.4·0.2 = 0.5. P(C = 1) = 0.5·0.9 + 0.5·0.3 = 0.6.</li>
+      <li><strong>Check.</strong> The code enumerates the joint.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+pA = {1: 0.6, 0: 0.4}; pB = {1: 0.7, 0: 0.2}; pC = {1: 0.9, 0: 0.3}
+tot = sum(pA[a] * (pB[a] if b else 1 - pB[a]) * (pC[b] if c else 1 - pC[b]) for a, b, c in product([0, 1], repeat=3) if c == 1)
+print("%.3f" % tot)
+</code></pre>
+    <pre class="output">0.600</pre>
+    <p class="cx">Answer: 0.6.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Posterior by elimination (NAT, 2 marks)</h3>
+    <div class="statement"><p>Same chain. Find P(A = 1 | C = 1), correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A diagnostic query.</li>
+      <li><strong>Which idea applies.</strong> P(C = 1 | A = a) = Σ<sub>b</sub> P(b | a)P(C = 1 | b), then use Bayes.</li>
+      <li><strong>Work it out.</strong> P(C = 1 | A = 1) = 0.7·0.9 + 0.3·0.3 = 0.72. P(C = 1 | A = 0) = 0.2·0.9 + 0.8·0.3 = 0.42. Posterior = 0.6·0.72/0.6 = 0.72.</li>
+      <li><strong>Check.</strong> The denominator is P(C = 1) = 0.6 from the previous problem.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print("%.3f" % (0.6 * 0.72 / (0.6 * 0.72 + 0.4 * 0.42)))
+</code></pre>
+    <pre class="output">0.720</pre>
+    <p class="cx">Answer: 0.72.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Elimination cost (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE about variable elimination? (A) The order of elimination affects cost. (B) It is exact. (C) Its cost is exponential in the size of the largest intermediate factor. (D) On a polytree it can be done in time linear in the size of the network.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Facts about exact inference.</li>
+      <li><strong>Which idea applies.</strong> Each elimination multiplies factors that mention the variable and sums it out.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) True for polytrees with a good order.</li>
+      <li><strong>Check.</strong> Finding the best order is NP-hard in general.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Variable elimination</dt><dd>Exact inference by multiplying and summing out factors, one variable at a time.</dd></div>
+    <div><dt>Factor</dt><dd>A table of numbers over some variables.</dd></div>
+    <div><dt>CPT</dt><dd>The table of P(node | parents), which is a factor.</dd></div>
+    <div><dt>Restrict</dt><dd>Keep the rows that agree with the evidence.</dd></div>
+    <div><dt>Multiply</dt><dd>Multiply entries of factors that share variables.</dd></div>
+    <div><dt>Sum out</dt><dd>Add over the values of a hidden variable to remove it.</dd></div>
+    <div><dt>Normalize</dt><dd>Divide by the total so the values add to 1.</dd></div>
+    <div><dt>Query</dt><dd>The probability we want to compute.</dd></div>
+    <div><dt>Hidden variable</dt><dd>A variable that is neither query nor evidence.</dd></div>
+    <div><dt>Elimination order</dt><dd>The order in which hidden variables are summed out.</dd></div>
+    <div><dt>Factor size</dt><dd>The number of entries, which is 2<sup>k</sup> for k binary variables.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>The joint probability of a Bayesian network is the product of its CPT factors.</li>
+    <li>Sum out hidden variables. Keep the query variable.</li>
+    <li>Normalize at the end, by dividing by the total.</li>
+    <li>The answer does not depend on the order, but the work does.</li>
+    <li>Pick an order that creates the smallest factors.</li>
+    <li>Check your answer with a brute-force sum over the joint table.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 117?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 117 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-116.html"><small>Previous, topic 116</small>Conditional independence representation</a><a class="next" href="gate-118.html"><small>Next, topic 118</small>Approximate inference: Sampling</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

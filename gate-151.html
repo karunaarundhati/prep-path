@@ -1,0 +1,495 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 151: Homogeneous transformations</title><meta name="description" content="A homogeneous transformation is a single 4 by 4 matrix that rotates and moves a point in one step. Robots use these matrices to chain every link of an arm, so the tool position is found by multiplying a list of matrices. This topic explains why the fourth row and column are needed, and how to build, combine and invert these matrices."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g151" data-key="g151" data-noun="topic" data-num="151" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Homogeneous transformations</h1>
+<p class="lede">A homogeneous transformation is a single 4 by 4 matrix that rotates and moves a point in one step. Robots use these matrices to chain every link of an arm, so the tool position is found by multiplying a list of matrices. This topic explains why the fourth row and column are needed, and how to build, combine and invert these matrices.</p>
+<div class="station"><b>151</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Why a 4 by 4 matrix is needed</li><li>Building a transform from a rotation and a translation</li><li>Chaining transforms and the order of multiplication</li><li>Inverse of a homogeneous transform</li><li>Reading a transform between frames</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>A rotation matrix turns a point about the origin. But a robot often needs to turn a point and then shift it to a new place. Shifting is not a multiplication. If you try to write a shift as a 3 by 3 matrix, you cannot do it. Adding a number to a coordinate is not the same as multiplying it.</p>
+  <p>The fix is to add one extra number to every point. We write a point (x, y, z) as (x, y, z, 1). With this extra 1, a shift becomes a multiplication. A <strong>homogeneous transformation</strong> is a 4 by 4 matrix that performs a rotation and a translation together, on points written with the extra 1.</p>
+  <p><strong>Everyday analogy.</strong> Imagine giving someone directions in a city. First you say "turn to face north", then "walk 200 metres". The two steps together form one instruction. A homogeneous transform is one written instruction that contains both the turn and the walk.</p>
+  <p><strong>Why it matters.</strong> Each link of a robot arm sits in its own frame. To find the tool position in the base frame, we multiply one transform for each link. The 4 by 4 form makes this chain simple and makes it easy for a computer to do.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper you may be asked to build a transform from a description, to transform a point between two frames, or to find the inverse of a transform. These questions are direct once the matrix layout is clear.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Homogeneous coordinates</dt><dd>A way of writing a 3D point (x, y, z) as a column (x, y, z, 1). The extra 1 lets translations be written as multiplications.</dd></div>
+    <div><dt>Homogeneous transformation matrix</dt><dd>A 4 by 4 matrix T = [[R, d], [0, 1]] that rotates by R and translates by d. Plain meaning: one matrix that turns and shifts.</dd></div>
+    <div><dt>Rotation block R</dt><dd>The 3 by 3 upper-left part of T, which is a rotation matrix.</dd></div>
+    <div><dt>Translation vector d</dt><dd>The 3 by 1 upper-right part of T, which is the shift, written as (d<sub>x</sub>, d<sub>y</sub>, d<sub>z</sub>).</dd></div>
+    <div><dt>Bottom row (0, 0, 0, 1)</dt><dd>The last row of T. It keeps the homogeneous coordinate equal to 1 after the transform.</dd></div>
+    <div><dt>Frame</dt><dd>A coordinate system attached to a body, such as a link. Points can be written in any frame.</dd></div>
+    <div><dt>Chain of transforms</dt><dd>A product of several transforms, one for each link, that gives the pose of the tool in the base frame.</dd></div>
+    <div><dt>Inverse T<sup>−1</sup></dt><dd>The transform that undoes T. Applying T and then T<sup>−1</sup> returns every point to where it started.</dd></div>
+    <div><dt>Pose</dt><dd>The position and orientation of a frame, which a transform describes.</dd></div>
+    <div><dt>Identity matrix I</dt><dd>The 4 by 4 matrix with 1 on the diagonal and 0 elsewhere. It changes nothing.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Why a 4 by 4 matrix is needed">
+  <h2>Why a 4 by 4 matrix is needed</h2>
+  <h3>Rotation is multiplication, shifting is not</h3>
+  <p>Take a rotation by 90° about Z. It sends (x, y, z) to (−y, x, z). This is a multiplication by a 3 by 3 matrix. Now take a shift by (2, 1, 0). It sends (x, y, z) to (x + 2, y + 1, z). The new coordinates are the old ones plus constants. A 3 by 3 matrix multiplies, and it has no way to add a constant. So a shift cannot be done by a 3 by 3 matrix alone.</p>
+  <p>The trick is to add a fourth coordinate equal to 1, and a fourth column and row to the matrix. Then the shift appears as a multiplication. Here is a shift by d = (d<sub>x</sub>, d<sub>y</sub>, d<sub>z</sub>) written in this way.</p>
+  <pre class="code" data-lang="text"><code>  [ x + dx ]   [ 1  0  0  dx ] [ x ]
+  [ y + dy ] = [ 0  1  0  dy ] [ y ]
+  [ z + dz ]   [ 0  0  1  dz ] [ z ]
+  [   1    ]   [ 0  0  0   1 ] [ 1 ]
+
+  The fourth column holds the shift. The fourth row keeps the last number at 1.</code></pre>
+  <p>Check the first row: 1 × x + 0 × y + 0 × z + dx × 1 = x + dx. The shift is there. The matrix is written as one block, which is the translation part, and the homogeneous coordinate stays at 1.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Writing points as (x, y, z, 1) turns a shift into a column of numbers inside the matrix. Then rotation and shift can be multiplied together.</p></div>
+
+  <h3>Block form</h3>
+  <p>In general a homogeneous transform has the block form below. R is the 3 by 3 rotation, d is the 3 by 1 translation, and the bottom row is always (0, 0, 0, 1).</p>
+  <div class="formula">T = [[R, d], [0, 1]]</div>
+  <p>Applying T to a point p written as (p, 1) gives (R p + d, 1). So the point is first rotated by R and then shifted by d. Note this order: rotation first, then translation, when T is written this way.</p>
+
+  <details class="check"><summary>Why can a 3 by 3 matrix not shift a point?</summary><div class="ans"><p>A 3 by 3 matrix multiplies the coordinates, so the origin always maps to the origin. A shift must move the origin, which needs an added constant. The fourth coordinate provides it.</p></div></details>
+  <details class="check"><summary>What is the bottom row of a homogeneous transform?</summary><div class="ans"><p>It is (0, 0, 0, 1). It keeps the homogeneous coordinate equal to 1 after the transform.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Building a transform from a rotation and a translation">
+  <h2>Building a transform from a rotation and a translation</h2>
+  <h3>The recipe</h3>
+  <p>To build a transform, pick the rotation R and the translation d. Put R in the upper-left 3 by 3 block, put d in the upper-right column, and write (0, 0, 0, 1) as the bottom row. For a pure rotation, d is zero. For a pure translation, R is the identity.</p>
+  <p>Here is the rotation about Z by 90°, written as a 4 by 4 matrix.</p>
+  <pre class="code" data-lang="text"><code>  Rz(90) as a 4 by 4 transform (no shift)
+
+  [ 0  -1  0  0 ]
+  [ 1   0  0  0 ]
+  [ 0   0  1  0 ]
+  [ 0   0  0  1 ]</code></pre>
+
+  <h3>Worked example: rotate, then shift</h3>
+  <p>Build T = Trans(2, 1, 0) · Rz(90°). This means: rotate by 90° about Z, then shift by (2, 1, 0). Apply T to the point (1, 0, 0).</p>
+  <ol>
+    <li>Rotation first: Rz(90°) takes (1, 0, 0) to (0, 1, 0).</li>
+    <li>Then shift by (2, 1, 0): (0, 1, 0) becomes (0 + 2, 1 + 1, 0) = (2, 2, 0).</li>
+    <li>The final point is (2, 2, 0). The y-coordinate is 2.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def matmul4(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+def apply4(T, p):
+    v = list(p) + [1]
+    out = [sum(T[i][k] * v[k] for k in range(4)) for i in range(4)]
+    return [round(x, 6) + 0.0 for x in out[:3]]
+
+def rot_z4(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+def trans4(dx, dy, dz):
+    return [[1, 0, 0, dx], [0, 1, 0, dy], [0, 0, 1, dz], [0, 0, 0, 1]]
+
+T = matmul4(trans4(2, 1, 0), rot_z4(math.pi / 2))
+print("T applied to (1,0,0):", apply4(T, [1, 0, 0]))</code></pre>
+  <pre class="output">T applied to (1,0,0): [2.0, 2.0, 0.0]</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The order of the product matters. Trans(2, 1, 0) · Rz(90°) rotates first and then shifts. Rz(90°) · Trans(2, 1, 0) shifts first and then rotates, and gives a different point.</p></div>
+
+  <details class="check"><summary>In the worked example, what is the rotation block R of T?</summary><div class="ans"><p>R = Rz(90°) = [[0, −1, 0], [1, 0, 0], [0, 0, 1]], since the shift does not change the rotation block.</p></div></details>
+  <details class="check"><summary>What is the translation column d of T = Trans(2, 1, 0) · Rz(90°)?</summary><div class="ans"><p>d = (2, 1, 0). Multiplying by Rz(90°) on the right does not change the translation column of a pure shift on the left.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Chaining transforms and the order of multiplication">
+  <h2>Chaining transforms and the order of multiplication</h2>
+  <h3>One transform per link</h3>
+  <p>A robot arm has a base frame, a frame on link 1, a frame on link 2, and so on. Each transform T<sub>i</sub> describes the frame of one link relative to the frame before it. To find the pose of the tool in the base frame, multiply the transforms in order from the base outward.</p>
+  <div class="formula">T<sub>base to tool</sub> = T<sub>1</sub> T<sub>2</sub> T<sub>3</sub> ... T<sub>n</sub></div>
+  <p>Read the product from left to right as the path from the base to the tool. The transform on the left describes the frame nearest the base.</p>
+
+  <h3>Why the order matters</h3>
+  <p>Take A = Trans(1, 0, 0), a shift along x, and B = Rz(90°). The product A·B means "apply B first, then A" to a point. The product B·A means "apply A first, then B". Let us apply both to the origin (0, 0, 0).</p>
+  <ol>
+    <li>A·B: B fixes the origin, then A shifts it to (1, 0, 0). The result is (1, 0, 0).</li>
+    <li>B·A: A shifts the origin to (1, 0, 0), then B turns it to (0, 1, 0). The result is (0, 1, 0).</li>
+    <li>The two results differ, so transforms do not commute in general.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def matmul4(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+def apply4(T, p):
+    v = list(p) + [1]
+    out = [sum(T[i][k] * v[k] for k in range(4)) for i in range(4)]
+    return [round(x, 6) + 0.0 for x in out[:3]]
+
+def rot_z4(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+def trans4(dx, dy, dz):
+    return [[1, 0, 0, dx], [0, 1, 0, dy], [0, 0, 1, dz], [0, 0, 0, 1]]
+
+A = trans4(1, 0, 0)
+B = rot_z4(math.pi / 2)
+origin = [0, 0, 0]
+print("A*B applied to origin:", apply4(matmul4(A, B), origin))
+print("B*A applied to origin:", apply4(matmul4(B, A), origin))</code></pre>
+  <pre class="output">A*B applied to origin: [1.0, 0.0, 0.0]
+B*A applied to origin: [0.0, 1.0, 0.0]</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>In a chain T<sub>1</sub>T<sub>2</sub>, the transform T<sub>2</sub> acts first on a point written in the frame of link 2. Read the chain from the base outward when you describe the robot, and from right to left when you apply it to a point.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Two pure translations commute, because adding shifts does not depend on order. A rotation followed by a shift does not commute with a shift followed by a rotation. This is the key test in many GATE questions.</p></div>
+
+  <details class="check"><summary>Do two pure translations commute?</summary><div class="ans"><p>Yes. Adding (1, 0, 0) and then (0, 2, 0) gives the same result as adding them in the other order.</p></div></details>
+  <details class="check"><summary>In the chain T<sub>1</sub>T<sub>2</sub>T<sub>3</sub>, which frame is described by T<sub>1</sub>?</summary><div class="ans"><p>The frame of link 1, relative to the base. It is the transform nearest the base.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Inverse of a homogeneous transform">
+  <h2>Inverse of a homogeneous transform</h2>
+  <h3>Undoing a transform</h3>
+  <p>The inverse T<sup>−1</sup> undoes T. If a point p is moved to p′ = T p, then p = T<sup>−1</sup> p′. We often need this to go from the tool frame back to the base frame, or from world coordinates to a link frame.</p>
+  <p>For a homogeneous transform with block form T = [[R, d], [0, 1]], the inverse has a neat closed form. The rotation part of the inverse is the transpose, because the inverse of a rotation is its transpose. The translation part is −R<sup>T</sup> d.</p>
+  <div class="formula">T<sup>−1</sup> = [[R<sup>T</sup>, −R<sup>T</sup> d], [0, 1]]</div>
+  <p>Symbols: R<sup>T</sup> is the transpose of the rotation block, and d is the translation. The minus sign and the transpose come from undoing the shift after undoing the turn.</p>
+
+  <h3>Why this formula is right</h3>
+  <p>Undo a transform in two steps. First, undo the shift: subtract d. Then undo the rotation: multiply by R<sup>T</sup>. So p = R<sup>T</sup>(p′ − d) = R<sup>T</sup> p′ − R<sup>T</sup> d. That is exactly the block formula above.</p>
+
+  <h3>Worked example</h3>
+  <p>Let T = Trans(2, 1, 0) · Rz(90°) from before. Its translation is d = (2, 1, 0). Find the translation part of T<sup>−1</sup>.</p>
+  <ol>
+    <li>R = Rz(90°), so R<sup>T</sup> = Rz(−90°) = [[0, 1, 0], [−1, 0, 0], [0, 0, 1]].</li>
+    <li>R<sup>T</sup> d = (0 × 2 + 1 × 1 + 0, −1 × 2 + 0 × 1 + 0, 0) = (1, −2, 0).</li>
+    <li>The translation part of T<sup>−1</sup> is −R<sup>T</sup> d = (−1, 2, 0).</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def matmul4(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+
+def rot_z4(t):
+    c, s = math.cos(t), math.sin(t)
+    return [[c, -s, 0, 0], [s, c, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+
+def trans4(dx, dy, dz):
+    return [[1, 0, 0, dx], [0, 1, 0, dy], [0, 0, 1, dz], [0, 0, 0, 1]]
+
+def inverse4(T):
+    R = [[T[i][j] for j in range(3)] for i in range(3)]
+    d = [T[i][3] for i in range(3)]
+    Rt = [[R[j][i] for j in range(3)] for i in range(3)]
+    t = [-sum(Rt[i][k] * d[k] for k in range(3)) for i in range(3)]
+    return [Rt[0] + [t[0]], Rt[1] + [t[1]], Rt[2] + [t[2]], [0, 0, 0, 1]]
+
+T = matmul4(trans4(2, 1, 0), rot_z4(math.pi / 2))
+Tinv = inverse4(T)
+print("translation part of T inverse:", [round(Tinv[i][3], 6) + 0.0 for i in range(3)])
+P = matmul4(T, Tinv)
+ok = all(abs(P[i][j] - (1 if i == j else 0)) < 1e-9 for i in range(4) for j in range(4))
+print("T times T inverse is identity:", ok)</code></pre>
+  <pre class="output">translation part of T inverse: [-1.0, 2.0, 0.0]
+T times T inverse is identity: True</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not just transpose the whole 4 by 4 matrix. The transpose of T is not its inverse, because the translation column is not handled correctly. Use the block formula instead.</p></div>
+
+  <details class="check"><summary>What is the inverse of the pure translation Trans(3, 0, 0)?</summary><div class="ans"><p>Trans(−3, 0, 0). Undoing a shift of 3 along x means shifting back by −3.</p></div></details>
+  <details class="check"><summary>Why does the formula use R<sup>T</sup> and not R when inverting?</summary><div class="ans"><p>Rotation matrices are orthogonal, so their inverse is their transpose. R<sup>T</sup> undoes the turn.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Reading a transform between frames">
+  <h2>Reading a transform between frames</h2>
+  <h3>Two frames and one transform</h3>
+  <p>A transform between frames is usually written with a subscript and a superscript. The notation T<sub>0</sub><sup>1</sup> means "the pose of frame 1 expressed in frame 0". Its columns tell you where frame 1's axes point and where its origin sits, as seen from frame 0.</p>
+  <p>To change a point from frame 1 to frame 0, multiply by T<sub>0</sub><sup>1</sup>. The point's coordinates in frame 0 are then</p>
+  <div class="formula">p<sup>0</sup> = T<sub>0</sub><sup>1</sup> p<sup>1</sup></div>
+  <p>Read the superscript as the frame the point is written in on the right, and the subscript as the frame it is written in on the left. The inner labels cancel, like fractions.</p>
+
+  <h3>Worked example</h3>
+  <p>Frame 1 is shifted by (2, 1, 0) from the base frame and turned by 90° about Z. So T<sub>0</sub><sup>1</sup> = Trans(2, 1, 0) · Rz(90°). A point sits at (1, 0, 0) in frame 1. Find its position in frame 0.</p>
+  <ol>
+    <li>Write the point with the extra 1: (1, 0, 0, 1).</li>
+    <li>Multiply by T<sub>0</sub><sup>1</sup>: the rotation gives (0, 1, 0), then the shift gives (2, 2, 0).</li>
+    <li>So p<sup>0</sup> = (2, 2, 0). The point is 2 metres along x and 2 metres along y from the base origin.</li>
+  </ol>
+  <p>To go back the other way, multiply by the inverse: p<sup>1</sup> = (T<sub>0</sub><sup>1</sup>)<sup>−1</sup> p<sup>0</sup>. This returns (1, 0, 0), which is the check.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The transform T<sub>0</sub><sup>1</sup> maps coordinates from frame 1 to frame 0. Its inverse maps them back. Get the direction right before you multiply.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Many students use the transform in the wrong direction. If a question gives the pose of frame 1 in frame 0, you multiply points written in frame 1 by that transform. If it gives the reverse, you need the inverse.</p></div>
+
+  <details class="check"><summary>A point is written in frame 1. Which transform changes it to frame 0?</summary><div class="ans"><p>T<sub>0</sub><sup>1</sup>, the pose of frame 1 in frame 0. It is applied as p<sup>0</sup> = T<sub>0</sub><sup>1</sup> p<sup>1</sup>.</p></div></details>
+  <details class="check"><summary>If a transform sends frame 1 to frame 0, what sends frame 0 to frame 1?</summary><div class="ans"><p>Its inverse, (T<sub>0</sub><sup>1</sup>)<sup>−1</sup>, which is written T<sub>1</sub><sup>0</sup>.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>T = [[R, d], [0, 1]]</td><td>R 3 by 3 rotation, d 3 by 1 translation</td><td>Building one transform</td></tr>
+      <tr><td>(x, y, z) becomes (x, y, z, 1)</td><td>homogeneous coordinates</td><td>Before applying any transform</td></tr>
+      <tr><td>T<sup>−1</sup> = [[R<sup>T</sup>, −R<sup>T</sup>d], [0, 1]]</td><td>R<sup>T</sup> transpose of the rotation block</td><td>Undoing a transform</td></tr>
+      <tr><td>T<sub>base to tool</sub> = T<sub>1</sub> T<sub>2</sub> ... T<sub>n</sub></td><td>one transform per link, from base outward</td><td>Chaining links</td></tr>
+      <tr><td>p<sup>0</sup> = T<sub>0</sub><sup>1</sup> p<sup>1</sup></td><td>point in frame 1 changed to frame 0</td><td>Changing frames</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>GATE questions, solved</h2>
+  <p>This set practises the 4 by 4 homogeneous transform: building it, reading its parts, inverting it, and chaining frames in the right order.</p>
+  <h3>Real past GATE questions</h3>
+  <div class="note key"><p><span class="t">Real questions</span>No past GATE question on this exact topic could be verified, so the exam-level set below is longer.</p></div>
+  <h3>Exam-level practice</h3>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Two linked frames and one marker (NAT, 2 marks)</h3>
+    <div class="statement"><p>Frame A is the fixed base of a small mobile robot. Frame B is fixed to the robot arm, and its pose relative to A is T_AB = Trans(4, 0, 1) times Rz(90 degrees). Frame C is fixed to the gripper, and its pose relative to B is T_BC = Rx(90 degrees) times Trans(0, 2, 0). A small marker sits at the point (2, 1, 0), written in the coordinates of frame C. Find the distance from the origin of frame A to this marker, in the same units as the translations. Give the answer correct to 2 decimal places. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The distance from the origin of A to the marker, so we need the marker's coordinates in frame A.</li>
+      <li><strong>Which idea applies.</strong> A point in frame C maps to frame A by multiplying the two transforms: P_A = T_AB times T_BC times P_C. Each 4 by 4 matrix has the form [R d; 0 1].</li>
+      <li><strong>Work it out.</strong> T_AB = [Rz90 | (4, 0, 1)] and T_BC = [Rx90 | (0, 0, 2)]. Apply T_BC to (2, 1, 0): Rx90 gives (2, 0, 1), plus (0, 0, 2), so (2, 0, 3). Apply T_AB: Rz90 gives (0, 2, 3), plus (4, 0, 1), so (4, 2, 4). The distance is the square root of 16 + 4 + 16 = 36, which is 6.</li>
+      <li><strong>Check.</strong> The code repeats the product with exact integer matrices, so no rounding enters before the last step.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def mul(A, B):
+    return [[sum(A[i][t] * B[t][j] for t in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+def make(R, d):
+    return [R[0] + [d[0]], R[1] + [d[1]], R[2] + [d[2]], [0, 0, 0, 1]]
+def apply(T, p):
+    v = list(p) + [1]
+    return [sum(T[i][t] * v[t] for t in range(4)) for i in range(4)]
+Rz90 = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+Rx90 = [[1, 0, 0], [0, 0, -1], [0, 1, 0]]
+TAB = make(Rz90, [4, 0, 1])
+TBC = make(Rx90, [0, 0, 2])
+PA = apply(mul(TAB, TBC), [2, 1, 0])
+print("marker in frame A:", PA[:3])
+print("distance: %.2f" % (sum(c * c for c in PA[:3]) ** 0.5))</code></pre>
+    <pre class="output">marker in frame A: [4, 2, 4]
+distance: 6.00</pre>
+    <p class="cx">Answer: 6.00</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Inverting a transform (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A rigid transform T is a 4 by 4 matrix whose upper left 3 by 3 block is the rotation R = Rz(90 degrees), and whose last column holds the translation d = (2, 3, 0). In other words, T = Trans(2, 3, 0) times Rz(90 degrees). Its inverse is T^-1. Consider the four statements below and select all that apply. (A) The upper left block of T^-1 is R transposed, and its last column is minus R transposed times d. (B) T^-1 equals the transpose of T. (C) The last column of T^-1 equals minus d, that is (-2, -3, 0). (D) The product T times T^-1 is the 4 by 4 identity matrix.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements about the inverse of T are true.</li>
+      <li><strong>Which idea applies.</strong> For a rigid transform, the inverse is [R transposed, minus R transposed d; 0 1]. The rotation is inverted by transposing, and the translation is not simply negated.</li>
+      <li><strong>Work it out.</strong> R transposed is [[0, 1, 0], [-1, 0, 0], [0, 0, 1]]. R transposed times d is (0 times 2 + 1 times 3, -1 times 2 + 0 times 3, 0) = (3, -2, 0). So the last column of T^-1 is (-3, 2, 0). Statement (A) matches this form. Statement (C) fails because the last column is (-3, 2, 0), not (-2, -3, 0). Statement (B) fails because the transpose of T has last row (2, 3, 0, 1), which does not match the last row of T^-1. Statement (D) holds by the definition of an inverse.</li>
+      <li><strong>Check.</strong> The code multiplies T by its computed inverse and gets the identity, which confirms (A) and (D), and it rules out (B) and (C).</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def mul(A, B):
+    return [[sum(A[i][t] * B[t][j] for t in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+def make(R, d):
+    return [R[0] + [d[0]], R[1] + [d[1]], R[2] + [d[2]], [0, 0, 0, 1]]
+def inv(T):
+    R = [[T[j][i] for j in range(3)] for i in range(3)]
+    d = [T[i][3] for i in range(3)]
+    return make(R, [-sum(R[i][t] * d[t] for t in range(3)) for i in range(3)])
+Rz90 = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+T = make(Rz90, [2, 3, 0])
+Ti = inv(T)
+print("inverse:", Ti)
+print("A, upper block of inverse is R transposed:", [Ti[i][:3] for i in range(3)] == [[0, 1, 0], [-1, 0, 0], [0, 0, 1]])
+print("C, last column equals minus d:", [Ti[i][3] for i in range(3)] == [-2, -3, 0])
+transpose = [[T[j][i] for j in range(4)] for i in range(4)]
+print("B, inverse equals transpose:", Ti == transpose)
+print("D, T times inverse is identity:", mul(T, Ti) == [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])</code></pre>
+    <pre class="output">inverse: [[0, 1, 0, -3], [-1, 0, 0, 2], [0, 0, 1, 0], [0, 0, 0, 1]]
+A, upper block of inverse is R transposed: True
+C, last column equals minus d: False
+B, inverse equals transpose: False
+D, T times inverse is identity: True</pre>
+    <p class="cx">Answer: (A) and (D). Why (B) is wrong: the transpose puts d in the bottom row, so it is not the inverse. Why (C) is wrong: the translation of the inverse is minus R transposed d, which is (-3, 2, 0), not minus d.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Camera on the tool (NAT, 2 marks)</h3>
+    <div class="statement"><p>A robot's tool frame T has pose T_BT = Trans(1, 2, 0) times Rz(90 degrees) relative to the robot base frame B. A camera is bolted to the tool, and its frame C has pose T_TC = Trans(0, 0, 1) times Rx(90 degrees) relative to the tool frame, so the camera sits one unit along the tool's z axis and is then tilted by 90 degrees about x. The camera sees an object at the point (0, 0, 4), measured in its own camera coordinates. Find the distance from the origin of the base frame B to this object. Use the chain of transforms from the base to the camera, and give the distance correct to 2 decimal places. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The distance from the base origin to the object, so the object must first be expressed in the base frame.</li>
+      <li><strong>Which idea applies.</strong> The camera frame is reached from the base by T_BC = T_BT times T_TC. The object in base coordinates is T_BC applied to the camera point.</li>
+      <li><strong>Work it out.</strong> T_TC = [Rx90 | (0, 0, 1)], because the shift acts first and is not rotated. Then the object is at (5, 2, 1) in base coordinates, and its distance is the square root of 25 + 4 + 1 = 30, which is about 5.48.</li>
+      <li><strong>Check.</strong> The code builds the composite transform directly and prints the base coordinates and the distance.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def mul(A, B):
+    return [[sum(A[i][t] * B[t][j] for t in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+def make(R, d):
+    return [R[0] + [d[0]], R[1] + [d[1]], R[2] + [d[2]], [0, 0, 0, 1]]
+def apply(T, p):
+    v = list(p) + [1]
+    return [sum(T[i][t] * v[t] for t in range(4)) for i in range(4)]
+Rz90 = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+Rx90 = [[1, 0, 0], [0, 0, -1], [0, 1, 0]]
+TBT = make(Rz90, [1, 2, 0])
+TTC = make(Rx90, [0, 0, 1])
+obj = apply(mul(TBT, TTC), [0, 0, 4])
+print("object in base frame:", obj[:3])
+print("distance: %.2f" % (sum(c * c for c in obj[:3]) ** 0.5))</code></pre>
+    <pre class="output">object in base frame: [5, 2, 1]
+distance: 5.48</pre>
+    <p class="cx">Answer: 5.48</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Relative pose between two frames (NAT, 2 marks)</h3>
+    <div class="statement"><p>Two frames are both measured from a common reference frame A. Frame B has pose T_AB = Trans(3, 0, 0) times Rz(90 degrees), that is, rotated by 90 degrees about z and then placed at x = 3. Frame C has pose T_AC = Trans(3, 2, 0), with no rotation. A point Q is written in the coordinates of frame C as (1, 1, 0). Using the relative transform T_BC = inverse of T_AB times T_AC, find the coordinates of Q in frame B, and then the distance from the origin of frame B to Q. Give that distance correct to 2 decimal places. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The distance from the origin of B to Q, where Q is known in frame C. So we need Q in frame B.</li>
+      <li><strong>Which idea applies.</strong> To go from C to B we need T_BC = inverse of T_AB times T_AC. The inverse of a rigid transform is found with the transpose rule, not by just negating the translation.</li>
+      <li><strong>Work it out.</strong> The inverse of T_AB has rotation R transposed and translation minus R transposed times (3, 0, 0), which is (0, 3, 0). Then T_BC has rotation R transposed and translation R transposed times (3, 2, 0) plus (0, 3, 0), which is (2, 0, 0). Apply to Q: R transposed times (1, 1, 0) is (1, -1, 0), and adding (2, 0, 0) gives (3, -1, 0). The distance is the square root of 9 + 1 = 10, about 3.16.</li>
+      <li><strong>Check.</strong> The code computes the inverse with the transpose rule and the product in exact integers.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def mul(A, B):
+    return [[sum(A[i][t] * B[t][j] for t in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+def make(R, d):
+    return [R[0] + [d[0]], R[1] + [d[1]], R[2] + [d[2]], [0, 0, 0, 1]]
+def apply(T, p):
+    v = list(p) + [1]
+    return [sum(T[i][t] * v[t] for t in range(4)) for i in range(4)]
+def inv(T):
+    R = [[T[j][i] for j in range(3)] for i in range(3)]
+    d = [T[i][3] for i in range(3)]
+    return make(R, [-sum(R[i][t] * d[t] for t in range(3)) for i in range(3)])
+Rz90 = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+I3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+TAB = make(Rz90, [3, 0, 0])
+TAC = make(I3, [3, 2, 0])
+TBC = mul(inv(TAB), TAC)
+print("translation of T_BC:", [TBC[i][3] for i in range(3)])
+QB = apply(TBC, [1, 1, 0])
+print("Q in frame B:", QB[:3])
+print("distance: %.2f" % (sum(c * c for c in QB[:3]) ** 0.5))</code></pre>
+    <pre class="output">translation of T_BC: [2, 0, 0]
+Q in frame B: [3, -1, 0]
+distance: 3.16</pre>
+    <p class="cx">Answer: 3.16</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 5: Which rigid-transform facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Two basic transforms are T1, a pure shift of 1 unit along x with no rotation, and T2, the rotation Rz(90 degrees) with a shift of (0, 2, 0) in its last column. A third transform is T = Rz(90 degrees) with shift (1, 1, 0). Consider the four statements below and select all that apply. (A) For a rigid transform, the distance between any two points is unchanged, so the distance between P = (2, 0, 0) and Q = (5, 0, 0) stays the same after T is applied to both. (B) Every rigid transform has its inverse equal to its transpose. (C) The two transforms T1 and T2 always commute, so T1 times T2 equals T2 times T1. (D) Any product of 4 by 4 transforms keeps the bottom row (0, 0, 0, 1).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which general facts about rigid transforms are true.</li>
+      <li><strong>Which idea applies.</strong> A rigid transform keeps distances (it only rotates and translates). Its inverse is not its transpose. Products of transforms do not commute in general. The bottom row of [R d; 0 1] stays (0, 0, 0, 1) under multiplication.</li>
+      <li><strong>Work it out.</strong> Statement (A) is true because rotation and translation keep distances. For the example, P moves to (1, 3, 0) and Q moves to (1, 6, 0), and both distances are 3. Statement (B) is false, as the code shows for T. Statement (C) is false: T1 times T2 has shift (1, 2, 0), while T2 times T1 has shift (0, 3, 0). Statement (D) is true: the bottom row of every product remains (0, 0, 0, 1).</li>
+      <li><strong>Check.</strong> The code tests each claim with the same matrices.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def mul(A, B):
+    return [[sum(A[i][t] * B[t][j] for t in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+def make(R, d):
+    return [R[0] + [d[0]], R[1] + [d[1]], R[2] + [d[2]], [0, 0, 0, 1]]
+def apply(T, p):
+    v = list(p) + [1]
+    return [sum(T[i][t] * v[t] for t in range(4)) for i in range(4)]
+def inv(T):
+    R = [[T[j][i] for j in range(3)] for i in range(3)]
+    d = [T[i][3] for i in range(3)]
+    return make(R, [-sum(R[i][t] * d[t] for t in range(3)) for i in range(3)])
+Rz90 = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+I3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+T1 = make(I3, [1, 0, 0])
+T2 = make(Rz90, [0, 2, 0])
+T = make(Rz90, [1, 1, 0])
+P = [2, 0, 0]
+Q = [5, 0, 0]
+pa = apply(T, P)
+qa = apply(T, Q)
+d0 = sum((Q[i] - P[i]) ** 2 for i in range(3)) ** 0.5
+d1 = sum((qa[i] - pa[i]) ** 2 for i in range(3)) ** 0.5
+print("A, distance before and after:", d0, d1)
+transpose = [[T[j][i] for j in range(4)] for i in range(4)]
+print("B, inverse equals transpose:", inv(T) == transpose)
+print("C, T1 times T2 equals T2 times T1:", mul(T1, T2) == mul(T2, T1))
+print("D, bottom row of T1 times T2:", mul(T1, T2)[3])</code></pre>
+    <pre class="output">A, distance before and after: 3.0 3.0
+B, inverse equals transpose: False
+C, T1 times T2 equals T2 times T1: False
+D, bottom row of T1 times T2: [0, 0, 0, 1]</pre>
+    <p class="cx">Answer: (A) and (D). Why (B) is wrong: the inverse is [R transposed, minus R transposed d], which has a different last column from the transpose. Why (C) is wrong: the shifts (1, 2, 0) and (0, 3, 0) differ, so the order matters.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 6: Order of the frame chain (NAT, 2 marks)</h3>
+    <div class="statement"><p>Frame 0 is the reference. Frame 1 has pose T_01 = Trans(2, 0, 0) times Rz(90 degrees) relative to frame 0. Frame 2 has pose T_12 = Trans(0, 1, 0) relative to frame 1, with no rotation. A point P is written in frame 2 as (1, 0, 0). A student computes the coordinates of P in frame 0 by multiplying the transforms in the order T_12 times T_01 times P, which is the wrong order for this chain. Find the x-coordinate of P in frame 0 with the correct order, and give the answer correct to 2 decimal places. The correct chain takes P from frame 2 to frame 1 and then to frame 0. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The x-coordinate of P in frame 0, using the correct chain order.</li>
+      <li><strong>Which idea applies.</strong> A point moves from the innermost frame outward. So P_0 = T_01 times T_12 times P_2. Matrix products do not commute, so the wrong order gives a different answer.</li>
+      <li><strong>Work it out.</strong> T_12 takes (1, 0, 0) to (1, 1, 0). Then T_01 rotates (1, 1, 0) by 90 degrees about z to (-1, 1, 0), and adds (2, 0, 0), giving (1, 1, 0). So the x-coordinate is 1. The wrong order gives (2, 2, 0) with x-coordinate 2.</li>
+      <li><strong>Check.</strong> The code computes both orders, which shows that they really differ.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def mul(A, B):
+    return [[sum(A[i][t] * B[t][j] for t in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+def make(R, d):
+    return [R[0] + [d[0]], R[1] + [d[1]], R[2] + [d[2]], [0, 0, 0, 1]]
+def apply(T, p):
+    v = list(p) + [1]
+    return [sum(T[i][t] * v[t] for t in range(4)) for i in range(4)]
+Rz90 = [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+I3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+T01 = make(Rz90, [2, 0, 0])
+T12 = make(I3, [0, 1, 0])
+P2 = [1, 0, 0]
+right = apply(mul(T01, T12), P2)
+wrong = apply(mul(T12, T01), P2)
+print("correct order, P in frame 0:", right[:3])
+print("wrong order, P in frame 0:", wrong[:3])
+print("x-coordinate (correct): %.2f" % right[0])</code></pre>
+    <pre class="output">correct order, P in frame 0: [1, 1, 0]
+wrong order, P in frame 0: [2, 2, 0]
+x-coordinate (correct): 1.00</pre>
+    <p class="cx">Answer: 1.00</p>
+  </article>
+</section>
+
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Homogeneous coordinates</dt><dd>A point (x, y, z) written as (x, y, z, 1).</dd></div>
+    <div><dt>Why 4 by 4</dt><dd>A shift cannot be a 3 by 3 multiplication, but it can be a 4 by 4 one.</dd></div>
+    <div><dt>Block form</dt><dd>T = [[R, d], [0, 1]], with rotation R and translation d.</dd></div>
+    <div><dt>Bottom row</dt><dd>(0, 0, 0, 1), which keeps the last coordinate at 1.</dd></div>
+    <div><dt>Rotate then shift</dt><dd>Applying T gives R p + d.</dd></div>
+    <div><dt>Chaining</dt><dd>T<sub>base to tool</sub> = T<sub>1</sub> T<sub>2</sub> ... T<sub>n</sub>, from base outward.</dd></div>
+    <div><dt>Order of multiplication</dt><dd>The rightmost transform acts first on a point.</dd></div>
+    <div><dt>Commuting</dt><dd>Pure translations commute, but a turn and a shift in general do not.</dd></div>
+    <div><dt>Inverse</dt><dd>T<sup>−1</sup> = [[R<sup>T</sup>, −R<sup>T</sup> d], [0, 1]].</dd></div>
+    <div><dt>Transpose is not the inverse</dt><dd>Do not use the transpose of a whole 4 by 4 transform as its inverse.</dd></div>
+    <div><dt>Frame change</dt><dd>p<sup>0</sup> = T<sub>0</sub><sup>1</sup> p<sup>1</sup>.</dd></div>
+    <div><dt>Reverse frame change</dt><dd>p<sup>1</sup> = (T<sub>0</sub><sup>1</sup>)<sup>−1</sup> p<sup>0</sup>.</dd></div>
+    <div><dt>Identity transform</dt><dd>I, which changes nothing.</dd></div>
+    <div><dt>Translation column</dt><dd>The last column of T, holding d.</dd></div>
+    <div><dt>Rotation block</dt><dd>The upper-left 3 by 3 part of T.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Write points as (x, y, z, 1) before applying any 4 by 4 transform.</li>
+    <li>In T = [[R, d], [0, 1]], the rotation is applied first, then the shift d.</li>
+    <li>In a chain T<sub>1</sub> T<sub>2</sub>, the rightmost matrix acts first on the point.</li>
+    <li>Two turns and a shift in different orders give different results.</li>
+    <li>The inverse of a transform is [[R<sup>T</sup>, −R<sup>T</sup> d], [0, 1]].</li>
+    <li>Multiply by T<sub>0</sub><sup>1</sup> to change a point from frame 1 to frame 0.</li>
+    <li>Always check the direction of a transform before you multiply points by it.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 151?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 151 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-150.html"><small>Previous, topic 150</small>Rotation matrices in 2D and 3D</a><a class="next" href="gate-152.html"><small>Next, topic 152</small>Forward kinematics</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

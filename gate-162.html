@@ -1,0 +1,397 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 162: Mohr's circle for plane stress & plane strain</title><meta name="description" content="Mohr&#x27;s circle is a neat drawing that shows the stresses on every cut through a point in a material, using only one circle. Once you can draw it, you can read the largest and smallest normal stresses, the largest shear stress and the angles of the cuts where they act, which are standard GATE Robotics and Automation mechanics questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g162" data-key="g162" data-noun="topic" data-num="162" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Mohr&#x27;s circle for plane stress &amp; plane strain</h1>
+<p class="lede">Mohr&#x27;s circle is a neat drawing that shows the stresses on every cut through a point in a material, using only one circle. Once you can draw it, you can read the largest and smallest normal stresses, the largest shear stress and the angles of the cuts where they act, which are standard GATE Robotics and Automation mechanics questions.</p>
+<div class="station"><b>162</b><span>Unit 16 · Mechanics of materials · Paper RA · New concept</span></div>
+<ul class="topics"><li>What stress at a point means and how a cut is described</li><li>Sign convention used for stress</li><li>The transformation idea and why a circle appears</li><li>Drawing Mohr&#x27;s circle step by step</li><li>Principal stresses, maximum shear and principal angle</li><li>Mohr&#x27;s circle for plane strain</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Welcome. Mohr's circle sounds frightening, but it is only a picture of a simple question. <strong>If you cut a solid object in a particular direction, how hard is the material pushing or pulling on that cut?</strong> A cut can be made at any angle, so there are endless cuts to check. Mohr's circle answers the question for all of them at once, using one circle on a graph.</p>
+  <p>Here is an everyday picture. Think of a loaf of bread that is being squeezed and twisted. If you slice it straight across, the slice feels a pressure from the squeezing. If you slice it at a slant, the same squeezing now pushes the slice sideways as well as down. Different slices feel different mixes of push and slide. Mohr's circle is a map of all these mixes, so that you can find the slice that feels the most pull, the most push, or the most sideways slide.</p>
+  <p>Why does this matter for GATE? Engineers must know where a material will break. A shaft, a beam or a robot arm can fail where one stress is the largest. Mohr's circle is the quickest hand method to find that largest stress, and the angle of the cut where it acts. GATE Robotics and Automation (RA) papers use it in the mechanics of materials section, usually with two or three given stresses and a question about the maximum shear stress or the principal stresses. Data Science and AI (DA) students meet similar ideas in matrices (the eigenvalues of a symmetric matrix), so the same mathematics appears there too.</p>
+  <p>We will go slowly. First we learn how stress is described, then we see the sign rules, then we draw the circle, and finally we read answers from it. Each step is shown with numbers you can check on paper or with the Python code shown on this page.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list now and come back to it when a word feels new.</p>
+  <dl>
+    <div><dt>Stress</dt><dd>The force on a small area divided by that area. Plain meaning: how hard the material is pushed or pulled inside. Precise definition: a force per unit area, measured in pascals (Pa) or megapascals (MPa, which is 1 N/mm<sup>2</sup>).</dd></div>
+    <div><dt>Normal stress (sigma)</dt><dd>Stress that acts straight across a cut, pushing it apart (tension) or squeezing it together (compression). Plain meaning: a direct pull or push.</dd></div>
+    <div><dt>Shear stress (tau)</dt><dd>Stress that acts along a cut, trying to slide one side past the other. Plain meaning: a sideways slide.</dd></div>
+    <div><dt>Plane stress</dt><dd>A state where the stress in one direction (usually z) is zero, so the stresses act in one flat plane. Plain meaning: a thin plate loaded in its own plane.</dd></div>
+    <div><dt>Plane strain</dt><dd>A state where the strain in one direction (usually z) is zero, as in a long dam or a thick pipe loaded along its length. Plain meaning: the material is held from moving in one direction.</dd></div>
+    <div><dt>Principal stress</dt><dd>A normal stress on a cut where the shear stress is zero. Plain meaning: the pure pulls or pushes in the material. Precise definition: the largest and smallest normal stresses at a point, called sigma1 and sigma2.</dd></div>
+    <div><dt>Principal plane</dt><dd>The cut on which a principal stress acts. Plain meaning: the slice with no slide on it.</dd></div>
+    <div><dt>Principal angle (theta p)</dt><dd>The angle from the x-axis to a principal plane.</dd></div>
+    <div><dt>Maximum shear stress</dt><dd>The largest shear stress on any cut through the point. Plain meaning: the strongest sideways slide.</dd></div>
+    <div><dt>Mohr's circle</dt><dd>A circle on a graph with normal stress on the horizontal axis and shear stress on the vertical axis, that shows all the stress states on cuts through one point. Precise definition: the locus of points (sigma, tau) for all planes through the point.</dd></div>
+    <div><dt>Centre of the circle</dt><dd>The point on the normal stress axis at the average of the two normal stresses. Plain meaning: the middle of the circle.</dd></div>
+    <div><dt>Radius of the circle (R)</dt><dd>Half the diameter of the circle, equal to the maximum shear stress for plane stress. Plain meaning: how big the circle is.</dd></div>
+    <div><dt>Strain</dt><dd>The change in length divided by the original length. Plain meaning: how much a material stretches or shrinks, as a fraction.</dd></div>
+    <div><dt>Shear strain (gamma)</dt><dd>The change in a right angle in the material, in radians. Plain meaning: how much a square turns into a parallelogram.</dd></div>
+    <div><dt>Transformation equations</dt><dd>Formulas that give the stresses on a cut at angle theta from the stresses on the x and y faces.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Describing stress at a point">
+  <h2>Describing stress at a point</h2>
+  <h3>Why we look at a point</h3>
+  <p>Stress is not a single number for a whole object. It can change from place to place. So engineers look at a tiny square of material, so small that the stress inside it is the same everywhere. Think of a very small square cut out of a steel plate. The square is one point, in the everyday sense, and every stress we talk about belongs to it.</p>
+  <p>The square has four faces. Two faces face right and left (the x faces), and two faces face up and down (the y faces). On each face there can be a normal stress (sigma) and a shear stress (tau). If the square is in plane stress, these are the only stresses that matter. So a point in plane stress is described by three numbers: sigma x, sigma y and tau xy.</p>
+  <pre class="code" data-lang="text"><code>        y
+        ^
+        |        sigma y on the top face
+   +----+----+
+   |         |
+   |         |  <- tau xy shown on the faces
+   |         |
+   +---------+ --> x
+        sigma x on the right face
+
+   sigma x = normal stress on the x face
+   sigma y = normal stress on the y face
+   tau xy  = shear stress on the x face, acting in the y direction</code></pre>
+  <p>The picture is simple, but the meaning is important. The three numbers sigma x, sigma y and tau xy describe the whole stress state at the point, on the two faces that we chose. Mohr's circle takes these three numbers and shows what happens on every other face, at every other angle.</p>
+  <h3>Tension and compression</h3>
+  <p>Tension is a pull that stretches the material. Compression is a push that squeezes it. In most textbooks, tension is written as a positive normal stress, and compression as a negative one. This is the first rule to remember. A stress of +80 MPa is a pull of 80 megapascals. A stress of -20 MPa is a push of 20 megapascals.</p>
+  <details class="check"><summary>What is the unit of stress, and what is a megapascal in simpler units?</summary><div class="ans"><p>Stress is a force per area, measured in pascals (N/m<sup>2</sup>). One megapascal is 10<sup>6</sup> Pa, which is the same as 1 N/mm<sup>2</sup>.</p></div></details>
+  <details class="check"><summary>A bar is pulled with a tensile stress of 50 MPa. Is its normal stress positive or negative?</summary><div class="ans"><p>Positive. Tension is positive in the usual convention, so the normal stress is +50 MPa.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Sign convention and the shear rule">
+  <h2>Sign convention for stress</h2>
+  <h3>Why a sign rule is needed</h3>
+  <p>When you draw Mohr's circle, you must agree on what counts as positive shear. If two people use different sign rules, they will draw circles that look different, even though both are correct. The textbooks in use for GATE follow one standard convention, and this page follows it. Learn it once and keep it fixed.</p>
+  <p>The convention used here has three parts. First, normal stress is positive for tension. Second, the x face has its shear stress tau xy acting in the positive y direction. Third, on the Mohr's circle, a point with shear stress tau is plotted above the normal stress axis when the shear is positive. This gives the standard picture where the two points (sigma x, tau xy) and (sigma y, -tau xy) lie on opposite ends of a diameter.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The two points of the diameter are (sigma x, tau xy) and (sigma y, -tau xy). Everything else about the circle comes from these two points.</p></div>
+  <h3>The transformation equations</h3>
+  <p>Suppose we cut the point at an angle theta, measured from the x axis. The stresses on the new cut are given by the transformation equations. These are the formulas behind the circle, and you should know their meaning even if you use the circle to answer questions.</p>
+  <div class="formula">sigma(theta) = (sigma x + sigma y)/2 + ((sigma x - sigma y)/2) cos 2theta + tau xy sin 2theta</div>
+  <div class="formula">tau(theta) = -((sigma x - sigma y)/2) sin 2theta + tau xy cos 2theta</div>
+  <p>Here sigma(theta) is the normal stress on the cut, tau(theta) is the shear stress on the cut, and 2theta is twice the cut angle. The doubled angle is a trap for beginners: the circle turns through 2theta when the cut turns through theta. If the cut turns by 30 degrees, the point on the circle moves by 60 degrees.</p>
+  <p>Look at the first formula. The term (sigma x + sigma y)/2 does not depend on theta. It is the same for every cut. It is the centre of the circle. The other two terms change with theta, and together they trace out a circle. This is the reason a circle appears at all.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not mix up theta and 2theta. The circle is drawn with the doubled angle. When a question asks for the cut angle, you must divide the circle angle by two.</p></div>
+  <details class="check"><summary>What is the centre of Mohr's circle in terms of sigma x and sigma y?</summary><div class="ans"><p>The centre is at ((sigma x + sigma y)/2, 0), the average of the two normal stresses on the horizontal axis.</p></div></details>
+  <details class="check"><summary>If a cut is turned by 15 degrees, by how much does the point on the circle turn?</summary><div class="ans"><p>By 30 degrees. The circle uses twice the cut angle.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Drawing Mohr's circle step by step">
+  <h2>Drawing Mohr's circle step by step</h2>
+  <h3>The recipe</h3>
+  <p>Here is the construction written as a recipe. You can follow it on graph paper with a ruler and compass, or you can check each step with a calculator.</p>
+  <ol>
+    <li><strong>Draw the axes.</strong> Draw a horizontal axis for normal stress sigma, with positive values to the right. Draw a vertical axis for shear stress tau, with positive values up.</li>
+    <li><strong>Plot the first point.</strong> Plot X at (sigma x, tau xy).</li>
+    <li><strong>Plot the second point.</strong> Plot Y at (sigma y, -tau xy). Y is on the opposite side of the horizontal axis from X when tau xy is not zero.</li>
+    <li><strong>Join the points.</strong> Draw a straight line from X to Y. This line is a diameter, and it crosses the sigma axis at the centre.</li>
+    <li><strong>Draw the circle.</strong> Use the centre as the middle point and the half-length of XY as the radius. Draw the full circle.</li>
+  </ol>
+  <h3>Worked example: plotting one state</h3>
+  <p>Let sigma x = 80 MPa, sigma y = 20 MPa and tau xy = 40 MPa. Both normal stresses are tension, which is positive.</p>
+  <ul>
+    <li>Point X is (80, 40). It is 80 to the right on the normal axis and 40 up on the shear axis.</li>
+    <li>Point Y is (20, -40). It is 20 to the right and 40 down.</li>
+    <li>The centre is the midpoint of X and Y. The midpoint of 80 and 20 is (80 + 20)/2 = 50. The shear value is (40 + (-40))/2 = 0. So the centre is at (50, 0).</li>
+    <li>The radius is the distance from the centre to X. The horizontal distance is 80 - 50 = 30, and the vertical distance is 40. The radius is the square root of (30 squared plus 40 squared) = square root of (900 + 1600) = square root of 2500 = 50.</li>
+  </ul>
+  <p>So the circle has centre (50, 0) and radius 50. You do not need a drawing to know this. The numbers already give the whole picture. The drawing helps you see it, and the formulas give exact answers.</p>
+  <h3>A formula for the radius</h3>
+  <p>The radius of Mohr's circle for plane stress is:</p>
+  <div class="formula">R = square root of ( ((sigma x - sigma y)/2) squared + tau xy squared )</div>
+  <p>Here R is the radius, and the square means "multiply by itself". In the example, (80 - 20)/2 = 30, and 30 squared is 900. The shear is 40, and 40 squared is 1600. Adding gives 2500, and the square root is 50. This is the same answer as the drawing gave.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Check your circle with a quick test. The centre must lie on the normal axis, and the radius must be at least as big as the shear stress tau xy. If your circle breaks these rules, you have plotted a point wrongly.</p></div>
+  <details class="check"><summary>For sigma x = 60, sigma y = 0 and tau xy = 0, what is the centre of Mohr's circle?</summary><div class="ans"><p>The centre is at (60 + 0)/2 = 30 on the normal axis. The radius is square root of (30 squared + 0) = 30. The circle runs from 0 to 60, which are the two normal stresses.</p></div></details>
+  <details class="check"><summary>Why must the centre lie on the horizontal axis?</summary><div class="ans"><p>Because the midpoint of the two points X and Y has a shear value equal to the average of tau xy and minus tau xy, which is zero.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Principal stresses, maximum shear and principal angle">
+  <h2>Principal stresses, maximum shear and principal angle</h2>
+  <h3>Reading the answers from the circle</h3>
+  <p>Once the circle is drawn, the important answers are easy to read. The circle crosses the horizontal axis at two points. These are the <strong>principal stresses</strong>. Their values are the centre plus or minus the radius:</p>
+  <div class="formula">sigma1 = centre + R = (sigma x + sigma y)/2 + R</div>
+  <div class="formula">sigma2 = centre - R = (sigma x + sigma y)/2 - R</div>
+  <p>Sigma1 is the largest normal stress and sigma2 is the smallest. On these two faces, the shear stress is zero. These are the pure pulls or pushes. For the example with radius 50 and centre 50, sigma1 = 100 MPa and sigma2 = 0 MPa.</p>
+  <p>The top and bottom points of the circle are the maximum and minimum shear stresses. Their shear value is the radius itself:</p>
+  <div class="formula">tau max = R</div>
+  <p>The normal stress on these planes is the centre value. For the example, tau max = 50 MPa, and the normal stress on that cut is 50 MPa.</p>
+  <div class="note key"><p><span class="t">Key idea</span>For plane stress, the maximum shear stress equals the radius of Mohr's circle. The principal planes have zero shear, and the maximum shear planes are 45 degrees away from them on the real object.</p></div>
+  <h3>The principal angle</h3>
+  <p>The principal angle theta p tells you where the principal plane is. On the circle, you measure the angle from the point X to the point of sigma1, and divide by two. The formula is:</p>
+  <div class="formula">tan 2theta p = 2 tau xy / (sigma x - sigma y)</div>
+  <p>Use the two-argument arctangent on your calculator (atan2) so that the quadrant is right. For the example, tan 2theta p = 2 x 40 / (80 - 20) = 80/60 = 4/3. This gives 2theta p about 53.13 degrees, so theta p is about 26.57 degrees. The Python check below shows that the shear stress is zero on this cut, which proves that the angle is a principal plane.</p>
+  <pre class="code" data-lang="python"><code>import math
+sx, sy, txy = 80, 20, 40
+avg = (sx + sy) / 2
+R = math.sqrt(((sx - sy) / 2) ** 2 + txy ** 2)
+print("centre:", avg)
+print("radius:", R)
+print("sigma1:", avg + R, "sigma2:", avg - R)
+print("max shear:", R)
+theta = 0.5 * math.atan2(2 * txy, sx - sy)
+print("theta p (degrees):", round(math.degrees(theta), 2))
+shear = -(sx - sy) / 2 * math.sin(2 * theta) + txy * math.cos(2 * theta)
+print("shear at theta p:", abs(round(shear, 6)))</code></pre>
+  <pre class="output">centre: 50.0
+radius: 50.0
+sigma1: 100.0 sigma2: 0.0
+max shear: 50.0
+theta p (degrees): 26.57
+shear at theta p: 0.0</pre>
+  <h3>Reading the angle from the circle</h3>
+  <p>A common mistake is to measure the principal angle on the circle and forget to halve it. On the circle the angle is 2theta, so the real angle on the object is half of it. Also, the direction of the rotation on the circle is the same as the direction of the rotation on the element, so a clockwise angle on the circle is clockwise on the object. Always check your sign with the formula.</p>
+  <div class="note trap"><p><span class="t">Trap</span>When sigma x is less than sigma y, the value of 2theta p can be negative or above 90 degrees. Use the atan2 form, or add 180 degrees to get the principal angle in the right range. Two angles differ by 90 degrees, and both describe a principal plane.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>GATE often gives a state of stress and asks for the maximum shear stress. The fastest route is tau max = R = square root of (((sigma x - sigma y)/2) squared + tau xy squared). Learn this formula, and use the circle only to check the sign.</p></div>
+  <details class="check"><summary>What is the maximum shear stress when R = 50 MPa?</summary><div class="ans"><p>tau max = R = 50 MPa for plane stress.</p></div></details>
+  <details class="check"><summary>If the shear stress on a principal plane is zero, what is the normal stress there?</summary><div class="ans"><p>It is a principal stress, either sigma1 or sigma2. It is the centre plus or minus R.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Mohr's circle for plane strain">
+  <h2>Mohr's circle for plane strain</h2>
+  <h3>Strain instead of stress</h3>
+  <p>Strain describes how much a material changes shape. The normal strain epsilon is the change in length divided by the original length. The shear strain gamma is the change in a right angle, measured in radians. A material under plane strain has zero strain in the z direction. This happens in a long dam, a thick pipe or a long shaft held between two plates.</p>
+  <p>Because strain and stress obey similar equations, Mohr's circle works for strain too. There is one important difference. For strain, the shear quantity is gamma/2, not gamma. So the circle uses gamma xy divided by 2 in place of tau xy. The formulas become:</p>
+  <div class="formula">Centre = (epsilon x + epsilon y)/2</div>
+  <div class="formula">R = square root of ( ((epsilon x - epsilon y)/2) squared + (gamma xy/2) squared )</div>
+  <div class="formula">Maximum shear strain = gamma max = 2R</div>
+  <p>Here epsilon x and epsilon y are the normal strains in the x and y directions, and gamma xy is the shear strain. The factor of 2 in the last formula is the reason it is easy to make a mistake. The maximum shear strain is twice the radius, because the circle uses half the shear strain.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not use gamma xy directly as the shear value in the radius formula. Always halve it first. Then the maximum shear strain is twice the radius, not the radius itself.</p></div>
+  <h3>Worked example for plane strain</h3>
+  <p>Let epsilon x = 200 micro-strain, epsilon y = 140 micro-strain and gamma xy = 80 micro-strain. The centre is (200 + 140)/2 = 170. Half of gamma xy is 40. The horizontal half-difference is (200 - 140)/2 = 30. The radius is square root of (30 squared + 40 squared) = square root of 2500 = 50. The principal strains are 170 + 50 = 220 and 170 - 50 = 120. The maximum shear strain is 2 x 50 = 100 micro-strain.</p>
+  <pre class="code" data-lang="python"><code>import math
+ex, ey, gxy = 200, 140, 80
+centre = (ex + ey) / 2
+R = math.sqrt(((ex - ey) / 2) ** 2 + (gxy / 2) ** 2)
+print("centre:", centre)
+print("radius:", R)
+print("principal strains:", centre + R, centre - R)
+print("max shear strain:", 2 * R)</code></pre>
+  <pre class="output">centre: 170.0
+radius: 50.0
+principal strains: 220.0 120.0
+max shear strain: 100.0</pre>
+  <details class="check"><summary>In plane strain, what do you use in place of tau xy when drawing the circle?</summary><div class="ans"><p>You use gamma xy divided by 2, which is half the shear strain.</p></div></details>
+  <details class="check"><summary>If the radius of a strain circle is 25 micro-strain, what is the maximum shear strain?</summary><div class="ans"><p>It is 2 x 25 = 50 micro-strain.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Use this table to check your work. Each row is a formula you will need for a Mohr's circle question.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>Centre = (sigma x + sigma y)/2</td><td>Middle of the circle on the normal axis</td><td>First step of drawing</td></tr>
+      <tr><td>R = square root of (((sigma x - sigma y)/2)<sup>2</sup> + tau xy<sup>2</sup>)</td><td>Radius of the circle</td><td>Finding principal stresses or the maximum shear</td></tr>
+      <tr><td>sigma1 = centre + R, sigma2 = centre - R</td><td>Principal stresses</td><td>Finding the largest and smallest normal stress</td></tr>
+      <tr><td>tau max = R</td><td>Maximum shear stress in plane stress</td><td>Finding the largest shear</td></tr>
+      <tr><td>tan 2theta p = 2 tau xy / (sigma x - sigma y)</td><td>Principal angle</td><td>Locating the principal planes</td></tr>
+      <tr><td>tau(theta) = -((sigma x - sigma y)/2) sin 2theta + tau xy cos 2theta</td><td>Shear on a cut at angle theta</td><td>Checking a principal plane has zero shear</td></tr>
+      <tr><td>Strain radius: R = square root of (((epsilon x - epsilon y)/2)<sup>2</sup> + (gamma xy/2)<sup>2</sup>)</td><td>Radius for plane strain</td><td>Strain circle questions</td></tr>
+      <tr><td>gamma max = 2R (strain)</td><td>Maximum shear strain</td><td>Plane strain questions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE. They are not real past questions. Try each one on paper before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Centre of the circle</h3>
+    <div class="statement"><p>At a point, sigma x = 50 MPa and sigma y = -10 MPa, and tau xy = 0. Find the centre of Mohr's circle on the normal stress axis, in MPa. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The centre value, the average of the two normal stresses.</li>
+      <li><strong>Which idea applies.</strong> Centre = (sigma x + sigma y)/2.</li>
+      <li><strong>Work it out.</strong> Centre = (50 + (-10))/2 = 40/2 = 20 MPa.</li>
+      <li><strong>Check.</strong> The centre must lie between the two normal stresses, 50 and -10. The answer 20 lies between them, so it is reasonable.</li>
+    </ol>
+    <p class="cx">Answer: 20 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Pure shear</h3>
+    <div class="statement"><p>At a point, sigma x = 0, sigma y = 0 and tau xy = 30 MPa (pure shear). Find the larger principal stress, sigma1, in MPa. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest normal stress on the principal planes.</li>
+      <li><strong>Which idea applies.</strong> The centre is 0 and the radius is R = square root of (0 + tau xy squared). sigma1 = centre + R.</li>
+      <li><strong>Work it out.</strong> R = square root of (30 squared) = 30. sigma1 = 0 + 30 = 30 MPa. The other principal stress is -30 MPa.</li>
+      <li><strong>Check.</strong> Pure shear gives equal and opposite principal stresses, which is what the answer shows.</li>
+    </ol>
+    <p class="cx">Answer: 30 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Maximum shear stress (NAT)</h3>
+    <div class="statement"><p>At a point, sigma x = 80 MPa, sigma y = 20 MPa and tau xy = 40 MPa. Find the maximum shear stress in MPa. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> tau max in plane stress.</li>
+      <li><strong>Which idea applies.</strong> tau max = R, and R = square root of (((sigma x - sigma y)/2)<sup>2</sup> + tau xy<sup>2</sup>).</li>
+      <li><strong>Work it out.</strong> (80 - 20)/2 = 30, and 30 squared = 900. tau xy squared = 1600. The sum is 2500, and its square root is 50. So tau max = 50 MPa. The Python check in the chapter gives the same radius.</li>
+      <li><strong>Check.</strong> The maximum shear must be at least tau xy = 40, and 50 is at least 40. Good.</li>
+    </ol>
+    <p class="cx">Answer: 50 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements are correct? (MSQ)</h3>
+    <div class="statement"><p>For plane stress at a point, with the usual sign convention, which of the following statements are correct? Select all that apply.</p>
+    <p>(A) The maximum shear stress equals the radius of Mohr's circle<br>(B) The centre of the circle lies on the shear stress axis<br>(C) On a principal plane, the shear stress is zero<br>(D) The principal angle on the circle is the same as the angle on the object</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every true statement.</li>
+      <li><strong>Which idea applies.</strong> The circle's centre lies on the normal axis. Principal planes have zero shear. The circle uses twice the cut angle.</li>
+      <li><strong>Work it out.</strong> (A) is correct, because tau max = R. (B) is wrong, because the centre is on the normal (horizontal) axis. (C) is correct, by the definition of principal planes. (D) is wrong, because the circle angle is twice the object angle.</li>
+      <li><strong>Check.</strong> Count: two statements are correct, and each wrong one breaks a rule above.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>The principal angle (NAT)</h3>
+    <div class="statement"><p>At a point, sigma x = 60 MPa, sigma y = 0 and tau xy = 30 MPa. Find the principal angle theta p, in degrees, from the x axis to the principal plane that carries sigma1. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The angle theta p in degrees.</li>
+      <li><strong>Which idea applies.</strong> tan 2theta p = 2 tau xy / (sigma x - sigma y), then halve the angle.</li>
+      <li><strong>Work it out.</strong> tan 2theta p = 2 x 30 / (60 - 0) = 60/60 = 1. So 2theta p = 45 degrees. Halving gives theta p = 22.5 degrees. The Python check below shows the same value.</li>
+      <li><strong>Check.</strong> The circle has centre 30 and radius 30 here, so sigma1 = 60 is at angle 0 on the circle, and the principal point is 45 degrees away on the circle. Halving 45 gives 22.5 degrees.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+sx, sy, txy = 60, 0, 30
+theta = 0.5 * math.atan2(2 * txy, sx - sy)
+print("theta p:", round(math.degrees(theta), 1), "degrees")</code></pre>
+    <pre class="output">theta p: 22.5 degrees</pre>
+    <p class="cx">Answer: 22.5 degrees.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Largest principal stress with a negative normal stress (NAT)</h3>
+    <div class="statement"><p>At a point, sigma x = -40 MPa, sigma y = 20 MPa and tau xy = 30 MPa. Find the largest principal stress sigma1, in MPa, to one decimal place. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> sigma1 = centre + R.</li>
+      <li><strong>Which idea applies.</strong> The centre is the average of the two normal stresses. R uses the half-difference and the shear.</li>
+      <li><strong>Work it out.</strong> The centre is (-40 + 20)/2 = -10 MPa. The half-difference is (-40 - 20)/2 = -30, whose square is 900. The shear squared is 900. R = square root of 1800 = 42.43 MPa. So sigma1 = -10 + 42.43 = 32.43 MPa, which is 32.4 MPa to one decimal place. The Python check below repeats the steps.</li>
+      <li><strong>Check.</strong> sigma2 = -10 - 42.43 = -52.43, and the average of sigma1 and sigma2 is -10, which is the centre. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+sx, sy, txy = -40, 20, 30
+centre = (sx + sy) / 2
+R = math.sqrt(((sx - sy) / 2) ** 2 + txy ** 2)
+print("centre:", centre)
+print("R:", round(R, 2))
+print("sigma1:", round(centre + R, 1))
+print("sigma2:", round(centre - R, 2))</code></pre>
+    <pre class="output">centre: -10.0
+R: 42.43
+sigma1: 32.4
+sigma2: -52.43</pre>
+    <p class="cx">Answer: 32.4 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Maximum shear strain in plane strain (NAT)</h3>
+    <div class="statement"><p>At a point in a plate under plane strain, epsilon x = 200 micro-strain, epsilon y = 140 micro-strain and gamma xy = 80 micro-strain. Find the maximum shear strain gamma max, in micro-strain. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> gamma max for a strain state.</li>
+      <li><strong>Which idea applies.</strong> Halve gamma xy, find the radius, then gamma max = 2R.</li>
+      <li><strong>Work it out.</strong> Half of gamma xy is 40. The half-difference is (200 - 140)/2 = 30. R = square root of (900 + 1600) = 50. So gamma max = 2 x 50 = 100 micro-strain. The worked example earlier on this page gives the same numbers.</li>
+      <li><strong>Check.</strong> The maximum shear strain must be larger than the largest single shear term (gamma xy = 80). 100 is larger than 80, which is correct.</li>
+    </ol>
+    <p class="cx">Answer: 100 micro-strain.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Principal stresses (NAT, 2 marks)</h3>
+    <div class="statement"><p>Plane stress: σ<sub>x</sub> = 80 MPa, σ<sub>y</sub> = −20 MPa, τ<sub>xy</sub> = 30 MPa. Find the major principal stress, correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> σ<sub>1</sub>.</li>
+      <li><strong>Which idea applies.</strong> σ<sub>1,2</sub> = (σ<sub>x</sub> + σ<sub>y</sub>)/2 ± √(((σ<sub>x</sub> − σ<sub>y</sub>)/2)² + τ²).</li>
+      <li><strong>Work it out.</strong> Centre 30, radius √(2500 + 900) = 58.31. σ<sub>1</sub> = 88.31 MPa, σ<sub>2</sub> = −28.31 MPa.</li>
+      <li><strong>Check.</strong> σ<sub>1</sub> + σ<sub>2</sub> = 60 = σ<sub>x</sub> + σ<sub>y</sub>.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+c = (80 - 20) / 2; R = math.hypot((80 + 20) / 2, 30)
+print("%.2f %.2f" % (c + R, c - R))
+</code></pre>
+    <pre class="output">88.31 -28.31</pre>
+    <p class="cx">Answer: about 88.31 MPa.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Maximum in-plane shear (NAT, 1 mark)</h3>
+    <div class="statement"><p>For the same state, find the maximum in-plane shear stress.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Mohr circle radius.</li>
+      <li><strong>Which idea applies.</strong> τ<sub>max</sub> = R.</li>
+      <li><strong>Work it out.</strong> 58.31 MPa.</li>
+      <li><strong>Check.</strong> It acts on planes 45° from the principal planes.</li>
+    </ol>
+    <p class="cx">Answer: about 58.31 MPa.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Principal angle (NAT, 2 marks)</h3>
+    <div class="statement"><p>For the same state, find the angle θ<sub>p</sub> (in degrees, between 0 and 45) from the x axis to the major principal plane, correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> θ<sub>p</sub> from tan 2θ<sub>p</sub> = 2τ/(σ<sub>x</sub> − σ<sub>y</sub>).</li>
+      <li><strong>Which idea applies.</strong> The formula gives the direction of σ<sub>1</sub> when σ<sub>x</sub> &gt; σ<sub>y</sub> and τ &gt; 0.</li>
+      <li><strong>Work it out.</strong> tan 2θ = 60/100 = 0.6. 2θ = 30.96°, θ = 15.48°.</li>
+      <li><strong>Check.</strong> The code checks the normal stress on that plane equals σ<sub>1</sub>.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+t = 0.5 * math.atan2(60, 100)
+s = (80 - 20) / 2 + (80 + 20) / 2 * math.cos(2 * t) + 30 * math.sin(2 * t)
+print("%.2f deg, sigma = %.2f" % (math.degrees(t), s))
+</code></pre>
+    <pre class="output">15.48 deg, sigma = 88.31</pre>
+    <p class="cx">Answer: about 15.48°.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Stress</dt><dd>Force per area inside a material. Measured in MPa.</dd></div>
+    <div><dt>Normal stress</dt><dd>Stress across a cut. Tension is positive.</dd></div>
+    <div><dt>Shear stress</dt><dd>Stress along a cut that tries to slide the two sides.</dd></div>
+    <div><dt>Plane stress</dt><dd>Stress acts in one flat plane, with zero stress in the third direction.</dd></div>
+    <div><dt>Plane strain</dt><dd>Strain is zero in one direction, as in a long dam or pipe.</dd></div>
+    <div><dt>Mohr's circle</dt><dd>A circle that shows the stresses on all cuts through a point.</dd></div>
+    <div><dt>Centre</dt><dd>(sigma x + sigma y)/2 on the normal axis.</dd></div>
+    <div><dt>Radius</dt><dd>Square root of (((sigma x - sigma y)/2)<sup>2</sup> + tau xy<sup>2</sup>).</dd></div>
+    <div><dt>Principal stress</dt><dd>Normal stress with zero shear. The largest is sigma1, the smallest is sigma2.</dd></div>
+    <div><dt>Maximum shear stress</dt><dd>Equal to the radius in plane stress.</dd></div>
+    <div><dt>Principal angle</dt><dd>Half of the circle angle that gives tan 2theta p = 2 tau xy / (sigma x - sigma y).</dd></div>
+    <div><dt>Doubled angle</dt><dd>The circle turns twice as fast as the cut. Always halve a circle angle.</dd></div>
+    <div><dt>Sign convention</dt><dd>Tension positive. Points (sigma x, tau xy) and (sigma y, -tau xy) form a diameter.</dd></div>
+    <div><dt>Transformation equations</dt><dd>Formulas giving the stresses on a cut at angle theta.</dd></div>
+    <div><dt>Plane strain circle</dt><dd>Same idea, with gamma xy/2 in place of tau xy.</dd></div>
+    <div><dt>Maximum shear strain</dt><dd>Twice the radius of the strain circle.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>The centre of Mohr's circle is the average of the two normal stresses.</li>
+    <li>The points (sigma x, tau xy) and (sigma y, -tau xy) form a diameter of the circle.</li>
+    <li>Principal stresses are the centre plus and minus the radius.</li>
+    <li>For plane stress, the maximum shear stress equals the radius.</li>
+    <li>The circle turns through twice the cut angle, so always halve the circle angle.</li>
+    <li>For plane strain, halve the shear strain before you draw, and the maximum shear strain is twice the radius.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 162?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 162 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-161.html"><small>Previous, topic 161</small>Concurrent design &amp; manufacturing planning for automation</a><a class="next" href="gate-163.html"><small>Next, topic 163</small>Stress and strain, elastic constants, Poisson&#x27;s ratio</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

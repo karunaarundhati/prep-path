@@ -1,0 +1,555 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 107: Multi-layer perceptron & feedforward NN</title><meta name="description" content="A neural network is a stack of simple units that each combine numbers and pass the result on. A multi-layer perceptron (MLP) is the basic, fully connected form of this idea. This topic shows how one unit works, how layers are chained together, how a forward pass produces a prediction, and how backpropagation learns the weights. GATE Data Science and AI asks about all of these."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g107" data-key="g107" data-noun="topic" data-num="107" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Multi-layer perceptron &amp; feedforward NN</h1>
+<p class="lede">A neural network is a stack of simple units that each combine numbers and pass the result on. A multi-layer perceptron (MLP) is the basic, fully connected form of this idea. This topic shows how one unit works, how layers are chained together, how a forward pass produces a prediction, and how backpropagation learns the weights. GATE Data Science and AI asks about all of these.</p>
+<div class="station"><b>107</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>A single perceptron and its limits</li><li>Activation functions (sigmoid, tanh, ReLU)</li><li>Layers, the forward pass and why hidden layers help</li><li>Counting parameters</li><li>Loss, gradients and backpropagation</li><li>The universal approximation idea</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Picture a tasting committee judging a new soup. The first group of judges each tastes one thing: saltiness, sweetness, spice. Each judge gives a score. A second group listens to those scores, weighs them, and decides whether the soup is "good". A final judge makes the call. Nobody in the chain sees the whole soup. Each stage only combines what it was given.</p>
+
+  <p>A multi-layer perceptron works the same way. Its units are called <strong>neurons</strong> (a name borrowed from biology, but the maths is much simpler). Each neuron:</p>
+  <ul>
+    <li>multiplies each of its inputs by a <strong>weight</strong> (how much that input matters),</li>
+    <li>adds them up along with a <strong>bias</strong> (a built-in offset),</li>
+    <li>passes the total through an <strong>activation function</strong> (a rule that decides how strongly the neuron "fires").</li>
+  </ul>
+  <p>Many neurons form a <strong>layer</strong>. Layers are chained: the output of one becomes the input of the next. The network learns good weights from examples, by adjusting them a little at a time to reduce its mistakes.</p>
+
+  <p>Why does this matter for GATE? The Data Science and AI paper expects you to know what a neuron computes, to do a forward pass by hand, to count parameters, and to understand the chain rule idea behind backpropagation. Every term is defined below, and every number is checked with Python.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these once now. Each term has a plain meaning first, then a precise definition.</p>
+  <dl>
+    <div><dt>Neuron (unit)</dt><dd>A small calculator that combines its inputs into one output. Precise: it computes an activation applied to a weighted sum plus a bias.</dd></div>
+    <div><dt>Weight</dt><dd>How strongly an input affects a neuron. Precise: a number multiplying one input, learned during training.</dd></div>
+    <div><dt>Bias</dt><dd>A built-in offset that shifts the neuron's threshold. Precise: a number added to the weighted sum, also learned.</dd></div>
+    <div><dt>Weighted sum (pre-activation) z</dt><dd>The total before the activation. Precise: z = w<sub>1</sub>x<sub>1</sub> + … + w<sub>m</sub>x<sub>m</sub> + b.</dd></div>
+    <div><dt>Activation function</dt><dd>A rule that turns z into the neuron's output. Precise: a non-linear function applied to z, such as sigmoid, tanh or ReLU.</dd></div>
+    <div><dt>Perceptron</dt><dd>The simplest neuron, using a step activation. Precise: outputs 1 if z is at least 0, and 0 otherwise.</dd></div>
+    <div><dt>Layer</dt><dd>A group of neurons that all read the same inputs. Precise: the set of neurons at one depth in the network.</dd></div>
+    <div><dt>Input, hidden and output layers</dt><dd>The first layer receives the data, the middle layers are hidden, and the last layer gives the answer. Precise: hidden means not directly seen as input or output.</dd></div>
+    <div><dt>Multi-layer perceptron (MLP)</dt><dd>A network of fully connected layers. Precise: each neuron in a layer receives every output from the layer before.</dd></div>
+    <div><dt>Forward pass (feedforward)</dt><dd>Computing the output from the input, layer by layer. Precise: the calculation that moves information only forward through the network.</dd></div>
+    <div><dt>Loss</dt><dd>A number measuring how wrong the output is. Precise: a function of the output and the true target that training tries to make small.</dd></div>
+    <div><dt>Gradient</dt><dd>How much the loss changes when a weight changes a little. Precise: the partial derivative of the loss with respect to a weight.</dd></div>
+    <div><dt>Learning rate η (eta)</dt><dd>The size of each step when adjusting weights. Precise: a small positive number that scales the gradient update.</dd></div>
+    <div><dt>Backpropagation</dt><dd>Passing the error backwards to find all gradients. Precise: an efficient way to apply the chain rule layer by layer.</dd></div>
+    <div><dt>Chain rule</dt><dd>A rule for derivatives of nested functions. Precise: the derivative of f(g(x)) is f′(g(x)) × g′(x).</dd></div>
+    <div><dt>Linearly separable</dt><dd>Two classes can be split by one straight line or flat boundary. Precise: a single perceptron can classify them exactly.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="A single perceptron">
+  <h2>Concept 1: A single perceptron and its limits</h2>
+
+  <h3>What one neuron computes</h3>
+  <p>Take a neuron with two inputs, x<sub>1</sub> and x<sub>2</sub>, weights w<sub>1</sub> and w<sub>2</sub>, and bias b. It computes:</p>
+  <div class="formula">z = w<sub>1</sub>x<sub>1</sub> + w<sub>2</sub>x<sub>2</sub> + b</div>
+  <p>Then a perceptron applies a step: the output is 1 if z is at least 0, otherwise 0. Each symbol is simple: the x values are what we feed in, the w values scale them, and b shifts the threshold.</p>
+
+  <h3>A worked example: the AND gate</h3>
+  <p>An AND gate outputs 1 only when both inputs are 1. Choose w<sub>1</sub> = 1, w<sub>2</sub> = 1 and b = −1.5. Test the input (1, 1):</p>
+  <ol>
+    <li>z = 1 × 1 + 1 × 1 + (−1.5) = 0.5.</li>
+    <li>0.5 is at least 0, so the output is 1. Correct.</li>
+  </ol>
+  <p>Test (1, 0): z = 1 + 0 − 1.5 = −0.5, which is below 0, so the output is 0. Correct. The other two inputs also give 0, so the neuron computes AND.</p>
+
+  <h3>The limit: XOR</h3>
+  <p>The XOR gate outputs 1 when exactly one input is 1. Its true values are 0 for (0,0), 1 for (0,1), 1 for (1,0), and 0 for (1,1). If you draw these four points, the two 1s sit on opposite corners. No single straight line can put both 1s on one side and both 0s on the other. So XOR is <strong>not linearly separable</strong>, and no single perceptron can compute it. This is the classic reason we need more layers.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A single perceptron draws one straight boundary. Anything that needs a curved or two-piece boundary, such as XOR, needs a hidden layer.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The bias is not optional decoration. Without it, the boundary must pass through the origin, which often makes the problem impossible. The AND gate above needs b = −1.5.</p></div>
+
+  <details class="check"><summary>Can one perceptron compute OR? Give weights.</summary><div class="ans"><p>Yes. Use w<sub>1</sub> = 1, w<sub>2</sub> = 1 and b = −0.5. Then (0,0) gives −0.5, output 0, while (1,0), (0,1) and (1,1) give at least 0.5, output 1.</p></div></details>
+
+  <details class="check"><summary>Why is XOR not linearly separable?</summary><div class="ans"><p>Its two positive points are on opposite corners of the square. Any straight line that separates one positive corner from the negatives will leave the other positive corner on the wrong side.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Activation functions">
+  <h2>Concept 2: Activation functions</h2>
+
+  <h3>Why we need them</h3>
+  <p>Suppose we stacked two layers with no activation. The first layer computes W<sub>1</sub>x, and the second computes W<sub>2</sub>(W<sub>1</sub>x). Multiplying matrices gives W<sub>2</sub>W<sub>1</sub>, which is just another matrix. So two layers without activation collapse into one linear layer, however many you stack. The activation function adds a <strong>non-linear</strong> bend between layers, and that bend is what gives depth its power.</p>
+
+  <h3>The three you must know</h3>
+  <ul>
+    <li><strong>Sigmoid:</strong> σ(z) = 1 / (1 + e<sup>−z</sup>). It squashes any number into the range between 0 and 1. Its slope is σ(z)(1 − σ(z)).</li>
+    <li><strong>Tanh:</strong> tanh(z) = (e<sup>z</sup> − e<sup>−z</sup>) / (e<sup>z</sup> + e<sup>−z</sup>). It squashes into the range from −1 to 1, and it is zero at z = 0.</li>
+    <li><strong>ReLU (rectified linear unit):</strong> ReLU(z) = max(0, z). It outputs z when z is positive, and 0 otherwise.</li>
+  </ul>
+
+  <p>Let us check the sigmoid values and its slope at z = 0 with Python. Its output should be 0.5, and the slope formula should give 0.25.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def sigmoid(z):
+    return 1 / (1 + math.exp(-z))
+
+print("sigmoid(0):", sigmoid(0))
+print("slope by formula s(1-s):", sigmoid(0) * (1 - sigmoid(0)))
+h = 1e-6
+print("slope by numeric check:", round((sigmoid(h) - sigmoid(-h)) / (2 * h), 4))</code></pre>
+  <pre class="output">sigmoid(0): 0.5
+slope by formula s(1-s): 0.25
+slope by numeric check: 0.25</pre>
+
+  <p>The output matches. At z = 0 the sigmoid is halfway, 0.5, and it is steepest there, with slope 0.25.</p>
+
+  <h3>Values to remember</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>z</th><th>Sigmoid</th><th>Tanh</th><th>ReLU</th></tr></thead>
+    <tbody>
+      <tr><td>−2</td><td>small, near 0.12</td><td>near −0.96</td><td>0</td></tr>
+      <tr><td>0</td><td>0.5</td><td>0</td><td>0</td></tr>
+      <tr><td>2</td><td>near 0.88</td><td>near 0.96</td><td>2</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>For GATE, you usually need the exact values at z = 0 and the rough shape. Sigmoid and tanh saturate, meaning they flatten out for large |z|, while ReLU does not flatten for positive z.</p></div>
+
+
+  <details class="check"><summary>What is ReLU(−3)?</summary><div class="ans"><p>0. ReLU keeps positive values and replaces negative ones with 0.</p></div></details>
+
+  <details class="check"><summary>Why do two linear layers without activation act like one?</summary><div class="ans"><p>Because W<sub>2</sub>(W<sub>1</sub>x) = (W<sub>2</sub>W<sub>1</sub>)x. Multiplying the two weight matrices gives a single matrix, so the stack is one linear map.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Layers and the forward pass">
+  <h2>Concept 3: Layers, the forward pass and why hidden layers help</h2>
+
+  <h3>The structure</h3>
+  <p>An MLP has an <strong>input layer</strong> that just holds the data, one or more <strong>hidden layers</strong> of neurons, and an <strong>output layer</strong> that gives the answer. Every neuron in one layer connects to every neuron in the next, which is why it is called fully connected.</p>
+
+  <h3>The forward pass, by hand</h3>
+  <p>The forward pass is the calculation from input to output. For each layer, compute every neuron's weighted sum, apply the activation, and pass the results on. Here is a small example: two inputs, two hidden neurons with sigmoid, and one output neuron with sigmoid.</p>
+  <ol>
+    <li><strong>Input:</strong> x = (1, 2).</li>
+    <li><strong>Hidden neuron 1:</strong> weights (0.5, −0.5), bias 0. z = 0.5 × 1 + (−0.5) × 2 + 0 = −0.5. Output σ(−0.5) ≈ 0.3775.</li>
+    <li><strong>Hidden neuron 2:</strong> weights (0.25, 0.75), bias 0.5. z = 0.25 × 1 + 0.75 × 2 + 0.5 = 2.25. Output σ(2.25) ≈ 0.9047.</li>
+    <li><strong>Output neuron:</strong> weights (1, −1), bias 0.1. z = 1 × 0.3775 + (−1) × 0.9047 + 0.1 ≈ −0.4271. Output σ(−0.4271) ≈ 0.3948.</li>
+  </ol>
+  <p>Let us check this in Python. The code rounds to four decimals, so the printed numbers match the steps above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def sigmoid(z):
+    return 1 / (1 + math.exp(-z))
+
+x = [1.0, 2.0]
+W1 = [[0.5, -0.5], [0.25, 0.75]]
+b1 = [0.0, 0.5]
+W2 = [1.0, -1.0]
+b2 = 0.1
+
+z1 = [sum(w * xi for w, xi in zip(row, x)) + b for row, b in zip(W1, b1)]
+h = [sigmoid(z) for z in z1]
+z_out = sum(w * hi for w, hi in zip(W2, h)) + b2
+y = sigmoid(z_out)
+
+print("hidden pre-activations:", [round(z, 4) for z in z1])
+print("hidden outputs:", [round(v, 4) for v in h])
+print("output pre-activation:", round(z_out, 4))
+print("network output:", round(y, 4))</code></pre>
+  <pre class="output">hidden pre-activations: [-0.5, 2.25]
+hidden outputs: [0.3775, 0.9047]
+output pre-activation: -0.4271
+network output: 0.3948</pre>
+
+  <h3>Why hidden layers help: solving XOR</h3>
+  <p>Remember that one perceptron cannot compute XOR. A tiny two-layer network can, if we build it from simple pieces. Use two hidden step-neurons:</p>
+  <ul>
+    <li>h<sub>1</sub> fires when x<sub>1</sub> + x<sub>2</sub> − 0.5 is at least 0. This computes OR.</li>
+    <li>h<sub>2</sub> fires when x<sub>1</sub> + x<sub>2</sub> − 1.5 is at least 0. This computes AND.</li>
+    <li>The output fires when h<sub>1</sub> − h<sub>2</sub> − 0.5 is at least 0. Its job is "OR but not AND", which is XOR.</li>
+  </ul>
+  <p>The Python code below runs the four inputs through this network and prints the table.</p>
+  <pre class="code" data-lang="python"><code>def step(z):
+    return 1 if z >= 0 else 0
+
+print("x1 x2 | h1(OR) h2(AND) | XOR output")
+for x1 in (0, 1):
+    for x2 in (0, 1):
+        h1 = step(x1 + x2 - 0.5)
+        h2 = step(x1 + x2 - 1.5)
+        out = step(h1 - h2 - 0.5)
+        print(x1, x2, "|", h1, h2, "|", out)</code></pre>
+  <pre class="output">x1 x2 | h1(OR) h2(AND) | XOR output
+0 0 | 0 0 | 0
+0 1 | 1 0 | 1
+1 0 | 1 0 | 1
+1 1 | 1 1 | 0</pre>
+
+  <p>Read the last column: 0, 1, 1, 0. That is XOR. The hidden layer turned the hard problem into two easy ones, OR and AND, and the output combined them.</p>
+
+
+  <details class="check"><summary>In the XOR network, what is the output for input (1, 0) and why?</summary><div class="ans"><p>1. The first hidden neuron fires (OR is 1), the second does not (AND is 0). The output computes 1 − 0 − 0.5 = 0.5, which is at least 0, so it fires.</p></div></details>
+
+</section>
+
+<section class="unit" id="c4" data-title="Counting parameters">
+  <h2>Concept 4: Counting parameters</h2>
+
+  <h3>What a parameter is</h3>
+  <p>A <strong>parameter</strong> is any number that training learns: weights and biases. GATE often asks how many parameters a network has, because it tells you how flexible the model is and how much memory it needs.</p>
+
+  <h3>The rule</h3>
+  <p>Between two consecutive layers with n<sub>in</sub> neurons feeding n<sub>out</sub> neurons, there are n<sub>in</sub> × n<sub>out</sub> weights, because every input connects to every output. There are also n<sub>out</sub> biases, one per receiving neuron. So:</p>
+  <div class="formula">Parameters between two layers = n<sub>in</sub> × n<sub>out</sub> + n<sub>out</sub></div>
+  <p>Add this over all pairs of consecutive layers. Input layers have no weights of their own, because they only hold data.</p>
+
+  <h3>A worked example</h3>
+  <p>Take a network with layer sizes 3, 4, 2. That is 3 inputs, one hidden layer of 4 neurons, and 2 outputs. Here is the calculation step by step, in Python.</p>
+  <pre class="code" data-lang="python"><code>sizes = [3, 4, 2]
+total = 0
+for n_in, n_out in zip(sizes, sizes[1:]):
+    weights = n_in * n_out
+    biases = n_out
+    print("layer", n_in, "to", n_out, "weights:", weights, "biases:", biases)
+    total += weights + biases
+print("total parameters:", total)</code></pre>
+  <pre class="output">layer 3 to 4 weights: 12 biases: 4
+layer 4 to 2 weights: 8 biases: 2
+total parameters: 26</pre>
+
+  <p>Read the output line by line. The first layer has 3 × 4 = 12 weights and 4 biases, giving 16. The second has 4 × 2 = 8 weights and 2 biases, giving 10. The total is 26.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Forgetting the biases is the most common error. Always add n<sub>out</sub> for each pair of layers, not only the weights.</p></div>
+
+  <details class="check"><summary>How many parameters does a 2-3-1 network have?</summary><div class="ans"><p>First pair: 2 × 3 weights + 3 biases = 9. Second pair: 3 × 1 weights + 1 bias = 4. Total: 13.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Loss and backpropagation">
+  <h2>Concept 5: Loss, gradients and backpropagation</h2>
+
+  <h3>How learning starts: the loss</h3>
+  <p>Training needs a score for how wrong the network is. A common choice is the squared error loss. If the network outputs y and the true target is t:</p>
+  <div class="formula">L = ½ (y − t)²</div>
+  <ul>
+    <li><strong>y</strong> is the network's output and <strong>t</strong> is the target.</li>
+    <li><strong>(y − t)²</strong> is the squared gap. It is zero for a perfect answer.</li>
+    <li>The ½ is a convenience that cancels a 2 when we differentiate.</li>
+  </ul>
+
+  <h3>Gradient descent in one sentence</h3>
+  <p>Gradient descent changes each weight a little in the direction that lowers the loss:</p>
+  <div class="formula">w ← w − η × (∂L / ∂w)</div>
+  <ul>
+    <li><strong>∂L / ∂w</strong> is the gradient: how much the loss changes when w changes a little.</li>
+    <li><strong>η</strong> is the learning rate, a small positive step size.</li>
+    <li><strong>←</strong> means "replace the old value with the new one".</li>
+  </ul>
+
+  <h3>The chain rule, one link at a time</h3>
+  <p>Take a single neuron with no activation, y = w x, where x is an input. The loss depends on w through y, so the chain rule gives:</p>
+  <div class="formula">∂L / ∂w = (∂L / ∂y) × (∂y / ∂w) = (y − t) × x</div>
+  <p>Each factor is a simple local piece. The first says how the loss changes with the output, which is y − t. The second says how the output changes with the weight, which is x. Backpropagation simply multiplies these local pieces backwards from the loss, layer by layer, so that every weight gets its gradient without repeating the work.</p>
+
+  <h3>A worked example with exact numbers</h3>
+  <p>Let x = 2, starting weight w = 1/2, and target t = 3. The learning rate is η = 1/10. Compute the prediction, the error, the gradient, and the new weight.</p>
+  <ol>
+    <li>Prediction: y = w x = 1/2 × 2 = 1.</li>
+    <li>Error: y − t = 1 − 3 = −2.</li>
+    <li>Gradient: (y − t) × x = −2 × 2 = −4. Negative means: increasing w would lower the loss.</li>
+    <li>Update: w ← 1/2 − (1/10)(−4) = 1/2 + 2/5 = 9/10.</li>
+  </ol>
+  <p>Python can confirm the gradient by a second method, a numeric check that nudges w up and down a tiny bit. It also confirms that the loss goes down.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+x = F(2)
+w = F(1, 2)
+t = F(3)
+lr = F(1, 10)
+
+def loss(w):
+    y = w * x
+    return F(1, 2) * (y - t) ** 2
+
+y = w * x
+err = y - t
+grad_chain = err * x
+h = F(1, 1000)
+grad_numeric = (loss(w + h) - loss(w - h)) / (2 * h)
+w_new = w - lr * grad_chain
+
+print("prediction:", y)
+print("error y - t:", err)
+print("gradient by chain rule:", grad_chain)
+print("gradient by numeric check:", grad_numeric)
+print("new weight:", w_new)
+print("loss before:", loss(w))
+print("loss after:", loss(w_new))</code></pre>
+  <pre class="output">prediction: 1
+error y - t: -2
+gradient by chain rule: -4
+gradient by numeric check: -4
+new weight: 9/10
+loss before: 2
+loss after: 18/25</pre>
+
+  <p>Both gradient methods give −4. The new weight 9/10 lowers the loss from 2 to 18/25, which is 0.72. Check: with w = 9/10, the prediction is 9/10 × 2 = 9/5 = 1.8, and ½(1.8 − 3)² = ½ × 1.44 = 0.72. The loss went down, as expected.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Backpropagation is the chain rule applied backwards. It gives the gradient of every weight in one backward sweep, and gradient descent then nudges each weight down the slope.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The learning rate must be small enough. A very large η can overshoot the minimum and make the loss grow. The update always subtracts the gradient, so a negative gradient increases the weight.</p></div>
+
+  <details class="check"><summary>If the gradient of a weight is +5 and η = 0.1, does the weight go up or down?</summary><div class="ans"><p>Down. The update is w − η × 5 = w − 0.5. A positive gradient means increasing the weight would raise the loss, so we move the weight in the other direction.</p></div></details>
+
+</section>
+
+<section class="unit" id="c6" data-title="Universal approximation">
+  <h2>Concept 6: The universal approximation idea</h2>
+  <p>A remarkable theorem, proved in the late 1980s and early 1990s, says that a network with just one hidden layer of enough neurons, using a suitable non-linear activation, can approximate any continuous function on a closed, bounded region to any accuracy you want.</p>
+  <p>Read this carefully, because GATE may test the exact claim. The theorem says the network <em>can</em> represent the function. It does not say how many neurons are needed, how to find the weights, or whether training will succeed. It is an existence result, not a recipe.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>"Universal approximation means the network always learns the function" is wrong. The theorem guarantees a good set of weights exists. Gradient descent may still get stuck or overfit.</p></div>
+
+  <details class="check"><summary>Does universal approximation tell us how many hidden neurons to use?</summary><div class="ans"><p>No. It only says that enough neurons are sufficient in principle. The number needed depends on the function, and it can be very large.</p></div></details>
+
+  <details class="check"><summary>Why does a hidden layer with non-linear activation matter for this theorem?</summary><div class="ans"><p>Without a non-linear activation, the network is just one linear map, which can only represent linear functions. The non-linear bends are what let it build any continuous shape from pieces.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table handy. Each row gives the formula, what it means, and when to use it.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>z = Σ w<sub>i</sub>x<sub>i</sub> + b</td><td>Weighted sum before the activation</td><td>Computing one neuron</td></tr>
+      <tr><td>σ(z) = 1 / (1 + e<sup>−z</sup>)</td><td>Sigmoid activation</td><td>Forward pass with sigmoid</td></tr>
+      <tr><td>σ′(z) = σ(z)(1 − σ(z))</td><td>Slope of the sigmoid</td><td>Backpropagation through sigmoid</td></tr>
+      <tr><td>ReLU(z) = max(0, z)</td><td>Keeps positive values, sets negatives to 0</td><td>Hidden layers in modern networks</td></tr>
+      <tr><td>Parameters = n<sub>in</sub> × n<sub>out</sub> + n<sub>out</sub></td><td>Learnable numbers between two layers</td><td>Counting parameters</td></tr>
+      <tr><td>L = ½(y − t)²</td><td>Squared error loss</td><td>Measuring how wrong an output is</td></tr>
+      <tr><td>w ← w − η × ∂L/∂w</td><td>Gradient descent update</td><td>Learning the weights</td></tr>
+      <tr><td>∂L/∂w = (∂L/∂y)(∂y/∂w)</td><td>Chain rule for one link</td><td>Backpropagation</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which function needs more than one perceptron</h3>
+    <div class="statement"><p>Which of the following Boolean functions cannot be computed by a single perceptron with a step activation? (MCQ, select one)</p>
+      <p>(A) AND<br>(B) OR<br>(C) XOR<br>(D) NOT</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which function is not linearly separable.</li>
+      <li><strong>Which idea applies.</strong> A single perceptron draws one straight boundary.</li>
+      <li><strong>Work it out.</strong> AND and OR can each be drawn with one line, as shown in Concept 1. NOT takes one input, so one line on that input separates the two outputs. XOR has its 1s on opposite corners, so no single line works.</li>
+      <li><strong>Check.</strong> This matches the rule that XOR needs a hidden layer.</li>
+    </ol>
+    <p class="cx">Answer: (C).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Counting weights and biases</h3>
+    <div class="statement"><p>A network has layer sizes 2, 3, 1. How many parameters does it have in total? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of weights and biases.</li>
+      <li><strong>Which idea applies.</strong> For each pair of layers, use n<sub>in</sub> × n<sub>out</sub> + n<sub>out</sub>.</li>
+      <li><strong>Work it out.</strong> First pair: 2 × 3 + 3 = 9. Second pair: 3 × 1 + 1 = 4. Total: 9 + 4 = 13.</li>
+      <li><strong>Check.</strong> Count the arrows: 6 weights from the inputs, 3 weights to the output, plus 3 + 1 biases. That is 6 + 3 + 3 + 1 = 13.</li>
+    </ol>
+    <p class="cx">Answer: 13</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Activation facts</h3>
+    <div class="statement"><p>Select all statements that are correct. (MSQ)</p>
+      <p>(A) ReLU(−2) = 0.<br>(B) The sigmoid of 0 equals 0.5.<br>(C) The tanh of 0 equals 1.<br>(D) ReLU is a linear function for all inputs.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four facts are correct.</li>
+      <li><strong>Which idea applies.</strong> The definitions of ReLU, sigmoid and tanh.</li>
+      <li><strong>Work it out.</strong> (A) ReLU keeps positive values and sets negatives to 0, so ReLU(−2) = 0. Correct. (B) Sigmoid is 1/(1 + e<sup>0</sup>) = 1/2 = 0.5. Correct. (C) Tanh of 0 is 0, not 1. Wrong. (D) ReLU bends at zero, so it is not linear for all inputs. Wrong.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Forward pass with ReLU</h3>
+    <div class="statement"><p>A network takes input (1, 1). It has one hidden neuron with ReLU activation, weights (1, −1) and bias 0.5. The output neuron is linear (no activation), with weight 3 and bias 0.25. Find the network output. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The output after both layers.</li>
+      <li><strong>Which idea applies.</strong> Forward pass: weighted sum, then activation, then the next layer.</li>
+      <li><strong>Work it out.</strong> Hidden z = 1 × 1 + (−1) × 1 + 0.5 = 0.5. ReLU(0.5) = 0.5. Output = 3 × 0.5 + 0.25 = 1.5 + 0.25 = 1.75.</li>
+      <li><strong>Check.</strong> If the hidden z had been negative, ReLU would have made it 0 and the output would have been 0.25. Here z is positive, so the hidden value passes through unchanged.</li>
+    </ol>
+    <p class="cx">Answer: 1.75</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>One gradient step</h3>
+    <div class="statement"><p>A single neuron has output y = w x with x = 3 and current weight w = 1. The target is t = 1 and the loss is L = ½(y − t)². Find the gradient ∂L/∂w at this weight. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The gradient of the loss with respect to w.</li>
+      <li><strong>Which idea applies.</strong> The chain rule: ∂L/∂w = (y − t) × x.</li>
+      <li><strong>Work it out.</strong> Prediction: y = 1 × 3 = 3. Error: y − t = 3 − 1 = 2. Gradient: 2 × 3 = 6.</li>
+      <li><strong>Check.</strong> A positive gradient means the loss would rise if w increased, which fits the fact that the prediction (3) is already too high.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+x, w, t = F(3), F(1), F(1)
+y = w * x
+grad = (y - t) * x
+print("prediction:", y)
+print("gradient:", grad)</code></pre>
+    <pre class="output">prediction: 3
+gradient: 6</pre>
+    <p class="cx">Answer: 6</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>The XOR network on input (1, 1)</h3>
+    <div class="statement"><p>Use the XOR network from Concept 3, with hidden neurons h<sub>1</sub> (OR) and h<sub>2</sub> (AND), and output step(h<sub>1</sub> − h<sub>2</sub> − 0.5). Find the output for the input (1, 1). (NAT, 0 or 1)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The network output for (1, 1).</li>
+      <li><strong>Which idea applies.</strong> Compute each hidden neuron, then the output.</li>
+      <li><strong>Work it out.</strong> h<sub>1</sub>: 1 + 1 − 0.5 = 1.5, at least 0, so h<sub>1</sub> = 1. h<sub>2</sub>: 1 + 1 − 1.5 = 0.5, at least 0, so h<sub>2</sub> = 1. Output: 1 − 1 − 0.5 = −0.5, below 0, so the output is 0.</li>
+      <li><strong>Check.</strong> The table in Concept 3 shows 0 for the input (1, 1), which matches.</li>
+    </ol>
+    <p class="cx">Answer: 0</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about MLPs are true</h3>
+    <div class="statement"><p>Select all that apply. (MSQ)</p>
+      <p>(A) Two linear layers with no activation between them can be replaced by one linear layer.<br>(B) Backpropagation applies the chain rule to find the gradient of every weight.<br>(C) One hidden layer with enough neurons can approximate any continuous function on a closed, bounded region.<br>(D) Gradient descent is guaranteed to find the global minimum of the loss for any MLP.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are correct.</li>
+      <li><strong>Which idea applies.</strong> Linear algebra of stacked layers, backpropagation, and the exact scope of the universal approximation theorem.</li>
+      <li><strong>Work it out.</strong> (A) is true: W<sub>2</sub>(W<sub>1</sub>x) = (W<sub>2</sub>W<sub>1</sub>)x. (B) is true: that is exactly what backpropagation does. (C) is true, as stated in Concept 6. (D) is false: the loss surface of a deep network can have local minima and flat regions, so gradient descent can stop at a point that is not the global minimum.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Extra parameters from a wider hidden layer</h3>
+    <div class="statement"><p>How many more parameters does a 3-8-2 network have than a 3-4-2 network? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The difference in total parameters.</li>
+      <li><strong>Which idea applies.</strong> Count each network with n<sub>in</sub> × n<sub>out</sub> + n<sub>out</sub> per pair of layers.</li>
+      <li><strong>Work it out.</strong> 3-8-2: first pair 3 × 8 + 8 = 32, second pair 8 × 2 + 2 = 18, total 50. 3-4-2 total is 26, as in Concept 4. Difference: 50 − 26 = 24.</li>
+      <li><strong>Check.</strong> The Python run counts both networks with one function.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def count(sizes):
+    total = 0
+    for n_in, n_out in zip(sizes, sizes[1:]):
+        total += n_in * n_out + n_out
+    return total
+
+small = count([3, 4, 2])
+big = count([3, 8, 2])
+print("3-4-2 total:", small)
+print("3-8-2 total:", big)
+print("difference:", big - small)</code></pre>
+    <pre class="output">3-4-2 total: 26
+3-8-2 total: 50
+difference: 24</pre>
+    <p class="cx">Answer: 24</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Parameter count (NAT, 2 marks)</h3>
+    <div class="statement"><p>A fully connected network has 10 inputs, hidden layers of 20 and 15 units, and 3 outputs. Every layer has biases. How many trainable parameters are there?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Total weights and biases.</li>
+      <li><strong>Which idea applies.</strong> A layer from a to b units has ab + b parameters.</li>
+      <li><strong>Work it out.</strong> 10·20 + 20 = 220. 20·15 + 15 = 315. 15·3 + 3 = 48. Total 583.</li>
+      <li><strong>Check.</strong> The code adds them.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>L = [10, 20, 15, 3]
+print(sum(a * b + b for a, b in zip(L, L[1:])))
+</code></pre>
+    <pre class="output">583</pre>
+    <p class="cx">Answer: 583.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Forward pass (NAT, 2 marks)</h3>
+    <div class="statement"><p>Input x = (1, 2). Hidden layer: W<sub>1</sub> = [[1, −1], [2, 1]], b<sub>1</sub> = (0, −3), ReLU. Output: w<sub>2</sub> = (1, 2), b<sub>2</sub> = 1, no activation. Find the output.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The network output.</li>
+      <li><strong>Which idea applies.</strong> h = ReLU(W<sub>1</sub>x + b<sub>1</sub>), then y = w<sub>2</sub>·h + b<sub>2</sub>.</li>
+      <li><strong>Work it out.</strong> W<sub>1</sub>x = (1 − 2, 2 + 2) = (−1, 4). Add b<sub>1</sub>: (−1, 1). ReLU: (0, 1). y = 0 + 2 + 1 = 3.</li>
+      <li><strong>Check.</strong> The code runs the pass.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>x = [1, 2]; W1 = [[1, -1], [2, 1]]; b1 = [0, -3]; w2 = [1, 2]; b2 = 1
+h = [max(0, sum(w * v for w, v in zip(r, x)) + b) for r, b in zip(W1, b1)]
+print(h, sum(a * b for a, b in zip(w2, h)) + b2)
+</code></pre>
+    <pre class="output">[0, 1] 3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Linear activations (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) A deep network with only linear activations equals a single linear map. (B) A single perceptron can learn XOR. (C) One hidden layer with enough sigmoid units can approximate any continuous function on a compact set. (D) The sigmoid derivative is at most 0.25.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Facts about MLPs.</li>
+      <li><strong>Which idea applies.</strong> Compositions of linear maps are linear. XOR is not linearly separable.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False. (C) Universal approximation theorem. True. (D) σ′ = σ(1 − σ) ≤ 1/4. True.</li>
+      <li><strong>Check.</strong> The maximum of σ′ occurs at 0, where σ = 1/2.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and explain each line in your own words.</p>
+  <dl>
+    <div><dt>Neuron</dt><dd>A unit that applies an activation to a weighted sum plus a bias.</dd></div>
+    <div><dt>Weight</dt><dd>A learned number that scales how much an input matters.</dd></div>
+    <div><dt>Bias</dt><dd>A learned offset added to the weighted sum.</dd></div>
+    <div><dt>Perceptron</dt><dd>A neuron with a step activation. Draws one straight boundary.</dd></div>
+    <div><dt>Linearly separable</dt><dd>Can be split by one straight line. XOR is not.</dd></div>
+    <div><dt>Activation function</dt><dd>A non-linear rule applied to the weighted sum.</dd></div>
+    <div><dt>Sigmoid</dt><dd>Squashes to between 0 and 1. Equals 0.5 at z = 0.</dd></div>
+    <div><dt>Tanh</dt><dd>Squashes to between −1 and 1. Equals 0 at z = 0.</dd></div>
+    <div><dt>ReLU</dt><dd>max(0, z). Keeps positive values and sets negatives to 0.</dd></div>
+    <div><dt>Layer</dt><dd>A group of neurons reading the same inputs.</dd></div>
+    <div><dt>Hidden layer</dt><dd>A middle layer, neither input nor output. Lets the network solve XOR.</dd></div>
+    <div><dt>MLP</dt><dd>A network of fully connected layers.</dd></div>
+    <div><dt>Forward pass</dt><dd>Computing the output layer by layer, moving forward only.</dd></div>
+    <div><dt>Parameter count</dt><dd>n<sub>in</sub> × n<sub>out</sub> + n<sub>out</sub> per pair of layers.</dd></div>
+    <div><dt>Loss</dt><dd>A score for how wrong the output is, such as ½(y − t)².</dd></div>
+    <div><dt>Gradient</dt><dd>How the loss changes when a weight changes a little.</dd></div>
+    <div><dt>Backpropagation</dt><dd>The chain rule applied backwards to get all gradients.</dd></div>
+    <div><dt>Universal approximation</dt><dd>One hidden layer with enough neurons can approximate any continuous function on a bounded region. Says nothing about how to train it.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>A single perceptron cannot compute XOR. A hidden layer can.</li>
+    <li>Without a non-linear activation, stacked layers collapse into one linear layer.</li>
+    <li>Sigmoid(0) = 0.5, and its slope there is 0.25.</li>
+    <li>Parameters between two layers = n<sub>in</sub> × n<sub>out</sub> + n<sub>out</sub>. Do not forget the biases.</li>
+    <li>Gradient descent updates each weight as w ← w − η × gradient.</li>
+    <li>Universal approximation is an existence result, not a training method.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 107?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 107 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-106.html"><small>Previous, topic 106</small>Cross-validation: LOO &amp; k-fold</a><a class="next" href="gate-108.html"><small>Next, topic 108</small>K-means / K-medoid clustering</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

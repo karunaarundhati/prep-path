@@ -1,0 +1,325 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 116: Conditional independence representation</title><meta name="description" content="Conditional independence says when learning one fact makes another fact irrelevant. Bayesian networks use this idea to store a large joint probability with few numbers, and d-separation reads independence straight from the graph."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g116" data-key="g116" data-noun="topic" data-num="116" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Conditional independence representation</h1>
+<p class="lede">Conditional independence says when learning one fact makes another fact irrelevant. Bayesian networks use this idea to store a large joint probability with few numbers, and d-separation reads independence straight from the graph.</p>
+<div class="station"><b>116</b><span>Unit 9 · Artificial intelligence · Paper DA · Quick Recap</span></div>
+<ul class="topics"><li>Independence and conditional independence</li><li>Bayesian networks as graphs</li><li>d-separation: chain, fork and collider</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you want to know whether it will rain today. You hear that the grass outside is wet. That fact changes your belief about rain. Now suppose you learn that the sprinkler was on this morning. The wet grass is now explained, so the wet grass tells you much less about rain. The sprinkler "explains away" the wet grass.</p>
+  <p>This is the core of <strong>conditional independence</strong>. Two facts are independent given a third fact when, once you know the third fact, learning one of them tells you nothing new about the other.</p>
+  <p>Why does this matter in AI? A full table of probabilities for many variables is huge. With 10 yes-or-no variables there are 2<sup>10</sup> = 1024 cases. Most real systems only have a few direct links between variables. Conditional independence tells us which links can be dropped, so we can store the knowledge with far fewer numbers. A <strong>Bayesian network</strong> is a graph that does exactly this.</p>
+  <p><strong>Why it matters for GATE.</strong> In the Data Science and AI (DA) paper, you may be shown a small network and asked whether two variables are independent given some evidence. The answer comes from reading the graph, not from doing arithmetic.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Probability P(X = x)</dt><dd>Plain: how likely an outcome is. Precise: a number between 0 and 1 for each outcome.</dd></div>
+    <div><dt>Independence (X ⊥ Y)</dt><dd>Plain: learning Y does not change your belief about X. Precise: P(X, Y) = P(X) P(Y).</dd></div>
+    <div><dt>Conditional independence (X ⊥ Y | Z)</dt><dd>Plain: once Z is known, Y does not change your belief about X. Precise: P(X, Y | Z) = P(X | Z) P(Y | Z).</dd></div>
+    <div><dt>Bayesian network</dt><dd>A directed acyclic graph (DAG) in which each variable has a table of probabilities given its parents.</dd></div>
+    <div><dt>Parent and child</dt><dd>If A → B, then A is a parent of B and B is a child of A.</dd></div>
+    <div><dt>CPT</dt><dd>Conditional probability table: the probabilities of a node given each combination of its parents.</dd></div>
+    <div><dt>Chain, fork and collider</dt><dd>The three basic shapes of three nodes that decide independence (see Concept 3).</dd></div>
+    <div><dt>Evidence</dt><dd>A variable whose value we have observed. We say it is observed or given.</dd></div>
+    <div><dt>d-separation</dt><dd>A graph rule that tells us when two sets of variables are independent given evidence.</dd></div>
+    <div><dt>Markov blanket</dt><dd>The parents, children and children's other parents of a node. Given the blanket, the node is independent of everything else.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Independence and conditional independence">
+  <h2>Concept 1: Independence and conditional independence</h2>
+  <p>Start with two fair coins. Let A be the result of the first coin and B the result of the second. Knowing A tells you nothing about B. We write A ⊥ B. Mathematically, P(A, B) = P(A) P(B). The comma inside P(A, B) means "both happen", and P(A) is the probability of A alone.</p>
+  <p>Now add a third variable C, and suppose C is the sum of the two coins, with the values 0, 1 or 2 heads. A and B are no longer independent once we know C. For example, if C = 2, then A must be 1 and B must be 1. Learning A now tells us a lot about B. So A ⊥ B does not hold given C.</p>
+  <h3>Worked example with numbers</h3>
+  <p>Let A and B be two yes-or-no events with P(A = 1) = 1/2 and P(B = 1) = 1/3. They are independent exactly when the joint probability equals the product of the two single probabilities.</p>
+  <ol>
+    <li>Compute the product: P(A = 1) × P(B = 1) = 1/2 × 1/3 = 1/6.</li>
+    <li>If the joint probability P(A = 1, B = 1) is also 1/6, the events are independent.</li>
+    <li>If the joint probability is 1/4 instead, they are not independent, because 1/4 is not 1/6.</li>
+  </ol>
+  <div class="note trap"><p><span class="t">Trap</span>Independence and conditional independence are different. Two variables can be dependent overall but independent once a third is known. They can also be independent overall but dependent once the third is known. Always say "given what?" when you answer.</p></div>
+  <details class="check"><summary>Question: If P(A, B) = 0.2 and P(A) = 0.5 and P(B) = 0.4, are A and B independent?</summary><div class="ans"><p>Yes. The product P(A) P(B) is 0.5 times 0.4 = 0.2, which equals P(A, B). So they are independent.</p></div></details>
+  <details class="check"><summary>Question: Does X ⊥ Y mean X ⊥ Y | Z?</summary><div class="ans"><p>No. The two statements are different. Conditioning on Z can create or remove dependence.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Bayesian networks as graphs">
+  <h2>Concept 2: Bayesian networks as graphs</h2>
+  <p>A Bayesian network has two parts. The first part is a graph. Each node is a variable, and each arrow points from a cause to an effect. The graph must have no cycles, so it is a <strong>directed acyclic graph (DAG)</strong>. The second part is a set of CPTs, one for each node.</p>
+  <p>Here is a small network with three variables. Cloudy (C) affects Rain (R), and Rain affects Wet grass (W).</p>
+  <pre class="code" data-lang="text"><code>      Cloudy (C)
+         |
+         v
+      Rain (R)
+         |
+         v
+   Wet grass (W)</code></pre>
+  <p>The full joint probability is the product of each node's probability given its parents. This is the key rule of Bayesian networks:</p>
+  <div class="formula">P(x<sub>1</sub>, ..., x<sub>n</sub>) = product over i of P(x<sub>i</sub> | parents of x<sub>i</sub>)</div>
+  <p>The symbol product means multiply all the terms. Each term is one CPT entry. For the chain above, P(C, R, W) = P(C) P(R | C) P(W | R).</p>
+  <h3>Why this saves numbers</h3>
+  <p>Take a chain A → B → C with binary values. A full joint table over three binary variables has 2<sup>3</sup> = 8 entries, so 7 free numbers, because they must sum to 1. The network needs P(A) with 1 free number, P(B | A) with 2 free numbers (one for each value of A), and P(C | B) with 2 free numbers. The total is 1 + 2 + 2 = 5. The graph saves 2 numbers here, and the saving grows quickly with more variables.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Each node needs a probability for each combination of its parents. A binary node with k binary parents needs 2<sup>k</sup> free numbers.</p></div>
+  <p>Look at the chain's joint probability. The formula P(C, R, W) = P(C) P(R | C) P(W | R) uses only three CPTs, which is what conditional independence gives us. Notice that W does not depend on C once R is known. This is a conditional independence statement, and it is read from the graph.</p>
+  <p>Now check conditional independence with numbers. Use the chain A → B → C with P(A = 1) = 1/2, P(B = 1 | A = 1) = 3/4, P(B = 1 | A = 0) = 1/4, P(C = 1 | B = 1) = 2/3 and P(C = 1 | B = 0) = 1/3. The Python program below computes the full joint table, then tests whether P(C = 1 | A, B) equals P(C = 1 | B).</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+from itertools import product
+
+pA1 = F(1, 2)                    # P(A = 1)
+pB1 = {1: F(3, 4), 0: F(1, 4)}   # P(B = 1 | A = a)
+pC1 = {1: F(2, 3), 0: F(1, 3)}   # P(C = 1 | B = b)
+
+def joint(a, b, c):
+    pa = pA1 if a == 1 else 1 - pA1
+    pb = pB1[a] if b == 1 else 1 - pB1[a]
+    pc = pC1[b] if c == 1 else 1 - pC1[b]
+    return pa * pb * pc
+
+print("Total probability:", sum(joint(a, b, c) for a, b, c in product([0, 1], repeat=3)))
+for a, b in product([0, 1], repeat=2):
+    p_given_ab = joint(a, b, 1) / (joint(a, b, 0) + joint(a, b, 1))
+    num = sum(joint(x, b, 1) for x in (0, 1))
+    den = sum(joint(x, b, y) for x in (0, 1) for y in (0, 1))
+    print("A=%d B=%d: P(C=1 | A, B) = %s, P(C=1 | B) = %s" % (a, b, p_given_ab, num / den))
+
+p_a1 = sum(joint(1, b, c) for b in (0, 1) for c in (0, 1))
+p_c1 = sum(joint(a, b, 1) for a in (0, 1) for b in (0, 1))
+print("P(A=1, C=1) =", sum(joint(1, b, 1) for b in (0, 1)))
+print("P(A=1) * P(C=1) =", p_a1 * p_c1)</code></pre>
+  <pre class="output">Total probability: 1
+A=0 B=0: P(C=1 | A, B) = 1/3, P(C=1 | B) = 1/3
+A=0 B=1: P(C=1 | A, B) = 2/3, P(C=1 | B) = 2/3
+A=1 B=0: P(C=1 | A, B) = 1/3, P(C=1 | B) = 1/3
+A=1 B=1: P(C=1 | A, B) = 2/3, P(C=1 | B) = 2/3
+P(A=1, C=1) = 7/24
+P(A=1) * P(C=1) = 1/4</pre>
+  <p>The first four lines show that once B is known, learning A changes nothing about C, so A ⊥ C | B. The last two lines show that A and C are dependent when nothing is known: 7/24 is not 1/4. Conditional independence and independence are different, as the trap above warned.</p>
+  <details class="check"><summary>Question: How many free numbers does a binary variable need with two binary parents?</summary><div class="ans"><p>2<sup>2</sup> = 4 free numbers, one for each combination of the two parents.</p></div></details>
+  <details class="check"><summary>Question: Why must a Bayesian network have no cycles?</summary><div class="ans"><p>If there were a cycle, a variable would depend on itself, and the product formula could not be computed in order. A DAG lets us list the variables so that every parent comes before its children.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="d-separation: chain, fork and collider">
+  <h2>Concept 3: d-separation: chain, fork and collider</h2>
+  <p>Any path of three nodes has one of three shapes. The rule for each shape decides whether information can flow along the path. Information flows along a path when it is <strong>active</strong>. It is <strong>blocked</strong> otherwise.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Shape</th><th>Picture</th><th>Active when nothing is observed?</th><th>Active when the middle node is observed?</th></tr></thead>
+    <tbody>
+      <tr><td>Chain</td><td>A → B → C</td><td>Yes</td><td>No (blocked)</td></tr>
+      <tr><td>Fork</td><td>A ← B → C</td><td>Yes</td><td>No (blocked)</td></tr>
+      <tr><td>Collider</td><td>A → B ← C</td><td>No (blocked)</td><td>Yes (active)</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Chain</h3>
+  <p>In a chain, B passes information from A to C. Think of a rumor passed from one friend to another. If you already know the middle friend's story (B is observed), the rumor adds nothing new. So A ⊥ C | B.</p>
+  <h3>Fork</h3>
+  <p>In a fork, B is a common cause of A and C. For example, a cold (B) causes both a runny nose (A) and a cough (C). Without knowing about the cold, a runny nose and a cough are related. Once you know the person has a cold, the runny nose tells you little about the cough. So A ⊥ C | B.</p>
+  <h3>Collider</h3>
+  <p>A collider is a node with two arrows pointing into it, such as A → B ← C. Here B is the common effect. For example, a wet grass (B) can be caused by rain (A) or by a sprinkler (C). If you do not observe the wet grass, rain and sprinkler are independent. If you observe the wet grass, then learning the sprinkler was on makes rain less likely. This is "explaining away". So A and C become dependent when B is observed.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A collider is the opposite of the other two shapes. The collider blocks the path when nothing is observed, and it opens the path when its middle node, or any descendant of it, is observed.</p></div>
+  <h3>Worked example</h3>
+  <p>Consider the network X → Y ← Z and Y → W. Ask whether X ⊥ Z.</p>
+  <ol>
+    <li>The path X → Y ← Z is a collider at Y. With no evidence, the collider blocks the path.</li>
+    <li>So X and Z are independent when nothing is observed: X ⊥ Z.</li>
+    <li>Now observe W. W is a child of Y, which is a collider. Observing a descendant of a collider opens the path, like observing Y itself.</li>
+    <li>So X and Z become dependent given W: X is not independent of Z given W.</li>
+  </ol>
+  <p><strong>Markov blanket.</strong> The Markov blanket of a node is its parents, its children and its children's other parents. Once we know the blanket, the node is independent of every other variable in the network. The Markov blanket is the smallest set that "shields" a node. It is very useful in sampling methods later in GATE topics on inference.</p>
+  <details class="check"><summary>Question: In X → B ← Z with nothing observed, are X and Z independent?</summary><div class="ans"><p>Yes. B is a collider, and the collider blocks the path when B is not observed.</p></div></details>
+  <details class="check"><summary>Question: In the chain A → B → C, are A and C independent given B?</summary><div class="ans"><p>Yes. The middle node B is observed, so it blocks the chain.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>P(A, B) = P(A) P(B)</td><td>A and B are independent</td><td>Testing independence</td></tr>
+      <tr><td>P(A, B | C) = P(A | C) P(B | C)</td><td>A and B are independent given C</td><td>Testing conditional independence</td></tr>
+      <tr><td>P(x<sub>1</sub>, ..., x<sub>n</sub>) = product of P(x<sub>i</sub> | parents)</td><td>Joint probability from the network</td><td>Writing the factorization</td></tr>
+      <tr><td>Free numbers = 2<sup>k</sup> per binary node with k binary parents</td><td>Size of a CPT</td><td>Counting parameters</td></tr>
+      <tr><td>Chain and fork: blocked by observing the middle</td><td>Information flow stops</td><td>d-separation</td></tr>
+      <tr><td>Collider: blocked unless the middle or a descendant is observed</td><td>Explaining away</td><td>d-separation</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Independent given the middle</h3>
+    <div class="statement"><p>The network is A → B → C. Is A independent of C given B?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Whether A ⊥ C | B holds.</li>
+      <li><strong>Which idea applies.</strong> The path A → B → C is a chain, and the middle node is observed.</li>
+      <li><strong>Work it out.</strong> A chain is blocked when the middle node is observed. Here B is observed, so the path is blocked.</li>
+      <li><strong>Check.</strong> Using the factorization: P(A, B, C | B) = P(A | B) P(C | B). Once B is fixed, A does not appear in the C factor.</li>
+    </ol>
+    <p class="cx">Answer: Yes, A and C are independent given B.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Colliders (select all that apply)</h3>
+    <div class="statement"><p>Consider the collider A → B ← C. Which statements are true? Select all that apply.</p>
+    <p>(A) A and C are independent when B is not observed.<br>(B) A and C are dependent when B is observed.<br>(C) A is independent of C given B.<br>(D) Observing a descendant of B also makes A and C dependent.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the collider are true.</li>
+      <li><strong>Which idea applies.</strong> Colliders block when unobserved and open when observed.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true, observing the collider opens the path. (C) is false, the opposite of (B). (D) is true, observing a descendant opens the path too.</li>
+      <li><strong>Check.</strong> Compare with the rain and sprinkler example: the wet grass is the collider, and learning about it makes rain and sprinkler dependent.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Fork and its condition</h3>
+    <div class="statement"><p>The network is A ← B → C. Are A and C independent when nothing is observed? Are they independent when B is observed?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two answers: with no evidence, and with B observed.</li>
+      <li><strong>Which idea applies.</strong> A fork is active with no evidence, and blocked when its middle node is observed.</li>
+      <li><strong>Work it out.</strong> With no evidence, the fork is active, so A and C are dependent. Given B, the fork is blocked, so A ⊥ C | B.</li>
+      <li><strong>Check.</strong> The cold example matches: a runny nose and a cough are related until we know about the cold.</li>
+    </ol>
+    <p class="cx">Answer: Not independent with no evidence. Independent given B.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Count the parameters</h3>
+    <div class="statement"><p>A network has four binary variables with arrows A → B, A → C, B → D and C → D. How many free numbers does the network need in total? Give a whole number. (For comparison, the full joint table over four binary variables needs 15 free numbers.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total free numbers in all CPTs.</li>
+      <li><strong>Which idea applies.</strong> A binary node with k binary parents needs 2<sup>k</sup> free numbers.</li>
+      <li><strong>Work it out.</strong> A has no parents: 2<sup>0</sup> = 1. B has one parent A: 2<sup>1</sup> = 2. C has one parent A: 2. D has two parents B and C: 2<sup>2</sup> = 4. Total: 1 + 2 + 2 + 4 = 9.</li>
+      <li><strong>Check.</strong> 9 is less than 15, so the network saves numbers, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 9.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Find the Markov blanket</h3>
+    <div class="statement"><p>The network has arrows A → B, C → B, B → D and E → D. Find the Markov blanket of B.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The set of variables that shields B.</li>
+      <li><strong>Which idea applies.</strong> The Markov blanket is the parents, the children, and the children's other parents.</li>
+      <li><strong>Work it out.</strong> Parents of B: A and C. Child of B: D. The other parent of D: E. The blanket is {A, C, D, E}.</li>
+      <li><strong>Check.</strong> Each of A, C, D and E is directly linked to B's neighborhood. There is no other variable that matters once they are known.</li>
+    </ol>
+    <p class="cx">Answer: {A, C, D, E}.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Collider with a descendant observed</h3>
+    <div class="statement"><p>The network has arrows X → Y, Z → Y and Y → W. Is X independent of Z when nothing is observed? Is X independent of Z given W?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two answers: with no evidence, and with W observed.</li>
+      <li><strong>Which idea applies.</strong> Y is a collider on the path X → Y ← Z. W is a descendant of Y.</li>
+      <li><strong>Work it out.</strong> With no evidence, the collider blocks the path, so X ⊥ Z. With W observed, a descendant of the collider is observed, so the path opens. X is not independent of Z given W.</li>
+      <li><strong>Check.</strong> This is the explaining-away pattern. Observing a consequence of Y makes its causes X and Z compete, so they become dependent.</li>
+    </ol>
+    <p class="cx">Answer: Yes, X and Z are independent with no evidence. No, they are not independent given W.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about a chain and a fork (select all that apply)</h3>
+    <div class="statement"><p>The network has arrows R → S, R → T and S → U. Which statements are true? Select all that apply.</p>
+    <p>(A) S ⊥ T | R<br>(B) S ⊥ T with no evidence<br>(C) U ⊥ R | S<br>(D) T ⊥ U | R</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which independence statements hold.</li>
+      <li><strong>Which idea applies.</strong> Check each path with the chain and fork rules.</li>
+      <li><strong>Work it out.</strong> (A): the path S ← R → T is a fork at R. Given R, it is blocked, so true. (B): with no evidence, the fork is open, so false. (C): the path R → S → U is a chain. Given S, it is blocked, so true. (D): the path T ← R → S → U starts with a fork at R (T ← R → S). Observing R blocks that fork, so the path is blocked, so true.</li>
+      <li><strong>Check.</strong> (A), (C) and (D) all rely on observing a middle node, and (B) has nothing observed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Counting parameters (NAT, 2 marks)</h3>
+    <div class="statement"><p>Five binary variables form a Bayesian network: A → C, B → C, C → D, C → E. How many free parameters does it need?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total size of all conditional tables.</li>
+      <li><strong>Which idea applies.</strong> A binary node with k binary parents needs 2<sup>k</sup> free numbers.</li>
+      <li><strong>Work it out.</strong> A: 1. B: 1. C: 4. D: 2. E: 2. Total 10.</li>
+      <li><strong>Check.</strong> The full joint table needs 2<sup>5</sup> − 1 = 31.</li>
+    </ol>
+    <p class="cx">Answer: 10.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: d-separation (MSQ, 2 marks)</h3>
+    <div class="statement"><p>In the network A → C ← B, C → D, which are TRUE? (A) A and B are independent. (B) A and B are independent given C. (C) A and B are independent given D. (D) A and D are independent given C.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Independencies read from the graph.</li>
+      <li><strong>Which idea applies.</strong> A collider C blocks the path unless C or a descendant of C is observed.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) Observing the collider opens it. False. (C) D is a descendant of C, so the path opens. False. (D) C blocks the chain A → C → D. True.</li>
+      <li><strong>Check.</strong> This is the explaining away effect.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Naive Bayes factorisation (NAT, 2 marks)</h3>
+    <div class="statement"><p>A naive Bayes model has a binary class Y with P(Y = 1) = 0.3 and two binary features. P(X<sub>1</sub> = 1 | Y = 1) = 0.8, P(X<sub>2</sub> = 1 | Y = 1) = 0.6, P(X<sub>1</sub> = 1 | Y = 0) = 0.2, P(X<sub>2</sub> = 1 | Y = 0) = 0.5. Find P(Y = 1 | X<sub>1</sub> = 1, X<sub>2</sub> = 1), correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The posterior of the class.</li>
+      <li><strong>Which idea applies.</strong> Features are conditionally independent given Y.</li>
+      <li><strong>Work it out.</strong> Y = 1: 0.3 · 0.8 · 0.6 = 0.144. Y = 0: 0.7 · 0.2 · 0.5 = 0.07. Posterior 0.144/0.214 = 0.673.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>a = 0.3 * 0.8 * 0.6; b = 0.7 * 0.2 * 0.5
+print("%.3f" % (a / (a + b)))
+</code></pre>
+    <pre class="output">0.673</pre>
+    <p class="cx">Answer: about 0.673.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Independence</dt><dd>X ⊥ Y means P(X, Y) = P(X) P(Y).</dd></div>
+    <div><dt>Conditional independence</dt><dd>X ⊥ Y | Z means the joint probability splits given Z.</dd></div>
+    <div><dt>Bayesian network</dt><dd>A DAG with a CPT for each node.</dd></div>
+    <div><dt>DAG</dt><dd>A directed graph with no cycles.</dd></div>
+    <div><dt>CPT</dt><dd>A table of probabilities for a node given its parents.</dd></div>
+    <div><dt>Joint factorization</dt><dd>The full joint is the product of each node given its parents.</dd></div>
+    <div><dt>Chain</dt><dd>A → B → C. Blocked when B is observed.</dd></div>
+    <div><dt>Fork</dt><dd>A ← B → C. Blocked when B is observed.</dd></div>
+    <div><dt>Collider</dt><dd>A → B ← C. Blocked unless B or a descendant of B is observed.</dd></div>
+    <div><dt>Evidence</dt><dd>A variable whose value is known.</dd></div>
+    <div><dt>d-separation</dt><dd>The graph rule that gives independence from the shapes of paths.</dd></div>
+    <div><dt>Explaining away</dt><dd>Observing an effect makes its causes dependent.</dd></div>
+    <div><dt>Markov blanket</dt><dd>Parents, children and children's other parents of a node.</dd></div>
+    <div><dt>Free parameters</dt><dd>The independent numbers needed to specify a model.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Always say "given what?" before you answer an independence question.</li>
+    <li>A chain and a fork are blocked when the middle node is observed.</li>
+    <li>A collider is blocked when nothing is observed, and opens when it or a descendant is observed.</li>
+    <li>The factorization multiplies each node given its parents.</li>
+    <li>A binary node with k binary parents needs 2<sup>k</sup> free numbers.</li>
+    <li>The Markov blanket shields a node from the rest of the network.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 116?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 116 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-115.html"><small>Previous, topic 115</small>Predicate / First-order logic</a><a class="next" href="gate-117.html"><small>Next, topic 117</small>Exact inference: Variable elimination</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

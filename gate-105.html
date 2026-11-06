@@ -1,0 +1,547 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 105: Bias-variance tradeoff</title><meta name="description" content="Every learning model can go wrong in two different ways at once. It can be too stiff to notice the real pattern (bias), or too jumpy and easily fooled by the particular data it saw (variance). This topic shows how these two errors trade off against each other, and why GATE Data Science and AI asks about them so often."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g105" data-key="g105" data-noun="topic" data-num="105" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Bias-variance tradeoff</h1>
+<p class="lede">Every learning model can go wrong in two different ways at once. It can be too stiff to notice the real pattern (bias), or too jumpy and easily fooled by the particular data it saw (variance). This topic shows how these two errors trade off against each other, and why GATE Data Science and AI asks about them so often.</p>
+<div class="station"><b>105</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Bias: error from wrong assumptions</li><li>Variance: error from sensitivity to the training data</li><li>Splitting the error into parts (the decomposition)</li><li>Model complexity and the U-shaped test error curve</li><li>Taming the tradeoff: regularization and validation</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Imagine three throwers playing darts, each throwing ten darts at a bullseye:</p>
+  <ul>
+    <li>Thrower A's darts all land in one spot, far from the bullseye. Their aim is <em>consistently wrong</em>.</li>
+    <li>Thrower B's darts land all over the board. Their aim is <em>unreliable</em>, but the darts are roughly around the bullseye on average.</li>
+    <li>Thrower C's darts are tightly grouped on the bullseye. This is the goal.</li>
+  </ul>
+
+  <p>Machine learning has the same two problems. A learning algorithm looks at a <strong>training set</strong> (examples with known answers) and builds a <strong>model</strong> (a rule that makes predictions). A slightly different training set gives a slightly different model, so each model is like one dart throw. Two things can go wrong:</p>
+  <ul>
+    <li>The model rests on a wrong assumption, so it is consistently off target, like Thrower A. This error is <strong>bias</strong>.</li>
+    <li>The model changes a lot depending on which examples happened to be in the training set, so its predictions scatter, like Thrower B. This error is <strong>variance</strong>.</li>
+  </ul>
+
+  <p>The <strong>bias-variance tradeoff</strong> says these two errors are often linked. Making a model more flexible usually lowers bias but raises variance. Making it more rigid does the opposite. The skill is finding the setting where the total error is smallest.</p>
+
+  <p>Why does this matter for GATE? The Data Science and AI paper has a machine learning unit. Questions often ask you to spot underfitting (high bias) or overfitting (high variance), or to compute an expected error from its parts.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these once now. Each term has a plain meaning first, then a precise definition.</p>
+  <dl>
+    <div><dt>Model</dt><dd>A rule that turns inputs into predictions. Precise: a function f̂(x) fitted from data.</dd></div>
+    <div><dt>Training set</dt><dd>The examples a model learns from. Precise: pairs (x, y) of input and known answer.</dd></div>
+    <div><dt>Test set</dt><dd>New examples the model never saw, used to judge it. Precise: data kept aside from fitting.</dd></div>
+    <div><dt>Error (loss)</dt><dd>How far a prediction is from the true answer. Precise: here, squared error (y − prediction)².</dd></div>
+    <div><dt>Training error</dt><dd>Average error on the data used to fit the model.</dd></div>
+    <div><dt>Test error</dt><dd>Average error on new data. This is what really matters.</dd></div>
+    <div><dt>Bias</dt><dd>How far the average prediction is from the truth. Precise: Bias = E[f̂(x)] − f(x).</dd></div>
+    <div><dt>Variance</dt><dd>How much predictions wobble when the training data changes. Precise: Variance = E[(f̂(x) − E[f̂(x)])²].</dd></div>
+    <div><dt>Noise (irreducible error)</dt><dd>Randomness in the answers that no model can predict. Precise: σ², the variance of ε in y = f(x) + ε.</dd></div>
+    <div><dt>Expected value E[ ]</dt><dd>The long-run, probability-weighted average of a quantity.</dd></div>
+    <div><dt>Underfitting</dt><dd>The model is too simple to learn the pattern. High bias.</dd></div>
+    <div><dt>Overfitting</dt><dd>The model learns the training quirks too closely. High variance.</dd></div>
+    <div><dt>Model complexity</dt><dd>How flexible a model is, such as the degree of a polynomial.</dd></div>
+    <div><dt>Regularization</dt><dd>A penalty added to the error that grows with the size of the parameters, keeping the model from getting too wild.</dd></div>
+    <div><dt>Penalty strength λ (lambda)</dt><dd>The knob for regularization. λ = 0 means no penalty.</dd></div>
+    <div><dt>Cross-validation</dt><dd>Estimating test error by holding parts of the training data out in turn.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Bias: wrong assumptions">
+  <h2>Concept 1: Bias, the error from wrong assumptions</h2>
+
+  <h3>What it means in plain words</h3>
+  <p>Bias is the part of the error that comes from building on a wrong idea. Suppose the true pattern is a curve, but you insist the model must be a straight line. Even the best straight line misses the curve, and collecting more data does not fix that. The miss is bias. It is like a bent ruler: every measurement is off in the same direction.</p>
+
+  <h3>The formal definition</h3>
+  <p>Imagine drawing many training sets from the same world, training a model on each, and asking every model to predict at the same input x. Let f(x) be the true value at x.</p>
+  <div class="formula">Bias(x) = E[f̂(x)] − f(x)</div>
+  <ul>
+    <li><strong>f(x)</strong> is the true value at input x, the answer we want to hit.</li>
+    <li><strong>f̂(x)</strong> (read "f hat of x") is the prediction of one trained model at x. It changes from one training set to another.</li>
+    <li><strong>E[f̂(x)]</strong> is the average of those predictions over all the training sets. It is the model's "typical" answer.</li>
+  </ul>
+
+  <h3>A small number example</h3>
+  <ol>
+    <li>The true value is f(x) = 2.</li>
+    <li>Across training sets, the model predicts 3 on average: E[f̂(x)] = 3.</li>
+    <li>Bias = 3 − 2 = 1.</li>
+  </ol>
+  <p>The model is consistently one unit too high. Bias can be negative too, but squaring removes the sign when we measure error.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>High bias means the model is consistently wrong in one direction. It usually comes from a model that is too simple, such as a straight line for curved data.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Bias is not "how wrong one prediction is". One prediction can be far off by chance. Bias is about the <em>average</em> prediction over many training sets.</p></div>
+
+  <details class="check"><summary>If a model has zero bias at every input, does it make no errors?</summary><div class="ans"><p>No. Zero bias means the average prediction is exactly right, but individual predictions can still scatter (variance), and the noise adds more error.</p></div></details>
+
+  <details class="check"><summary>A straight line is fitted to data that clearly follows a curve. Is the bias high or low?</summary><div class="ans"><p>High. The straight-line assumption is wrong, so even the average line misses the curve systematically. This is underfitting.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Variance: sensitivity to data">
+  <h2>Concept 2: Variance, the error from sensitivity to the training data</h2>
+
+  <h3>What it means in plain words</h3>
+  <p>Variance is the part of the error that comes from the model changing too much when the training data changes a little. A very flexible model that tries to pass through every training point can swing wildly if one point moves. Its predictions then depend on luck: which examples you happened to collect. Think of a sensitive weighing scale that jumps when someone breathes on it. Its readings are not wrong on average, but each reading is unreliable.</p>
+
+  <h3>The formal definition</h3>
+  <div class="formula">Variance(x) = E[(f̂(x) − E[f̂(x)])²]</div>
+  <ul>
+    <li><strong>f̂(x) − E[f̂(x)]</strong> is how far one model's prediction is from the typical prediction.</li>
+    <li><strong>( … )²</strong> squares this distance, so wobbles up and down both count as positive.</li>
+    <li><strong>E[ … ]</strong> averages the squared wobbles over all the training sets.</li>
+  </ul>
+
+  <h3>A small number example</h3>
+  <p>Three equally likely training sets lead to predictions of 1, 3 and 5 at the same input.</p>
+  <ol>
+    <li>Average prediction: (1 + 3 + 5) / 3 = 3.</li>
+    <li>Distances from the average: 1 − 3 = −2, 3 − 3 = 0, 5 − 3 = 2.</li>
+    <li>Squared distances: 4, 0 and 4.</li>
+    <li>Average of the squared distances: (4 + 0 + 4) / 3 = 8/3.</li>
+  </ol>
+  <p>So the variance is 8/3, about 2.67.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Always square before you average. Averaging the raw distances gives −2 + 0 + 2 = 0, which wrongly suggests there is no spread at all.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Variance is the spread of <em>predictions across different training sets</em>. It is not the spread of the answers y inside one training set.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>A model with near-zero training error but a large gap to test error has high variance. That gap is the signature of overfitting.</p></div>
+
+  <details class="check"><summary>If variance is 0, do predictions change when the training data changes?</summary><div class="ans"><p>No. Zero variance means every training set gives the same prediction at that input. The model is stable, though it might still be biased.</p></div></details>
+
+</section>
+
+<section class="unit" id="c3" data-title="The decomposition">
+  <h2>Concept 3: Splitting the error into parts</h2>
+
+  <h3>Why we want a split</h3>
+  <p>A third source of error is the noise in the answers. Two houses of the same size may sell for different prices, so the observed answer is never exactly the true value. We write:</p>
+  <div class="formula">y = f(x) + ε</div>
+  <ul>
+    <li><strong>y</strong> is the observed answer.</li>
+    <li><strong>f(x)</strong> is the true pattern, the same for every sample.</li>
+    <li><strong>ε</strong> (epsilon) is random noise with average zero and variance σ². It is independent of the model's predictions.</li>
+  </ul>
+
+  <h3>The key result</h3>
+  <p>For a new input x, with squared error averaged over training sets and noise, the expected error splits into three parts:</p>
+  <div class="formula">E[(y − f̂(x))²] = Bias² + Variance + σ²</div>
+  <ul>
+    <li><strong>Bias²</strong> is the squared bias from Concept 1.</li>
+    <li><strong>Variance</strong> is the variance from Concept 2.</li>
+    <li><strong>σ²</strong> is the irreducible noise. It sets a floor under the error.</li>
+  </ul>
+
+  <h3>Why it works, step by step</h3>
+  <p>Write p for the prediction f̂(x) and m = E[p] for its average. The average of (p − m) is zero, and the noise averages to zero and is independent of p.</p>
+  <ol>
+    <li>The error is (y − p)² = ((f − p) + ε)².</li>
+    <li>Expand: (f − p)² + 2(f − p)ε + ε².</li>
+    <li>Average. The middle term averages to zero, since ε averages to zero and is independent of p. The last term averages to σ². So the expected error is E[(f − p)²] + σ².</li>
+    <li>Split f − p = (f − m) + (m − p) and square: (f − m)² + 2(f − m)(m − p) + (m − p)².</li>
+    <li>Average again. The middle term is zero because E[m − p] = 0. The first term is the squared bias, and the last term is the variance.</li>
+  </ol>
+
+  <h3>A worked numeric example</h3>
+  <p>At one input the true value is f = 2. Three equally likely models predict 1, 3 and 5. The noise is +1 or −1 with equal chance, so σ² = 1. We compute the expected error two ways. If the formula is right, both agree.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+preds = [F(1), F(3), F(5)]           # three possible predictions
+probs = [F(1, 3), F(1, 3), F(1, 3)]  # each equally likely
+f = F(2)                             # true value at x
+noise_var = F(1)                     # noise is +1 or -1, so variance is 1
+
+mean_pred = sum(p * q for p, q in zip(preds, probs))
+bias_sq = (mean_pred - f) ** 2
+variance = sum(q * (p - mean_pred) ** 2 for p, q in zip(preds, probs))
+three_part = bias_sq + variance + noise_var
+
+# direct: noise plus the average squared gap to the true value
+direct = noise_var + sum(q * (f - p) ** 2 for p, q in zip(preds, probs))
+
+print("mean prediction:", mean_pred)
+print("bias squared:", bias_sq)
+print("variance:", variance)
+print("bias^2 + variance + noise:", three_part)
+print("direct expected error:", direct)
+print("they agree:", three_part == direct)</code></pre>
+  <pre class="output">mean prediction: 3
+bias squared: 1
+variance: 8/3
+bias^2 + variance + noise: 14/3
+direct expected error: 14/3
+they agree: True</pre>
+
+  <p>The mean prediction is 3, so the bias is 1 and the squared bias is 1. The variance is 8/3. The total is 1 + 8/3 + 1 = 14/3, and the direct calculation also gives 14/3.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Only bias and variance depend on the model, so only they can be improved by changing the model. The noise part is a floor no model can go below.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The formula uses Bias², not bias. A bias of −2 contributes 4, not −2. The noise σ² is always added, even when bias and variance are zero.</p></div>
+
+  <details class="check"><summary>A model has squared bias 4, variance 3 and noise 2. What is its expected squared error?</summary><div class="ans"><p>4 + 3 + 2 = 9. Squared bias is already squared, so we do not square it again.</p></div></details>
+
+  <details class="check"><summary>Why can we never reach zero expected error on noisy data?</summary><div class="ans"><p>Because the noise σ² is random and appears in every answer. Even a perfect model equal to f(x) still differs from y by ε, so the error is at least σ².</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Complexity and the U-shape">
+  <h2>Concept 4: Model complexity and the U-shaped curve</h2>
+
+  <h3>An everyday analogy</h3>
+  <p>A student who learns one rule, "always answer B", does badly on the real questions. That is underfitting. A student who memorises last year's practice sheet word for word scores perfectly on that sheet but badly on the real exam. That is overfitting. The best student learns the real patterns and ignores the accidents of the practice sheet.</p>
+
+  <h3>Complexity controls the tradeoff</h3>
+  <p><strong>Model complexity</strong> is how flexible a model is. For polynomial curves, a degree-1 line is simple and a degree-10 curve is very flexible. The usual pattern is:</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Model</th><th>Bias</th><th>Variance</th><th>Training error</th><th>Test error</th><th>Situation</th></tr></thead>
+    <tbody>
+      <tr><td>Very simple (a constant guess)</td><td>High</td><td>Low</td><td>High</td><td>High</td><td>Underfitting</td></tr>
+      <tr><td>Medium (right flexibility)</td><td>Low enough</td><td>Low enough</td><td>Moderate</td><td>Lowest</td><td>Good fit</td></tr>
+      <tr><td>Very complex (passes through every point)</td><td>Low</td><td>High</td><td>Near zero</td><td>High</td><td>Overfitting</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Why the test error is U-shaped</h3>
+  <p>As complexity rises, bias falls, because the model can represent the true pattern more closely. Variance rises, because the model reacts more to the particular training points. Test error is the sum of these effects plus noise, so plotted against complexity it falls, reaches a lowest point, then rises. This is the U-shape.</p>
+  <p>Training error keeps falling as complexity rises, because a flexible model can always fit the training points better. A low training error alone does not prove a model is good.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Look at the two errors. Both high means underfitting (high bias). Training low but test high means overfitting (high variance). Both low means you are near the sweet spot.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>"More complex models are always more accurate" is false. They fit the training data better, but they can be much worse on new data.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Questions often describe a table of training and test errors and ask you to name the problem. The table above answers them quickly.</p></div>
+
+  <details class="check"><summary>A model has 98 percent training accuracy and 60 percent test accuracy. High bias or high variance?</summary><div class="ans"><p>High variance, which is overfitting. A high-bias model would be poor on both sets.</p></div></details>
+
+  <details class="check"><summary>As complexity grows, does the bias go up or down?</summary><div class="ans"><p>Down. A more flexible model can represent the true pattern more closely. The variance goes up at the same time, which is the tradeoff.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Taming the tradeoff">
+  <h2>Concept 5: Taming the tradeoff with regularization and validation</h2>
+
+  <h3>Regularization in plain words</h3>
+  <p>Regularization tells the model: "Prefer small, simple answers unless the data clearly demands otherwise." You add a penalty to the quantity the model minimises, so large parameters cost extra. This shrinks the parameters towards zero. Shrinking makes the model less sensitive to noise, so variance goes down, but it pulls the model away from the exact fit, so bias goes up. It is a deliberate trade: a little more bias for a lot less variance.</p>
+
+  <h3>The penalty, written out</h3>
+  <p>Suppose we estimate a single number θ (theta) from data x<sub>1</sub>, …, x<sub>n</sub>. Without regularization we minimise:</p>
+  <div class="formula">Σ (x<sub>i</sub> − θ)²</div>
+  <p>With a ridge penalty of strength λ we minimise:</p>
+  <div class="formula">Σ (x<sub>i</sub> − θ)² + λθ²</div>
+  <ul>
+    <li><strong>Σ</strong> (capital sigma) means add up over all data points, from i = 1 to n.</li>
+    <li><strong>λθ²</strong> is the penalty. The bigger λ is, the more a large θ costs.</li>
+  </ul>
+  <p>The best θ for this problem is:</p>
+  <div class="formula">θ̂ = Σ x<sub>i</sub> / (n + λ)</div>
+
+  <h3>Solving it with a small example</h3>
+  <p>Take the data 2, 4, 6, so n = 3 and the sum is 12.</p>
+  <ol>
+    <li>No penalty, λ = 0: θ̂ = 12 / (3 + 0) = 4. This is the ordinary average.</li>
+    <li>Penalty λ = 3: θ̂ = 12 / (3 + 3) = 12/6 = 2. The estimate moved halfway from 4 to 0.</li>
+  </ol>
+  <p>Here is the same calculation in Python, using exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+data = [2, 4, 6]
+n = len(data)
+s = sum(data)
+lam_none = 0
+lam_pen = 3
+
+plain = F(s, n + lam_none)
+ridge = F(s, n + lam_pen)
+
+print("sum of data:", s)
+print("no penalty:", plain)
+print("with penalty 3:", ridge)</code></pre>
+  <pre class="output">sum of data: 12
+no penalty: 4
+with penalty 3: 2</pre>
+
+  <p>The output matches the hand calculation.</p>
+
+  <h3>How cross-validation helps choose the setting</h3>
+  <p>You cannot choose λ or complexity by training error, because it always favours the most flexible model. Instead, <strong>cross-validation</strong> splits the training data into equal parts called folds, holds one fold out in turn, trains on the rest, measures the error on the held-out fold, and averages these errors. The setting with the lowest average is chosen. Each error is measured on data the model did not train on, so the estimate is honest.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Regularization lowers variance by paying with a little bias. Cross-validation picks the best setting by measuring error on data the model did not train on.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Learn the direction of each knob. A larger penalty λ raises bias and lowers variance. More model complexity lowers bias and raises variance.</p></div>
+
+  <details class="check"><summary>Does a larger penalty make the model more or less likely to overfit?</summary><div class="ans"><p>Less likely. The parameters stay small, so the model cannot chase noise as hard. Variance falls, though bias may rise.</p></div></details>
+
+  <details class="check"><summary>Why use held-out error instead of training error?</summary><div class="ans"><p>Training error always shrinks as the model gets more flexible, so it would always pick the most complex model. Held-out error penalises overfitting, because memorised training data does badly on new points.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Bias = E[f̂(x)] − f(x)</td><td>Average prediction minus the true value</td><td>Is the model consistently off target?</td></tr>
+      <tr><td>Variance = E[(f̂(x) − E[f̂(x)])²]</td><td>Average squared spread of predictions</td><td>How sensitive is the model to the training set?</td></tr>
+      <tr><td>y = f(x) + ε, Var(ε) = σ²</td><td>Observed answer = true pattern + noise</td><td>Setting up the decomposition</td></tr>
+      <tr><td>E[(y − f̂(x))²] = Bias² + Variance + σ²</td><td>Expected squared error in three parts</td><td>Total expected error from its parts</td></tr>
+      <tr><td>θ̂ = Σ x<sub>i</sub> / (n + λ)</td><td>Ridge estimate of a mean (λ = 0 gives the ordinary mean)</td><td>Regularized estimate from data</td></tr>
+    </tbody>
+  </table></div>
+
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Reading the pattern in the errors</h3>
+    <div class="statement"><p>A linear regression model is fitted to data that clearly follows a curve. Its training error and test error are both large and close to each other. Which statement is correct? (MCQ, select one)</p>
+      <p>(A) The model has high variance and is overfitting.<br>(B) The model has high bias and is underfitting.<br>(C) The noise in the data is zero.<br>(D) Collecting more data will remove the error.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The option that describes both errors high and close together.</li>
+      <li><strong>Which idea applies.</strong> A model too simple for the pattern has high bias. Overfitting shows a large gap between training and test error, which is not the case here.</li>
+      <li><strong>Work it out.</strong> Both errors are large, so the model misses the pattern everywhere. That is underfitting, so (B). Option (A) needs a big gap. Option (C) is false because real data is noisy. Option (D) is false because a straight line cannot fit a curve however much data you add.</li>
+      <li><strong>Check.</strong> This matches the table in Concept 4: high bias gives high errors on both sets.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Adding up the three parts</h3>
+    <div class="statement"><p>A model has squared bias 2.5, variance 1.5 and noise variance σ² = 0.5. Find its expected squared error at a point. (NAT, give a decimal)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total expected squared error.</li>
+      <li><strong>Which idea applies.</strong> Expected error = Bias² + Variance + σ².</li>
+      <li><strong>Work it out.</strong> Bias² is already squared, so use 2.5 as is. 2.5 + 1.5 = 4.0, then 4.0 + 0.5 = 4.5.</li>
+      <li><strong>Check.</strong> The total must be bigger than each part. 4.5 is bigger than 2.5, 1.5 and 0.5.</li>
+    </ol>
+    <p class="cx">Answer: 4.5</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about the tradeoff are true</h3>
+    <div class="statement"><p>Select all that apply. Consider a model family in which a complexity setting can be increased. (MSQ)</p>
+      <p>(A) Increasing model complexity usually lowers bias.<br>(B) Increasing model complexity usually raises variance.<br>(C) Ridge regularization with a larger penalty usually raises bias and lowers variance.<br>(D) Adding more training data usually increases variance.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are true in general.</li>
+      <li><strong>Which idea applies.</strong> Complexity and penalty strength move bias and variance in opposite directions. More data makes estimates more stable.</li>
+      <li><strong>Work it out.</strong> (A) is true: a flexible model matches the pattern more closely. (B) is true: it reacts more to the training points. (C) is true: shrinking adds bias and removes variance. (D) is false: more data usually reduces variance.</li>
+      <li><strong>Check.</strong> Each true statement matches the rules in this topic. The false one contradicts the fact that more data stabilises estimates.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Expected error from a list of predictions</h3>
+    <div class="statement"><p>At one input the true value is f = 1. Three equally likely training sets give predictions 0, 2 and 4. The noise variance is σ² = 4. Find the expected squared error at this input as an exact fraction. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The expected squared error, as a fraction.</li>
+      <li><strong>Which idea applies.</strong> Find the average prediction, the bias, the variance, then add the noise.</li>
+      <li><strong>Work it out.</strong> Average prediction: (0 + 2 + 4)/3 = 2. Bias = 2 − 1 = 1, so Bias² = 1. Distances from the average: −2, 0, 2. Squares: 4, 0, 4. Variance = 8/3. Total = 4 + 1 + 8/3 = 23/3, about 7.67.</li>
+      <li><strong>Check.</strong> Directly: 4 + average of (1 − p)². The gaps are 1, −1 and −3, with squares 1, 1, 9 averaging to 11/3. Then 4 + 11/3 = 23/3, which agrees.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+preds = [F(0), F(2), F(4)]
+probs = [F(1, 3)] * 3
+f = F(1)
+noise_var = F(4)
+
+m = sum(p * q for p, q in zip(preds, probs))
+bias_sq = (m - f) ** 2
+var = sum(q * (p - m) ** 2 for p, q in zip(preds, probs))
+total = noise_var + bias_sq + var
+direct = noise_var + sum(q * (f - p) ** 2 for p, q in zip(preds, probs))
+
+print("bias squared:", bias_sq)
+print("variance:", var)
+print("total:", total)
+print("direct:", direct)
+print("decimal:", round(float(total), 2))</code></pre>
+    <pre class="output">bias squared: 1
+variance: 8/3
+total: 23/3
+direct: 23/3
+decimal: 7.67</pre>
+    <p class="cx">Answer: 23/3, about 7.67.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Ridge estimate of a mean</h3>
+    <div class="statement"><p>The data points are 1, 2, 3 and 6. A ridge penalty with λ = 2 estimates a single value θ using θ̂ = Σx<sub>i</sub> / (n + λ). Find θ̂. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The regularized estimate θ̂.</li>
+      <li><strong>Which idea applies.</strong> The formula from Concept 5.</li>
+      <li><strong>Work it out.</strong> Sum: 1 + 2 + 3 + 6 = 12. Number of points n = 4. Denominator: 4 + 2 = 6. Estimate: 12/6 = 2.</li>
+      <li><strong>Check.</strong> The plain mean is 12/4 = 3. The penalty pulled the estimate down to 2, towards zero.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+data = [1, 2, 3, 6]
+n = len(data)
+lam = 2
+
+theta = F(sum(data), n + lam)
+print("sum:", sum(data))
+print("ridge estimate:", theta)
+print("plain mean:", F(sum(data), n))</code></pre>
+    <pre class="output">sum: 12
+ridge estimate: 2
+plain mean: 3</pre>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Training size inside cross-validation</h3>
+    <div class="statement"><p>A training set has 10 points. 5-fold cross-validation splits them into 5 equal folds. In each round one fold is held out and the model trains on the others. How many points does the model train on in each round? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of training points per round.</li>
+      <li><strong>Which idea applies.</strong> One fold is held out each round; the rest are used for training.</li>
+      <li><strong>Work it out.</strong> Fold size: 10 / 5 = 2. Held out per round: 2. Training points: 10 − 2 = 8.</li>
+      <li><strong>Check.</strong> Five folds of 2 make 10 points, so each point is held out once over the five rounds.</li>
+    </ol>
+    <p class="cx">Answer: 8</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>How a larger penalty changes the errors</h3>
+    <div class="statement"><p>A ridge regression model is trained on one fixed training set. The penalty λ is increased from 0 to a very large value. Select all statements that are generally true. (MSQ)</p>
+      <p>(A) The bias of the model increases as λ grows.<br>(B) The variance of the model decreases as λ grows.<br>(C) The training error increases as λ grows.<br>(D) The lowest test error is always reached at λ = 0.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about ridge regression on one training set are generally true.</li>
+      <li><strong>Which idea applies.</strong> A larger penalty shrinks the parameters. Shrinking adds bias, removes variance, and makes the fit follow the training points less closely.</li>
+      <li><strong>Work it out.</strong> In θ̂ = Σx<sub>i</sub>/(n + λ), a larger λ makes the denominator larger, so θ̂ moves towards zero and away from the data average. More bias: (A) is true. The estimate depends less on the data: (B) is true. The fit is pulled away from the training points, so the training error rises: (C) is true. Statement (D) is false, because a moderate penalty often lowers test error by reducing variance.</li>
+      <li><strong>Check.</strong> Each true statement matches the direction of the knobs. The false statement says the penalty never helps, which contradicts the purpose of regularization.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Unequal chances in the predictions</h3>
+    <div class="statement"><p>At one input the true value is f = 2 and the noise variance is σ² = 1. Across training sets, the model predicts 0 with probability 1/4 and 4 with probability 3/4. Find the expected squared error at this input. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total expected squared error, with unequal probabilities.</li>
+      <li><strong>Which idea applies.</strong> Each average must weight every prediction by its probability.</li>
+      <li><strong>Work it out.</strong> Average prediction: 0 × 1/4 + 4 × 3/4 = 3. Bias = 3 − 2 = 1, so Bias² = 1. Distances from 3: −3 and 1. Squares: 9 and 1. Weighted variance: 9 × 1/4 + 1 × 3/4 = 3. Total = 1 + 3 + 1 = 5.</li>
+      <li><strong>Check.</strong> Directly: 1 + weighted average of (2 − p)². The gaps are 2 and −2, squares 4 and 4, so the average is 4, giving 1 + 4 = 5.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+preds = [F(0), F(4)]
+probs = [F(1, 4), F(3, 4)]
+f = F(2)
+noise_var = F(1)
+
+m = sum(p * q for p, q in zip(preds, probs))
+bias_sq = (m - f) ** 2
+var = sum(q * (p - m) ** 2 for p, q in zip(preds, probs))
+direct = noise_var + sum(q * (f - p) ** 2 for p, q in zip(preds, probs))
+
+print("mean prediction:", m)
+print("bias squared:", bias_sq)
+print("variance:", var)
+print("expected error:", noise_var + bias_sq + var)
+print("direct check:", direct)</code></pre>
+    <pre class="output">mean prediction: 3
+bias squared: 1
+variance: 3
+expected error: 5
+direct check: 5</pre>
+    <p class="cx">Answer: 5</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Decomposing expected error (NAT, 2 marks)</h3>
+    <div class="statement"><p>For a regression model at a fixed input, the expected squared error is 2.5, the noise variance is 0.4 and the variance of the prediction across training sets is 0.6. Find the squared bias.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The bias² term of the decomposition.</li>
+      <li><strong>Which idea applies.</strong> Expected error = bias² + variance + irreducible noise.</li>
+      <li><strong>Work it out.</strong> bias² = 2.5 − 0.6 − 0.4 = 1.5.</li>
+      <li><strong>Check.</strong> All three parts are nonnegative, as they must be.</li>
+    </ol>
+    <p class="cx">Answer: 1.5.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Effect of model complexity (MSQ, 2 marks)</h3>
+    <div class="statement"><p>As the degree of a polynomial regression model rises (with fixed data), which usually happen? (A) Training error falls. (B) Bias falls. (C) Variance rises. (D) Test error always falls.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Typical trends as flexibility increases.</li>
+      <li><strong>Which idea applies.</strong> More flexible models fit training data better but react more to noise.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) Test error is U-shaped: it falls then rises. False.</li>
+      <li><strong>Check.</strong> The best degree sits at the bottom of the test error curve.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Bias of a shrunk estimator (NAT, 2 marks)</h3>
+    <div class="statement"><p>X<sub>1</sub>, ..., X<sub>n</sub> are independent with mean μ = 10 and variance σ² = 25, and n = 25. The estimator is T = 0.8 X̄. Find the mean squared error of T.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> MSE = bias² + variance.</li>
+      <li><strong>Which idea applies.</strong> E[T] = 0.8μ and Var(T) = 0.64 σ²/n.</li>
+      <li><strong>Work it out.</strong> Bias = 8 − 10 = −2, bias² = 4. Var = 0.64 · 1 = 0.64. MSE = 4.64.</li>
+      <li><strong>Check.</strong> The plain mean X̄ has MSE 1, so this shrinkage hurts here because μ is large.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>mu, s2, n, c = 10, 25, 25, 0.8
+print("MSE = %.2f" % ((c * mu - mu) ** 2 + c * c * s2 / n))
+</code></pre>
+    <pre class="output">MSE = 4.64</pre>
+    <p class="cx">Answer: 4.64.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and try to explain each line in your own words.</p>
+  <dl>
+    <div><dt>Bias</dt><dd>Error from a wrong assumption. The average prediction minus the true value.</dd></div>
+    <div><dt>Variance</dt><dd>Error from sensitivity to the training data. The average squared spread of predictions.</dd></div>
+    <div><dt>Noise (σ²)</dt><dd>Random error in the answers that no model can remove.</dd></div>
+    <div><dt>Decomposition</dt><dd>Expected squared error = Bias² + Variance + σ².</dd></div>
+    <div><dt>Underfitting</dt><dd>Too simple. High bias. Both training and test errors are high.</dd></div>
+    <div><dt>Overfitting</dt><dd>Too flexible. High variance. Low training error but high test error.</dd></div>
+    <div><dt>Model complexity</dt><dd>How flexible a model is. Raising it usually lowers bias and raises variance.</dd></div>
+    <div><dt>U-shaped test error</dt><dd>Test error falls, reaches a lowest point, then rises as complexity grows.</dd></div>
+    <div><dt>Training error</dt><dd>Error on the data used to fit the model. It keeps falling as complexity rises.</dd></div>
+    <div><dt>Test error</dt><dd>Error on new, unseen data. The honest measure of quality.</dd></div>
+    <div><dt>Expected value E[ ]</dt><dd>The probability-weighted long-run average of a quantity.</dd></div>
+    <div><dt>Regularization</dt><dd>Adding a penalty that keeps parameters small. Lowers variance and raises bias.</dd></div>
+    <div><dt>Penalty strength λ</dt><dd>The knob for regularization. Larger λ means more shrinkage.</dd></div>
+    <div><dt>Ridge estimate of a mean</dt><dd>θ̂ = Σx<sub>i</sub>/(n + λ). With λ = 0 it is the ordinary mean.</dd></div>
+    <div><dt>Cross-validation</dt><dd>Estimating test error by holding parts of the training data out in turn.</dd></div>
+    <div><dt>Fold</dt><dd>One of the equal parts the training data is split into during cross-validation.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Bias is about the average prediction. Variance is about how much predictions wobble between training sets.</li>
+    <li>Expected squared error = Bias² + Variance + σ². Only the first two depend on the model.</li>
+    <li>High bias means underfitting. High variance means overfitting.</li>
+    <li>Raising complexity lowers bias and raises variance. Raising the penalty does the reverse.</li>
+    <li>Training error alone cannot tell you whether a model is good. Use held-out data.</li>
+    <li>In the ridge estimate the denominator is n + λ, so a larger λ pulls the answer towards zero.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 105?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 105 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-104.html"><small>Previous, topic 104</small>Support Vector Machine</a><a class="next" href="gate-106.html"><small>Next, topic 106</small>Cross-validation: LOO &amp; k-fold</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

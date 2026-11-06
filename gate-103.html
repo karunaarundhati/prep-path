@@ -1,0 +1,491 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 103: Decision Trees</title><meta name="description" content="A decision tree classifies an item by asking a series of simple questions, each with a yes or no answer, until it reaches a final label. You will learn how a tree is grown by choosing the best question at each step, how entropy, information gain and the Gini index measure a good question, and how pruning stops the tree from memorising noise."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g103" data-key="g103" data-noun="topic" data-num="103" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Decision Trees</h1>
+<p class="lede">A decision tree classifies an item by asking a series of simple questions, each with a yes or no answer, until it reaches a final label. You will learn how a tree is grown by choosing the best question at each step, how entropy, information gain and the Gini index measure a good question, and how pruning stops the tree from memorising noise.</p>
+<div class="station"><b>103</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>The tree as a sequence of questions</li><li>Entropy and information gain</li><li>Gini index and gain ratio</li><li>Stopping, continuous attributes and pruning</li><li>Choosing the best split step by step</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of the game of twenty questions. One player thinks of an animal, and the other asks yes or no questions to find it. A good first question splits the possibilities roughly in half, such as "Does it live in water?" A poor first question, such as "Is it a cat?", rules out very little. Each answer narrows the search until the guess is certain.</p>
+  <p>A <strong>decision tree</strong> works the same way. It is a flowchart. At the top sits a question about one attribute. Each answer leads to another question, until the bottom of the tree gives a final class. For example, a bank might ask "Is income above 50,000?", then "Has the applicant missed payments?", and finally say "approve" or "reject". Trees are easy to read, which is one reason they are popular.</p>
+  <p>The hard part is choosing the questions. The learning algorithm must decide which attribute to ask about at each node, and where to cut a number if the attribute is continuous. The aim is to make the groups after each question as <em>pure</em> as possible, meaning each group contains mostly one class. For GATE, decision trees appear in the Machine Learning part of the Data Science and AI paper (DA). Typical questions ask you to compute entropy, information gain or Gini index for a split, to pick the best attribute, and to explain pruning. Only arithmetic with logarithms and fractions is needed.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Each term returns later on the page.</p>
+  <dl>
+    <div><dt>Attribute</dt><dd>A feature of the data, such as Weather or Wind. Each attribute can be used as a question.</dd></div>
+    <div><dt>Node</dt><dd>A point in the tree where data is split or where a final label is given.</dd></div>
+    <div><dt>Root</dt><dd>The top node, which holds all the training data.</dd></div>
+    <div><dt>Leaf</dt><dd>A bottom node with no further questions. It gives the predicted class.</dd></div>
+    <div><dt>Split</dt><dd>Dividing the data at a node into groups, one for each answer to the question.</dd></div>
+    <div><dt>Pure node</dt><dd>A node whose data all belong to one class.</dd></div>
+    <div><dt>Entropy H</dt><dd>A measure of mixedness. It is 0 for a pure node and largest when classes are equally common. Precisely: H = minus Σ p<sub>i</sub> log<sub>2</sub> p<sub>i</sub>.</dd></div>
+    <div><dt>Information gain IG</dt><dd>How much entropy drops after a split. Precisely: IG = H(parent) minus the weighted average entropy of the children.</dd></div>
+    <div><dt>Gini index</dt><dd>Another mixedness measure. Precisely: G = 1 minus Σ p<sub>i</sub>², where p<sub>i</sub> is the share of class i.</dd></div>
+    <div><dt>Gain ratio</dt><dd>Information gain divided by the split information, which penalises attributes with many values.</dd></div>
+    <div><dt>Split information</dt><dd>The entropy of the sizes of the groups created by a split. Precisely: minus Σ (n<sub>v</sub>/n) log<sub>2</sub>(n<sub>v</sub>/n).</dd></div>
+    <div><dt>Pruning</dt><dd>Removing parts of a tree that fit noise, to improve performance on new data.</dd></div>
+    <div><dt>Pre-pruning</dt><dd>Stopping the tree from growing too early, using a rule set in advance.</dd></div>
+    <div><dt>Post-pruning</dt><dd>Growing the full tree first, then cutting back branches that do not help on validation data.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The tree as a sequence of questions">
+  <h2>The tree as a sequence of questions</h2>
+  <h3>Reading a tree</h3>
+  <p>A tree has a root at the top, branches for each answer, and leaves at the bottom. To classify an item, start at the root, answer the question for that item, follow the matching branch, and repeat until you reach a leaf. The label on the leaf is the prediction.</p>
+  <p>Here is a small tree for deciding whether to play outside. The question at the root asks about the weather. If it is sunny, the tree asks about wind. If the wind is weak, it says Yes. If the wind is strong, it says No. If it is rainy, it says No. Read the tree from top to bottom, one question at a time, and every item ends in exactly one leaf.</p>
+  <h3>How the tree is grown</h3>
+  <p>The algorithm starts with all the training data at the root. It asks: which single question would separate the classes best? It chooses that attribute, splits the data, and then repeats the same process inside each child node. This is called <strong>recursive partitioning</strong>, and it stops when a rule says so, as explained later.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Each split is a greedy choice. The algorithm picks the best question right now, without looking ahead. This is fast and usually good, though it does not always give the globally best tree.</p></div>
+  <h3>What makes a question good?</h3>
+  <p>Imagine a node with ten people, six who will play and four who will not. A good question creates two groups that are each mostly one answer. A poor question creates two groups that still look like the original mix. To compare questions, we need a number that measures mixedness. Two common choices are entropy and the Gini index. We study them next.</p>
+  <details class="check"><summary>Question: what is a leaf?</summary><div class="ans"><p>A node at the bottom of the tree with no further question. It gives the predicted class, usually the majority class of the training items that reached it.</p></div></details>
+  <details class="check"><summary>Question: why is the choice of question at the root important?</summary><div class="ans"><p>The root split affects every item and every later split. A good first question creates clean groups that are easier to split further, which usually gives a smaller and more accurate tree.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Entropy and information gain">
+  <h2>Entropy and information gain</h2>
+  <h3>Entropy: how mixed is a group?</h3>
+  <p>Entropy comes from information theory. It measures the average surprise when you draw a random item and read its label. If every item has the same label, there is no surprise, and entropy is 0. If the labels are split evenly, every draw is uncertain, and entropy is at its largest.</p>
+  <div class="formula">H = minus Σ p<sub>i</sub> log<sub>2</sub>(p<sub>i</sub>)</div>
+  <p>Read it. The sum runs over the classes i. p<sub>i</sub> is the share of class i in the group. The logarithm base 2 gives an answer in bits. The minus sign makes the result positive, because logarithms of numbers below 1 are negative.</p>
+  <h3>Worked example: entropy of a 3 to 1 group</h3>
+  <p>A group has 3 positive and 1 negative items. The shares are 3/4 and 1/4.</p>
+  <ol>
+    <li><strong>Positive term.</strong> p = 0.75. log<sub>2</sub>(0.75) is about minus 0.415. Multiply: 0.75 × (minus 0.415) = minus 0.311.</li>
+    <li><strong>Negative term.</strong> p = 0.25. log<sub>2</sub>(0.25) = minus 2. Multiply: 0.25 × (minus 2) = minus 0.5.</li>
+    <li><strong>Add and negate.</strong> The sum is minus 0.311 minus 0.5 = minus 0.811. Negate: H = 0.811 bits.</li>
+    <li><strong>Check.</strong> It lies between 0 (pure) and 1 (even split), as it should.</li>
+  </ol>
+  <h3>Information gain: how much did the question help?</h3>
+  <p>Information gain compares the entropy before and after a split. The entropy after the split is the average of the children's entropies, weighted by how many items each child holds.</p>
+  <div class="formula">IG = H(parent) minus Σ (n<sub>v</sub>/n) H(child<sub>v</sub>)</div>
+  <p>Read it. n is the number of items at the parent, and n<sub>v</sub> is the number of items that answered v. Each child's entropy counts in proportion to its size. A large IG means the split removed a lot of mixedness.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Information gain is always zero or positive for a real split, because a weighted average of entropies cannot exceed the parent's entropy. A negative gain is a sign of an arithmetic error.</p></div>
+  <h3>Worked example: a split with a clear winner</h3>
+  <p>Consider eight days, each with a Weather value (Sunny or Rain), a Wind value (Weak or Strong) and a label Play (Yes or No). Here are the eight rows.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Day</th><th>Weather</th><th>Wind</th><th>Play</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Sunny</td><td>Weak</td><td>Yes</td></tr>
+      <tr><td>2</td><td>Sunny</td><td>Strong</td><td>No</td></tr>
+      <tr><td>3</td><td>Sunny</td><td>Weak</td><td>Yes</td></tr>
+      <tr><td>4</td><td>Rain</td><td>Weak</td><td>Yes</td></tr>
+      <tr><td>5</td><td>Rain</td><td>Weak</td><td>Yes</td></tr>
+      <tr><td>6</td><td>Rain</td><td>Strong</td><td>No</td></tr>
+      <tr><td>7</td><td>Sunny</td><td>Strong</td><td>No</td></tr>
+      <tr><td>8</td><td>Rain</td><td>Strong</td><td>No</td></tr>
+    </tbody>
+  </table></div>
+  <ol>
+    <li><strong>Parent entropy.</strong> Four Yes and four No, so the shares are 1/2 and 1/2. H = 1 bit.</li>
+    <li><strong>Split on Weather.</strong> Sunny has days 1, 2, 3, 7: two Yes and two No, entropy 1. Rain has days 4, 5, 6, 8: two Yes and two No, entropy 1. Weighted average = (4/8)×1 + (4/8)×1 = 1. IG = 1 minus 1 = 0. Weather tells us nothing.</li>
+    <li><strong>Split on Wind.</strong> Weak has days 1, 3, 4, 5: all Yes, entropy 0. Strong has days 2, 6, 7, 8: all No, entropy 0. Weighted average = 0. IG = 1 minus 0 = 1. Wind separates the classes perfectly.</li>
+    <li><strong>Choose.</strong> The algorithm asks about Wind at the root. Both children are pure, so they become leaves at once.</li>
+  </ol>
+  <p>The code below checks these entropies and gains.</p>
+  <pre class="code" data-lang="python"><code>import math
+from collections import Counter
+
+rows = [("Sunny", "Weak", "Yes"), ("Sunny", "Strong", "No"), ("Sunny", "Weak", "Yes"),
+        ("Rain", "Weak", "Yes"), ("Rain", "Weak", "Yes"), ("Rain", "Strong", "No"),
+        ("Sunny", "Strong", "No"), ("Rain", "Strong", "No")]
+
+def entropy(labels):
+    n = len(labels)
+    return -sum((c / n) * math.log2(c / n) for c in Counter(labels).values())
+
+def gini(labels):
+    n = len(labels)
+    return 1 - sum((c / n) ** 2 for c in Counter(labels).values())
+
+def info_gain(rows, col):
+    labels = [r[-1] for r in rows]
+    groups = {}
+    for r in rows:
+        groups.setdefault(r[col], []).append(r[-1])
+    after = sum(len(g) / len(rows) * entropy(g) for g in groups.values())
+    return entropy(labels) - after
+
+labels = [r[-1] for r in rows]
+print("parent entropy =", round(entropy(labels), 3))
+print("parent gini =", round(gini(labels), 3))
+print("IG Weather =", round(info_gain(rows, 0), 3))
+print("IG Wind =", round(info_gain(rows, 1), 3))</code></pre>
+  <pre class="output">parent entropy = 1.0
+parent gini = 0.5
+IG Weather = 0.0
+IG Wind = 1.0</pre>
+  <details class="check"><summary>Question: a node has 5 Yes and 5 No. What is its entropy?</summary><div class="ans"><p>1 bit. The shares are 1/2 and 1/2, so each term is 0.5 × minus 1 = minus 0.5, and the sum negated is 1.</p></div></details>
+  <details class="check"><summary>Question: can information gain be bigger than the parent's entropy?</summary><div class="ans"><p>No. The children's weighted entropy is never negative, so IG is at most H(parent). Here the maximum is 1 bit, reached by Wind.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Gini index and gain ratio">
+  <h2>Gini index and gain ratio</h2>
+  <h3>The Gini index</h3>
+  <p>The Gini index measures the chance of picking two items at random from a group and finding that they have different labels. If a group is pure, that chance is zero. If the group is evenly mixed, the chance is high.</p>
+  <div class="formula">G = 1 minus Σ p<sub>i</sub>²</div>
+  <p>Read it. p<sub>i</sub> is the share of class i. Squaring each share and adding gives the chance that two random draws have the same label. Subtracting from 1 gives the chance they differ.</p>
+  <h3>Worked example: Gini for 9 Yes and 5 No</h3>
+  <ol>
+    <li><strong>Shares.</strong> 9/14 and 5/14.</li>
+    <li><strong>Squares.</strong> (9/14)² = 81/196 and (5/14)² = 25/196.</li>
+    <li><strong>Add.</strong> 81/196 + 25/196 = 106/196.</li>
+    <li><strong>Subtract from 1.</strong> G = 1 minus 106/196 = 90/196, about 0.459.</li>
+  </ol>
+  <p>For a two-class group, the Gini index is largest at 0.5, when the classes are equal. Like entropy, it is 0 for a pure group. The Gini gain of a split is the parent's Gini minus the weighted average of the children's Gini values. CART, the algorithm behind most tree libraries, uses Gini and makes binary splits, meaning each question has two answers.</p>
+  <h3>Gain ratio and the many-values problem</h3>
+  <p>Information gain has a weakness. An attribute with many distinct values, such as a day identifier, splits the data into many tiny groups. Each tiny group is pure, so the gain looks huge, even though the split is useless for new data.</p>
+  <p>Consider a day identifier with 8 distinct values, one per training day. Each child has one item, so each child is pure. The gain is the full parent entropy, 1 bit. But the split itself carries information, which we measure as the split information.</p>
+  <div class="formula">SplitInfo = minus Σ (n<sub>v</sub>/n) log<sub>2</sub>(n<sub>v</sub>/n)</div>
+  <p>For the identifier, each of the 8 groups has share 1/8, so SplitInfo = 8 × (minus (1/8) × log<sub>2</sub>(1/8)) = 8 × (1/8) × 3 = 3. The gain ratio is IG/SplitInfo = 1/3. Now compare Wind from the earlier table. Its two groups have sizes 4 and 4, so SplitInfo = 1, and the gain ratio is 1/1 = 1. Wind still wins, which is the desired result. C4.5 uses gain ratio for this reason.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Algorithm</th><th>Measure</th><th>Split type</th></tr></thead>
+    <tbody>
+      <tr><td>ID3</td><td>Information gain (entropy)</td><td>Many branches, categorical attributes</td></tr>
+      <tr><td>C4.5</td><td>Gain ratio</td><td>Many branches, handles continuous attributes too</td></tr>
+      <tr><td>CART</td><td>Gini index</td><td>Binary splits</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Match the measure to the algorithm: ID3 uses information gain, C4.5 uses gain ratio, and CART uses the Gini index. Questions often give one algorithm and ask for the matching measure.</p></div>
+  <details class="check"><summary>Question: what is the Gini index of a 50 to 50 two-class node?</summary><div class="ans"><p>1 minus (0.5² + 0.5²) = 1 minus 0.5 = 0.5.</p></div></details>
+  <details class="check"><summary>Question: why does gain ratio divide by split information?</summary><div class="ans"><p>To penalise attributes that split the data into many groups. Those splits look strong because the groups are small and pure, not because the attribute is informative.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Stopping, continuous attributes and pruning">
+  <h2>Stopping, continuous attributes and pruning</h2>
+  <h3>When to stop splitting</h3>
+  <p>If we kept splitting until every leaf was pure, the tree would become huge. The algorithm therefore uses stopping criteria. Common ones are:</p>
+  <ul>
+    <li>The node is pure, so there is nothing left to separate.</li>
+    <li>No attributes are left to ask about.</li>
+    <li>The node holds fewer than a minimum number of items.</li>
+    <li>The tree has reached a maximum depth.</li>
+    <li>The best available split improves the impurity by less than a small threshold.</li>
+  </ul>
+  <p>The first three rules are standard. A leaf that is not pure takes the majority class of its items.</p>
+  <h3>Continuous attributes: finding a cut point</h3>
+  <p>An attribute such as temperature is a number, not a category. The tree must choose a threshold, such as "temperature at most 15". The method is simple. Sort the distinct values. Place a candidate threshold halfway between each pair of neighbouring values where the class changes. Compute the gain for each candidate and keep the best.</p>
+  <p>Example. Temperatures 10, 12, 18 and 20 have labels No, No, Yes, Yes. The only useful candidate is the midpoint between 12 and 18, which is 15. The split "temperature at most 15" sends {10, 12} to No and {18, 20} to Yes. Both children are pure, so IG = 1 bit, the best possible.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Candidate thresholds only need to sit between values where the label changes. Testing every number in between wastes effort, because the gain cannot change inside a run of one class.</p></div>
+  <h3>Overfitting and why trees need pruning</h3>
+  <p>A tree grown until every leaf is pure can memorise the training data, including its noise. Its training accuracy is perfect, but on new data it does badly. This is overfitting. The remedy is pruning, which removes branches that do not help on unseen data.</p>
+  <ul>
+    <li><strong>Pre-pruning</strong> stops growth early using the stopping rules above. It is fast, but it can stop too soon, before a useful split that appears only after another split.</li>
+    <li><strong>Post-pruning</strong> grows the full tree, then examines each subtree. If replacing it with a leaf does not hurt accuracy on a validation set, the subtree is cut. This is usually more reliable, but it costs more time.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>Post-pruning must use data the tree did not train on. If you judge pruning on the training data, every cut looks harmful, because the training data always favours the bigger tree.</p></div>
+  <details class="check"><summary>Question: a tree has 100 percent training accuracy. Is it probably a good tree?</summary><div class="ans"><p>Not necessarily. Perfect training accuracy is a sign of possible overfitting. Check its accuracy on validation or test data.</p></div></details>
+  <details class="check"><summary>Question: where should the threshold for temperature go if the labels change between 20 and 24?</summary><div class="ans"><p>At the midpoint, 22. The values on either side of the change are 20 and 24, and the midpoint between them is the natural cut.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Choosing the best split step by step">
+  <h2>Choosing the best split step by step</h2>
+  <h3>The procedure</h3>
+  <p>Here is the full routine for one node. It is the same routine repeated at every node.</p>
+  <ol>
+    <li>Count the classes at the node and compute its entropy or Gini index.</li>
+    <li>For each attribute, list its possible splits. For a continuous attribute, use the candidate thresholds.</li>
+    <li>For each split, compute the weighted impurity of the children.</li>
+    <li>Compute the gain for each split. Keep the attribute with the largest gain.</li>
+    <li>If a stopping rule applies, make a leaf. Otherwise make the chosen attribute the question and repeat for each child.</li>
+  </ol>
+  <h3>A worked comparison</h3>
+  <p>A node has 4 Yes and 4 No, so its entropy is 1 bit. Three attributes are available.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Attribute</th><th>Left child</th><th>Right child</th><th>Information gain</th></tr></thead>
+    <tbody>
+      <tr><td>A</td><td>3 Yes, 1 No</td><td>1 Yes, 3 No</td><td>1 minus 0.811 = 0.189</td></tr>
+      <tr><td>B</td><td>2 Yes, 2 No</td><td>2 Yes, 2 No</td><td>1 minus 1 = 0</td></tr>
+      <tr><td>C</td><td>4 Yes, 1 No</td><td>0 Yes, 3 No</td><td>about 0.549</td></tr>
+    </tbody>
+  </table></div>
+  <p>For attribute C, the left child has 5 items with entropy about 0.722, and the right child has 3 pure items with entropy 0. The weighted average is (5/8) × 0.722 = 0.451, so the gain is 1 minus 0.451 = 0.549. Attribute C is the best question here. Attribute B gives no gain at all, so it is useless at this node.</p>
+  <details class="check"><summary>Question: which attribute should be asked first in the table above?</summary><div class="ans"><p>C, with the largest gain of about 0.549 bits.</p></div></details>
+  <details class="check"><summary>Question: why does attribute B score zero?</summary><div class="ans"><p>Both children have the same mix as the parent, 2 Yes and 2 No, so they carry no more information about the label than the parent did.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close when you solve problems.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>H = minus Σ p<sub>i</sub> log<sub>2</sub> p<sub>i</sub></td><td>Entropy in bits</td><td>Measuring mixedness for ID3 and C4.5</td></tr>
+      <tr><td>IG = H(parent) minus Σ (n<sub>v</sub>/n) H(child<sub>v</sub>)</td><td>Information gain</td><td>Choosing a split</td></tr>
+      <tr><td>G = 1 minus Σ p<sub>i</sub>²</td><td>Gini index</td><td>Measuring mixedness for CART</td></tr>
+      <tr><td>SplitInfo = minus Σ (n<sub>v</sub>/n) log<sub>2</sub>(n<sub>v</sub>/n)</td><td>Split information</td><td>Computing gain ratio</td></tr>
+      <tr><td>Gain ratio = IG / SplitInfo</td><td>Penalised gain</td><td>Attributes with many values</td></tr>
+      <tr><td>Candidate threshold = midpoint of two neighbouring values</td><td>Cut point for a continuous attribute</td><td>Continuous splits</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems written for this page. They are not real past paper questions. Try each one before you read the answer. MSQ means more than one option can be correct. NAT means you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Entropy of a 3 to 1 group (NAT)</h3>
+    <div class="statement"><p>A node has 3 items of one class and 1 item of the other. Find its entropy in bits, to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The entropy H in bits, rounded.</li>
+      <li><strong>Which idea applies.</strong> H = minus Σ p log<sub>2</sub> p.</li>
+      <li><strong>Work it out.</strong> The shares are 0.75 and 0.25. The terms are 0.75 × log<sub>2</sub>(0.75) = minus 0.311 and 0.25 × log<sub>2</sub>(0.25) = minus 0.5. The sum is minus 0.811, so H = 0.811.</li>
+      <li><strong>Check.</strong> The value lies between 0 and 1, as it must for two classes.</li>
+    </ol>
+    <p class="cx">Answer: 0.811</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about impurity measures (MSQ)</h3>
+    <div class="statement"><p>Which statements are true? Select all that apply.</p>
+    <p>(A) A pure node has entropy 0.</p>
+    <p>(B) A 50 to 50 two-class node has Gini index 0.5.</p>
+    <p>(C) For two classes, entropy is largest when the classes are equally common.</p>
+    <p>(D) Information gain of a valid split can be negative.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about entropy, Gini and gain are correct.</li>
+      <li><strong>Which idea applies.</strong> Pure means one class only. The Gini value for an even split is 1 minus 0.5. Entropy peaks at the even split. Gain is never negative for a real split.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true, 1 minus (0.25 + 0.25) = 0.5. (C) is true. (D) is false.</li>
+      <li><strong>Check.</strong> The only false statement is the one about negative gain, which would require a weighted average above the parent.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Information gain of a split (NAT)</h3>
+    <div class="statement"><p>A node has 6 Yes and 2 No. A split creates two children: one with 4 Yes and 0 No, and one with 2 Yes and 2 No. Find the information gain, to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The gain IG of this split.</li>
+      <li><strong>Which idea applies.</strong> IG = H(parent) minus the weighted average of the children's entropies.</li>
+      <li><strong>Work it out.</strong> Parent: shares 0.75 and 0.25, so H = 0.811. Child 1 is pure, H = 0. Child 2 has shares 0.5 and 0.5, so H = 1. Weights are 4/8 and 4/8. Weighted average = 0.5 × 0 + 0.5 × 1 = 0.5. IG = 0.811 minus 0.5 = 0.311.</li>
+      <li><strong>Check.</strong> The gain is positive and smaller than the parent's entropy, as it should be.</li>
+    </ol>
+    <p class="cx">Answer: 0.311</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Gini index with three classes (NAT)</h3>
+    <div class="statement"><p>A node contains 4 items in total: 2 of class A, 1 of class B and 1 of class C. Find its Gini index. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Gini index of a three-class node.</li>
+      <li><strong>Which idea applies.</strong> G = 1 minus Σ p<sub>i</sub>².</li>
+      <li><strong>Work it out.</strong> The shares are 1/2, 1/4 and 1/4. Squares: 1/4, 1/16 and 1/16. Sum: 4/16 + 1/16 + 1/16 = 6/16. G = 1 minus 6/16 = 10/16 = 0.625.</li>
+      <li><strong>Check.</strong> With three classes the maximum Gini is 2/3, so 0.625 is below it, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 0.625</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Gain ratio of a wide split (NAT)</h3>
+    <div class="statement"><p>A split of 8 items creates four groups of 2 items each. The information gain of this split is 0.5 bits. Find the gain ratio. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The gain ratio, which is IG divided by split information.</li>
+      <li><strong>Which idea applies.</strong> SplitInfo = minus Σ (n<sub>v</sub>/n) log<sub>2</sub>(n<sub>v</sub>/n).</li>
+      <li><strong>Work it out.</strong> Each group has share 2/8 = 1/4. Each term is 1/4 × log<sub>2</sub>(1/4) = 1/4 × (minus 2) = minus 0.5. Four such terms give SplitInfo = 2. Gain ratio = 0.5/2 = 0.25.</li>
+      <li><strong>Check.</strong> The gain ratio is smaller than the raw gain, which is the penalty for many groups working as intended.</li>
+    </ol>
+    <p class="cx">Answer: 0.25</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Choosing the root attribute (MCQ)</h3>
+    <div class="statement"><p>A node has 4 Yes and 4 No. Three attributes give these children. Attribute A: (3 Yes, 1 No) and (1 Yes, 3 No). Attribute B: (2 Yes, 2 No) and (2 Yes, 2 No). Attribute C: (4 Yes, 1 No) and (0 Yes, 3 No). Using information gain, which attribute is chosen? Select the single correct option.</p>
+    <p>(A) A (B) B (C) C</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The attribute with the largest information gain.</li>
+      <li><strong>Which idea applies.</strong> Compute the weighted children entropy for each attribute, then subtract from the parent entropy of 1 bit.</li>
+      <li><strong>Work it out.</strong> A: both children have entropy 0.811 and sizes 4 and 4, so the average is 0.811 and the gain is 0.189. B: both children have entropy 1, so the gain is 0. C: the children have 5 items with shares 0.8 and 0.2, entropy 0.722, and 3 pure items. The average is (5/8) × 0.722 = 0.451, so the gain is 0.549.</li>
+      <li><strong>Check.</strong> C has the largest gain, 0.549, against 0.189 for A and 0 for B.</li>
+    </ol>
+    <p class="cx">Answer: (C)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Overfitting and pruning (MSQ)</h3>
+    <div class="statement"><p>Select all true statements about decision trees.</p>
+    <p>(A) A deeper tree usually has lower or equal training error.</p>
+    <p>(B) Pre-pruning stops the growth of a tree early using a rule.</p>
+    <p>(C) Post-pruning uses only the training set to decide which branches to cut.</p>
+    <p>(D) A tree with a leaf for almost every training item usually overfits.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Recognise sound facts about tree size, pruning and overfitting.</li>
+      <li><strong>Which idea applies.</strong> More splits can only fit the training data better. Pre-pruning uses rules during growth. Post-pruning needs held-out data. Overfitting follows from fitting noise.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is false, post-pruning should use validation data, not the training set. (D) is true.</li>
+      <li><strong>Check.</strong> The false statement uses the word "only", a warning sign, because the training set always favours bigger trees.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D)</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def H(shares):
+    return -sum(p * math.log2(p) for p in shares if p > 0)
+
+print("P1 entropy =", round(H([0.75, 0.25]), 3))
+parent = H([0.75, 0.25])
+print("P3 gain =", round(parent - (0.5 * H([1.0]) + 0.5 * H([0.5, 0.5])), 3))
+print("P4 gini =", round(1 - (0.5 ** 2 + 0.25 ** 2 + 0.25 ** 2), 3))
+split_info = 4 * (-(0.25) * math.log2(0.25))
+print("P5 gain ratio =", round(0.5 / split_info, 3))
+gain_a = 1 - H([0.75, 0.25])
+gain_c = 1 - (5 / 8) * H([0.8, 0.2]) - (3 / 8) * H([1.0])
+print("P6 gains A and C =", round(gain_a, 3), round(gain_c, 3))</code></pre>
+  <pre class="output">P1 entropy = 0.811
+P3 gain = 0.311
+P4 gini = 0.625
+P5 gain ratio = 0.25
+P6 gains A and C = 0.189 0.549</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Information gain of attribute A (NAT, 2 marks)</h3>
+    <div class="statement"><p>A decision tree node holds 10 training examples: 6 are yes and 4 are no. Attribute A splits them into a left group with 4 yes and 0 no, and a right group with 2 yes and 4 no. Use entropy, H = minus the sum of p times log base 2 of p, over the classes. Find the information gain of attribute A, which is the parent entropy minus the weighted average of the child entropies. Give the answer to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The information gain of one split, to three decimals.</li>
+      <li><strong>Which idea applies.</strong> Entropy of each group, weighted by the group size, subtracted from the parent entropy.</li>
+      <li><strong>Work it out.</strong> Parent: p = 0.6 and 0.4, so H = minus (0.6 log2 0.6 + 0.4 log2 0.4) = 0.971. Left group is pure, so its entropy is 0. Right group has p = 1/3 and 2/3, so H = 0.918. Weighted average = 0.4 times 0 + 0.6 times 0.918 = 0.551. Gain = 0.971 minus 0.551 = 0.420.</li>
+      <li><strong>Check.</strong> The gain is positive, and it cannot exceed the parent entropy 0.971. A pure left group is a strong sign of a good split.</li>
+    </ol>
+    <p class="cx">Answer: 0.420</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Which tree facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A student revises splitting criteria and pruning for decision trees. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) The Gini index of a pure node is 0.</p><p>(B) Information gain is never negative for a split.</p><p>(C) Pre-pruning stops tree growth early, for example by requiring a minimum number of samples in each leaf.</p><p>(D) The gain ratio always equals the information gain for the same split.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four statements about tree construction are true.</li>
+      <li><strong>Which idea applies.</strong> A pure node has one class only. Information gain is a difference of entropies with a concavity property. Pruning can happen before or after growth. The gain ratio divides by the split information.</li>
+      <li><strong>Work it out.</strong> (A) is true: one class gives p = 1 and Gini = 1 minus 1 = 0. (B) is true, because a split cannot increase the average entropy. (C) is true, which describes pre-pruning. (D) is false: the gain ratio divides the gain by the split information, so it is usually smaller and often different.</li>
+      <li><strong>Check.</strong> The code below confirms that a pure node has Gini 0, which supports (A).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Option (D) is wrong because the gain ratio divides by the split information.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Gini gain of attribute B (NAT, 2 marks)</h3>
+    <div class="statement"><p>The same 10 training examples, with 6 yes and 4 no, are split by attribute B into a left group with 3 yes and 1 no, and a right group with 3 yes and 3 no. The Gini index of a node is 1 minus the sum of the squared class proportions. The Gini gain of a split is the parent Gini minus the weighted average of the child Gini values. Find the Gini gain of attribute B to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Gini gain of attribute B only.</li>
+      <li><strong>Which idea applies.</strong> Compute the Gini of the parent and of each child, then weight the children by their sizes.</li>
+      <li><strong>Work it out.</strong> Parent Gini = 1 minus (0.6 squared plus 0.4 squared) = 1 minus 0.52 = 0.48. Left group (3 yes, 1 no): 1 minus (0.75 squared plus 0.25 squared) = 1 minus 0.625 = 0.375. Right group (3, 3): 1 minus 0.5 = 0.5. Weighted average = 0.4 times 0.375 plus 0.6 times 0.5 = 0.15 plus 0.30 = 0.45. Gain = 0.48 minus 0.45 = 0.030.</li>
+      <li><strong>Check.</strong> Attribute A gave a Gini gain of about 0.213, which is much larger. So A is the better split by Gini, and B is only slightly useful.</li>
+    </ol>
+    <p class="cx">Answer: 0.030</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Cost complexity pruning break-even (NAT, 2 marks)</h3>
+    <div class="statement"><p>A decision tree is pruned with cost complexity pruning. The cost of a tree is its number of training errors plus alpha times its number of leaves. A subtree has two leaves with 1 and 2 training errors, so it makes 3 errors in total. Replacing the subtree with one single leaf gives 4 training errors. Find the value of alpha at which the subtree and the single leaf have equal cost. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The break-even value of alpha.</li>
+      <li><strong>Which idea applies.</strong> Write the cost of each option as errors plus alpha times leaves, then set the two costs equal.</li>
+      <li><strong>Work it out.</strong> Subtree cost = 3 plus 2 alpha, since it has 2 leaves. Single leaf cost = 4 plus 1 alpha. Setting them equal gives 3 plus 2 alpha = 4 plus alpha, so alpha = 1.</li>
+      <li><strong>Check.</strong> At alpha = 0.5 the subtree costs 4.0 and the leaf costs 4.5, so the subtree is kept. At alpha = 2 the subtree costs 7.0 and the leaf costs 6.0, so pruning wins. The break-even at 1 sits between these.</li>
+    </ol>
+    <p class="cx">Answer: 1</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+# Exam-level 1: entropy and information gain of attribute A
+def H(pos, neg):
+    n = pos + neg
+    h = 0.0
+    for c in (pos, neg):
+        if c:
+            p = c / n
+            h = h - p * math.log2(p)
+    return h
+parent = H(6, 4)
+gain_a = parent - (4 / 10 * H(4, 0) + 6 / 10 * H(2, 4))
+print(f"E1 parent entropy = {parent:.3f}  right entropy = {H(2, 4):.3f}  information gain = {gain_a:.3f}")
+
+# Exam-level 2: Gini facts
+def gini(pos, neg):
+    n = pos + neg
+    return 1 - (pos / n) ** 2 - (neg / n) ** 2
+print("E2 gini of pure node =", gini(5, 0))
+print(f"E2 gini of 3 yes and 1 no = {gini(3, 1):.4f}")
+
+# Exam-level 3: Gini gain of attribute B
+parent_g = gini(6, 4)
+gain_b = parent_g - (4 / 10 * gini(3, 1) + 6 / 10 * gini(3, 3))
+print(f"E3 parent gini = {parent_g:.3f}  gini gain of B = {gain_b:.3f}")
+
+# Exam-level 4: cost complexity pruning break-even
+def subtree_cost(alpha):
+    return 3 + alpha * 2
+def pruned_cost(alpha):
+    return 4 + alpha * 1
+for a in (0.5, 1, 2):
+    print(f"E4 alpha = {a}: subtree cost {subtree_cost(a):.1f}, pruned cost {pruned_cost(a):.1f}")</code></pre>
+  <pre class="output">E1 parent entropy = 0.971  right entropy = 0.918  information gain = 0.420
+E2 gini of pure node = 0.0
+E2 gini of 3 yes and 1 no = 0.3750
+E3 parent gini = 0.480  gini gain of B = 0.030
+E4 alpha = 0.5: subtree cost 4.0, pruned cost 4.5
+E4 alpha = 1: subtree cost 5.0, pruned cost 5.0
+E4 alpha = 2: subtree cost 7.0, pruned cost 6.0</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>Decision tree</dt><dd>A flowchart of yes or no questions that ends in a class label at each leaf.</dd></div>
+    <div><dt>Root, node and leaf</dt><dd>The top question, any question in between, and the final label at the bottom.</dd></div>
+    <div><dt>Split</dt><dd>Dividing the data at a node by the answer to one question.</dd></div>
+    <div><dt>Pure node</dt><dd>A node whose items all share one class.</dd></div>
+    <div><dt>Entropy</dt><dd>minus Σ p log<sub>2</sub> p, the mixedness of a group in bits.</dd></div>
+    <div><dt>Information gain</dt><dd>Parent entropy minus the weighted entropy of the children.</dd></div>
+    <div><dt>Gini index</dt><dd>1 minus Σ p², the chance two random items have different labels.</dd></div>
+    <div><dt>Split information</dt><dd>The entropy of the group sizes produced by a split.</dd></div>
+    <div><dt>Gain ratio</dt><dd>Information gain divided by split information, which penalises many-valued attributes.</dd></div>
+    <div><dt>ID3, C4.5, CART</dt><dd>Tree algorithms that use information gain, gain ratio and Gini respectively.</dd></div>
+    <div><dt>Recursive partitioning</dt><dd>Repeating the split process inside each child until a stopping rule applies.</dd></div>
+    <div><dt>Candidate threshold</dt><dd>A cut point between two neighbouring values where the class changes.</dd></div>
+    <div><dt>Overfitting</dt><dd>Learning the noise in training data, which hurts performance on new data.</dd></div>
+    <div><dt>Pre-pruning</dt><dd>Stopping growth early using a rule set in advance.</dd></div>
+    <div><dt>Post-pruning</dt><dd>Cutting back a full tree using validation data.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>A good split creates children that are purer than the parent.</li>
+    <li>Entropy is 0 for a pure node and 1 bit for an even two-class split.</li>
+    <li>Information gain is the drop in entropy caused by a split.</li>
+    <li>ID3 uses information gain, C4.5 uses gain ratio, and CART uses Gini.</li>
+    <li>Gain ratio penalises attributes that split the data into many small groups.</li>
+    <li>Continuous attributes are cut at midpoints where the class changes.</li>
+    <li>Prune with validation data to avoid overfitting.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 103?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 103 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-102.html"><small>Previous, topic 102</small>Linear Discriminant Analysis</a><a class="next" href="gate-104.html"><small>Next, topic 104</small>Support Vector Machine</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

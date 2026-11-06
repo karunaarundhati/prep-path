@@ -1,0 +1,516 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 156: Automation in Manufacturing & PLCs</title><meta name="description" content="Automation means machines doing work that people used to do by hand. This page covers the three main types of manufacturing automation, and the Programmable Logic Controller (PLC), the small industrial computer that runs most machines on a factory line. GATE asks both conceptual and calculation questions on these."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g156" data-key="g156" data-noun="topic" data-num="156" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Automation in Manufacturing &amp; PLCs</h1>
+<p class="lede">Automation means machines doing work that people used to do by hand. This page covers the three main types of manufacturing automation, and the Programmable Logic Controller (PLC), the small industrial computer that runs most machines on a factory line. GATE asks both conceptual and calculation questions on these.</p>
+<div class="station"><b>156</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Types of manufacturing automation</li><li>Fixed, programmable and flexible automation compared</li><li>What a PLC is and how it is built</li><li>The PLC scan cycle</li><li>Ladder logic and the seal-in circuit</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Think about a washing machine. You put in clothes and soap, press a button, and the machine fills, washes, rinses, and spins by itself. It follows a fixed sequence of steps, and it does not need a person to hold the water tap. A factory line works the same way, but on a much bigger scale. A machine does a job, then passes the work to the next machine, and a control system decides when each step starts.</p>
+
+  <p><strong>Automation</strong> is the use of machines and control systems to do work with little or no human hands on the work. In manufacturing, automation makes products faster, more uniform, and often safer. Some tasks are dull, dirty, or dangerous, which is another reason to automate them.</p>
+
+  <p>Automation comes in different kinds. The right kind depends on how many products you make and how often the product changes. A factory making one million identical bolts needs a different system from a workshop making ten kinds of small batches each week. A <strong>Programmable Logic Controller</strong> (PLC) is the device that runs much of this automation, so the second half of this page explains it step by step.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Automation type depends on the volume of product and how often the product changes. The control device, very often a PLC, makes the sequence happen.</p></div>
+
+  <h3>Where this appears in GATE</h3>
+  <p>In the RA paper, questions on automation types usually ask you to match a type to a production situation. PLC questions usually test the scan cycle, the meaning of ladder logic contacts and coils, and simple truth tables. A few questions ask for a short cost or time calculation. This page covers both kinds.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these now. Each one is used again below.</p>
+
+  <dl>
+    <div><dt>Automation</dt><dd>Doing work with machines and control systems rather than by hand. Precise definition: the use of equipment and control systems to perform production tasks with reduced human intervention.</dd></div>
+    <div><dt>Fixed automation</dt><dd>Automation built for one product, with a fixed sequence of operations. Precise definition: a dedicated production system whose layout and tooling are designed for one product, so changing the product is costly.</dd></div>
+    <div><dt>Programmable automation</dt><dd>Automation whose sequence can be changed by a new program. Precise definition: a production system whose controller can be reprogrammed to make a different batch of products, usually with some change of tooling.</dd></div>
+    <div><dt>Flexible automation</dt><dd>Automation that can make a range of products with little or no changeover. Precise definition: a system that can switch between products in a mixed sequence, with the changeover done by software rather than by hardware changes.</dd></div>
+    <div><dt>Changeover</dt><dd>Stopping production to switch from one product to another. Precise definition: the time and effort needed to change tooling, fixtures, and programs between two products.</dd></div>
+    <div><dt>Batch production</dt><dd>Making a group of the same product before switching. Precise definition: a production mode in which a set number of identical items is made together.</dd></div>
+    <div><dt>Programmable Logic Controller (PLC)</dt><dd>A rugged industrial computer for machine control. Precise definition: a controller that reads inputs, runs a stored program, and sets outputs in a repeated scan cycle.</dd></div>
+    <div><dt>Input module</dt><dd>The part of a PLC that reads sensors and switches. Precise definition: an interface that converts signals from field devices into values the CPU can use.</dd></div>
+    <div><dt>Output module</dt><dd>The part of a PLC that drives machines. Precise definition: an interface that switches field devices such as contactors, lamps, or solenoid valves on and off.</dd></div>
+    <div><dt>CPU</dt><dd>The central processing unit of the PLC. Precise definition: the processor that runs the stored program and manages memory and the scan cycle.</dd></div>
+    <div><dt>Scan cycle</dt><dd>The repeated loop the PLC runs. Precise definition: read inputs, execute the program, update outputs, then handle housekeeping, repeated continuously.</dd></div>
+    <div><dt>Scan time</dt><dd>How long one scan cycle takes. Precise definition: the time for one complete pass through the scan cycle, typically in milliseconds.</dd></div>
+    <div><dt>Ladder logic</dt><dd>A graphical language that looks like a relay circuit. Precise definition: a programming language made of rungs between two power rails, with contacts as conditions and coils as outputs.</dd></div>
+    <div><dt>Rung</dt><dd>One horizontal line of a ladder diagram. Precise definition: a set of contacts in a path from the left power rail to the coil on the right rail.</dd></div>
+    <div><dt>Contact (NO and NC)</dt><dd>A condition in a rung. Precise definition: a normally open (NO) contact is ON when its input is true; a normally closed (NC) contact is ON when its input is false.</dd></div>
+    <div><dt>Coil</dt><dd>An output in a rung. Precise definition: a coil is set ON when the rung to its left is true.</dd></div>
+    <div><dt>Seal-in (latch)</dt><dd>A circuit that keeps an output ON after a momentary start signal. Precise definition: an output contact placed in parallel with the start contact, so the output holds its own state until a stop condition is met.</dd></div>
+    <div><dt>Interlock</dt><dd>A condition that prevents an unsafe action. Precise definition: a logic condition that blocks an output unless another condition is met.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Types of manufacturing automation">
+  <h2>Types of manufacturing automation</h2>
+
+  <p>Automation is classified by how easily it can change products. The three main types are fixed, programmable, and flexible. Each one is a trade-off between cost per part and the ability to change.</p>
+
+  <h3>Fixed automation</h3>
+  <p>Fixed automation is built for one product. A transfer line is a good example. Parts move from station to station, and each station does one job, such as drilling or pressing, in a fixed order. The layout, the tooling, and the timing are all designed for that one part.</p>
+
+  <p>Fixed automation has a high initial cost, because the line is custom built. However, once it runs, each part costs little, because no reprogramming or changeover is needed. It is best for very high volume, stable products.</p>
+
+  <h3>Programmable automation</h3>
+  <p>Programmable automation uses a machine whose sequence can be reprogrammed. A CNC milling machine or an industrial robot is an example. To make a new batch, the operator loads a new program and often changes the fixtures or tools. Products are made in batches, one batch after another.</p>
+
+  <p>Programmable automation is more flexible than fixed automation, but each change takes time. It is best for medium volume and batch production, where the product variety is moderate.</p>
+
+  <h3>Flexible automation</h3>
+  <p>Flexible automation is a system that can make several different products, one after another, with little or no changeover. A flexible manufacturing system (FMS) uses several machines, a material handling system, and a central computer. A new product is made by changing the software, not the hardware. The system can mix products in any order.</p>
+
+  <p>Flexible automation has the highest initial cost and the most complex control. It is best for a wide variety of products at medium volume, where changing the product often would be too slow with the other types.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>Fixed</th><th>Programmable</th><th>Flexible</th></tr></thead>
+    <tbody>
+      <tr><td>Product variety</td><td>One product</td><td>Batches of a few products</td><td>Mixed, many products</td></tr>
+      <tr><td>Volume</td><td>Very high</td><td>Medium, in batches</td><td>Medium</td></tr>
+      <tr><td>Changeover</td><td>Very costly, rarely done</td><td>Slow (new program and tooling)</td><td>Fast (software only)</td></tr>
+      <tr><td>Initial cost</td><td>High</td><td>Medium</td><td>Highest</td></tr>
+      <tr><td>Cost per part (at high volume)</td><td>Lowest</td><td>Higher</td><td>Higher</td></tr>
+      <tr><td>Typical example</td><td>Transfer line for one part</td><td>CNC machine with a batch program</td><td>Flexible manufacturing system</td></tr>
+    </tbody>
+  </table></div>
+
+  <details class="check"><summary>Question: A factory makes one million identical bottle caps per year and the design never changes. Which type of automation fits best?</summary><div class="ans"><p>Fixed automation, because the volume is very high and the product is stable. The high initial cost is spread over many parts.</p></div></details>
+
+  <details class="check"><summary>Question: Which type allows a mixed sequence of products with changes made in software?</summary><div class="ans"><p>Flexible automation.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Fixed, programmable and flexible compared">
+  <h2>Fixed, programmable and flexible automation compared with numbers</h2>
+
+  <p>The choice between fixed and flexible automation is often a cost question. Suppose a fixed line costs 500 000 to set up and then 2 per part to run. A flexible system costs 200 000 to set up and then 6 per part. The total cost for a volume V is:</p>
+
+  <div class="formula">Total cost = Initial cost + (cost per part) × V</div>
+
+  <p>Here <em>V</em> is the number of parts. The two systems cost the same at the <strong>break-even volume</strong>, where the two total costs are equal.</p>
+
+  <div class="formula">500 000 + 2V = 200 000 + 6V</div>
+
+  <p>To solve, move the terms with V to one side and the constants to the other side:</p>
+  <ol>
+    <li><strong>Subtract 2V and 200 000 from both sides.</strong> 300 000 = 4V.</li>
+    <li><strong>Divide by 4.</strong> V = 75 000 parts.</li>
+    <li><strong>Check at 50 000 parts.</strong> Fixed: 500 000 + 2 × 50 000 = 600 000. Flexible: 200 000 + 6 × 50 000 = 500 000. Flexible is cheaper below the break-even volume.</li>
+    <li><strong>Check at 100 000 parts.</strong> Fixed: 500 000 + 200 000 = 700 000. Flexible: 200 000 + 600 000 = 800 000. Fixed is cheaper above the break-even volume.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>fixed_initial = 500000
+fixed_per_part = 2
+flex_initial = 200000
+flex_per_part = 6
+breakeven = (fixed_initial - flex_initial) / (flex_per_part - fixed_per_part)
+print("Break-even volume (parts):", round(breakeven))
+for v in (50000, 75000, 100000):
+    fixed_cost = fixed_initial + fixed_per_part * v
+    flex_cost = flex_initial + flex_per_part * v
+    print("Volume", v, "fixed cost", fixed_cost, "flexible cost", flex_cost)</code></pre>
+<pre class="output">Break-even volume (parts): 75000
+Volume 50000 fixed cost 600000 flexible cost 500000
+Volume 75000 fixed cost 650000 flexible cost 650000
+Volume 100000 fixed cost 700000 flexible cost 800000</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The break-even point is not the same as "the cheapest choice always". Below break-even, flexible is cheaper. Above it, fixed is cheaper. Students often forget that the answer flips.</p></div>
+
+  <details class="check"><summary>Question: Which system has the higher per-part cost in this example?</summary><div class="ans"><p>The flexible system, at 6 per part, compared with 2 per part for the fixed line. The flexible system wins only when the volume is small.</p></div></details>
+
+  <details class="check"><summary>Question: Why is the initial cost of a fixed line high?</summary><div class="ans"><p>The line is custom built for one product, with dedicated machines, fixtures, and layout, so the cost is paid once at the start.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="What a PLC is and how it is built">
+  <h2>What a PLC is and how it is built</h2>
+
+  <p>Before PLCs existed, factory machines were controlled by banks of relays. A relay is an electrical switch that is operated by a coil. A control panel could hold hundreds of relays, wired together by hand. Changing the sequence meant rewiring the panel, which took days. The <strong>Programmable Logic Controller</strong> replaced those panels with a small computer that stores the logic as a program. To change the sequence, you change the program.</p>
+
+  <p>A PLC is built from a few main parts. Here is a text diagram of a typical PLC system.</p>
+
+<pre class="code" data-lang="text"><code>  SENSORS                 PLC                           ACTUATORS
+  (switches,   --&gt;  [ input modules ]
+   photo eyes)           |
+                         v
+                    [   CPU + memory   ]  &lt;-- programming device
+                         |
+                         v
+  ACTUATORS    &lt;--  [ output modules ]
+  (motors,
+   valves,
+   lamps)
+</code></pre>
+
+  <p>Read the diagram from left to right. Sensors send signals to the input modules. The CPU reads those inputs, runs the stored program, and decides what should happen. The output modules then switch the actuators on or off. The programming device is used to write and load the program, and it is not needed while the machine runs.</p>
+
+  <ul>
+    <li><strong>Input modules</strong> take signals from switches, sensors, and buttons. Digital inputs are ON or OFF. Analogue inputs read a range of values, such as temperature.</li>
+    <li><strong>Output modules</strong> drive contactors, solenoid valves, lamps, and motor drives. Digital outputs are ON or OFF.</li>
+    <li><strong>CPU and memory</strong> store the program and the image of the inputs and outputs, and run the scan cycle.</li>
+    <li><strong>Power supply</strong> provides the power for the PLC itself.</li>
+    <li><strong>Communication</strong> links the PLC to other PLCs, to a computer, or to a human-machine interface (HMI) screen.</li>
+  </ul>
+
+  <p>The PLC is built to be rugged. It is designed to work in dust, heat, vibration, and electrical noise, which a normal office computer cannot handle.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>A PLC does not run like a normal computer that stops at the end of its program. It runs the same program again and again, forever, in the scan cycle. The next section explains this.</p></div>
+
+  <details class="check"><summary>Question: What is the main advantage of a PLC over a relay panel?</summary><div class="ans"><p>The sequence is changed by changing the stored program, not by rewiring the panel.</p></div></details>
+
+  <details class="check"><summary>Question: What is the job of an input module?</summary><div class="ans"><p>It reads signals from sensors and switches and passes them to the CPU in a form the CPU can use.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="The PLC scan cycle">
+  <h2>The PLC scan cycle</h2>
+
+  <p>The PLC works in a loop called the <strong>scan cycle</strong>. Each pass through the loop takes a short time, called the scan time. A typical loop has four steps:</p>
+  <ol>
+    <li><strong>Read the inputs.</strong> The PLC copies the state of every input into a memory table called the input image. From now on, the program uses this copy, so the inputs look frozen during the scan.</li>
+    <li><strong>Execute the program.</strong> The CPU runs the ladder logic from top to bottom, using the input image and the current output values to work out the new outputs.</li>
+    <li><strong>Update the outputs.</strong> The PLC copies the calculated outputs to the output modules, which switch the actuators.</li>
+    <li><strong>Housekeeping.</strong> The PLC handles communication, diagnostics, and checks, then starts the next scan.</li>
+  </ol>
+
+  <p>Why use an input copy? Imagine a sensor changes state halfway through a scan. If the program read the sensor again, the rungs above and below the change could see different values. The input image keeps all rungs consistent for one scan.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The inputs are read once per scan and the outputs are written once per scan. The program in between sees a frozen picture.</p></div>
+
+  <h3>Response time</h3>
+  <p>A change at an input may not appear at an output until a later scan. If the input changes just after it has been read, the change is seen only in the next scan. Then the output is written at the end of that scan. So the response can take up to about two scan times, which is a common rule of thumb for the worst case.</p>
+
+  <p>Worked example. A PLC has a scan time of 25 ms. The worst-case response is about 2 × 25 = 50 ms. A switch pressed just after an input read will not affect the output until the second scan, which is up to 50 ms later.</p>
+
+  <pre class="code" data-lang="python"><code>scan_ms = 25
+print("Worst-case response (ms):", 2 * scan_ms)</code></pre>
+<pre class="output">Worst-case response (ms): 50</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>A short pulse shorter than one scan can be missed completely if it starts and ends between two input reads. Long enough signals are needed, or a special high-speed input must be used.</p></div>
+
+  <details class="check"><summary>Question: What are the four steps of the scan cycle, in order?</summary><div class="ans"><p>Read the inputs, execute the program, update the outputs, then housekeeping (and the loop starts again).</p></div></details>
+
+  <details class="check"><summary>Question: If the scan time is 10 ms, what is the rough worst-case response time?</summary><div class="ans"><p>About 2 × 10 = 20 ms.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Ladder logic and the seal-in circuit">
+  <h2>Ladder logic and the seal-in circuit</h2>
+
+  <p>Most PLCs are programmed in <strong>ladder logic</strong>. A ladder diagram looks like a relay circuit. It has two vertical power rails, one on the left (L1) and one on the right (L2). Between them are horizontal <strong>rungs</strong>. Each rung has conditions called <strong>contacts</strong> on the left, and an output called a <strong>coil</strong> on the right.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Symbol</th><th>Name</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>-| |-</td><td>Normally open (NO) contact</td><td>ON (true) when its input is 1</td></tr>
+      <tr><td>-|/|-</td><td>Normally closed (NC) contact</td><td>ON (true) when its input is 0</td></tr>
+      <tr><td>-( )-</td><td>Coil</td><td>Output set ON when the rung is true</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The rules of a rung are simple. Contacts in <strong>series</strong> (one after another) act like AND: the path is true only if all of them are true. Contacts in <strong>parallel</strong> (side by side) act like OR: the path is true if any one of them is true.</p>
+
+  <h3>The seal-in (latching) circuit</h3>
+  <p>A start button is pressed for a moment, but a motor must keep running after the button is released. The trick is a <strong>seal-in</strong> contact. The motor's own contact is placed in parallel with the start button. Once the motor is on, its contact keeps the rung true, so it stays on. A stop button is wired as a normally closed contact, so pressing it opens the rung.</p>
+
+<pre class="code" data-lang="text"><code>L1 ----+------[ START ]------+------[/STOP/]------( MOTOR )---- L2
+       |                     |
+       +-----[ MOTOR ]-------+
+</code></pre>
+
+  <p>Read the diagram from left to right. The rung is true if (START or MOTOR) and not STOP. The MOTOR contact is the seal. The STOP contact is drawn as NC, so it reads true when the stop button is not pressed. Written as a formula:</p>
+
+  <div class="formula">MOTOR = (START OR MOTOR) AND NOT STOP</div>
+
+  <p>This formula looks circular, because MOTOR appears on both sides. In a PLC it is not a problem. On each scan, the program uses the previous value of MOTOR (the seal) to decide the new value. Let us trace a few scans.</p>
+
+  <pre class="code" data-lang="python"><code># Seal-in (latching) rung: motor = (start OR motor) AND NOT stop
+inputs = [
+    ("scan 1", False, False),
+    ("scan 2", True, False),
+    ("scan 3", False, False),
+    ("scan 4", False, True),
+    ("scan 5", False, False),
+]
+motor = False
+for name, start, stop in inputs:
+    motor = (start or motor) and (not stop)
+    print(name, "start", int(start), "stop", int(stop), "motor", int(motor))</code></pre>
+<pre class="output">scan 1 start 0 stop 0 motor 0
+scan 2 start 1 stop 0 motor 1
+scan 3 start 0 stop 0 motor 1
+scan 4 start 0 stop 1 motor 0
+scan 5 start 0 stop 0 motor 0</pre>
+
+  <p>Read the trace one line at a time. In scan 2, the start button is pressed, so the motor turns ON. In scan 3, the start button is released, but the motor is still ON, because the seal keeps the rung true. In scan 4, the stop button opens the NC contact, so the rung becomes false and the motor turns OFF. In scan 5, nothing is pressed, and the motor stays OFF.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>The stop input wins over the start input. If start and stop are both pressed in the same scan, the NOT STOP term is false, so the motor stays OFF. Check the stop term first.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Questions often give a rung and ask for the output after a sequence of inputs. Trace one scan at a time, keep the output from the previous scan, and never skip a scan.</p></div>
+
+  <h3>Interlocks</h3>
+  <p>An <strong>interlock</strong> is a condition that stops an output from turning on when it is unsafe. For example, a press may only run if the safety guard is closed. In ladder logic, the guard contact is placed in series with the press coil. Interlocks are a common reason for series contacts in real panels.</p>
+
+  <details class="check"><summary>Question: In a seal-in rung, what does the MOTOR contact do?</summary><div class="ans"><p>It keeps the rung true after the start button is released, so the motor stays ON.</p></div></details>
+
+  <details class="check"><summary>Question: A rung has NO contact A in series with NC contact B, driving coil X. When is X ON?</summary><div class="ans"><p>When A = 1 and B = 0. Series contacts act like AND, and the NC contact is ON when its input is 0.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Use this table as a reminder. Each row is explained above.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Total cost = C<sub>0</sub> + c × V</td><td>C<sub>0</sub> initial cost, c cost per part, V volume</td><td>Compare fixed and flexible automation</td></tr>
+      <tr><td>V<sub>BE</sub> = (C<sub>0,fixed</sub> − C<sub>0,flex</sub>) / (c<sub>flex</sub> − c<sub>fixed</sub>)</td><td>Break-even volume</td><td>Find where two systems cost the same</td></tr>
+      <tr><td>Worst-case response ≈ 2 × scan time</td><td>Scan time in ms</td><td>Rough response time of a PLC output</td></tr>
+      <tr><td>Parts = (shift time × uptime) / cycle time</td><td>Shift time in s, uptime as a fraction, cycle time in s</td><td>Good parts per shift</td></tr>
+      <tr><td>Output = (A OR B) AND NOT C</td><td>Boolean rung: OR for parallel, AND for series, NOT for NC</td><td>Ladder logic truth table</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>In ladder logic, parallel means OR and series means AND. Write the rung as a formula first, then check each input combination.</p></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems, not real past exam questions. Try each one first, then read the method.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which automation for one product?</h3>
+    <div class="statement"><p>A plant makes one million identical plastic caps each year. The design has not changed for ten years. Which type of automation is the best fit?</p>
+    <p>(A) Fixed automation &nbsp; (B) Programmable automation &nbsp; (C) Flexible automation &nbsp; (D) Manual assembly</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The best automation type for a stable, high-volume product.</li>
+      <li><strong>Which idea applies.</strong> Fixed automation suits very high volume with no product change.</li>
+      <li><strong>Work it out.</strong> The product never changes and the volume is very high, so the high initial cost is spread over many parts. That is fixed automation.</li>
+      <li><strong>Check.</strong> Flexible automation would cost more with no benefit, because no changes are needed.</li>
+    </ol>
+    <p class="cx">Answer: (A) Fixed automation.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>When does the coil turn on?</h3>
+    <div class="statement"><p>A rung has a NO contact A in series with an NC contact B, and the two drive coil X. For which input values is X ON?</p>
+    <p>(A) A = 0, B = 0 &nbsp; (B) A = 1, B = 0 &nbsp; (C) A = 0, B = 1 &nbsp; (D) A = 1, B = 1</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The input pair that makes X true.</li>
+      <li><strong>Which idea applies.</strong> Series means AND. A NO contact is ON when its input is 1. An NC contact is ON when its input is 0.</li>
+      <li><strong>Work it out.</strong> We need A = 1 (NO contact ON) and B = 0 (NC contact ON). That is option (B).</li>
+      <li><strong>Check.</strong> Option (D) fails because the NC contact is open when B = 1.</li>
+    </ol>
+    <p class="cx">Answer: (B) A = 1, B = 0.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about PLCs (select all that apply)</h3>
+    <div class="statement"><p>Select all the statements that are correct.</p>
+    <p>(A) The PLC program is stored in memory, so the sequence can be changed without rewiring. &nbsp; (B) The outputs are read at the start of each scan. &nbsp; (C) The inputs are copied into an input image once per scan. &nbsp; (D) A PLC is designed to work only in clean office conditions.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> The program is stored. The scan reads inputs and writes outputs. PLCs are rugged.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, outputs are written at the end of the scan, and the outputs are not read as inputs. (C) True. (D) False, PLCs are built for harsh factory conditions.</li>
+      <li><strong>Check.</strong> The two false statements both reverse a key fact, which is the trap in this kind of question.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Worst-case response time</h3>
+    <div class="statement"><p>A PLC has a scan time of 40 ms. A sensor changes just after its input was read. Using the rule of thumb of two scan times, find the worst-case response time in ms.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The worst-case response in ms.</li>
+      <li><strong>Which idea applies.</strong> The change is caught in the next scan, and the output is written at the end of it. Worst case is about 2 scan times.</li>
+      <li><strong>Work it out.</strong> 2 × 40 = 80 ms.</li>
+      <li><strong>Check.</strong> The best case is about one scan, 40 ms, and the worst case is about twice that. 80 ms is consistent with that range.</li>
+    </ol>
+    <p class="cx">Answer: 80 ms.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Break-even volume for two systems</h3>
+    <div class="statement"><p>A fixed line costs 300 000 to set up and 3 per part to run. A flexible system costs 120 000 to set up and 9 per part to run. Find the break-even volume, in parts.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The volume V where the two total costs are equal.</li>
+      <li><strong>Which idea applies.</strong> Total cost = initial cost + cost per part × V. Set the two equal.</li>
+      <li><strong>Work it out.</strong> 300 000 + 3V = 120 000 + 9V. So 180 000 = 6V, and V = 30 000 parts.</li>
+      <li><strong>Check.</strong> At 30 000 parts, fixed is 300 000 + 90 000 = 390 000. Flexible is 120 000 + 270 000 = 390 000. They match.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>fixed_initial = 300000
+fixed_per_part = 3
+flex_initial = 120000
+flex_per_part = 9
+breakeven = (fixed_initial - flex_initial) / (flex_per_part - fixed_per_part)
+print("Break-even volume (parts):", round(breakeven))</code></pre>
+<pre class="output">Break-even volume (parts): 30000</pre>
+    <p class="cx">Answer: 30 000 parts.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Truth table for a rung (select all that apply)</h3>
+    <div class="statement"><p>A rung has NO contacts A and B in parallel, then an NC contact C in series, driving coil X. So X = (A OR B) AND NOT C. Which input combinations give X = 1? Select all that apply.</p>
+    <p>(A) A = 0, B = 1, C = 0 &nbsp; (B) A = 1, B = 0, C = 1 &nbsp; (C) A = 1, B = 0, C = 0 &nbsp; (D) A = 0, B = 0, C = 0</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which combinations make X true.</li>
+      <li><strong>Which idea applies.</strong> Parallel is OR. Series is AND. An NC contact is true when its input is 0.</li>
+      <li><strong>Work it out.</strong> (A) A OR B = 1, NOT C = 1, so X = 1. (B) C = 1 makes NOT C = 0, so X = 0. (C) A OR B = 1, NOT C = 1, so X = 1. (D) A OR B = 0, so X = 0.</li>
+      <li><strong>Check.</strong> The full truth table below confirms these four results.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import itertools
+print("A B C | X")
+for a, b, c in itertools.product([0, 1], repeat=3):
+    x = int((a or b) and not c)
+    print(a, b, c, "|", x)</code></pre>
+<pre class="output">A B C | X
+0 0 0 | 0
+0 0 1 | 0
+0 1 0 | 1
+0 1 1 | 0
+1 0 0 | 1
+1 0 1 | 0
+1 1 0 | 1
+1 1 1 | 0</pre>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Good parts per shift</h3>
+    <div class="statement"><p>A cell runs for a 7-hour shift. The cycle time is 36 s per part, and the machine is available (up) for 90 percent of the shift. Find the number of good parts made in the shift, assuming every part is good.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of parts in one shift.</li>
+      <li><strong>Which idea applies.</strong> Parts = (shift time × uptime) / cycle time, with all times in seconds.</li>
+      <li><strong>Work it out.</strong> Shift time = 7 × 3600 = 25 200 s. Uptime = 0.9. Available time = 25 200 × 0.9 = 22 680 s. Parts = 22 680 / 36 = 630.</li>
+      <li><strong>Check.</strong> At 100 percent uptime the shift would give 25 200 / 36 = 700 parts. Ninety percent of 700 is 630, which matches.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>shift_s = 7 * 3600
+cycle_s = 36
+uptime = 0.9
+parts = shift_s * uptime / cycle_s
+print("Good parts per shift:", round(parts))</code></pre>
+<pre class="output">Good parts per shift: 630</pre>
+    <p class="cx">Answer: 630 parts.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Trace the seal-in rung</h3>
+    <div class="statement"><p>A seal-in rung gives MOTOR = (START OR MOTOR) AND NOT STOP. The inputs over six scans are: scan 1, nothing; scan 2, START; scan 3, nothing; scan 4, STOP; scan 5, START; scan 6, START and STOP together. What is the MOTOR output after scan 6?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The MOTOR value at the end of scan 6.</li>
+      <li><strong>Which idea applies.</strong> Use the previous MOTOR value (the seal) and the current inputs in each scan.</li>
+      <li><strong>Work it out.</strong> Scan 1: 0. Scan 2: START = 1, so MOTOR = 1. Scan 3: seal keeps it, MOTOR = 1. Scan 4: STOP = 1, so MOTOR = 0. Scan 5: START = 1, so MOTOR = 1. Scan 6: START = 1 and STOP = 1, so NOT STOP = 0 and MOTOR = (1 OR 1) AND 0 = 0.</li>
+      <li><strong>Check.</strong> The Python trace gives the same sequence 0, 1, 1, 0, 1, 0.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code># Seal-in rung: motor = (start OR motor) AND NOT stop
+inputs = [
+    ("scan 1", 0, 0),
+    ("scan 2", 1, 0),
+    ("scan 3", 0, 0),
+    ("scan 4", 0, 1),
+    ("scan 5", 1, 0),
+    ("scan 6", 1, 1),
+]
+motor = 0
+for name, start, stop in inputs:
+    motor = int((start or motor) and (not stop))
+    print(name, "motor", motor)</code></pre>
+<pre class="output">scan 1 motor 0
+scan 2 motor 1
+scan 3 motor 1
+scan 4 motor 0
+scan 5 motor 1
+scan 6 motor 0</pre>
+    <p class="cx">Answer: MOTOR = 0 after scan 6, because STOP overrides START.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Ladder logic (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A rung has inputs A and B in series, in parallel with input C, driving output Y. Y equals (A) A + B + C (B) AB + C (C) A(B + C) (D) ABC</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Boolean output.</li>
+      <li><strong>Which idea applies.</strong> Series contacts AND. Parallel branches OR.</li>
+      <li><strong>Work it out.</strong> Y = AB + C.</li>
+      <li><strong>Check.</strong> With C closed, Y is on regardless of A and B.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Scan time (NAT, 2 marks)</h3>
+    <div class="statement"><p>A PLC has 2000 instructions at 0.5 µs each, and I/O update takes 1 ms. Find the scan time in ms.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Total scan time.</li>
+      <li><strong>Which idea applies.</strong> Scan = input read + program + output write.</li>
+      <li><strong>Work it out.</strong> 2000 · 0.5 µs = 1 ms, plus 1 ms = 2 ms.</li>
+      <li><strong>Check.</strong> Inputs shorter than the scan time may be missed.</li>
+    </ol>
+    <p class="cx">Answer: 2 ms.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Automation levels (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Fixed automation suits high volume, low variety. (B) Flexible automation changes over with little lost time. (C) Programmable automation suits batch production. (D) PLCs replaced relay panels.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Types of automation.</li>
+      <li><strong>Which idea applies.</strong> Volume and variety decide the type.</li>
+      <li><strong>Work it out.</strong> All four are true.</li>
+      <li><strong>Check.</strong> An automotive transfer line is fixed automation.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+
+  <dl>
+    <div><dt>Automation</dt><dd>Doing work with machines and control systems, with little human hand work.</dd></div>
+    <div><dt>Fixed automation</dt><dd>Automation built for one product, with high volume and high setup cost.</dd></div>
+    <div><dt>Programmable automation</dt><dd>Automation that changes its sequence by a new program, best for batches.</dd></div>
+    <div><dt>Flexible automation</dt><dd>Automation that mixes products with changeover done in software, with the highest setup cost.</dd></div>
+    <div><dt>Changeover</dt><dd>The time and effort to switch from one product to another.</dd></div>
+    <div><dt>Break-even volume</dt><dd>The volume at which two systems have the same total cost.</dd></div>
+    <div><dt>Programmable Logic Controller (PLC)</dt><dd>A rugged industrial computer that runs a stored program to control machines.</dd></div>
+    <div><dt>Input module</dt><dd>The PLC part that reads sensors and switches.</dd></div>
+    <div><dt>Output module</dt><dd>The PLC part that switches actuators on or off.</dd></div>
+    <div><dt>CPU</dt><dd>The processor that runs the program and the scan cycle.</dd></div>
+    <div><dt>Scan cycle</dt><dd>The repeated loop: read inputs, execute the program, update outputs, housekeeping.</dd></div>
+    <div><dt>Scan time</dt><dd>The time for one complete scan cycle.</dd></div>
+    <div><dt>Input image</dt><dd>A copy of the inputs taken at the start of each scan.</dd></div>
+    <div><dt>Ladder logic</dt><dd>A relay-like graphical language made of rungs, contacts, and coils.</dd></div>
+    <div><dt>Contact (NO, NC)</dt><dd>A rung condition: NO is ON when input is 1, NC is ON when input is 0.</dd></div>
+    <div><dt>Coil</dt><dd>A rung output that is set ON when the rung is true.</dd></div>
+    <div><dt>Seal-in</dt><dd>A parallel contact of the output itself that keeps it ON after the start button is released.</dd></div>
+    <div><dt>Interlock</dt><dd>A condition that blocks an output unless it is safe to run.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Fixed automation suits high volume of one product. Flexible automation suits many products.</li>
+    <li>Below the break-even volume the cheaper system is the one with the lower setup cost, and above it the one with the lower cost per part.</li>
+    <li>A PLC repeats the scan cycle: read inputs, execute, update outputs, housekeeping.</li>
+    <li>The inputs are copied once per scan, so the program sees a steady picture.</li>
+    <li>Series contacts are AND, parallel contacts are OR, and NC contacts are true when their input is 0.</li>
+    <li>In a seal-in rung, the output contact in parallel with start keeps the output ON, and the stop contact overrides it.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 156?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 156 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-155.html"><small>Previous, topic 155</small>Robot applications: point-to-point &amp; continuous path control</a><a class="next" href="gate-157.html"><small>Next, topic 157</small>Automated identification, detection &amp; capture systems</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

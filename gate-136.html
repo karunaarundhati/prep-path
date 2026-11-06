@@ -1,0 +1,394 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 136: Transducers: velocity & acceleration</title><meta name="description" content="A robot that moves smoothly must know how fast each joint is turning and how hard the arm is accelerating. Velocity transducers such as the tachogenerator turn speed into a voltage, and accelerometers turn acceleration into a signal. This topic explains how each works, how to convert between units such as rpm and rad/s, and how these signals feed motion feedback loops."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g136" data-key="g136" data-noun="topic" data-num="136" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Transducers: <em>velocity &amp; acceleration</em></h1>
+<p class="lede">A robot that moves smoothly must know how fast each joint is turning and how hard the arm is accelerating. Velocity transducers such as the tachogenerator turn speed into a voltage, and accelerometers turn acceleration into a signal. This topic explains how each works, how to convert between units such as rpm and rad/s, and how these signals feed motion feedback loops.</p>
+<div class="station"><b>136</b><span>Unit 12 · Sensors · Paper RA · New concept</span></div>
+<ul class="topics"><li>Velocity and speed: the tachogenerator</li><li>Units: rpm, rad/s and the tacho constant</li><li>Acceleration and the spring-mass principle</li><li>Accelerometers: piezoelectric and capacitive MEMS</li><li>Motion feedback and control</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a car speedometer. It shows how fast the car is going, and it does this by reading a signal from the wheels. A robot needs the same kind of information for each joint. It wants to know how fast the joint is turning, which is its <strong>velocity</strong>, and how quickly that speed is changing, which is its <strong>acceleration</strong>. Acceleration is the rate of change of velocity, so a sensor for acceleration tells you how the speed is changing.</p>
+  <p>Two families of transducers do this job. A <strong>tachogenerator</strong> is a small generator whose output voltage grows with speed. An <strong>accelerometer</strong> contains a small mass that pushes against a spring or a crystal, so that the force on the mass shows the acceleration. Each one turns motion into an electrical signal that the controller can read.</p>
+  <p>In GATE Robotics and Automation (RA), you will meet this topic as unit conversions, output calculations and simple reasoning about polarity and sensitivity. The mathematics is light, but the unit conversions are where many students lose marks. We will take them one step at a time.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Velocity</dt><dd>The speed of an object together with its direction. For rotation, this is the angular speed.</dd></div>
+    <div><dt>Angular velocity (ω)</dt><dd>How fast a shaft turns, in radians per second (rad/s).</dd></div>
+    <div><dt>Revolutions per minute (rpm)</dt><dd>The number of full turns each minute. One revolution is 2π radians.</dd></div>
+    <div><dt>Acceleration (a)</dt><dd>The rate of change of velocity, in metres per second squared (m/s²).</dd></div>
+    <div><dt>Tachogenerator (tacho)</dt><dd>A small generator whose output voltage is proportional to its shaft speed.</dd></div>
+    <div><dt>Tacho constant (K<sub>t</sub>)</dt><dd>The output voltage per unit of angular velocity. Written in volts per rad/s, or volts per rpm.</dd></div>
+    <div><dt>Accelerometer</dt><dd>A sensor that measures acceleration, usually by measuring the force on a small proof mass.</dd></div>
+    <div><dt>Proof mass</dt><dd>The small mass inside an accelerometer that is moved by the acceleration.</dd></div>
+    <div><dt>Spring constant (k)</dt><dd>The force needed to stretch a spring by one metre, in N/m.</dd></div>
+    <div><dt>MEMS</dt><dd>Micro-electro-mechanical systems. Very small mechanical parts made on a silicon chip, such as the proof mass in many accelerometers.</dd></div>
+    <div><dt>Motion feedback</dt><dd>Measuring a motion quantity and returning it to the controller to correct the motion.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Velocity and speed: the tachogenerator">
+  <h2>Step 1: The tachogenerator</h2>
+  <p>A tachogenerator is a generator in disguise. A generator turns motion into electricity. When a permanent magnet rotates past a coil, the coil produces a voltage. The faster the magnet turns, the faster the magnetic field changes through the coil, and the larger the voltage. A DC tachogenerator uses a permanent magnet field and a commutator, so its output is a DC voltage. The output is proportional to speed:</p>
+  <div class="formula">e = K<sub>t</sub> × ω</div>
+  <p>Symbols: e is the output voltage in volts, ω is the angular velocity in rad/s, and K<sub>t</sub> is the tacho constant in volts per rad/s. The sign of e depends on the direction of rotation. Reverse the shaft, and the output voltage reverses sign. This makes the DC tachogenerator a sensor for both speed and direction.</p>
+  <p>An AC tachogenerator gives an AC output whose amplitude is proportional to speed. Its frequency also grows with speed. To read the speed, the controller must measure the amplitude, usually after rectification. The AC tacho does not show direction in the same way the DC tacho does, so a DC tacho is the usual choice for a simple speed loop.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The tacho output is a voltage proportional to angular velocity. Its sign tells the direction of rotation for a DC tacho.</p></div>
+  <details class="check"><summary>A DC tacho outputs +5 V. What happens to the output if the shaft is reversed at the same speed?</summary><div class="ans"><p>It outputs −5 V. The magnitude is the same, because the speed is the same, and the sign flips with the direction.</p></div></details>
+  <details class="check"><summary>What does a tacho output of zero volts tell the controller?</summary><div class="ans"><p>The shaft is not turning, because the output is proportional to speed and zero speed gives zero output.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Units: rpm, rad/s and the tacho constant">
+  <h2>Step 2: Units: rpm, rad/s and the tacho constant</h2>
+  <p>Most tacho data sheets quote speed in rpm, but the physics formula uses rad/s. This mismatch causes most of the mistakes in this topic, so take it slowly. One full turn is 2π radians, and one minute is 60 seconds. So:</p>
+  <div class="formula">ω (rad/s) = 2π × rpm / 60</div>
+  <p>Symbols: rpm is revolutions per minute, and 2π is about 6.2832. Dividing by 60 converts minutes to seconds. For example, 60 rpm is one turn per second, which is 2π = 6.2832 rad/s. Check: 2π × 60 / 60 = 2π, which is correct.</p>
+  <h3>Worked example: a tacho at 1500 rpm</h3>
+  <p>A DC tacho has K<sub>t</sub> = 0.1 V per rad/s. The shaft turns at 1500 rpm. Find the output voltage.</p>
+  <ol>
+    <li><strong>Convert the speed.</strong> ω = 2π × 1500 / 60 = 2π × 25 = 157.08 rad/s.</li>
+    <li><strong>Apply the tacho formula.</strong> e = K<sub>t</sub> × ω = 0.1 × 157.08 = 15.71 V.</li>
+    <li><strong>Check the size.</strong> 1500 rpm is 25 turns per second, which is fast but typical for a small motor. A voltage of about 16 V is consistent with the constant.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+Kt = 0.1                       # tachogenerator constant, volts per (rad/s)
+rpm = 1500.0
+omega = 2 * math.pi * rpm / 60 # convert revolutions per minute to rad/s
+e = Kt * omega
+print("omega =", round(omega, 2), "rad/s")
+print("e =", round(e, 2), "V")</code></pre>
+  <pre class="output">omega = 157.08 rad/s
+e = 15.71 V</pre>
+  <h3>Reverse problem: finding the speed from the voltage</h3>
+  <p>Often the question gives the voltage and asks for speed. Rearrange the formula to ω = e / K<sub>t</sub>. Then convert back to rpm with rpm = 60 ω / (2π). Suppose the tacho reads 12 V with the same K<sub>t</sub> = 0.1. Then ω = 12 / 0.1 = 120 rad/s, and rpm = 120 × 60 / (2π) = 1145.9 rpm.</p>
+  <pre class="code" data-lang="python"><code>import math
+Kt = 0.1
+e = 12.0
+omega = e / Kt
+rpm = omega * 60 / (2 * math.pi)
+print("omega =", round(omega, 1), "rad/s")
+print("rpm =", round(rpm, 1))</code></pre>
+  <pre class="output">omega = 120.0 rad/s
+rpm = 1145.9</pre>
+  <div class="note trap"><p><span class="t">Trap</span>If the tacho constant is given in volts per rpm, you do not need the 2π conversion, but you must use rpm in the formula. Mixing volts per rad/s with rpm gives an answer off by a factor of about 9.55, which is 60/(2π).</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Always check the unit of the tacho constant first. Write the unit beside the number before you calculate anything.</p></div>
+  <details class="check"><summary>How many rad/s is 120 rpm?</summary><div class="ans"><p>ω = 2π × 120 / 60 = 4π = 12.57 rad/s.</p></div></details>
+  <details class="check"><summary>A tacho has K<sub>t</sub> = 0.1 V per rad/s. What is its output at zero speed?</summary><div class="ans"><p>Zero, because e = K<sub>t</sub> × 0 = 0.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Acceleration and the spring-mass principle">
+  <h2>Step 3: Acceleration and the spring-mass principle</h2>
+  <p>Acceleration is the rate at which velocity changes. A car that goes from 0 to 20 m/s in 4 seconds has an average acceleration of 5 m/s². Measuring acceleration directly is hard, because there is nothing to hold still. The usual trick is to attach a small mass to a spring. When the case accelerates, the mass lags behind, and the spring stretches. The stretch tells you the acceleration.</p>
+  <p>Newton's second law says that the force on a mass is F = m a. In steady acceleration, the spring force balances this, so:</p>
+  <div class="formula">k × x = m × a, so x = m a / k</div>
+  <p>Symbols: m is the mass in kg, a is the acceleration in m/s², k is the spring constant in N/m, and x is the displacement of the mass in metres. A stiff spring (large k) gives a small displacement for the same acceleration. A light, soft spring gives a large displacement.</p>
+  <h3>Worked example: displacement under acceleration</h3>
+  <p>A proof mass of 2 g sits on a spring with k = 20 N/m. The case accelerates at 5 m/s². Find x.</p>
+  <ol>
+    <li><strong>Convert the mass.</strong> m = 2 g = 0.002 kg.</li>
+    <li><strong>Force.</strong> F = m a = 0.002 × 5 = 0.01 N.</li>
+    <li><strong>Displacement.</strong> x = F / k = 0.01 / 20 = 0.0005 m.</li>
+    <li><strong>Convert the answer.</strong> 0.0005 m is 0.5 mm.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>m = 0.002             # proof mass, 2 g in kg
+a = 5.0               # acceleration in m/s^2
+k = 20.0              # spring constant in N/m
+x = m * a / k         # steady displacement, from k x = m a
+print("x =", round(x * 1000, 3), "mm")</code></pre>
+  <pre class="output">x = 0.5 mm</pre>
+  <div class="note key"><p><span class="t">Key idea</span>An accelerometer reads the displacement of a mass held by a spring. The displacement is proportional to acceleration, and the constant of proportionality is m / k.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The mass is in kilograms in the formula. Grams are a common mistake. A 2 g mass must be entered as 0.002 kg, or the answer will be 1000 times too large.</p></div>
+  <details class="check"><summary>If the spring constant doubles and the mass stays the same, what happens to x?</summary><div class="ans"><p>x halves, because x = m a / k and k has doubled.</p></div></details>
+  <details class="check"><summary>Why does the mass lag behind when the case accelerates?</summary><div class="ans"><p>Because of inertia. The mass resists a change in its velocity, so the spring must stretch to accelerate it along with the case.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Accelerometers: piezoelectric and capacitive MEMS">
+  <h2>Step 4: Piezoelectric and capacitive accelerometers</h2>
+  <p>There are two common accelerometer types for robots. The first is the <strong>piezoelectric accelerometer</strong>. A proof mass presses on a piezoelectric crystal. The force on the crystal is F = m a, and the crystal produces a charge q = d × F. The charge is then converted to a voltage by a charge amplifier, as in the previous topic. The output is proportional to acceleration. Like the piezo force sensor, it suits changing accelerations and vibration, and it is not good for steady acceleration.</p>
+  <p>The second is the <strong>capacitive MEMS accelerometer</strong>. A tiny proof mass is suspended on silicon springs, between fixed plates. When the chip accelerates, the mass moves a displacement x, and the gap between the plates changes. The capacitance changes with x, and an electronic circuit turns the change into a voltage. These devices are small, cheap and widely used in phones and robots. They can measure steady acceleration, including gravity, which makes them good for tilt sensing.</p>
+  <h3>Worked example: piezoelectric accelerometer output</h3>
+  <p>A piezo accelerometer has a proof mass of 50 g and is subjected to 1 g, so a = 9.81 m/s². Its charge constant is d = 2.3 pC/N, and the charge amplifier has C<sub>f</sub> = 10 pF. Find V<sub>out</sub>.</p>
+  <ol>
+    <li><strong>Force.</strong> F = m a = 0.05 × 9.81 = 0.4905 N.</li>
+    <li><strong>Charge.</strong> q = d F = 2.3 × 10⁻¹² × 0.4905 = 1.128 × 10⁻¹² C, which is 1.128 pC.</li>
+    <li><strong>Voltage.</strong> V<sub>out</sub> = −q / C<sub>f</sub> = −1.128 × 10⁻¹² / 10 × 10⁻¹² = −0.113 V.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>m = 0.05              # proof mass of a piezo accelerometer, 50 g
+a = 9.81              # acceleration of 1 g in m/s^2
+F = m * a             # force on the mass, newtons
+d = 2.3e-12           # charge constant, C/N
+q = d * F             # charge produced
+Cf = 10e-12           # charge amplifier feedback capacitor
+Vout = -q / Cf
+print("F =", round(F, 4), "N")
+print("Vout =", round(Vout, 3), "V")</code></pre>
+  <pre class="output">F = 0.4905 N
+Vout = -0.113 V</pre>
+  <div class="note tip"><p><span class="t">Tip</span>For any accelerometer question, first find the force F = m a. Then ask what the transducer does with the force: a piezo makes charge from it, and a spring-mass capacitive device moves a distance from it.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>A piezo accelerometer cannot measure a steady acceleration for long, because its charge leaks away, just as in the piezo force sensor. A MEMS capacitive accelerometer can measure steady acceleration, including gravity.</p></div>
+  <details class="check"><summary>Which accelerometer type can measure the steady pull of gravity?</summary><div class="ans"><p>The capacitive MEMS type, because its output does not depend on a charge that leaks away.</p></div></details>
+  <details class="check"><summary>What quantity does a piezo accelerometer convert into charge?</summary><div class="ans"><p>The force on the crystal, F = m a. The charge is q = d F.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Motion feedback and control">
+  <h2>Step 5: Motion feedback and control</h2>
+  <p>Now bring the sensors together. A robot joint is driven by a motor, and a tacho on the shaft reports the speed. The controller compares the measured speed with the target speed and adjusts the motor voltage. This is a <strong>speed loop</strong>, a closed loop in which the tacho is the feedback sensor. A position sensor, such as the resolver from the previous topic, can be added outside the speed loop to control the joint angle. Accelerometers add information about vibration and how the arm is moving, which helps in smooth control and collision detection.</p>
+  <p>The accuracy of the feedback sets the limit on the control. If the tacho constant is wrong by 5%, the controller will think the speed is 5% different from the real speed, and the motor will settle at a speed that is 5% off. This is why the tacho constant must be calibrated.</p>
+  <div class="note key"><p><span class="t">Key idea</span>In a feedback loop, the sensor is only as good as its calibration. A constant that is wrong by a percentage makes the controlled speed wrong by about the same percentage.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect questions that combine the tacho constant with unit conversion, or that ask why a DC tacho gives direction information. Write the unit of K<sub>t</sub> first, convert to rad/s, then apply e = K<sub>t</sub> ω.</p></div>
+  <details class="check"><summary>What is the feedback signal in a speed loop?</summary><div class="ans"><p>The tacho output voltage, which is proportional to the measured shaft speed.</p></div></details>
+  <details class="check"><summary>Why is calibration of the tacho constant important?</summary><div class="ans"><p>Because the controller uses the constant to turn the voltage into a speed. A wrong constant makes the controller believe the speed is different from the real speed.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close while you practise.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>ω = 2π × rpm / 60</td><td>rpm to rad/s</td><td>Before using a tacho constant in V per rad/s</td></tr>
+      <tr><td>rpm = 60 ω / (2π)</td><td>rad/s to rpm</td><td>Reporting a speed in rpm</td></tr>
+      <tr><td>e = K<sub>t</sub> ω</td><td>Tacho output</td><td>Finding the voltage from speed, or speed from voltage</td></tr>
+      <tr><td>F = m a</td><td>Newton's second law</td><td>Force on a proof mass</td></tr>
+      <tr><td>x = m a / k</td><td>Spring-mass displacement</td><td>Steady displacement of an accelerometer</td></tr>
+      <tr><td>q = d F, V<sub>out</sub> = −q / C<sub>f</sub></td><td>Piezo accelerometer output</td><td>Converting force to a charge and then a voltage</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style questions for practice. They are not real past paper questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Tacho output at a given speed</h3>
+    <div class="statement"><p>A DC tachogenerator has a constant K<sub>t</sub> = 0.1 V per rad/s. Its shaft turns at 1500 rpm. Find the output voltage, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The voltage e.</li>
+      <li><strong>Which idea applies.</strong> Convert rpm to rad/s first, then e = K<sub>t</sub> ω.</li>
+      <li><strong>Work it out.</strong> ω = 2π × 1500 / 60 = 157.08 rad/s. e = 0.1 × 157.08 = 15.71 V.</li>
+      <li><strong>Check.</strong> The constant is about one tenth of a volt per rad/s, and 157 rad/s times one tenth is about 16 V.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+Kt = 0.1
+rpm = 1500.0
+omega = 2 * math.pi * rpm / 60
+print("e =", round(Kt * omega, 2), "V")</code></pre>
+    <pre class="output">e = 15.71 V</pre>
+    <p class="cx">Answer: 15.71 V.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which statements about velocity and acceleration sensors are true?</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) A DC tacho output changes sign when the shaft direction is reversed.<br>(B) A tacho output is proportional to the shaft speed.<br>(C) A spring-mass accelerometer measures acceleration through the force on its proof mass.<br>(D) A piezo accelerometer output is proportional to displacement, not acceleration.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements match how these sensors work.</li>
+      <li><strong>Which idea applies.</strong> e = K<sub>t</sub> ω for the tacho, F = m a for the accelerometer.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) False, the piezo output follows the force, which is m a, so it follows acceleration.</li>
+      <li><strong>Check.</strong> Statement (D) names displacement, but the piezo accelerometer responds to force, so it is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Convert 1500 rpm to rad/s</h3>
+    <div class="statement"><p>A shaft turns at 1500 revolutions per minute. Find its angular velocity in rad/s, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> ω in rad/s.</li>
+      <li><strong>Which idea applies.</strong> ω = 2π × rpm / 60.</li>
+      <li><strong>Work it out.</strong> 2π × 1500 = 9424.78. Divide by 60: 157.08 rad/s.</li>
+      <li><strong>Check.</strong> 25 turns per second times 2π is 157.08, which matches.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+rpm = 1500.0
+omega = 2 * math.pi * rpm / 60
+print("omega =", round(omega, 2), "rad/s")</code></pre>
+    <pre class="output">omega = 157.08 rad/s</pre>
+    <p class="cx">Answer: 157.08 rad/s.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Piezo accelerometer output at 1 g</h3>
+    <div class="statement"><p>A piezoelectric accelerometer has a proof mass of 50 g and is subjected to 1 g, so a = 9.81 m/s². Its charge constant is 2.3 pC/N. It feeds a charge amplifier with C<sub>f</sub> = 10 pF. Find V<sub>out</sub> in volts, including its sign, to three decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V<sub>out</sub>.</li>
+      <li><strong>Which idea applies.</strong> F = m a, q = d F, V<sub>out</sub> = −q / C<sub>f</sub>.</li>
+      <li><strong>Work it out.</strong> F = 0.05 × 9.81 = 0.4905 N. q = 2.3 × 10⁻¹² × 0.4905 = 1.128 pC. V<sub>out</sub> = −1.128 × 10⁻¹² / 10 × 10⁻¹² = −0.113 V.</li>
+      <li><strong>Check.</strong> A charge of about one picocoulomb on 10 pF gives about a tenth of a volt, which is correct.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>m = 0.05
+a = 9.81
+F = m * a
+d = 2.3e-12
+q = d * F
+Cf = 10e-12
+Vout = -q / Cf
+print("F =", round(F, 4), "N")
+print("Vout =", round(Vout, 3), "V")</code></pre>
+    <pre class="output">F = 0.4905 N
+Vout = -0.113 V</pre>
+    <p class="cx">Answer: V<sub>out</sub> = −0.113 V.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Speed from a tacho voltage</h3>
+    <div class="statement"><p>A DC tachogenerator outputs 6 V at a speed of 600 rpm. Find its tacho constant K<sub>t</sub> in volts per rad/s, to four decimal places. Then state the output at 1200 rpm, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> K<sub>t</sub>, then the output at 1200 rpm.</li>
+      <li><strong>Which idea applies.</strong> K<sub>t</sub> = e / ω, and the output is proportional to speed.</li>
+      <li><strong>Work it out.</strong> ω at 600 rpm = 62.83 rad/s, so K<sub>t</sub> = 6 / 62.83 = 0.0955 V per rad/s. At 1200 rpm, the speed doubles, so the output doubles to 12 V.</li>
+      <li><strong>Check.</strong> Doubling the speed doubles the output, which confirms the proportional rule.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+e = 6.0
+rpm = 600.0
+omega = 2 * math.pi * rpm / 60
+K = e / omega
+print("K =", round(K, 4), "V per rad/s")
+print("e at 1200 rpm =", round(K * 2 * math.pi * 1200 / 60, 2), "V")</code></pre>
+    <pre class="output">K = 0.0955 V per rad/s
+e at 1200 rpm = 12.0 V</pre>
+    <p class="cx">Answer: K<sub>t</sub> = 0.0955 V per rad/s, and the output at 1200 rpm is 12.00 V.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Displacement of a proof mass</h3>
+    <div class="statement"><p>A MEMS accelerometer has a proof mass of 2 g on a spring with k = 20 N/m. The chip is subjected to a steady acceleration of 5 m/s². Find the displacement of the mass in millimetres. Then say whether it would double if the spring constant were halved.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> x in mm, and the effect of halving k.</li>
+      <li><strong>Which idea applies.</strong> x = m a / k.</li>
+      <li><strong>Work it out.</strong> x = 0.002 × 5 / 20 = 0.0005 m = 0.5 mm. If k is halved, x = 0.002 × 5 / 10 = 0.001 m = 1 mm, which is double.</li>
+      <li><strong>Check.</strong> Halving the spring constant doubles the displacement, because x is inversely proportional to k.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>m = 0.002
+a = 5.0
+k = 20.0
+print("x =", round(m * a / k * 1000, 3), "mm")
+print("x with k halved =", round(m * a / (k / 2) * 1000, 3), "mm")</code></pre>
+    <pre class="output">x = 0.5 mm
+x with k halved = 1.0 mm</pre>
+    <p class="cx">Answer: 0.5 mm, and yes, it doubles to 1.0 mm.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Rotations per minute from a tacho reading</h3>
+    <div class="statement"><p>A DC tacho with K<sub>t</sub> = 0.1 V per rad/s gives an output of 12 V. Find the shaft speed in rpm, to one decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The speed in rpm.</li>
+      <li><strong>Which idea applies.</strong> ω = e / K<sub>t</sub>, then rpm = 60 ω / (2π).</li>
+      <li><strong>Work it out.</strong> ω = 12 / 0.1 = 120 rad/s. rpm = 120 × 60 / 6.2832 = 1145.9 rpm.</li>
+      <li><strong>Check.</strong> 1146 rpm is about 19 turns per second, and 19 × 2π is about 120 rad/s, which matches.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+Kt = 0.1
+e = 12.0
+omega = e / Kt
+rpm = omega * 60 / (2 * math.pi)
+print("rpm =", round(rpm, 1))</code></pre>
+    <pre class="output">rpm = 1145.9</pre>
+    <p class="cx">Answer: 1145.9 rpm.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about motion sensors</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) A spring-mass accelerometer gives a displacement x = m a / k at steady acceleration.<br>(B) Doubling the spring constant doubles the displacement.<br>(C) A tacho output is zero when the shaft is stationary.<br>(D) The output of an AC tacho always has the same sign.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims about these sensors are true.</li>
+      <li><strong>Which idea applies.</strong> x = m a / k, e = K<sub>t</sub> ω, and the nature of AC signals.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, doubling k halves the displacement. (C) True, ω = 0 gives e = 0. (D) False, an AC signal alternates in sign.</li>
+      <li><strong>Check.</strong> Watch for "doubles" and "always". Both words are common in false options.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Tachogenerator (NAT, 1 mark)</h3>
+    <div class="statement"><p>A DC tachogenerator gives 7 V per 1000 rpm. Its output is 10.5 V. Find the speed in rpm.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Speed from output.</li>
+      <li><strong>Which idea applies.</strong> Output is proportional to speed.</li>
+      <li><strong>Work it out.</strong> 10.5/7 · 1000 = 1500 rpm.</li>
+      <li><strong>Check.</strong> Doubling speed doubles the voltage.</li>
+    </ol>
+    <p class="cx">Answer: 1500 rpm.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Seismic accelerometer (NAT, 2 marks)</h3>
+    <div class="statement"><p>An accelerometer has a seismic mass of 0.05 kg and spring stiffness 5000 N/m. Find its natural frequency in Hz, correct to 1 decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> f<sub>n</sub> = (1/2π)√(k/m).</li>
+      <li><strong>Which idea applies.</strong> Accelerometers work well below f<sub>n</sub>.</li>
+      <li><strong>Work it out.</strong> √(10<sup>5</sup>) = 316.2 rad/s. f<sub>n</sub> = 50.3 Hz.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("%.1f Hz" % (math.sqrt(5000 / 0.05) / (2 * math.pi)))
+</code></pre>
+    <pre class="output">50.3 Hz</pre>
+    <p class="cx">Answer: about 50.3 Hz.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Static deflection (NAT, 2 marks)</h3>
+    <div class="statement"><p>For the same accelerometer, what deflection does a steady acceleration of 20 m/s² cause, in mm?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> x = ma/k.</li>
+      <li><strong>Which idea applies.</strong> At low frequency, the spring force balances the inertial force.</li>
+      <li><strong>Work it out.</strong> 0.05 · 20/5000 = 0.0002 m = 0.2 mm.</li>
+      <li><strong>Check.</strong> Equivalently x = a/ω<sub>n</sub>² = 20/10<sup>5</sup>.</li>
+    </ol>
+    <p class="cx">Answer: 0.2 mm.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Velocity</dt><dd>Speed with direction. Angular velocity ω is in rad/s.</dd></div>
+    <div><dt>Acceleration</dt><dd>Rate of change of velocity, in m/s².</dd></div>
+    <div><dt>Tachogenerator</dt><dd>A generator whose output voltage is proportional to speed.</dd></div>
+    <div><dt>Tacho formula</dt><dd>e = K<sub>t</sub> ω, with ω in rad/s.</dd></div>
+    <div><dt>rpm to rad/s</dt><dd>ω = 2π × rpm / 60.</dd></div>
+    <div><dt>Rad/s to rpm</dt><dd>rpm = 60 ω / (2π).</dd></div>
+    <div><dt>DC tacho sign</dt><dd>The output sign shows the direction of rotation.</dd></div>
+    <div><dt>AC tacho</dt><dd>Amplitude is proportional to speed. It needs rectification.</dd></div>
+    <div><dt>Newton's second law</dt><dd>F = m a for the proof mass.</dd></div>
+    <div><dt>Spring-mass displacement</dt><dd>x = m a / k at steady acceleration.</dd></div>
+    <div><dt>Piezo accelerometer</dt><dd>Force gives charge, charge amplifier gives voltage. Suits vibration.</dd></div>
+    <div><dt>Capacitive MEMS</dt><dd>Displacement changes capacitance. Measures steady acceleration.</dd></div>
+    <div><dt>Speed loop</dt><dd>A feedback loop in which the tacho measures the speed.</dd></div>
+    <div><dt>Calibration</dt><dd>The tacho constant must be right, or the controlled speed is wrong.</dd></div>
+    <div><dt>Unit check</dt><dd>Convert the speed to rad/s before using K<sub>t</sub> in V per rad/s.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Convert rpm to rad/s before using a tacho constant in V per rad/s.</li>
+    <li>Tacho output is proportional to speed. A DC tacho changes sign with direction.</li>
+    <li>Use kilograms for mass, so 2 g must be 0.002 kg.</li>
+    <li>Accelerometer displacement at steady acceleration is x = m a / k.</li>
+    <li>A piezo accelerometer suits vibration, not steady acceleration.</li>
+    <li>A wrong calibration gives a wrong controlled speed.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 136?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 136 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-135.html"><small>Previous, topic 135</small>Piezoelectric &amp; Hall effect sensors + signal conditioning</a><a class="next" href="gate-137.html"><small>Next, topic 137</small>Transducers: force, torque, pressure</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

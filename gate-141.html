@@ -1,0 +1,425 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 141: Servo motors & torque-speed characteristics</title><meta name="description" content="A servo motor checks its own position with a sensor and corrects any error, so it can be accurate and fast. Robot joints depend on servos, and GATE asks about closed-loop control, encoders and the torque-speed envelope of a servo."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g141" data-key="g141" data-noun="topic" data-num="141" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Servo motors &amp; torque-speed characteristics</h1>
+<p class="lede">A servo motor checks its own position with a sensor and corrects any error, so it can be accurate and fast. Robot joints depend on servos, and GATE asks about closed-loop control, encoders and the torque-speed envelope of a servo.</p>
+<div class="station"><b>141</b><span>Unit 13 · Actuators · Paper RA · New concept</span></div>
+<ul class="topics"><li>What a servo system is</li><li>Closed-loop control and the error</li><li>Encoders and resolution</li><li>The torque-speed envelope</li><li>Servo, stepper and DC motor compared</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you are asked to put a cup on a table at exactly 30 cm from the edge. You do not measure the distance once and then close your eyes. You look, notice your hand is at 27 cm, move it a bit forward, look again, and keep correcting until the cup is in the right place. That habit of looking and correcting is <strong>feedback</strong>.</p>
+  <p>A <strong>servo</strong> motor works this way. A sensor measures the real shaft angle. A controller compares that angle with the wanted angle. If there is a difference, the controller drives the motor to remove it. The whole system is called a <strong>servo system</strong>.</p>
+  <p><strong>Why it matters.</strong> A robot joint must reach a target angle even when its load changes, a person pushes on it, or the gears have some play. A plain motor cannot know any of this. A servo can, because it keeps checking. This is why robot arms, cameras on gimbals and machine tools use servos.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper, expect questions on closed-loop and open-loop control, on the feedback sensors such as encoders and potentiometers, and on the torque-speed curve of a servo. Some questions ask you to calculate encoder resolution or a control error.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Servo system</dt><dd>A motor with a sensor, a controller and a drive, working together in closed loop to hold a wanted position, speed or torque.</dd></div>
+    <div><dt>Feedback</dt><dd>Information about the real output sent back to the controller so that it can compare it with the wanted value.</dd></div>
+    <div><dt>Setpoint (reference)</dt><dd>The wanted value, such as a target angle.</dd></div>
+    <div><dt>Error</dt><dd>The difference between the setpoint and the measured value. Precisely: error = wanted - measured.</dd></div>
+    <div><dt>Controller</dt><dd>The part that decides how much drive to apply, based on the error.</dd></div>
+    <div><dt>Drive or amplifier</dt><dd>The electronics that turn the controller's command into current for the motor.</dd></div>
+    <div><dt>Closed loop</dt><dd>A control system in which the output is measured and fed back to the input.</dd></div>
+    <div><dt>Open loop</dt><dd>A control system with no feedback. The controller assumes the output is correct.</dd></div>
+    <div><dt>Encoder</dt><dd>A sensor that measures shaft angle by producing pulses or digital counts as the shaft turns.</dd></div>
+    <div><dt>Potentiometer</dt><dd>A variable resistor whose wiper position follows the shaft angle. It gives an analogue voltage that is proportional to angle.</dd></div>
+    <div><dt>Resolution</dt><dd>The smallest change in angle that the sensor can report. For a simple encoder it is 360 degrees divided by the counts per revolution.</dd></div>
+    <div><dt>Quadrature decoding</dt><dd>A way of reading an encoder's two offset signals so that each edge counts, giving four counts per pulse.</dd></div>
+    <div><dt>Continuous torque</dt><dd>The torque the motor can give for a long time without overheating.</dd></div>
+    <div><dt>Peak torque</dt><dd>The largest torque the motor and drive can give for a short time, for example during fast acceleration.</dd></div>
+    <div><dt>Torque-speed envelope</dt><dd>The region on a torque against speed graph that the motor and drive can work in safely.</dd></div>
+    <div><dt>Base speed</dt><dd>The speed at which the motor reaches its maximum voltage. Above it, the available torque usually falls.</dd></div>
+    <div><dt>Proportional gain (K<sub>p</sub>)</dt><dd>The number that turns an error into a command. Precisely: command = K<sub>p</sub> × error.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Closed-loop control and the error">
+  <h2>Closed-loop control and the error</h2>
+
+  <h3>The parts of a servo loop</h3>
+  <p>Here is the loop drawn as a flow of signals. Read it from left to right, and then follow the feedback arrow back.</p>
+  <pre class="code" data-lang="text"><code>  wanted angle                                              real angle
+  (setpoint) --> [ + ] --> [ controller ] --> [ drive ] --> [ motor + load ] --+--> output
+                    ^ -                                                       |
+                    |                                                         |
+                    +------------------ [ encoder: measured angle ] <----------+
+</code></pre>
+  <p>The circle with the plus and minus sign is a comparator. It subtracts the measured angle from the wanted angle, and the result is the error. The controller turns the error into a command. The drive turns the command into current, and the motor turns the load. The encoder measures the new angle, and the loop repeats many times each second.</p>
+
+  <h3>Proportional control</h3>
+  <p>The simplest controller is proportional. The command is the error times a gain K<sub>p</sub>:</p>
+  <div class="formula">command = K<sub>p</sub> × error = K<sub>p</sub> × (wanted - measured)</div>
+  <p>A big error gives a big command, and a small error gives a small command. As the error shrinks, the drive shrinks too. This smooth slowing down is what makes a servo settle at the target, instead of overshooting wildly.</p>
+
+  <h3>Worked example: a torque command</h3>
+  <p>A joint should be at 90 degrees, but it is measured at 85 degrees. The gain is K<sub>p</sub> = 0.2 N·m per degree.</p>
+  <ol>
+    <li>Error: 90 - 85 = 5 degrees.</li>
+    <li>Command: 0.2 × 5 = 1.0 N·m.</li>
+    <li>The motor now pushes to close the gap. As the joint moves, the error falls, and the command falls with it.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>K_p = 0.2          # N-m per degree of error
+wanted = 90.0      # degrees
+measured = 85.0    # degrees
+
+error = wanted - measured
+torque_cmd = K_p * error
+print("Error = %.1f degrees" % error)
+print("Torque command = %.2f N-m" % torque_cmd)</code></pre>
+<pre class="output">Error = 5.0 degrees
+Torque command = 1.00 N-m</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students sometimes say a servo "knows" the target. It does not. It only knows the error, which is the wanted value minus the measured value. If the sensor is wrong, the servo will be wrong too.</p></div>
+
+  <details class="check"><summary>Question: the wanted angle is 30 degrees and the measured angle is 32 degrees. What is the error?</summary><div class="ans"><p>Error = 30 - 32 = -2 degrees. The negative sign tells the controller to drive the joint back the other way.</p></div></details>
+  <details class="check"><summary>Question: what happens to the command as the joint gets closer to the target?</summary><div class="ans"><p>The error falls, so the command falls. The motor slows down as it approaches the target, which reduces overshoot.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Encoders and resolution">
+  <h2>Encoders and resolution</h2>
+
+  <h3>How an incremental encoder works</h3>
+  <p>An incremental encoder has a disc with many thin slots, or a magnetic ring with many poles. As the shaft turns, a light or magnetic sensor sees each slot or pole and sends a pulse. Counting pulses gives the angle moved. The encoder has a fixed number of counts per revolution, called CPR.</p>
+  <p>Most encoders use two signals, A and B, that are shifted by a quarter cycle. Reading both signals lets the electronics see which way the shaft turns. Quadrature decoding counts every edge of A and B. Four edges per pulse means four counts per pulse.</p>
+
+  <h3>Resolution</h3>
+  <p>The resolution is the smallest angle the encoder can report. For a simple count of one edge per pulse:</p>
+  <div class="formula">resolution (degrees) = 360 / (counts per revolution)</div>
+  <p>With quadrature decoding, multiply the counts per revolution by 4 first. A higher resolution gives a more accurate servo, but it costs a better encoder and faster electronics.</p>
+
+  <h3>Worked example: resolution and counts</h3>
+  <p>An encoder has 500 counts per revolution and uses 4-times quadrature decoding. Find the resolution and the number of counts for a 90 degree move.</p>
+  <ol>
+    <li>Total counts per revolution: 500 × 4 = 2000.</li>
+    <li>Resolution: 360 / 2000 = 0.18 degrees per count.</li>
+    <li>Counts for 90 degrees: 90 / 0.18 = 500 counts. This is a quarter of 2000, as expected.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>counts_per_rev = 500
+quad = 4                                  # quadrature: four counts per pulse
+
+res_plain = 360 / counts_per_rev
+res_quad = 360 / (counts_per_rev * quad)
+counts_90 = 90 / 360 * counts_per_rev * quad
+
+print("Resolution = %.2f degrees per count" % res_plain)
+print("Resolution with 4x decoding = %.2f degrees" % res_quad)
+print("Counts for 90 degrees with 4x decoding = %d" % counts_90)</code></pre>
+<pre class="output">Resolution = 0.72 degrees per count
+Resolution with 4x decoding = 0.18 degrees
+Counts for 90 degrees with 4x decoding = 500</pre>
+
+  <h3>Potentiometers and absolute encoders</h3>
+  <p>A potentiometer gives a voltage that follows the angle, so it knows the position as soon as power is on. Its resolution depends on the analogue-to-digital converter and it wears out with use. An absolute encoder gives a unique code for every angle, so it also knows the position after a power cut. An incremental encoder must find a home position after power-up.</p>
+
+  <details class="check"><summary>Question: an encoder has 1024 counts per revolution and no quadrature. What is its resolution?</summary><div class="ans"><p>360 / 1024 = 0.3516 degrees per count, about 0.35 degrees.</p></div></details>
+  <details class="check"><summary>Question: why does an absolute encoder not need to find home after power-up?</summary><div class="ans"><p>Each angle has its own code, so the encoder reports the exact position as soon as it is powered.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="The torque-speed envelope">
+  <h2>The torque-speed envelope</h2>
+
+  <h3>Why a servo has two torque limits</h3>
+  <p>A servo can give a large torque for a short time, for example to accelerate a heavy arm. It cannot give that large torque for long. The motor would overheat, and the drive would overload. So the datasheet gives two torque values: <strong>peak torque</strong> for short bursts, and <strong>continuous torque</strong> for steady work.</p>
+  <p><strong>Everyday analogy.</strong> A runner can sprint at full speed for 10 seconds, but not for an hour. A servo is like the runner. Its peak is a sprint. Its continuous torque is the pace it can keep all day.</p>
+
+  <h3>The shape of the envelope</h3>
+  <p>Plot torque on the vertical axis and speed on the horizontal axis. The peak torque is flat from zero speed up to the base speed, because the drive has enough voltage. Above the base speed, the back-EMF of the motor takes up most of the supply voltage, so the torque that can be given falls. The continuous torque is a flat line lower down, limited by heating.</p>
+  <pre class="code" data-lang="text"><code>torque
+  ^
+  |  ############                   &lt;- peak torque region (short time)
+  |  #           #
+  |  #            #
+  |  #             #
+  |  #               #
+  |  ################################ &lt;- continuous torque (long time)
+  +-------------------+-----------------> speed
+                 base speed
+</code></pre>
+  <p>The shape above is a simple model. Real servo datasheets draw the curve more carefully, but the key idea is the same: a flat region with the peak torque, a falling region above base speed, and a lower continuous line.</p>
+
+  <h3>Worked example: peak torque at a given speed</h3>
+  <p>Use the simple linear model. The peak torque is T<sub>peak</sub> = 2 N·m up to a base speed of 100 rad/s, and it falls in a straight line to zero at a maximum speed of 200 rad/s. Find the peak torque at 150 rad/s.</p>
+  <ol>
+    <li>Speed 150 is above the base speed of 100, so the falling line applies.</li>
+    <li>Fraction of the way from base speed to maximum: (150 - 100) / (200 - 100) = 0.5.</li>
+    <li>Peak torque: 2 × (1 - 0.5) = 1.0 N·m.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>T_peak = 2.0        # peak torque in N-m (up to base speed)
+T_cont = 0.5        # continuous torque in N-m
+w_base = 100.0      # base speed in rad/s
+w_max = 200.0       # maximum speed in rad/s
+
+def max_torque(w):
+    if w <= w_base:
+        return T_peak
+    return T_peak * (w_max - w) / (w_max - w_base)
+
+for w in (50, 100, 150, 200):
+    print("speed %3d rad/s: peak torque %.2f N-m" % (w, max_torque(w)))
+print("continuous torque limit = %.2f N-m" % T_cont)</code></pre>
+<pre class="output">speed  50 rad/s: peak torque 2.00 N-m
+speed 100 rad/s: peak torque 2.00 N-m
+speed 150 rad/s: peak torque 1.00 N-m
+speed 200 rad/s: peak torque 0.00 N-m
+continuous torque limit = 0.50 N-m</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>A load must sit inside the envelope. For a short move you may use the peak line. For a long duty you must stay below the continuous line.</p></div>
+
+  <details class="check"><summary>Question: why does the peak torque fall above base speed?</summary><div class="ans"><p>At high speed the back-EMF is large, so less of the supply voltage is left to push current through the winding. Less current means less torque.</p></div></details>
+  <details class="check"><summary>Question: the continuous torque is 0.5 N·m. Can a 1.5 N·m load run for an hour?</summary><div class="ans"><p>No. 1.5 N·m is above the continuous line, so the motor would overheat over a long run. It could only use the peak torque for a short time.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Servo, stepper and DC motor compared">
+  <h2>Servo, stepper and DC motor compared</h2>
+  <p>Each motor type has a place. Servos are chosen for accuracy with changing loads, steppers for low-cost positioning, and plain DC motors for simple speed drives.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Property</th><th>Servo</th><th>Stepper (open loop)</th><th>Plain DC motor</th></tr></thead>
+    <tbody>
+      <tr><td>Feedback sensor</td><td>Yes, encoder or potentiometer</td><td>No, by default</td><td>Not needed for basic speed control</td></tr>
+      <tr><td>Control type</td><td>Closed loop</td><td>Open loop</td><td>Often open loop or closed loop</td></tr>
+      <tr><td>Position accuracy</td><td>High, corrects errors</td><td>Good, until a step is lost</td><td>Poor without a sensor</td></tr>
+      <tr><td>Torque at high speed</td><td>Falls above base speed</td><td>Falls quickly with speed</td><td>Falls linearly with speed</td></tr>
+      <tr><td>Cost and complexity</td><td>Higher</td><td>Lower</td><td>Lower</td></tr>
+      <tr><td>Typical robot use</td><td>Joints that must be accurate under changing load</td><td>Simple axes, printers, cameras</td><td>Wheels, fans, simple drives</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>The big difference is the feedback. A servo is closed loop and corrects its error. A stepper is open loop and trusts the pulse count. If a question asks which motor can detect and correct a position error, the answer is the servo, or a stepper with an encoder added.</p></div>
+
+  <details class="check"><summary>Question: which motor type would you choose for a robot wrist that must hold a precise angle while a changing load pushes on it?</summary><div class="ans"><p>A servo. Its feedback sensor detects the position error caused by the load, and the controller corrects it.</p></div></details>
+  <details class="check"><summary>Question: a plain DC motor with no sensor is used for a conveyor. What is the main limitation?</summary><div class="ans"><p>Its speed and position drift with the load, because nothing measures the real output. Speed control needs a sensor or a controller that models the motor.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>error = wanted - measured</td><td>Control error</td><td>Start of every loop question</td></tr>
+      <tr><td>command = K<sub>p</sub> × error</td><td>Proportional control law</td><td>Controller questions</td></tr>
+      <tr><td>resolution = 360 / (CPR × quadrature factor)</td><td>Smallest angle the encoder can see</td><td>Encoder questions</td></tr>
+      <tr><td>counts for an angle = angle / resolution</td><td>Counts needed for a move</td><td>Encoder and move questions</td></tr>
+      <tr><td>T<sub>peak</sub> falls linearly above base speed (simple model)</td><td>Torque envelope</td><td>Torque-speed questions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original problems in the GATE style. They are not real past paper questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Counts for a 45 degree move</h3>
+    <div class="statement"><p>An encoder gives 1024 counts per revolution and is read without quadrature. How many counts does a 45 degree move produce?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of counts for 45 degrees.</li>
+      <li><strong>Which idea applies.</strong> Counts = angle / 360 × counts per revolution.</li>
+      <li><strong>Work it out.</strong> 45 / 360 = 0.125. Then 0.125 × 1024 = 128 counts.</li>
+      <li><strong>Check.</strong> 45 degrees is one eighth of a turn, and 1024 / 8 = 128. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>counts = 45 / 360 * 1024
+print("Counts = %.0f" % counts)</code></pre>
+<pre class="output">Counts = 128</pre>
+    <p class="cx">Answer: 128 counts.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Error and command</h3>
+    <div class="statement"><p>A servo joint should be at 30 degrees but is measured at 27.5 degrees. The controller gain is K<sub>p</sub> = 0.4 N·m per degree. Find the error and the torque command.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The error in degrees and the command in N·m.</li>
+      <li><strong>Which idea applies.</strong> Error = wanted - measured, and command = K<sub>p</sub> × error.</li>
+      <li><strong>Work it out.</strong> Error = 30 - 27.5 = 2.5 degrees. Command = 0.4 × 2.5 = 1.0 N·m.</li>
+      <li><strong>Check.</strong> A positive error gives a positive command, which pushes the joint toward 30 degrees. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>wanted = 30.0
+measured = 27.5
+K_p = 0.4
+error = wanted - measured
+print("Error = %.1f degrees" % error)
+print("Command = %.1f N-m" % (K_p * error))</code></pre>
+<pre class="output">Error = 2.5 degrees
+Command = 1.0 N-m</pre>
+    <p class="cx">Answer: error 2.5 degrees, command 1.0 N·m.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about servo systems are true?</h3>
+    <div class="statement"><p>Consider the following statements about servo systems. Select all that apply.</p>
+    <p>(A) A servo is a closed-loop system.<br>(B) The continuous torque of a servo is limited by heating.<br>(C) A stepper motor is closed loop by default.<br>(D) A servo corrects position using a measured error, not only a count of commands.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> The definition of closed loop, the two torque limits, and the difference between servo and stepper.</li>
+      <li><strong>Work it out.</strong> (A) True, the output is measured and fed back. (B) True, the long-term torque limit comes from heat. (C) False, a stepper is open loop unless an encoder is added. (D) True, the controller corrects the measured error.</li>
+      <li><strong>Check.</strong> Statement (C) reverses the definition of open loop, so it is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Statement (C) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Torque at a higher speed</h3>
+    <div class="statement"><p>A servo has a peak torque of 2 N·m up to a base speed of 100 rad/s. Above the base speed, the peak torque falls in a straight line to zero at 200 rad/s. Using this simple model, find the peak torque at 130 rad/s, correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The peak torque at 130 rad/s.</li>
+      <li><strong>Which idea applies.</strong> Above base speed, T = T<sub>peak</sub> × (w<sub>max</sub> - w) / (w<sub>max</sub> - w<sub>base</sub>).</li>
+      <li><strong>Work it out.</strong> T = 2 × (200 - 130) / (200 - 100) = 2 × 70 / 100 = 1.40 N·m.</li>
+      <li><strong>Check.</strong> At 150 rad/s the same formula gives 1.00 N·m, and at 130 rad/s the torque should be a bit higher. 1.40 is between 1.00 and 2.00. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>T_peak = 2.0
+w_base = 100.0
+w_max = 200.0
+w = 130.0
+T = T_peak * (w_max - w) / (w_max - w_base)
+print("Peak torque = %.2f N-m" % T)</code></pre>
+<pre class="output">Peak torque = 1.40 N-m</pre>
+    <p class="cx">Answer: 1.40 N·m.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Joint resolution through a gearbox</h3>
+    <div class="statement"><p>A robot joint is driven through a gearbox with ratio 50:1. The encoder is on the motor shaft and has 1000 counts per revolution with 4-times quadrature decoding. Find the smallest joint angle the controller can see, in degrees, to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The joint resolution in degrees.</li>
+      <li><strong>Which idea applies.</strong> First the motor resolution, then divide by the gear ratio, because one joint degree needs 50 motor degrees.</li>
+      <li><strong>Work it out.</strong> Motor counts per revolution = 1000 × 4 = 4000. Motor resolution = 360 / 4000 = 0.09 degrees. Joint resolution = 0.09 / 50 = 0.0018 degrees.</li>
+      <li><strong>Check.</strong> 4000 counts per motor turn times 50 motor turns per joint turn gives 200 000 counts per joint turn. 360 / 200 000 = 0.0018 degrees. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>counts_motor = 1000 * 4
+motor_res = 360 / counts_motor
+joint_res = motor_res / 50
+print("Joint resolution = %.4f degrees" % joint_res)</code></pre>
+<pre class="output">Joint resolution = 0.0018 degrees</pre>
+    <p class="cx">Answer: 0.0018 degrees.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Highest speed for a required torque</h3>
+    <div class="statement"><p>Use the same simple torque envelope as before: peak torque 2 N·m up to 100 rad/s, falling linearly to zero at 200 rad/s. A load needs a peak torque of 1.5 N·m. Find the highest speed, in rad/s, at which the servo can still give that torque.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The speed w where the envelope equals 1.5 N·m.</li>
+      <li><strong>Which idea applies.</strong> Set T = 2 × (200 - w) / 100 equal to 1.5 and solve for w.</li>
+      <li><strong>Work it out.</strong> 2 × (200 - w) / 100 = 1.5. Multiply by 100: 2 × (200 - w) = 150. Divide by 2: 200 - w = 75. So w = 125 rad/s.</li>
+      <li><strong>Check.</strong> Put 125 back in: 2 × (200 - 125) / 100 = 2 × 75 / 100 = 1.5 N·m. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>T_peak = 2.0
+T_wanted = 1.5
+w_base = 100.0
+w_max = 200.0
+w = w_max - (T_wanted / T_peak) * (w_max - w_base)
+print("Highest speed = %.0f rad/s" % w)
+print("Check torque = %.2f N-m" % (T_peak * (w_max - w) / (w_max - w_base)))</code></pre>
+<pre class="output">Highest speed = 125 rad/s
+Check torque = 1.50 N-m</pre>
+    <p class="cx">Answer: 125 rad/s.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Choose the correct statements about encoders and servo sizing</h3>
+    <div class="statement"><p>A designer chooses an encoder and a servo for a joint. Select all that apply.</p>
+    <p>(A) Peak torque is meant for short accelerations, not for long steady work.<br>(B) On a torque-speed graph, the continuous torque line lies below the peak torque curve.<br>(C) Doubling the counts per revolution halves the resolution angle.<br>(D) A stepper with the same frame size always gives more torque at high speed than a servo.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> The two torque limits, the shape of the envelope, and resolution = 360 / counts.</li>
+      <li><strong>Work it out.</strong> (A) True, the peak is a short-term limit. (B) True, the continuous line is lower. (C) True, resolution is inversely proportional to counts, so doubling the counts halves the angle. (D) False. A stepper's torque falls quickly as speed rises, and the claim is not true in general for a stepper and a servo of the same frame size.</li>
+      <li><strong>Check.</strong> Statement (D) makes a general claim that cannot be true for every motor, so it is rejected.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Servo bandwidth (NAT, 2 marks)</h3>
+    <div class="statement"><p>A servo motor has a mechanical time constant of 20 ms. Treating it as a first-order system, find its −3 dB bandwidth in Hz, correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> f<sub>c</sub> = 1/(2πτ).</li>
+      <li><strong>Which idea applies.</strong> A first-order lag has corner frequency 1/τ rad/s.</li>
+      <li><strong>Work it out.</strong> 1/(2π · 0.02) = 7.96 Hz.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("%.2f Hz" % (1 / (2 * math.pi * 0.02)))
+</code></pre>
+    <pre class="output">7.96 Hz</pre>
+    <p class="cx">Answer: about 7.96 Hz.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Linear torque-speed curve (NAT, 2 marks)</h3>
+    <div class="statement"><p>A servo motor has stall torque 2 N·m and no load speed 3000 rpm with a linear torque-speed curve. Find the maximum output power in W, correct to 1 decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The peak of P = Tω.</li>
+      <li><strong>Which idea applies.</strong> Power is greatest at half the stall torque and half the no load speed.</li>
+      <li><strong>Work it out.</strong> T = 1 N·m, ω = 1500 rpm = 157.08 rad/s. P = 157.1 W.</li>
+      <li><strong>Check.</strong> The code scans the curve.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+w0 = 3000 * 2 * math.pi / 60
+print("%.1f W" % max(2 * (1 - w / w0) * w for w in [w0 * k / 10000 for k in range(10001)]))
+</code></pre>
+    <pre class="output">157.1 W</pre>
+    <p class="cx">Answer: about 157.1 W.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Servo facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) AC servo motors often use a two phase induction design with high rotor resistance. (B) Servo motors are designed for low rotor inertia. (C) A servo needs feedback for position control. (D) Torque falls as speed rises in a DC servo.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of servo motors.</li>
+      <li><strong>Which idea applies.</strong> High rotor resistance gives a linear, drooping torque-speed curve.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) True.</li>
+      <li><strong>Check.</strong> These features give fast, stable response.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Each line gives the plain idea first, then the short definition.</p>
+  <dl>
+    <div><dt>Servo system</dt><dd>A motor with a sensor, controller and drive, in closed loop.</dd></div>
+    <div><dt>Feedback</dt><dd>Measured output sent back to the controller.</dd></div>
+    <div><dt>Setpoint</dt><dd>The wanted value, such as a target angle.</dd></div>
+    <div><dt>Error</dt><dd>Wanted minus measured.</dd></div>
+    <div><dt>Closed loop</dt><dd>A system that measures its output and corrects the error.</dd></div>
+    <div><dt>Open loop</dt><dd>A system with no feedback.</dd></div>
+    <div><dt>Proportional control</dt><dd>Command = K<sub>p</sub> × error.</dd></div>
+    <div><dt>Encoder</dt><dd>A sensor that measures shaft angle with a count per revolution.</dd></div>
+    <div><dt>Potentiometer</dt><dd>A variable resistor whose voltage follows the shaft angle.</dd></div>
+    <div><dt>Resolution</dt><dd>360 divided by the total counts per revolution.</dd></div>
+    <div><dt>Quadrature decoding</dt><dd>Counting every edge of two offset signals, typically four counts per pulse.</dd></div>
+    <div><dt>Peak torque</dt><dd>The largest torque for a short time.</dd></div>
+    <div><dt>Continuous torque</dt><dd>The torque the motor can sustain without overheating.</dd></div>
+    <div><dt>Base speed</dt><dd>The speed above which the available torque usually falls.</dd></div>
+    <div><dt>Torque-speed envelope</dt><dd>The region of torque and speed where the motor and drive can work safely.</dd></div>
+    <div><dt>Absolute encoder</dt><dd>An encoder with a unique code for each angle, so it knows its position at power-up.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>A servo corrects an error that it measures, and an open-loop motor does not.</li>
+    <li>Error = wanted - measured. Command = K<sub>p</sub> × error.</li>
+    <li>Resolution = 360 / counts per revolution, and quadrature multiplies the counts by 4.</li>
+    <li>Peak torque is for short bursts, and continuous torque is for long duty.</li>
+    <li>Above base speed, peak torque usually falls.</li>
+  </ol>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 141?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 141 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-140.html"><small>Previous, topic 140</small>Stepper motors</a><a class="next" href="gate-142.html"><small>Next, topic 142</small>Free-body diagrams and equilibrium</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

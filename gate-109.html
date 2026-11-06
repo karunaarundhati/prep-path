@@ -1,0 +1,478 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 109: Hierarchical clustering (single/multi linkage)</title><meta name="description" content="Hierarchical clustering builds a family tree of groups instead of picking one split in advance. You start with every point alone and join the closest groups step by step, or split everything apart from the top. The result is a dendrogram, and the way you measure distance between groups (the linkage) changes the answer. GATE Data Science and AI often asks for a dendrogram built from a distance matrix."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g109" data-key="g109" data-noun="topic" data-num="109" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Hierarchical clustering (single/multi linkage)</h1>
+<p class="lede">Hierarchical clustering builds a family tree of groups instead of picking one split in advance. You start with every point alone and join the closest groups step by step, or split everything apart from the top. The result is a dendrogram, and the way you measure distance between groups (the linkage) changes the answer. GATE Data Science and AI often asks for a dendrogram built from a distance matrix.</p>
+<div class="station"><b>109</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Agglomerative and divisive hierarchical clustering</li><li>Distance between clusters: single, complete and average linkage</li><li>Ward&#x27;s method</li><li>Building a dendrogram and cutting it</li><li>Distance matrix updates after each merge</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Think about a family tree. At the bottom are individual people. Each step up joins two people, or two smaller families, into a bigger one. At the top is one big family that contains everyone. A family tree shows the whole history of joins, so you can stop at any level and see the groups.</p>
+
+  <p><strong>Hierarchical clustering</strong> makes a tree like this for data points. It does not need you to decide the number of clusters in advance, as K-means does. Instead it produces every possible grouping, from one cluster per point up to one cluster for everything. You then decide where to stop.</p>
+
+  <p>There are two directions:</p>
+  <ul>
+    <li><strong>Agglomerative</strong> (bottom-up): start with each point as its own cluster, then repeatedly join the two closest clusters. This is the common version.</li>
+    <li><strong>Divisive</strong> (top-down): start with all points in one cluster, then repeatedly split one cluster into two. It is less common, and we describe it briefly.</li>
+  </ul>
+
+  <p>The key question is: what does "closest" mean for two clusters, each holding several points? That choice is called the <strong>linkage</strong>, and it decides the shape of the tree. GATE loves questions that ask you to build the merges for a given linkage, so this topic works through exact examples.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Cluster</dt><dd>A group of points. Precise: at the start each point is a cluster of size 1.</dd></div>
+    <div><dt>Agglomerative clustering</dt><dd>Bottom-up merging. Precise: repeatedly merge the two closest clusters until one remains.</dd></div>
+    <div><dt>Divisive clustering</dt><dd>Top-down splitting. Precise: repeatedly split a cluster into two until every point stands alone.</dd></div>
+    <div><dt>Linkage</dt><dd>The rule for the distance between two clusters. Precise: a function of the distances between their member points.</dd></div>
+    <div><dt>Single linkage</dt><dd>Cluster distance is the closest pair of points. Precise: the minimum distance between a point in one cluster and a point in the other.</dd></div>
+    <div><dt>Complete linkage</dt><dd>Cluster distance is the farthest pair of points. Precise: the maximum distance between the two clusters' points.</dd></div>
+    <div><dt>Average linkage</dt><dd>Cluster distance is the average over all pairs. Precise: the mean of every pairwise distance between the two clusters.</dd></div>
+    <div><dt>Ward's method</dt><dd>Merge the pair that increases total spread the least. Precise: merges the two clusters whose union gives the smallest increase in within-cluster sum of squares.</dd></div>
+    <div><dt>Distance matrix</dt><dd>A table of all pairwise distances. Precise: entry (i, j) is the distance between point i and point j.</dd></div>
+    <div><dt>Dendrogram</dt><dd>A tree diagram of the merges. Precise: each join is drawn as a horizontal bar at the height of its merge distance.</dd></div>
+    <div><dt>Merge height</dt><dd>The distance at which two clusters join. Precise: the linkage value used for that merge.</dd></div>
+    <div><dt>Cutting a dendrogram</dt><dd>Choosing a height and reading off the clusters below it. Precise: every merge at or below the cut is kept, and the result is the set of clusters at that level.</dd></div>
+    <div><dt>Chaining</dt><dd>Clusters that stretch out in a long line. Precise: single linkage tends to join clusters through a chain of close neighbours, even when the ends are far apart.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Agglomerative and divisive">
+  <h2>Concept 1: Agglomerative and divisive hierarchical clustering</h2>
+
+  <h3>The agglomerative steps</h3>
+  <ol>
+    <li>Start with n clusters, one per point.</li>
+    <li>Compute the distance between every pair of clusters, using the chosen linkage.</li>
+    <li>Find the closest pair, and merge them into one cluster. Record the merge height.</li>
+    <li>Repeat steps 2 and 3 until only one cluster remains.</li>
+  </ol>
+  <p>With n points there are always exactly n − 1 merges. Each merge reduces the number of clusters by one, from n down to 1. So five points give four merges. This is a quick check you can use in an exam.</p>
+
+  <h3>The divisive steps</h3>
+  <p>Divisive clustering goes the other way. It starts with one cluster containing everything, splits it into two groups, then splits the groups further. A common idea is to split off the most different point at each step. Divisive methods are harder to compute exactly, so agglomerative methods are the standard choice in most courses and exams.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Agglomerative clustering with n points always makes exactly n − 1 merges, ending in one cluster. The linkage decides which pair merges at each step.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students sometimes say divisive clustering starts with each point alone. That is the agglomerative start. Divisive starts with everything in one cluster.</p></div>
+
+  <details class="check"><summary>How many merges are needed to join 8 points into one cluster?</summary><div class="ans"><p>7. Each merge reduces the number of clusters by one, from 8 to 1, so 8 − 1 = 7 merges.</p></div></details>
+
+  <details class="check"><summary>What is the first merge in an agglomerative algorithm?</summary><div class="ans"><p>The two single points with the smallest distance between them. Every cluster is still a single point at that stage, so every linkage gives the same first merge.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Linkage rules">
+  <h2>Concept 2: Distance between clusters, single, complete and average linkage</h2>
+
+  <h3>Why we need a rule</h3>
+  <p>Once a cluster contains two or more points, we need one number that stands for the distance between two clusters. Different rules give different trees. Three standard rules are below. Let A and B be two clusters.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Linkage</th><th>Cluster distance</th><th>In words</th></tr></thead>
+    <tbody>
+      <tr><td>Single</td><td>min of d(a, b) over a in A and b in B</td><td>The closest pair, one from each cluster</td></tr>
+      <tr><td>Complete</td><td>max of d(a, b) over a in A and b in B</td><td>The farthest pair, one from each cluster</td></tr>
+      <tr><td>Average</td><td>mean of d(a, b) over all pairs</td><td>The average of all pairwise distances</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Here d(a, b) is the ordinary distance between points a and b. In one dimension it is simply the gap |a − b|, where the vertical bars mean "size of the difference, ignoring the sign".</p>
+
+  <h3>Comparing the three rules on a small example</h3>
+  <p>Take three points on a line: 1, 2 and 4. Suppose we have already merged 1 and 2 into cluster {1, 2}. Now we want the distance from {1, 2} to the single point {4}. The gaps are: from 1 to 4 is 3, and from 2 to 4 is 2.</p>
+  <ul>
+    <li>Single linkage: the minimum is 2.</li>
+    <li>Complete linkage: the maximum is 3.</li>
+    <li>Average linkage: the mean of 3 and 2 is 5/2 = 2.5.</li>
+  </ul>
+  <p>The same two clusters have three different distances, depending on the rule. This is why the rule must always be stated in a question.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Remember the names as the job they do: single takes the nearest pair (minimum), complete takes the farthest pair (maximum), and average takes the middle road (mean).</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Single linkage tends to create long chains of points, because one close neighbour is enough to join clusters. Complete linkage tends to make compact, round groups. Average linkage sits in between.</p></div>
+
+  <details class="check"><summary>Which linkage would join two clusters whose closest points are very close, even if their farthest points are very far apart?</summary><div class="ans"><p>Single linkage. It looks only at the closest pair, so one near neighbour is enough.</p></div></details>
+
+  <details class="check"><summary>Why is complete linkage sensitive to outliers?</summary><div class="ans"><p>Because it uses the farthest pair. One far-away point can make the distance to a cluster large, which delays or changes the merge, even when most points are close.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Ward's method">
+  <h2>Concept 3: Ward's method</h2>
+
+  <h3>The idea</h3>
+  <p>Ward's method does not measure a distance between two clusters directly. Instead it asks: if we join clusters A and B, how much does the total within-cluster spread grow? The spread is the within-cluster sum of squares (WCSS), which we met in the K-means topic. Ward's method joins the pair that makes this growth smallest. It tends to produce compact clusters of similar size.</p>
+
+  <h3>The formula</h3>
+  <div class="formula">Cost(A, B) = (n<sub>A</sub> × n<sub>B</sub>) / (n<sub>A</sub> + n<sub>B</sub>) × (mean<sub>A</sub> − mean<sub>B</sub>)²</div>
+  <ul>
+    <li><strong>n<sub>A</sub></strong> and <strong>n<sub>B</sub></strong> are the numbers of points in each cluster.</li>
+    <li><strong>mean<sub>A</sub></strong> and <strong>mean<sub>B</sub></strong> are the averages of the points in each cluster.</li>
+    <li>The fraction gets bigger when both clusters are large, and the squared gap between means gets bigger when the clusters are far apart.</li>
+  </ul>
+
+  <h3>A worked example</h3>
+  <p>Use the five points 1, 2, 4, 9 and 15. Ward's method starts with single points. Compute a few costs, with exact fractions. For two single points, the cost is (1 × 1)/(1 + 1) × (gap)² = gap²/2.</p>
+  <ol>
+    <li>Join {1} and {2}: gap 1, cost 1/2.</li>
+    <li>Join {9} and {15}: gap 6, cost 36/2 = 18.</li>
+    <li>After joining {1} and {2}, the cluster {1, 2} has mean 3/2. Join {1, 2} with {4}: cost (2 × 1)/(2 + 1) × (4 − 3/2)² = (2/3) × (5/2)² = 25/6.</li>
+  </ol>
+  <p>Python can confirm each cost with exact fractions:</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def ward_cost(A, B):
+    nA, nB = len(A), len(B)
+    cA = F(sum(A), nA)
+    cB = F(sum(B), nB)
+    return F(nA * nB, nA + nB) * (cA - cB) ** 2
+
+print("cost of {1} with {2}:", ward_cost([1], [2]))
+print("cost of {1, 2} with {4}:", ward_cost([1, 2], [4]))
+print("cost of {9} with {15}:", ward_cost([9], [15]))
+print("cost of {1, 2, 4} with {9}:", ward_cost([1, 2, 4], [9]))</code></pre>
+  <pre class="output">cost of {1} with {2}: 1/2
+cost of {1, 2} with {4}: 25/6
+cost of {9} with {15}: 18
+cost of {1, 2, 4} with {9}: 100/3</pre>
+
+  <p>At each step Ward's method takes the cheapest join. The costs 1/2 and 25/6 are small, so {1, 2} and then {4} join first. The later choice is between {9} with {15}, costing 18, and {1, 2, 4} with {9}, costing 100/3, which is about 33. The cheaper one, 18, wins. So {9, 15} forms next.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Ward's cost is not a plain distance. Do not compare it with the single, complete or average distances on the same scale. Only compare Ward costs with other Ward costs.</p></div>
+
+  <details class="check"><summary>What does Ward's method try to keep small at each merge?</summary><div class="ans"><p>The increase in the within-cluster sum of squares, which is the spread of the points around their cluster means.</p></div></details>
+
+  <details class="check"><summary>Using the formula, what is the Ward cost of joining two single points at distance 4 apart?</summary><div class="ans"><p>(1 × 1)/(1 + 1) × 4² = 16/2 = 8.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Dendrograms and cutting">
+  <h2>Concept 4: Building a dendrogram and cutting it</h2>
+
+  <h3>How to draw the tree</h3>
+  <p>Every merge is drawn as a bar joining two branches. The bar sits at the height equal to the merge distance (for Ward's method, the merge cost or a function of it, depending on the convention). Read the diagram from the bottom up: the leaves are the original points, and the top bar is the final join.</p>
+
+  <h3>Cutting the tree</h3>
+  <p>To get a flat set of clusters, draw a horizontal line across the dendrogram at a chosen height. Each branch that the line crosses is one cluster. Equivalently, keep every merge whose height is at or below the cut. A low cut gives many small clusters, and a high cut gives few large ones.</p>
+
+  <p>For the five points 1, 2, 4, 9 and 15, the merge heights are listed in Concept 5. Cutting at height 4 keeps only the merges at or below 4, which is a simple count.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The dendrogram stores every grouping at once. Cutting at a height picks one level of the tree.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>In a GATE question, a cut at height h keeps every merge with height at most h. Count those merges to find the number of clusters left, which is n minus the number of merges kept.</p></div>
+
+  <details class="check"><summary>Five points, and the first three merges all have height at most 4. How many clusters remain at a cut of 4?</summary><div class="ans"><p>5 − 3 = 2 clusters. Each merge reduces the count by one.</p></div></details>
+
+  <details class="check"><summary>Why do the dendrogram heights never decrease as you go up the tree?</summary><div class="ans"><p>For the linkages in this topic, a merge joins clusters that are at least as far apart as the previous merges, so the heights rise (or stay level) as you move up. This is why the tree can be cut cleanly at any height.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Distance matrix updates">
+  <h2>Concept 5: Distance matrix updates after each merge</h2>
+
+  <h3>Starting from the distance matrix</h3>
+  <p>Hierarchical clustering in an exam is usually done from a distance matrix, a table of all pairwise distances. For the points 1, 2, 4, 9 and 15, the matrix is below. The code prints it, and then runs all three linkages from start to finish.</p>
+
+  <h3>How the matrix changes after a merge</h3>
+  <p>After merging two clusters, we delete their two rows and two columns, and add one row and column for the new cluster. Each new entry is the linkage distance from the new cluster to an old cluster. For example, after merging 1 and 2 under complete linkage, the new cluster {1, 2} has distance to point 4 equal to the larger of d(1, 4) = 3 and d(2, 4) = 2, which is 3. Its distance to point 9 is the larger of 8 and 7, which is 8.</p>
+
+  <p>The code below runs the full agglomerative algorithm for each linkage. At each step it looks for the smallest entry in the current matrix, merges that pair, and prints the merge.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+pts = [1, 2, 4, 9, 15]
+
+print("distance matrix")
+for a in pts:
+    print(" ".join(f"{abs(a - b):>3}" for b in pts))
+
+def link_dist(A, B, kind):
+    ds = [abs(a - b) for a in A for b in B]
+    if kind == "single":
+        return min(ds)
+    if kind == "complete":
+        return max(ds)
+    return F(sum(ds), len(ds))   # average linkage
+
+for kind in ["single", "complete", "average"]:
+    clusters = [[p] for p in pts]
+    print(kind + " linkage:")
+    while len(clusters) > 1:
+        best = None
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                h = link_dist(clusters[i], clusters[j], kind)
+                if best is None or h < best[0]:
+                    best = (h, i, j)
+        h, i, j = best
+        merged = clusters[i] + clusters[j]
+        print("  merge", clusters[i], "and", clusters[j], "at height", h)
+        clusters = [c for k, c in enumerate(clusters) if k not in (i, j)] + [merged]
+
+for kind in ["single", "complete"]:
+    clusters = [[p] for p in pts]
+    while len(clusters) > 1:
+        best = None
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                h = link_dist(clusters[i], clusters[j], kind)
+                if best is None or h < best[0]:
+                    best = (h, i, j)
+        h, i, j = best
+        if h > 4:
+            break
+        merged = clusters[i] + clusters[j]
+        clusters = [c for k, c in enumerate(clusters) if k not in (i, j)] + [merged]
+    print("cut at height 4 with", kind, "linkage:", sorted(clusters))</code></pre>
+  <pre class="output">distance matrix
+  0   1   3   8  14
+  1   0   2   7  13
+  3   2   0   5  11
+  8   7   5   0   6
+ 14  13  11   6   0
+single linkage:
+  merge [1] and [2] at height 1
+  merge [4] and [1, 2] at height 2
+  merge [9] and [4, 1, 2] at height 5
+  merge [15] and [9, 4, 1, 2] at height 6
+complete linkage:
+  merge [1] and [2] at height 1
+  merge [4] and [1, 2] at height 3
+  merge [9] and [15] at height 6
+  merge [4, 1, 2] and [9, 15] at height 14
+average linkage:
+  merge [1] and [2] at height 1
+  merge [4] and [1, 2] at height 5/2
+  merge [9] and [15] at height 6
+  merge [4, 1, 2] and [9, 15] at height 29/3
+cut at height 4 with single linkage: [[4, 1, 2], [9], [15]]
+cut at height 4 with complete linkage: [[4, 1, 2], [9], [15]]</pre>
+
+  <p>Read the single linkage output. The merges are 1, 2, 5 and 6, with four merges for five points. The cut at height 4 keeps the first two merges, so the clusters are {1, 2, 4}, {9} and {15}. The complete linkage run has merge heights 1, 3, 6 and 14. The cut at 4 gives the same three clusters, because only the first two merges fall at or below 4.</p>
+
+  <p>Compare the final merges. Single linkage joins everything at height 6, because the chain {1, 2, 4} to 9 is only 5 wide, and 15 is 6 from 9. Complete linkage needs height 14, because the farthest pair between {1, 2, 4} and {9, 15} is 14 apart (from 1 to 15).</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Each row of the matrix update uses the linkage rule. Single takes the minimum, complete takes the maximum, and average takes the mean of the old entries weighted by cluster size.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>When two merges have the same smallest distance, the answer depends on the tie-break rule. Good exam questions avoid ties, but if you see one, state which pair you chose.</p></div>
+
+  <details class="check"><summary>After merging 1 and 2 with single linkage, what is the distance from {1, 2} to point 4?</summary><div class="ans"><p>The smaller of d(1, 4) = 3 and d(2, 4) = 2, which is 2.</p></div></details>
+
+  <details class="check"><summary>Why do single and complete linkage give different final merge heights for the same data?</summary><div class="ans"><p>Single takes the closest pair across the two clusters, while complete takes the farthest. The farthest pair is always at least as far as the closest, so complete linkage merges at a height that is never smaller.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Single: min of pairwise distances</td><td>Closest pair between two clusters</td><td>Single linkage merges</td></tr>
+      <tr><td>Complete: max of pairwise distances</td><td>Farthest pair between two clusters</td><td>Complete linkage merges</td></tr>
+      <tr><td>Average: mean of pairwise distances</td><td>Average over all pairs</td><td>Average linkage merges</td></tr>
+      <tr><td>Ward cost = n<sub>A</sub>n<sub>B</sub>/(n<sub>A</sub> + n<sub>B</sub>) × (mean<sub>A</sub> − mean<sub>B</sub>)²</td><td>Increase in WCSS from a merge</td><td>Ward's method</td></tr>
+      <tr><td>Number of merges = n − 1</td><td>Total joins to reach one cluster</td><td>Checking a dendrogram</td></tr>
+      <tr><td>Clusters after a cut = n − merges kept</td><td>Count at a chosen height</td><td>Reading a cut</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one before reading the answer. The points used are 1, 2, 4, 9 and 15, and their distance matrix is shown in Concept 5.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which linkage uses the farthest pair</h3>
+    <div class="statement"><p>Which linkage defines the distance between two clusters as the largest distance between a point in one and a point in the other? (MCQ, select one)</p>
+      <p>(A) Single<br>(B) Complete<br>(C) Average<br>(D) Ward</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The linkage that uses the largest pairwise distance.</li>
+      <li><strong>Which idea applies.</strong> Single takes the minimum, complete takes the maximum, average takes the mean.</li>
+      <li><strong>Work it out.</strong> Largest means maximum, which is the complete linkage rule. Ward uses a cost formula, not a plain maximum.</li>
+      <li><strong>Check.</strong> The table in Concept 2 shows complete as the maximum.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Single linkage between a pair and a point</h3>
+    <div class="statement"><p>Points are 1, 2 and 4. Cluster {1, 2} is formed first. Using single linkage, what is the distance from {1, 2} to the point 4? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The single-linkage distance from {1, 2} to {4}.</li>
+      <li><strong>Which idea applies.</strong> Single linkage takes the minimum over pairs.</li>
+      <li><strong>Work it out.</strong> d(1, 4) = 3 and d(2, 4) = 2. The minimum is 2.</li>
+      <li><strong>Check.</strong> The matrix row for point 2 shows 2 in the column for point 4, which is the minimum.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Facts about dendrograms and linkages</h3>
+    <div class="statement"><p>Select all statements that are correct. (MSQ)</p>
+      <p>(A) The height of a merge bar is the distance at which two clusters join.<br>(B) A cut at a lower height gives more clusters than a cut at a higher height.<br>(C) Single linkage can produce long chains of points.<br>(D) Ward's method merges the pair that maximises the within-cluster sum of squares.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about dendrograms and linkages are correct.</li>
+      <li><strong>Which idea applies.</strong> Merge heights, cutting, chaining, and Ward's objective.</li>
+      <li><strong>Work it out.</strong> (A) is true by definition. (B) is true: fewer merges are kept at a lower cut, so more clusters remain. (C) is true: chaining is the known weakness of single linkage. (D) is false: Ward's method merges the pair that minimises the increase in spread.</li>
+      <li><strong>Check.</strong> Statement (D) reverses "minimise" into "maximise", which is the usual trap.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Average linkage between two clusters</h3>
+    <div class="statement"><p>Points are 1, 2 and 4. Clusters {1, 2} and {4} are compared using average linkage. What is the average linkage distance between them? (NAT, give a decimal)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The mean of all pairwise distances between the two clusters.</li>
+      <li><strong>Which idea applies.</strong> Average linkage takes the mean over all pairs, one point from each cluster.</li>
+      <li><strong>Work it out.</strong> Pairs: (1, 4) gives 3, and (2, 4) gives 2. Mean: (3 + 2)/2 = 2.5.</li>
+      <li><strong>Check.</strong> The Python run in Concept 5 prints the average merge height 5/2 for these clusters, which is 2.5.</li>
+    </ol>
+    <p class="cx">Answer: 2.5</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Final merge under complete linkage</h3>
+    <div class="statement"><p>Points are 1, 2, 4, 9 and 15. Using complete linkage and the agglomerative algorithm, what is the height of the final merge, when all points become one cluster? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The last merge height under complete linkage.</li>
+      <li><strong>Which idea applies.</strong> Run the merges, then read the last height.</li>
+      <li><strong>Work it out.</strong> Merges: {1} with {2} at 1, then {4} with {1, 2} at 3, then {9} with {15} at 6. The last merge joins {1, 2, 4} with {9, 15}. Its complete distance is the largest pair, which is 15 − 1 = 14.</li>
+      <li><strong>Check.</strong> The Python run in Concept 5 prints height 14 for this final merge.</li>
+    </ol>
+    <p class="cx">Answer: 14</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Clusters left after a cut</h3>
+    <div class="statement"><p>Points are 1, 2, 4, 9 and 15. A single-linkage dendrogram is cut at height 4. How many clusters remain? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of clusters at the cut.</li>
+      <li><strong>Which idea applies.</strong> Keep merges at or below the cut, then count clusters as n minus merges kept.</li>
+      <li><strong>Work it out.</strong> Single-linkage merge heights are 1, 2, 5 and 6. Those at or below 4 are 1 and 2, so two merges are kept. Clusters: 5 − 2 = 3, namely {1, 2, 4}, {9} and {15}.</li>
+      <li><strong>Check.</strong> Count the clusters in the Python output: [4, 1, 2], [9] and [15], which is three.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Ward cost of a merge</h3>
+    <div class="statement"><p>Points are 1, 2, 4, 9 and 15, and Ward's method is used. What is the Ward cost of joining the cluster {1, 2} with the cluster {4}? Give the exact fraction. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The exact Ward cost for one specific merge.</li>
+      <li><strong>Which idea applies.</strong> The Ward cost formula with n<sub>A</sub>, n<sub>B</sub>, and the cluster means.</li>
+      <li><strong>Work it out.</strong> n<sub>A</sub> = 2 and n<sub>B</sub> = 1. Mean of {1, 2} is 3/2, and the mean of {4} is 4. The gap is 4 − 3/2 = 5/2. Cost = (2 × 1)/(2 + 1) × (5/2)² = (2/3) × (25/4) = 50/12 = 25/6.</li>
+      <li><strong>Check.</strong> The Python run in Concept 3 printed 25/6 for this same merge.</li>
+    </ol>
+    <p class="cx">Answer: 25/6</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about linkage choices are true</h3>
+    <div class="statement"><p>Select all that apply. (MSQ)</p>
+      <p>(A) Average linkage is a compromise between the closest and the farthest pair.<br>(B) Complete linkage is more sensitive to a single far-away outlier than single linkage is.<br>(C) Ward's method tends to produce compact clusters of similar size.<br>(D) Divisive clustering starts with each point as its own cluster.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about linkages and methods are true.</li>
+      <li><strong>Which idea applies.</strong> What each rule measures, and where each method starts.</li>
+      <li><strong>Work it out.</strong> (A) is true: the average is between the minimum and the maximum. (B) is true: complete linkage uses the maximum, so one far point changes it, while single linkage uses the minimum. (C) is true: the Ward cost penalises spread, which favours compact groups. (D) is false: divisive clustering starts with one big cluster.</li>
+      <li><strong>Check.</strong> Statement (D) describes the agglomerative start, which is the trap in Concept 1.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Single linkage merge height (NAT, 2 marks)</h3>
+    <div class="statement"><p>Points on a line: 0, 1, 4, 9, 11. Using single linkage, at what distance does the last merge happen?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The height of the root of the dendrogram.</li>
+      <li><strong>Which idea applies.</strong> Single linkage merges by the closest pair between clusters.</li>
+      <li><strong>Work it out.</strong> Merges: {0, 1} at 1, {9, 11} at 2, {0, 1, 4} at 3, then the two clusters at 9 − 4 = 5.</li>
+      <li><strong>Check.</strong> The code runs agglomerative clustering.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>pts = [0, 1, 4, 9, 11]
+C = [[p] for p in pts]
+while len(C) &gt; 1:
+    d, i, j = min((min(abs(a - b) for a in C[i] for b in C[j]), i, j) for i in range(len(C)) for j in range(i + 1, len(C)))
+    print("merge", C[i], C[j], "at", d)
+    C[i] = C[i] + C[j]; del C[j]
+</code></pre>
+    <pre class="output">merge [0] [1] at 1
+merge [9] [11] at 2
+merge [0, 1] [4] at 3
+merge [0, 1, 4] [9, 11] at 5</pre>
+    <p class="cx">Answer: 5.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Complete linkage (NAT, 2 marks)</h3>
+    <div class="statement"><p>Same points 0, 1, 4, 9, 11 with complete linkage. At what distance does the last merge happen?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The root height with complete linkage.</li>
+      <li><strong>Which idea applies.</strong> Complete linkage uses the farthest pair between clusters.</li>
+      <li><strong>Work it out.</strong> {0, 1} at 1, {9, 11} at 2. Next options: {0, 1} with 4 at 4, 4 with {9, 11} at 7. Merge {0, 1, 4} at 4. Last merge at 11 − 0 = 11.</li>
+      <li><strong>Check.</strong> With complete linkage the root height is always the diameter of the data.</li>
+    </ol>
+    <p class="cx">Answer: 11.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Linkage facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Single linkage tends to produce long chained clusters. (B) Cutting a dendrogram at a height gives a flat clustering. (C) Agglomerative clustering needs k fixed in advance. (D) Average linkage uses the mean of all pairwise distances.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of hierarchical clustering.</li>
+      <li><strong>Which idea applies.</strong> The dendrogram stores every level, so k is chosen afterwards.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) False. (D) True.</li>
+      <li><strong>Check.</strong> The chaining effect is the classic weakness of single linkage.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and explain each line in your own words.</p>
+  <dl>
+    <div><dt>Hierarchical clustering</dt><dd>Building a tree of groups, from single points to one cluster, or the reverse.</dd></div>
+    <div><dt>Agglomerative</dt><dd>Bottom-up. Start with single points and merge the closest pairs.</dd></div>
+    <div><dt>Divisive</dt><dd>Top-down. Start with one cluster and split it.</dd></div>
+    <div><dt>Linkage</dt><dd>The rule that turns distances between points into a distance between clusters.</dd></div>
+    <div><dt>Single linkage</dt><dd>Minimum pairwise distance. Prone to chaining.</dd></div>
+    <div><dt>Complete linkage</dt><dd>Maximum pairwise distance. Makes compact groups, sensitive to outliers.</dd></div>
+    <div><dt>Average linkage</dt><dd>Mean of all pairwise distances. A middle road.</dd></div>
+    <div><dt>Ward's method</dt><dd>Merges the pair that gives the smallest increase in within-cluster sum of squares.</dd></div>
+    <div><dt>Ward cost</dt><dd>n<sub>A</sub>n<sub>B</sub>/(n<sub>A</sub> + n<sub>B</sub>) × squared gap between cluster means.</dd></div>
+    <div><dt>Distance matrix</dt><dd>A table of all pairwise distances, used to start the algorithm.</dd></div>
+    <div><dt>Matrix update</dt><dd>After a merge, new cluster distances come from the linkage rule applied to the old ones.</dd></div>
+    <div><dt>Dendrogram</dt><dd>A tree diagram of merges, with the merge height on the vertical axis.</dd></div>
+    <div><dt>Merge height</dt><dd>The distance at which two clusters join.</dd></div>
+    <div><dt>Cutting</dt><dd>Keeping merges at or below a height to get a flat set of clusters.</dd></div>
+    <div><dt>Chaining</dt><dd>Clusters linked by a long string of close neighbours, typical of single linkage.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>With n points, agglomerative clustering makes exactly n − 1 merges.</li>
+    <li>Single takes the minimum, complete takes the maximum, average takes the mean of all pairs.</li>
+    <li>Always state the linkage. The same data gives different trees for different linkages.</li>
+    <li>Ward's method minimises the increase in within-cluster sum of squares.</li>
+    <li>A cut at height h keeps the merges at or below h.</li>
+    <li>Single linkage tends to chain, complete linkage tends to make compact groups.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 109?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 109 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-108.html"><small>Previous, topic 108</small>K-means / K-medoid clustering</a><a class="next" href="gate-110.html"><small>Next, topic 110</small>Dimensionality reduction &amp; PCA</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,431 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 111: Uninformed search: BFS, DFS, UCS, IDDFS</title><meta name="description" content="Search is how an AI agent finds a route from a start state to a goal state by trying out possible moves. Uninformed search uses no extra knowledge about where the goal is. This recap compares four methods: breadth-first, depth-first, uniform-cost and iterative deepening. GATE Data Science and AI asks you to trace them on small graphs and compare completeness, optimality, time and space."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g111" data-key="g111" data-noun="topic" data-num="111" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Uninformed search: <em>BFS, DFS, UCS, IDDFS</em></h1>
+<p class="lede">Search is how an AI agent finds a route from a start state to a goal state by trying out possible moves. Uninformed search uses no extra knowledge about where the goal is. This recap compares four methods: breadth-first, depth-first, uniform-cost and iterative deepening. GATE Data Science and AI asks you to trace them on small graphs and compare completeness, optimality, time and space.</p>
+<div class="station"><b>111</b><span>Unit 9 · Artificial intelligence · Paper DA · Quick Recap</span></div>
+<ul class="topics"><li>Search as exploring a tree of paths</li><li>Breadth-first search (BFS)</li><li>Depth-first search (DFS)</li><li>Uniform-cost search (UCS)</li><li>Iterative deepening DFS (IDDFS)</li><li>Comparing the four methods</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Imagine a maze. At each junction you must choose the next corridor to try. That choice is the search strategy, and it decides how fast you reach the exit and whether your route is the shortest.</p>
+
+  <p>In AI, the maze is a <strong>state space</strong>. Each state is a situation, such as a city on a map. Each move leads to a neighbouring state and has a <strong>cost</strong>, such as the length of a road. The agent starts at a start state and wants a goal state. "Uninformed" means the search knows only the graph and the costs, not where the goal lies.</p>
+
+  <p>Why does this matter for GATE? The Data Science and AI paper asks you to trace these searches by hand, name the data structure each uses, and judge completeness and optimality. The traces below are checked with Python.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>State</dt><dd>A situation the agent can be in. Precise: a node of the state graph.</dd></div>
+    <div><dt>Expand</dt><dd>Generate the neighbours of a node. Precise: add each reachable neighbour as a new node.</dd></div>
+    <div><dt>Frontier</dt><dd>Nodes generated but not yet expanded. Precise: the set the search chooses from next.</dd></div>
+    <div><dt>Path cost g(n)</dt><dd>The total cost from the start to node n. Precise: the sum of step costs along the path.</dd></div>
+    <div><dt>Branching factor b</dt><dd>The average number of children per node.</dd></div>
+    <div><dt>Depth d</dt><dd>The number of moves in the shallowest goal path.</dd></div>
+    <div><dt>Completeness</dt><dd>Always finds a solution if one exists.</dd></div>
+    <div><dt>Optimality</dt><dd>Always returns the cheapest solution.</dd></div>
+    <div><dt>Queue (FIFO)</dt><dd>First in, first out. Precise: the frontier structure of BFS.</dd></div>
+    <div><dt>Stack (LIFO)</dt><dd>Last in, first out. Precise: the frontier structure of DFS.</dd></div>
+    <div><dt>Priority queue</dt><dd>Removes the smallest item first. Precise: the frontier structure of UCS, ordered by path cost.</dd></div>
+    <div><dt>Depth limit</dt><dd>A maximum depth for a depth-limited DFS.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Breadth-first search">
+  <h2>Concept 1: Breadth-first search (BFS)</h2>
+
+  <p>BFS explores level by level, like ripples spreading from a stone dropped in a pond. It checks every state one move away, then two moves away, and so on.</p>
+
+  <ol>
+    <li>Put the start node in a queue.</li>
+    <li>Remove the first node. If it is the goal, stop.</li>
+    <li>Otherwise add each unvisited neighbour to the back of the queue.</li>
+    <li>Repeat.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>BFS uses a queue. It finds the goal with the fewest moves, and it is optimal when every move costs the same.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>BFS counts moves, not costs. With unequal costs, a path with fewer moves can be more expensive. Concept 5 shows this.</p></div>
+
+  <details class="check"><summary>Which data structure does BFS use for its frontier?</summary><div class="ans"><p>A queue, used first in, first out.</p></div></details>
+
+  <details class="check"><summary>Why does BFS need a lot of memory?</summary><div class="ans"><p>It keeps the whole frontier, which grows quickly with depth. In the worst case the space is about b<sup>d</sup>.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Depth-first search">
+  <h2>Concept 2: Depth-first search (DFS)</h2>
+
+  <p>DFS dives. It follows one path as far as it can go, and only when it reaches a dead end does it back up and try another branch. It is like exploring a maze by always taking the first unexplored corridor.</p>
+
+  <ol>
+    <li>Move to the first unvisited child.</li>
+    <li>Repeat until the goal is found or the path is stuck.</li>
+    <li>When stuck, back up one step and try the next child.</li>
+  </ol>
+
+  <div class="note tip"><p><span class="t">Tip</span>DFS needs little memory. It stores only the current path and the untried siblings, about b times the depth m.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>DFS is neither optimal nor, in general, complete. It returns the first path it reaches, which depends on the order of children, not on cost.</p></div>
+
+  <details class="check"><summary>Why is DFS memory-efficient?</summary><div class="ans"><p>It stores only one path at a time, plus the untried siblings along it. It never stores the whole frontier.</p></div></details>
+
+  <details class="check"><summary>Is DFS guaranteed to find the cheapest path?</summary><div class="ans"><p>No. The path it returns depends on the order it tries children.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Uniform-cost search">
+  <h2>Concept 3: Uniform-cost search (UCS)</h2>
+
+  <p>UCS always expands the cheapest node found so far, measured by total path cost g(n). It is BFS with the queue replaced by a priority queue sorted by cost.</p>
+
+  <ol>
+    <li>Put the start node in a priority queue with cost 0.</li>
+    <li>Remove the node with the smallest cost. If it is the goal, stop.</li>
+    <li>For each neighbour, compute the new cost. If it is cheaper than any earlier cost to that neighbour, record it and add it to the queue.</li>
+    <li>Repeat.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>UCS is optimal for any non-negative step costs. It can be slow, because it explores everything cheaper than the solution.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>BFS is optimal only for equal costs, while UCS is optimal for any costs. The common exam trap is to choose BFS for a weighted graph.</p></div>
+
+  <details class="check"><summary>What changes between BFS and UCS?</summary><div class="ans"><p>The queue. BFS uses a plain first-in, first-out queue, while UCS uses a priority queue ordered by path cost.</p></div></details>
+
+  <details class="check"><summary>When do BFS and UCS behave the same?</summary><div class="ans"><p>When every step costs the same. Then the cheapest path is the one with the fewest steps.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Iterative deepening">
+  <h2>Concept 4: Iterative deepening DFS (IDDFS)</h2>
+
+  <p>IDDFS runs DFS with depth limit 0, then limit 1, then limit 2, and so on. Each run uses DFS memory, but the limit grows, so the first goal found is at the shallowest depth, as in BFS.</p>
+
+  <p>IDDFS is complete, and optimal for equal step costs. Its memory is about b times d. Its extra cost is repetition: shallow levels are re-expanded on every run, but most nodes sit at the deepest level, so the total time is still about b<sup>d</sup>.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>IDDFS has BFS's completeness and shallowest-first behaviour, with DFS's small memory.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>IDDFS is not optimal for unequal costs, just as BFS is not. It finds the shallowest goal, not the cheapest.</p></div>
+
+  <details class="check"><summary>How many depth limits are tried before a goal at depth 3 is found?</summary><div class="ans"><p>Four runs: limits 0, 1, 2 and 3. The goal is found on the run with limit 3.</p></div></details>
+
+  <details class="check"><summary>Which uses less memory, BFS or IDDFS?</summary><div class="ans"><p>IDDFS. BFS keeps about b<sup>d</sup> nodes, while IDDFS keeps about bd.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Tracing all four">
+  <h2>Concept 5: Tracing all four on one graph</h2>
+
+  <p>The graph below has undirected edges with costs. S is the start and G is the goal. S connects to A (cost 1) and B (cost 4). A connects to C (cost 5) and B (cost 2). B connects to D (cost 1). C connects to G (cost 2). D connects to G (cost 3). Neighbours are tried in the listed order. The code runs the four searches and records the path and its cost.</p>
+  <pre class="code" data-lang="python"><code>from collections import deque
+import heapq
+
+graph = {
+    "S": [("A", 1), ("B", 4)],
+    "A": [("S", 1), ("C", 5), ("B", 2)],
+    "B": [("S", 4), ("A", 2), ("D", 1)],
+    "C": [("A", 5), ("G", 2)],
+    "D": [("B", 1), ("G", 3)],
+    "G": [("C", 2), ("D", 3)],
+}
+start, goal = "S", "G"
+
+def path_cost(path):
+    return sum(c for u, v in zip(path, path[1:]) for nb, c in graph[u] if nb == v)
+
+def rebuild(parent, node):
+    out = []
+    while node is not None:
+        out.append(node)
+        node = parent[node]
+    return out[::-1]
+
+def bfs():
+    queue = deque([start])
+    parent = {start: None}
+    order = []
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        if node == goal:
+            break
+        for nb, c in graph[node]:
+            if nb not in parent:
+                parent[nb] = node
+                queue.append(nb)
+    return order, rebuild(parent, goal)
+
+def ucs():
+    frontier = [(0, start)]
+    best = {start: 0}
+    parent = {start: None}
+    done = set()
+    order = []
+    while frontier:
+        g, node = heapq.heappop(frontier)
+        if node in done:
+            continue
+        done.add(node)
+        order.append((node, g))
+        if node == goal:
+            break
+        for nb, c in graph[node]:
+            ng = g + c
+            if nb not in best or ng < best[nb]:
+                best[nb] = ng
+                parent[nb] = node
+                heapq.heappush(frontier, (ng, nb))
+    return order, rebuild(parent, goal)
+
+def dfs(node, visited):
+    if node == goal:
+        return [node]
+    visited.add(node)
+    for nb, c in graph[node]:
+        if nb not in visited:
+            rest = dfs(nb, visited)
+            if rest:
+                return [node] + rest
+    return None
+
+def dls(node, limit, path):
+    if node == goal:
+        return path
+    if limit == 0:
+        return None
+    for nb, c in graph[node]:
+        if nb not in path:
+            r = dls(nb, limit - 1, path + [nb])
+            if r:
+                return r
+    return None
+
+order, p = bfs()
+print("BFS order:", " ".join(order))
+print("BFS path:", " ".join(p), "cost", path_cost(p))
+order, p2 = ucs()
+print("UCS order:", " ".join(f"{n}({g})" for n, g in order))
+print("UCS path:", " ".join(p2), "cost", path_cost(p2))
+p3 = dfs(start, set())
+print("DFS path:", " ".join(p3), "cost", path_cost(p3))
+for L in range(10):
+    r = dls(start, L, [start])
+    if r:
+        print("IDDFS: limit", L, "found", " ".join(r), "cost", path_cost(r))
+        break
+    print("IDDFS: limit", L, "not found")</code></pre>
+  <pre class="output">BFS order: S A B C D G
+BFS path: S A C G cost 8
+UCS order: S(0) A(1) B(3) D(4) C(6) G(7)
+UCS path: S A B D G cost 7
+DFS path: S A C G cost 8
+IDDFS: limit 0 not found
+IDDFS: limit 1 not found
+IDDFS: limit 2 not found
+IDDFS: limit 3 found S A C G cost 8</pre>
+
+  <p>BFS returns the cost-8 path with 3 moves, because it counts moves and ignores costs. UCS returns the cheaper cost-7 path with 4 moves. Its expansion order, 0, 1, 3, 4, 6, 7, follows total cost. DFS and IDDFS both return the cost-8 path here.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Fewest moves and lowest total cost are different goals. BFS minimises moves, UCS minimises cost.</p></div>
+
+  <details class="check"><summary>Why does BFS return cost 8 instead of cost 7?</summary><div class="ans"><p>BFS only counts moves. Its path S, A, C, G has 3 moves, fewer than the 4 moves of S, A, B, D, G, so it never looks at the edge costs.</p></div></details>
+
+  <details class="check"><summary>Why does IDDFS need four runs here?</summary><div class="ans"><p>The goal is 3 moves deep, so limits 0, 1 and 2 fail and the run with limit 3 succeeds.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Here b is the branching factor, d the depth of the shallowest goal, m the maximum depth, C* the cost of the optimal solution, and ε the smallest step cost.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Frontier</th><th>Complete?</th><th>Optimal?</th><th>Time</th><th>Space</th></tr></thead>
+    <tbody>
+      <tr><td>BFS</td><td>Queue</td><td>Yes</td><td>Yes, if step costs are equal</td><td>O(b<sup>d</sup>)</td><td>O(b<sup>d</sup>)</td></tr>
+      <tr><td>DFS</td><td>Stack</td><td>No, in general</td><td>No</td><td>O(b<sup>m</sup>)</td><td>O(bm)</td></tr>
+      <tr><td>UCS</td><td>Priority queue by g(n)</td><td>Yes, if every step costs at least ε &gt; 0</td><td>Yes</td><td>O(b<sup>1 + C*/ε</sup>)</td><td>Same as time</td></tr>
+      <tr><td>IDDFS</td><td>Stack, repeated with limits</td><td>Yes</td><td>Yes, if step costs are equal</td><td>O(b<sup>d</sup>)</td><td>O(bd)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>GATE questions, solved</h2>
+  <p>This set covers how many nodes uninformed searches generate and expand, how the cheapest path differs from the shortest path, and how the cost of a search can be bounded.</p>
+  <h3>Real past GATE questions</h3>
+  <div class="note key"><p><span class="t">Real questions</span>No past GATE question on this exact topic could be verified, so the exam-level set below is longer.</p></div>
+  <h3>Exam-level practice</h3>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Total nodes over repeated depth-limited runs (NAT, 2 marks)</h3>
+    <div class="statement"><p>A complete search tree has branching factor 4. Every node above the bottom level has exactly 4 children, and the root is at depth 0. The goal sits at depth 5. Iterative deepening DFS runs depth-limited searches with limits 0, 1, 2, 3, 4 and 5, in that order, and the goal is found on the last run. A run with limit L generates every node at depth L or less, and it starts again from the root. Counting every generated node in all six runs together, how many nodes are generated in total? (NAT, integer answer)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of nodes generated across all six runs.</li>
+      <li><strong>Which idea applies.</strong> A run with limit L generates 1 + 4 + 16 + ... + 4<sup>L</sup> nodes, because depth i holds 4<sup>i</sup> nodes.</li>
+      <li><strong>Work it out.</strong> Limit 0 gives 1 node. Limit 1 gives 1 + 4 = 5. Limit 2 gives 1 + 4 + 16 = 21. Limit 3 gives 85. Limit 4 gives 341. Limit 5 gives 1365. Adding the six runs: 1 + 5 + 21 + 85 + 341 + 1365 = 1818.</li>
+      <li><strong>Check.</strong> Depth i appears in every run whose limit is at least i, so it appears 6 - i times. The sum of (6 - i) times 4<sup>i</sup> for i = 0 to 5 is 6 + 20 + 64 + 192 + 512 + 1024 = 1818, which agrees.</li>
+    </ol>
+    <p class="cx">Answer: 1818</p>
+    <p>Python check:</p>
+    <pre class="code" data-lang="python"><code>b, d = 4, 5
+runs = [sum(b**i for i in range(L + 1)) for L in range(d + 1)]
+print(runs)
+print(sum(runs))</code></pre>
+    <pre class="output">[1, 5, 21, 85, 341, 1365]
+1818</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Shortest path in edges versus cheapest path (NAT, 2 marks)</h3>
+    <div class="statement"><p>A directed graph has five nodes S, A, B, C and G. The edges, each written as from, to and cost, are: S to A with cost 2, S to B with cost 5, A to B with cost 1, A to C with cost 6, B to C with cost 2, B to G with cost 9, and C to G with cost 1. A breadth-first graph search from S uses a queue and a set of visited nodes, and it returns the path that reaches G first in level order. Uniform-cost search from S expands the cheapest frontier node first and returns the cheapest path to G. Let C<sub>BFS</sub> be the cost of the path found by breadth-first search and C<sub>UCS</sub> the cost of the path found by uniform-cost search. Find C<sub>BFS</sub> - C<sub>UCS</sub>. (NAT, integer answer)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The difference between the costs of two returned paths.</li>
+      <li><strong>Which idea applies.</strong> BFS ignores costs and finds the path with the fewest edges. UCS adds up edge costs and finds the cheapest path.</li>
+      <li><strong>Work it out.</strong> The queue order gives S, then A and B. From B the search reaches G, so the BFS path is S, B, G with cost 5 + 9 = 14. UCS pops S (0), then A (2), then B through A (2 + 1 = 3, cheaper than 5), then C through B (3 + 2 = 5), then G through C (5 + 1 = 6). So the UCS path is S, A, B, C, G with cost 6. The difference is 14 - 6 = 8.</li>
+      <li><strong>Check.</strong> The cheapest path has 4 edges and the BFS path has 2 edges. The cheaper path is longer in edges, which is why BFS and UCS disagree here. The Python output below shows both paths.</li>
+    </ol>
+    <p class="cx">Answer: 8</p>
+    <p>Python check:</p>
+    <pre class="code" data-lang="python"><code>import heapq
+from collections import deque
+edges = {'S': [('A', 2), ('B', 5)], 'A': [('B', 1), ('C', 6)], 'B': [('C', 2), ('G', 9)], 'C': [('G', 1)], 'G': []}
+q = deque([('S', ['S'], 0)]); seen = {'S'}; cb = None
+while q:
+    n, path, c = q.popleft()
+    if n == 'G':
+        print('BFS', ' '.join(path), c); cb = c; break
+    for m, w in edges[n]:
+        if m not in seen:
+            seen.add(m); q.append((m, path + [m], c + w))
+pq = [(0, 'S', ['S'])]; best = {}; cu = None
+while pq:
+    c, n, path = heapq.heappop(pq)
+    if n == 'G':
+        print('UCS', ' '.join(path), c); cu = c; break
+    if n in best: continue
+    best[n] = c
+    for m, w in edges[n]:
+        heapq.heappush(pq, (c + w, m, path + [m]))
+print('difference', cb - cu)</code></pre>
+    <pre class="output">BFS S B G 14
+UCS S A B C G 6
+difference 8</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Which statements about four searches are true (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Assume graph search with a visited set on a finite graph, and assume the search returns the first goal it reaches. Select all statements that are correct. (MSQ)</p>
+      <p>(A) With every edge cost equal to 1, uniform-cost search returns a path with the fewest edges.<br>(B) Depth-first graph search with a visited set always terminates on a finite graph, even when the graph contains cycles.<br>(C) With every edge cost equal to 1, iterative deepening DFS returns a goal at the smallest depth at which any goal exists.<br>(D) If some edge has a negative cost, uniform-cost search always returns an optimal path, because it always expands the cheapest frontier node first.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements about uninformed search are correct.</li>
+      <li><strong>Which idea applies.</strong> Cost-based ordering, termination with a visited set, depth-limited runs, and the effect of negative edges.</li>
+      <li><strong>Work it out.</strong> (A) is true: with unit costs, the cost of a path equals its number of edges, so the cheapest path is the path with fewest edges. (B) is true: each node is expanded at most once, so the search cannot loop forever on a finite graph. (C) is true: each run finds every goal within its limit, and the limits rise 0, 1, 2 and so on, so the first success is at the smallest goal depth. (D) is false: a node that UCS has already expanded can later be reached more cheaply through a negative edge, so the first answer can be wrong.</li>
+      <li><strong>Check.</strong> Take a graph S to A with cost 1, S to B with cost 2, and B to A with cost -2. UCS expands A first with cost 1, but the path through B costs 0, so the returned path is not optimal. This confirms (D) is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Extra expansions by DFS before the goal (NAT, 2 marks)</h3>
+    <div class="statement"><p>A rooted tree has root S. S has two children, A and B, listed in that order. A has two children, A1 and A2, listed in that order. A1 has one child, A11. A11 has one child, A111. B has one child, the goal G. A2 has no children. Breadth-first search uses a first-in, first-out queue and expands nodes level by level, with the children added in listed order. Depth-first search uses a stack and always expands the most recently added node, again with children listed in order. In both searches the goal test is made when a node is removed from the frontier. Let n<sub>B</sub> and n<sub>D</sub> be the numbers of nodes expanded before G is removed, for breadth-first and depth-first search. Find n<sub>D</sub> - n<sub>B</sub>. (NAT, integer answer)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The difference in the number of nodes expanded before the goal.</li>
+      <li><strong>Which idea applies.</strong> BFS expands by depth level, so it reaches the goal's level early. DFS follows a branch to its end before it returns.</li>
+      <li><strong>Work it out.</strong> BFS: S, then A and B are added. Expand A (adds A1, A2), expand B (adds G), expand A1 (adds A11), expand A2. Now G is removed. Nodes expanded before G are S, A, B, A1, A2, so n<sub>B</sub> = 5. DFS: expand S, then A (top of stack), then A1, then A11, then A111, then A2, then B. Now G is on top and removed. Nodes expanded before G are S, A, A1, A11, A111, A2, B, so n<sub>D</sub> = 7. The difference is 7 - 5 = 2.</li>
+      <li><strong>Check.</strong> DFS goes all the way down the A branch before it looks at B, and BFS reaches B's child at depth 2 before A's chain reaches depth 3. The Python output shows the two orders.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+    <p>Python check:</p>
+    <pre class="code" data-lang="python"><code>from collections import deque
+tree = {'S': ['A', 'B'], 'A': ['A1', 'A2'], 'A1': ['A11'], 'A11': ['A111'], 'B': ['G'], 'A2': [], 'A111': [], 'G': []}
+def expanded_before_goal(kind):
+    frontier = deque(['S']); order = []
+    while frontier:
+        n = frontier.popleft() if kind == 'BFS' else frontier.pop()
+        if n == 'G':
+            return order
+        order.append(n)
+        kids = tree[n] if kind == 'BFS' else list(reversed(tree[n]))
+        frontier.extend(kids)
+b = expanded_before_goal('BFS'); d = expanded_before_goal('DFS')
+print(len(b), len(d), len(d) - len(b))</code></pre>
+    <pre class="output">5 7 2</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 5: Iterative deepening versus breadth-first generation (NAT, 2 marks)</h3>
+    <div class="statement"><p>A complete search tree has branching factor 10, and the root is at depth 0. The goal is at depth 6, and it is the last depth-6 node that the search generates. Iterative deepening DFS runs depth-limited searches with limits 0, 1, 2, up to 6, and each run generates every node at depth at most its limit. Breadth-first search, in a single run, generates every node down to depth 6 in level order. Let T<sub>ID</sub> be the total number of nodes generated by all the iterative deepening runs, and T<sub>BFS</sub> be the number generated by the single breadth-first run. Compute T<sub>ID</sub> / T<sub>BFS</sub> and give the answer correct to 2 decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The ratio of two node totals, rounded to 2 decimal places.</li>
+      <li><strong>Which idea applies.</strong> Depth i holds 10<sup>i</sup> nodes. Iterative deepening repeats the shallow levels, so each depth i is counted once for every run whose limit is at least i.</li>
+      <li><strong>Work it out.</strong> T<sub>BFS</sub> = 1 + 10 + 100 + 1000 + 10000 + 100000 + 1000000 = 1111111. For T<sub>ID</sub>, depth i appears in 7 - i runs, so T<sub>ID</sub> = 7 + 60 + 500 + 4000 + 30000 + 200000 + 1000000 = 1234567. The ratio is 1234567 / 1111111, which is about 1.1111, so to 2 decimal places it is 1.11.</li>
+      <li><strong>Check.</strong> The overhead is the repeated shallow levels: 1234567 - 1111111 = 123456, about 11 percent of the BFS count, which matches the usual observation that iterative deepening costs little extra when branching is high.</li>
+    </ol>
+    <p class="cx">Answer: 1.11</p>
+    <p>Python check:</p>
+    <pre class="code" data-lang="python"><code>b, d = 10, 6
+t_bfs = sum(b**i for i in range(d + 1))
+t_id = sum(sum(b**i for i in range(L + 1)) for L in range(d + 1))
+print(t_bfs, t_id, round(t_id / t_bfs, 2))</code></pre>
+    <pre class="output">1111111 1234567 1.11</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 6: Worst-case expansions in uniform-cost search (NAT, 2 marks)</h3>
+    <div class="statement"><p>Uniform-cost search runs on a tree with branching factor 3. The cost of the cheapest goal is C* = 12. Every step costs at least eps = 2. A standard textbook bound on the number of nodes that uniform-cost search expands in the worst case is b<sup>1 + floor(C*/eps)</sup>, where b is the branching factor. Use this bound to find the largest number of nodes that could be expanded in this case. Explain the answer by identifying the exponent first, then computing the power. (NAT, integer answer)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of the bound b<sup>1 + floor(C*/eps)</sup> for b = 3, C* = 12 and eps = 2.</li>
+      <li><strong>Which idea applies.</strong> The exponent counts the levels of the tree that can contain nodes with cost below C*, where each level costs at least eps.</li>
+      <li><strong>Work it out.</strong> C*/eps = 12/2 = 6, so the exponent is 1 + 6 = 7. Then 3<sup>7</sup> = 2187.</li>
+      <li><strong>Check.</strong> Since 3<sup>6</sup> = 729 is smaller than 2187, the bound is the next power up, which is the right order of magnitude for a tree of depth 7.</li>
+    </ol>
+    <p class="cx">Answer: 2187</p>
+    <p>Python check:</p>
+    <pre class="code" data-lang="python"><code>b, C, eps = 3, 12, 2
+print(b ** (1 + C // eps))</code></pre>
+    <pre class="output">2187</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and explain each line in your own words.</p>
+  <dl>
+    <div><dt>State space</dt><dd>The graph of states and moves that a search explores.</dd></div>
+    <div><dt>Frontier</dt><dd>The generated but unexpanded nodes that the search chooses from.</dd></div>
+    <div><dt>BFS</dt><dd>Explores level by level using a queue. Optimal for equal step costs.</dd></div>
+    <div><dt>DFS</dt><dd>Dives along one path using a stack. Small memory, not optimal.</dd></div>
+    <div><dt>UCS</dt><dd>Expands the cheapest node first using a priority queue. Optimal for non-negative costs.</dd></div>
+    <div><dt>IDDFS</dt><dd>Repeats DFS with growing depth limits. Complete and optimal for equal costs, small memory.</dd></div>
+    <div><dt>Completeness</dt><dd>Always finds a solution if one exists.</dd></div>
+    <div><dt>Optimality</dt><dd>Always returns the cheapest solution.</dd></div>
+    <div><dt>Branching factor b</dt><dd>The average number of children of a node.</dd></div>
+    <div><dt>Depth d</dt><dd>The number of moves in the shallowest goal path.</dd></div>
+    <div><dt>Path cost g(n)</dt><dd>The total cost from the start to node n.</dd></div>
+    <div><dt>Depth limit</dt><dd>The maximum depth a depth-limited DFS may reach.</dd></div>
+    <div><dt>Queue</dt><dd>First in, first out. The frontier structure of BFS.</dd></div>
+    <div><dt>Stack</dt><dd>Last in, first out. The frontier structure of DFS.</dd></div>
+    <div><dt>Priority queue</dt><dd>Removes the smallest item first. The frontier structure of UCS.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>BFS uses a queue, DFS uses a stack, UCS uses a priority queue ordered by cost.</li>
+    <li>BFS is optimal only for equal step costs. UCS is optimal for any non-negative costs.</li>
+    <li>IDDFS is complete and optimal for equal costs, with DFS-sized memory.</li>
+    <li>DFS is neither complete nor optimal in general.</li>
+    <li>When costs differ, trace on cost, not on the number of moves.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 111?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 111 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-110.html"><small>Previous, topic 110</small>Dimensionality reduction &amp; PCA</a><a class="next" href="gate-112.html"><small>Next, topic 112</small>Informed search: A*, Greedy Best-First</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,582 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 153: End-effector types</title><meta name="description" content="An end-effector is the tool at the far end of a robot arm, the part that actually touches the work. Choosing the right end-effector decides whether a robot can pick up a part at all, so GATE asks conceptual questions about the common types and how to choose between them."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g153" data-key="g153" data-noun="topic" data-num="153" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>End-effector types</h1>
+<p class="lede">An end-effector is the tool at the far end of a robot arm, the part that actually touches the work. Choosing the right end-effector decides whether a robot can pick up a part at all, so GATE asks conceptual questions about the common types and how to choose between them.</p>
+<div class="station"><b>153</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>What an end-effector is</li><li>Mechanical grippers and grip force</li><li>Vacuum and magnetic end-effectors</li><li>Process tools and tool changers</li><li>Choosing the right end-effector</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Think about your own arm and hand. Your arm moves your hand from one place to another. Your hand is the part that does the real work: it grips a cup, pinches a coin, or holds a hot pan. If you swapped your hand for a hook, your arm would still move the same way, but the job you could do would change completely.</p>
+
+  <p>A robot works the same way. The <strong>robot arm</strong> (also called the manipulator) moves the tool to a place in space. The <strong>end-effector</strong> is the tool fixed to the last link of the arm. It does the job: it grips, sucks, magnetizes, welds, paints, or screws. The arm is the body, and the end-effector is the hand or the tool in that hand.</p>
+
+  <p>Why does this matter? The same robot arm can do very different jobs just by changing its end-effector. A gripper picks up boxes. A vacuum cup picks up a glass sheet without touching its edges. A welding torch joins two metal plates. Engineers therefore spend a lot of thought choosing the end-effector, because a bad choice can drop the part, crush it, or simply fail to pick it up.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The arm decides where the tool goes. The end-effector decides what the tool can do once it gets there.</p></div>
+
+  <h3>Where this appears in GATE</h3>
+  <p>In the RA paper, end-effector questions are usually conceptual. You may be asked which end-effector suits a given part (a steel shaft, a porous box, a hot casting), which type of grip force is needed, or what a tool changer is used for. Some questions also give a small calculation, such as the force from a pneumatic piston or the holding force of a vacuum cup. This page covers both the ideas and the calculations.</p>
+
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these once now. You will see each one again in the sections below.</p>
+
+  <dl>
+    <div><dt>Robot arm (manipulator)</dt><dd>The moving body of the robot that places the tool. Precise definition: a chain of links and joints that positions the end of the chain in space.</dd></div>
+    <div><dt>End-effector</dt><dd>The tool at the end of the robot arm that interacts with the work. Precise definition: the device mounted on the last joint or flange of the arm that performs the task, such as gripping, suction, magnetic holding, welding, or painting.</dd></div>
+    <div><dt>Gripper</dt><dd>An end-effector that holds an object by closing fingers or jaws around it. Precise definition: a mechanical end-effector that creates a grip force through contact with the part.</dd></div>
+    <div><dt>Parallel jaw gripper</dt><dd>A gripper whose two jaws move towards or away from each other while staying parallel. Precise definition: a gripper with two opposing faces that translate along one axis.</dd></div>
+    <div><dt>Pneumatic actuator</dt><dd>A device that moves using compressed air. Precise definition: a piston or cylinder driven by air pressure, producing a force equal to pressure times area.</dd></div>
+    <div><dt>Grip force</dt><dd>The squeezing force the fingers apply to the part. Precise definition: the normal force (the force pushing straight into the surface) between a finger and the part.</dd></div>
+    <div><dt>Friction coefficient (μ)</dt><dd>A number that says how grippy two surfaces are. Precise definition: the ratio of the friction force to the normal force between two surfaces, with no unit.</dd></div>
+    <div><dt>Safety factor</dt><dd>A margin we add so the grip is never just barely enough. Precise definition: the ratio of the force provided to the force needed, often 1.5 or 2 in practice.</dd></div>
+    <div><dt>Vacuum cup (suction cup)</dt><dd>A flexible cup that sticks to a flat surface when air is pumped out from inside. Precise definition: an end-effector that uses a pressure difference across an area to hold a part.</dd></div>
+    <div><dt>Pressure difference (ΔP)</dt><dd>How much stronger the air pressure outside is than the pressure inside the cup. Precise definition: the difference between the outside (atmospheric) pressure and the pressure inside the cup, in pascal (Pa).</dd></div>
+    <div><dt>Magnetic gripper</dt><dd>An end-effector that holds a part using a magnetic field. Precise definition: a gripper that exerts magnetic force, which works only on ferromagnetic materials such as iron, steel, nickel, and cobalt.</dd></div>
+    <div><dt>Ferromagnetic material</dt><dd>A material that a magnet can attract strongly. Precise definition: a material, such as iron, steel, nickel, or cobalt, whose magnetic domains can be aligned by an external magnetic field.</dd></div>
+    <div><dt>Payload</dt><dd>The maximum mass the robot or end-effector is allowed to carry. Precise definition: the mass of the object being handled, excluding the weight of the end-effector itself.</dd></div>
+    <div><dt>Tool changer</dt><dd>A quick-release coupling that lets a robot swap one end-effector for another. Precise definition: an automatic coupling that connects the robot flange to a tool and passes air, power, and signals through the joint.</dd></div>
+    <div><dt>Process tool</dt><dd>An end-effector that changes the work rather than moving it. Precise definition: a tool such as a welding torch, spray gun, screwdriver, or deburring tool that performs a manufacturing process.</dd></div>
+    <div><dt>Interchangeable tooling</dt><dd>A set of different tools that can be used on the same robot. Precise definition: a family of end-effectors designed to attach to one standard interface so that they can be exchanged.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="What an end-effector is">
+  <h2>What an end-effector is and where it sits</h2>
+
+  <p>Let us start with the physical picture. At the very end of a robot arm there is a flat round plate called the <strong>flange</strong>. The flange is the mounting point. You bolt the end-effector to the flange, and the arm then moves the end-effector as if it were part of the arm.</p>
+
+  <p>Here is a simple text diagram. It shows a side view of a robot arm holding a gripper above a box on a table.</p>
+
+<pre class="code" data-lang="text"><code>      ___________
+     |  joints   |          robot arm (links and joints)
+     |___________|
+           |
+       [ flange ]           mounting plate at the end of the arm
+           |
+      /----+----\          end-effector (here: a two-jaw gripper)
+     |     |     |
+     |_____|_____|
+            ||
+        +---------+
+        |   BOX   |        the part being handled
+        +---------+
+     ====================  table
+</code></pre>
+
+  <p>Read the diagram from top to bottom. The arm is the chain of links at the top. The flange is the small plate at the bottom of the arm. The gripper hangs from the flange. The box is the part, and the table is what the box sits on.</p>
+
+  <h3>The tool centre point</h3>
+  <p>Engineers often describe the position of an end-effector by a single point called the <strong>tool centre point</strong> (TCP). It is a point chosen on the tool, usually between the fingers or at the tip. When a programmer says "move the robot to position P", they really mean "move the TCP to position P". Changing the end-effector changes the TCP, so the program must be updated.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A new end-effector with a different length moves the TCP. If the program is not updated, the robot will reach to the wrong place. This is why a tool change needs a tool calibration step.</p></div>
+
+  <h3>Why the end-effector mass matters</h3>
+  <p>The end-effector adds mass to the arm. A heavy gripper on a small robot leaves less payload, which is the mass the robot can carry for the part. Engineers therefore check the end-effector mass plus the part mass.</p>
+
+  <details class="check"><summary>Question: Where is the end-effector fixed on a robot arm?</summary><div class="ans"><p>It is fixed to the flange, the mounting plate at the last joint or end of the arm.</p></div></details>
+
+  <details class="check"><summary>Question: What does the robot program actually control when it says "move to P"?</summary><div class="ans"><p>It controls the tool centre point (TCP), the chosen reference point on the end-effector. If the tool changes length, the TCP changes, and the program must be recalibrated.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Mechanical grippers and grip force">
+  <h2>Mechanical grippers and grip force</h2>
+
+  <h3>Why grippers are the most common end-effector</h3>
+  <p>Imagine picking up a plastic bottle with your fingers. You close your fingers around it, and the friction between your skin and the bottle holds it. A mechanical gripper works in the same way. Two or more fingers (also called jaws) close around the part and hold it by friction or by shape.</p>
+
+  <p>The most common type is the <strong>parallel jaw gripper</strong>. Its two jaws slide towards each other along a straight line, so that their faces stay parallel. This is good for boxes, cylinders, and flat parts. Another type is the <strong>angular gripper</strong>, where the fingers swing like a pair of pliers. Angular grippers suit round or irregular parts.</p>
+
+  <h3>How the jaws are moved: actuation</h3>
+  <p>A gripper needs a motor or actuator to close its jaws. The three common choices are:</p>
+  <ul>
+    <li><strong>Pneumatic</strong>: compressed air pushes a piston. This is cheap, fast, and simple. It is the most common choice for pick-and-place work.</li>
+    <li><strong>Electric</strong>: a motor drives a screw or a belt. This gives precise control of the jaw position and the grip force.</li>
+    <li><strong>Hydraulic</strong>: oil under high pressure drives the jaws. This gives very large force, but it is messy and expensive for small work.</li>
+  </ul>
+
+  <p>For pneumatic grippers, the force comes from a simple rule. Pressure is force spread over an area. If you know the pressure and the area of the piston, the force is:</p>
+
+  <div class="formula">F = p × A</div>
+
+  <p>Here <em>F</em> is the force in newton (N), <em>p</em> is the air pressure in pascal (Pa), and <em>A</em> is the area of the piston face in square metres (m²). One bar of pressure equals 100 000 Pa. The area of a round piston of diameter <em>d</em> is:</p>
+
+  <div class="formula">A = π × d² / 4</div>
+
+  <p>Let us use these two rules on an example with small whole numbers. A pneumatic gripper has a piston of diameter 40 mm, and the air pressure is 6 bar.</p>
+
+  <ol>
+    <li><strong>Convert the units first.</strong> The diameter is 40 mm, which is 0.040 m. The pressure is 6 bar, which is 6 × 100 000 = 600 000 Pa.</li>
+    <li><strong>Find the area.</strong> A = π × 0.040² / 4 = π × 0.0016 / 4 = 0.0012566 m² (about).</li>
+    <li><strong>Find the force.</strong> F = 600 000 × 0.0012566 = 754 N (about).</li>
+  </ol>
+
+  <p>So the piston pushes with about 754 N. The jaws then transfer this force to the part. In a real gripper some force is lost to springs and friction in the seals, so the useful grip force is a little less. For GATE questions, we normally ignore these losses unless the question tells us otherwise.</p>
+
+  <pre class="code" data-lang="python"><code>import math
+pressure_bar = 6
+pressure_pa = pressure_bar * 100000
+diameter_m = 0.040
+area = math.pi * diameter_m**2 / 4
+force = pressure_pa * area
+print("Piston area (m^2):", round(area, 6))
+print("Force (N):", round(force, 1))</code></pre>
+<pre class="output">Piston area (m^2): 0.001257
+Force (N): 754.0</pre>
+
+  <h3>Grip force and friction</h3>
+  <p>Now the important question: how hard must the fingers squeeze? Squeezing is not the same as holding. The part is held by <strong>friction</strong>. Friction is the force that resists sliding between two touching surfaces. It is strongest when the surfaces are rough and when they are pressed together hard.</p>
+
+  <p>The friction force that one finger can give is:</p>
+
+  <div class="formula">F<sub>friction</sub> = μ × N</div>
+
+  <p>Here <em>μ</em> (the Greek letter mu) is the friction coefficient, and <em>N</em> is the normal force, the squeeze that the finger pushes into the part. A rubber pad may have μ = 0.8, while a smooth steel finger on a greasy part may have μ = 0.1.</p>
+
+  <p>The part is held safely when the total friction from all contacts is bigger than the weight of the part. We also multiply the weight by a safety factor <em>S</em>. The rule is:</p>
+
+  <div class="formula">n × μ × N ≥ S × m × g</div>
+
+  <p>Here <em>n</em> is the number of contact points, <em>m</em> is the mass of the part in kg, and <em>g</em> = 9.81 m/s² is the gravity constant. The left side is the total friction support. The right side is the load the grip must carry, with a margin.</p>
+
+  <p>Worked example. A 2 kg part is gripped by two fingers. The friction coefficient is μ = 0.3, and we want a safety factor S = 2. Let us find the normal force needed from each finger.</p>
+
+  <ol>
+    <li><strong>Write the rule.</strong> n × μ × N ≥ S × m × g.</li>
+    <li><strong>Find the weight.</strong> m × g = 2 × 9.81 = 19.62 N.</li>
+    <li><strong>Add the safety factor.</strong> S × m × g = 2 × 19.62 = 39.24 N.</li>
+    <li><strong>Solve for N.</strong> N ≥ 39.24 / (n × μ) = 39.24 / (2 × 0.3) = 39.24 / 0.6 = 65.4 N.</li>
+    <li><strong>Check.</strong> Each finger then gives friction 0.3 × 65.4 = 19.62 N. Two fingers give 39.24 N, which is twice the weight. The safety factor is met.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>m = 2.0
+g = 9.81
+mu = 0.3
+safety = 2
+contacts = 2
+weight = m * g
+normal_needed = safety * weight / (contacts * mu)
+print("Weight (N):", round(weight, 2))
+print("Normal force per finger (N):", round(normal_needed, 1))</code></pre>
+<pre class="output">Weight (N): 19.62
+Normal force per finger (N): 65.4</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often forget the number of contact points. With only one finger touching, the same part needs twice the squeeze. Always count the contacts before you divide.</p></div>
+
+  <h3>Form closure: holding by shape</h3>
+  <p>Sometimes the fingers do not rely on friction at all. A pair of V-shaped jaws holds a round shaft because the shape stops it from falling out. This is called <strong>form closure</strong>. It is very reliable, but it works only for parts with a known and repeatable shape.</p>
+
+  <details class="check"><summary>Question: A part weighs 10 N. Two fingers have μ = 0.5 and safety factor 2. What normal force does each finger need?</summary><div class="ans"><p>N ≥ S × m × g / (n × μ) = 2 × 10 / (2 × 0.5) = 20 / 1 = 20 N per finger. (Here the weight is already given in newton, so we do not multiply by g again.)</p></div></details>
+
+  <details class="check"><summary>Question: Why do pneumatic grippers need the piston area in the force formula?</summary><div class="ans"><p>Air pressure pushes on every square metre of the piston face. A bigger piston has more area, so the same pressure produces a bigger total force: F = p × A.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Vacuum and magnetic end-effectors">
+  <h2>Vacuum and magnetic end-effectors</h2>
+
+  <h3>Vacuum cups: holding by air pressure</h3>
+  <p>Put a wet glass plate on a table and press it down with your palm. The glass seems to stick. The reason is air pressure. The air above the plate pushes down on it, while the air trapped under the plate pushes up very weakly. The big difference in pressure holds the plate.</p>
+
+  <p>A <strong>vacuum cup</strong> does exactly this on purpose. A pump removes air from inside the cup, so the pressure inside becomes lower than the air pressure outside. The outside air pushes the part against the cup. The useful force is the pressure difference times the area of the cup:</p>
+
+  <div class="formula">F<sub>vac</sub> = ΔP × A</div>
+
+  <p>Here <em>ΔP</em> is the pressure difference in pascal (outside pressure minus inside pressure), and <em>A</em> is the area of the cup face in m². Normal atmospheric pressure is about 101 325 Pa. If the pump lowers the pressure inside the cup so that it is 40 000 Pa below the outside air, then the pressure difference is 40 000 Pa, and that is the number we use in the formula.</p>
+
+  <p>To lift a part safely, the vacuum force must be bigger than the weight times the safety factor. For a vertical lift:</p>
+
+  <div class="formula">F<sub>vac</sub> ≥ S × m × g</div>
+
+  <p>Worked example. A vacuum cup has diameter 50 mm and a pressure difference of 40 kPa. We want to know the largest mass it can lift with a safety factor of 2.</p>
+
+  <ol>
+    <li><strong>Convert units.</strong> d = 50 mm = 0.050 m. ΔP = 40 kPa = 40 000 Pa.</li>
+    <li><strong>Find the area.</strong> A = π × 0.050² / 4 = 0.0019635 m².</li>
+    <li><strong>Find the holding force.</strong> F<sub>vac</sub> = 40 000 × 0.0019635 = 78.54 N.</li>
+    <li><strong>Share it with the safety factor.</strong> The largest weight allowed is 78.54 / 2 = 39.27 N.</li>
+    <li><strong>Turn weight into mass.</strong> m = 39.27 / 9.81 = 4.0 kg.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>import math
+delta_p = 40000
+d = 0.050
+g = 9.81
+safety = 2
+area = math.pi * d**2 / 4
+holding = delta_p * area
+max_mass = holding / (safety * g)
+print("Cup area (m^2):", round(area, 6))
+print("Holding force (N):", round(holding, 2))
+print("Max safe mass (kg):", round(max_mass, 2))</code></pre>
+<pre class="output">Cup area (m^2): 0.001963
+Holding force (N): 78.54
+Max safe mass (kg): 4.0</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>A vacuum cup works only on a flat, smooth, and airtight surface. Cardboard, wood with a rough grain, mesh, or a box with holes lets air leak in. The pressure difference then falls, and the part drops. Engineers use bigger cups, several cups, or a different end-effector in such cases.</p></div>
+
+  <h3>Magnetic end-effectors: holding by a magnetic field</h3>
+  <p>A magnet pulls on iron and steel. A <strong>magnetic gripper</strong> uses this pull to lift a steel part. It can be a permanent magnet or an electromagnet. An electromagnet is switched on by passing current through a coil and switched off by cutting the current. This allows the robot to release the part reliably.</p>
+
+  <p>The big limitation is the material. A magnetic gripper works only on <strong>ferromagnetic materials</strong>: iron, steel, nickel, and cobalt. It does not hold aluminium, brass, copper, plastic, glass, or wood. A vacuum cup can hold many of these, so the two end-effectors are often compared in GATE questions.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Magnetic grippers need a magnetic material. Vacuum cups need an airtight surface. Choose by asking "is the part magnetic?" and "is the surface smooth and sealed?"</p></div>
+
+  <details class="check"><summary>Question: Which end-effector is the better choice for an aluminium box with a smooth flat lid?</summary><div class="ans"><p>A vacuum cup. Aluminium is not ferromagnetic, so a magnetic gripper cannot hold it. A smooth flat lid lets the cup seal well.</p></div></details>
+
+  <details class="check"><summary>Question: Why does a vacuum cup with a bigger diameter hold more weight?</summary><div class="ans"><p>The holding force is F = ΔP × A. A bigger diameter gives a bigger area A, so the same pressure difference pushes on a larger face and produces more force.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Process tools and tool changers">
+  <h2>Process tools and tool changers</h2>
+
+  <h3>Process tools: the robot changes the work</h3>
+  <p>A gripper moves a part from A to B. A <strong>process tool</strong> changes the part while the robot moves the tool along a path. The common process tools are:</p>
+  <ul>
+    <li><strong>Welding torch</strong>: melts and joins two metal pieces along a seam.</li>
+    <li><strong>Spray gun</strong>: sprays paint or sealant onto a car body.</li>
+    <li><strong>Screwdriver</strong>: drives screws with a set torque.</li>
+    <li><strong>Deburring tool</strong>: removes sharp edges from a machined part.</li>
+    <li><strong>Dispensing nozzle</strong>: places glue or adhesive in a controlled bead.</li>
+  </ul>
+
+  <h3>Tool changers: one robot, many tools</h3>
+  <p>Suppose a robot must first pick a part, then weld it, then screw it to another part. Three different end-effectors are needed. The simplest way is to build three robots, but that is expensive. A better way is a <strong>tool changer</strong>. The robot docks at a tool stand, releases one end-effector, picks up the next one, and carries on.</p>
+
+  <p>A tool changer has two halves. The <strong>master plate</strong> stays on the robot flange. The <strong>tool plate</strong> stays on the end-effector. When they lock together, air, electrical power, and signals pass through the joint. When the lock opens, the connections break cleanly. This is what "interchangeable tooling" means: a standard interface lets many tools fit the same robot.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>In a diagram or a question, think of a tool changer as a quick-release coupling with electrical and air lines built in. It lets one arm do many jobs without human hands changing the tools.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Tool changers save time and increase flexibility. They are not a way to increase payload. The total mass of the tool and the part still counts against the robot's payload limit.</p></div>
+
+  <details class="check"><summary>Question: What is the main benefit of a tool changer?</summary><div class="ans"><p>It lets one robot use several different end-effectors, such as a gripper, a welding torch, and a screwdriver, by swapping them automatically in a short time.</p></div></details>
+
+  <details class="check"><summary>Question: Name two things that pass through a tool changer joint.</summary><div class="ans"><p>Compressed air and electrical power or signals (and sometimes gas or coolant, depending on the tool).</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Choosing the right end-effector">
+  <h2>Choosing the right end-effector</h2>
+
+  <p>Choosing an end-effector is like choosing a tool from a toolbox. You ask questions about the part, the job, and the factory. The answers point to one or two good choices. Here is a simple list of the questions engineers ask.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Question about the part or job</th><th>Why it matters</th><th>Typical choice</th></tr></thead>
+    <tbody>
+      <tr><td>Is the part made of steel or iron?</td><td>A magnet can hold it.</td><td>Magnetic gripper</td></tr>
+      <tr><td>Is the surface smooth, flat, and sealed?</td><td>Air must not leak in.</td><td>Vacuum cup</td></tr>
+      <tr><td>Is the surface porous, like cardboard or mesh?</td><td>Air leaks through it.</td><td>Mechanical gripper with pads, or a larger cup array</td></tr>
+      <tr><td>Can the part be crushed or scratched?</td><td>Grip force must stay low.</td><td>Soft pads, or a form-closure fixture</td></tr>
+      <tr><td>Is the part round, a shaft, or irregular?</td><td>Shape helps the grip.</td><td>V-jaw or angular gripper</td></tr>
+      <tr><td>Is the part hot?</td><td>Heat can damage pads and cups.</td><td>Heat-resistant gripper, or a special tool</td></tr>
+      <tr><td>Must the robot do a process such as welding?</td><td>The tool must change the work.</td><td>Process tool (torch, gun, screwdriver)</td></tr>
+      <tr><td>Many different parts on one line?</td><td>One tool may not fit all.</td><td>Tool changer with several tools</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>A worked choice</h3>
+  <p>Three parts come down a line: a steel bolt, a cardboard box, and a glass bottle. Which end-effector suits each one?</p>
+  <ol>
+    <li><strong>Steel bolt.</strong> Steel is ferromagnetic, so a magnetic gripper works. A mechanical gripper with two jaws also works. Choose the magnet if the bolt has a clean surface, because it needs no squeeze.</li>
+    <li><strong>Cardboard box.</strong> Cardboard is porous, so vacuum leaks. A mechanical gripper with soft pads, squeezing gently on two sides, is the better choice.</li>
+    <li><strong>Glass bottle.</strong> Glass is smooth and not magnetic. A vacuum cup on the flat base or shoulder works well. A narrow neck is a poor place for a jaw, because the jaw could chip it.</li>
+  </ol>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not choose by one feature only. A bolt can be magnetic, but if it is covered with oil, a magnet may still work while a vacuum cup fails. Always check two or three questions before you decide.</p></div>
+
+  <p>Engineers also weigh cost and reliability. Pneumatic grippers are cheap and fast, but give limited control of force. Electric grippers cost more and give precise force and position.</p>
+
+  <details class="check"><summary>Question: A robot must pick a thin, porous mesh sheet. Vacuum fails. What would you try next?</summary><div class="ans"><p>A mechanical gripper with soft pads that squeezes gently, or a gripper that holds the mesh by its edges. A magnetic gripper would work only if the mesh were ferromagnetic.</p></div></details>
+
+  <details class="check"><summary>Question: Why is a 1.5 or 2 safety factor used in grip design?</summary><div class="ans"><p>Real parts vary in mass, surface, and friction, and the robot can jerk during motion. The safety factor gives a margin so the part does not slip when conditions are a little worse than expected.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Use this table as a quick reminder. Each row is explained in the concept sections above.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>F = p × A</td><td>F force (N), p pressure (Pa), A area (m²)</td><td>Pneumatic piston or cylinder force</td></tr>
+      <tr><td>A = π × d² / 4</td><td>A area (m²), d diameter (m)</td><td>Area of a round piston or cup face</td></tr>
+      <tr><td>F<sub>friction</sub> = μ × N</td><td>μ friction coefficient, N normal force (N)</td><td>Friction force from one contact</td></tr>
+      <tr><td>n × μ × N ≥ S × m × g</td><td>n contacts, S safety factor, m mass (kg), g = 9.81 m/s²</td><td>Required grip force for a friction gripper</td></tr>
+      <tr><td>F<sub>vac</sub> = ΔP × A</td><td>ΔP pressure difference (Pa), A cup area (m²)</td><td>Holding force of a vacuum cup</td></tr>
+      <tr><td>F<sub>vac</sub> ≥ S × m × g</td><td>Same symbols as above</td><td>Check a vacuum lift is safe</td></tr>
+      <tr><td>d = √(4F / (π p))</td><td>Solve the piston formula for diameter</td><td>Find the piston size for a needed force</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Convert units before any formula. Millimetres to metres, bar to pascal, and kPa to Pa are the three conversions students get wrong most often.</p></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style practice problems. They are not real past exam questions. Try each one on paper first, then read the method.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which gripper for a steel shaft?</h3>
+    <div class="statement"><p>A robot must pick a clean steel shaft from a bin. Which end-effector is the most suitable choice?</p>
+    <p>(A) Magnetic gripper &nbsp; (B) Vacuum cup on a porous surface &nbsp; (C) Welding torch &nbsp; (D) Spray gun</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The best end-effector for a steel part.</li>
+      <li><strong>Which idea applies.</strong> Steel is ferromagnetic, so a magnet can attract it.</li>
+      <li><strong>Work it out.</strong> Option (A) uses magnetism and fits steel. Option (B) is a vacuum cup, which is weak on porous surfaces. Options (C) and (D) are process tools, not pick-up tools.</li>
+      <li><strong>Check.</strong> Only (A) both fits the material and does a pick-up job.</li>
+    </ol>
+    <p class="cx">Answer: (A) Magnetic gripper.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Holding force of a small vacuum cup</h3>
+    <div class="statement"><p>A vacuum cup has a diameter of 30 mm. The pressure difference across the cup is 50 kPa. Find the holding force in newton, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The holding force F<sub>vac</sub> in N.</li>
+      <li><strong>Which idea applies.</strong> F<sub>vac</sub> = ΔP × A, with A = π × d² / 4.</li>
+      <li><strong>Work it out.</strong> d = 0.030 m, ΔP = 50 000 Pa. A = π × 0.030² / 4 = 0.00070686 m². F = 50 000 × 0.00070686 = 35.34 N.</li>
+      <li><strong>Check.</strong> The area of a 30 mm cup is (30/50)² = 0.36 times the area of a 50 mm cup. The pressure is 50/40 = 1.25 times higher. So the force is 0.36 × 1.25 = 0.45 times the 78.54 N from the earlier example, which is about 35.3 N. This matches.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+area = math.pi * 0.030**2 / 4
+force = 50000 * area
+print("Area (m^2):", round(area, 8))
+print("Force (N):", round(force, 2))</code></pre>
+<pre class="output">Area (m^2): 0.00070686
+Force (N): 35.34</pre>
+    <p class="cx">Answer: about 35.34 N.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about end-effectors (select all that apply)</h3>
+    <div class="statement"><p>Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) A vacuum cup needs a relatively smooth and airtight surface. &nbsp; (B) A magnetic gripper can pick up a brass part. &nbsp; (C) The jaws of a parallel jaw gripper stay parallel while they close. &nbsp; (D) A tool changer lets a robot swap one end-effector for another.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true. More than one may be right.</li>
+      <li><strong>Which idea applies.</strong> Vacuum needs a seal. Magnets need a ferromagnetic material. Parallel jaws move along one axis. Tool changers swap tools.</li>
+      <li><strong>Work it out.</strong> (A) True, air leaks through rough or porous surfaces. (B) False, brass is not ferromagnetic. (C) True, the faces translate and stay parallel. (D) True, that is the purpose of a tool changer.</li>
+      <li><strong>Check.</strong> Only one statement is false, and it is the one about a non-magnetic metal.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D). Statement (B) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Pneumatic grip force (numerical answer)</h3>
+    <div class="statement"><p>A pneumatic gripper has a piston of diameter 50 mm. The air pressure is 5 bar. Ignore losses. Find the force in newton, rounded to the nearest whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The force F in N, to the nearest whole number.</li>
+      <li><strong>Which idea applies.</strong> F = p × A with A = π × d² / 4.</li>
+      <li><strong>Work it out.</strong> p = 5 × 100 000 = 500 000 Pa. d = 0.050 m. A = π × 0.050² / 4 = 0.0019635 m². F = 500 000 × 0.0019635 = 981.7 N, which rounds to 982 N.</li>
+      <li><strong>Check.</strong> Compare with the worked example above. The pressure ratio is 5/6, and the area ratio is (50/40)² = 1.5625. So the force is about 754 × (5/6) × 1.5625 = 982 N. This matches.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+area = math.pi * 0.050**2 / 4
+force = 5 * 100000 * area
+print("Force (N):", round(force, 1), "so about", round(force))</code></pre>
+<pre class="output">Force (N): 981.7 so about 982</pre>
+    <p class="cx">Answer: about 982 N.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Two-finger grip for a heavier part</h3>
+    <div class="statement"><p>A 3 kg part is held by two fingers with friction coefficient μ = 0.4. The safety factor is 1.5. Find the normal force each finger must apply, in newton, to two decimal places. Use g = 9.81 m/s².</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> N for one finger.</li>
+      <li><strong>Which idea applies.</strong> n × μ × N ≥ S × m × g, so N = S × m × g / (n × μ).</li>
+      <li><strong>Work it out.</strong> S × m × g = 1.5 × 3 × 9.81 = 44.145 N. n × μ = 2 × 0.4 = 0.8. N = 44.145 / 0.8 = 55.18 N.</li>
+      <li><strong>Check.</strong> Two fingers give 2 × 0.4 × 55.18 = 44.14 N, which matches the needed 44.145 N within rounding.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>g = 9.81
+m = 3.0
+mu = 0.4
+safety = 1.5
+normal = safety * m * g / (2 * mu)
+print("Normal force per finger (N):", round(normal, 2))</code></pre>
+<pre class="output">Normal force per finger (N): 55.18</pre>
+    <p class="cx">Answer: about 55.18 N per finger.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>How many vacuum cups for a box?</h3>
+    <div class="statement"><p>A robot must lift a 12 kg box with vacuum cups. Each cup has a diameter of 40 mm and works at a pressure difference of 45 kPa. The safety factor is 2. Find the smallest whole number of cups needed. Use g = 9.81 m/s².</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of cups, a whole number.</li>
+      <li><strong>Which idea applies.</strong> Total vacuum force of all cups must be at least S × m × g. Each cup gives ΔP × A.</li>
+      <li><strong>Work it out.</strong> One cup gives 45 000 × π × 0.040² / 4 = 56.55 N. The safety factor is applied once, to the weight: 2 × 12 × 9.81 = 235.44 N must be held in total.</li>
+      <li><strong>Count the cups.</strong> 235.44 / 56.55 = 4.16. We cannot use a part of a cup, so we round up to 5.</li>
+      <li><strong>Check.</strong> Five cups give 5 × 56.55 = 282.75 N, which is more than 235.44 N. Four cups give 226.2 N, which is less, so 4 is not enough.</li>
+    </ol>
+    <p class="cx">Answer: 5 cups.</p>
+    <pre class="code" data-lang="python"><code>import math
+box_mass = 12.0
+g = 9.81
+safety = 2
+cup_d = 0.040
+dp = 45000
+cup_force = dp * math.pi * cup_d**2 / 4
+needed_total = safety * box_mass * g
+cups_exact = needed_total / cup_force
+print("Force per cup (N):", round(cup_force, 2))
+print("Total needed with safety (N):", round(needed_total, 2))
+print("Cups needed (exact):", round(cups_exact, 2))
+print("Cups to fit:", math.ceil(cups_exact))</code></pre>
+<pre class="output">Force per cup (N): 56.55
+Total needed with safety (N): 235.44
+Cups needed (exact): 4.16
+Cups to fit: 5</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Porous box or vacuum: which statements hold? (select all that apply)</h3>
+    <div class="statement"><p>A robot must pick a thin cardboard box with a porous surface. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) A vacuum cup may fail, because air leaks through the porous surface. &nbsp; (B) A magnetic gripper can lift the aluminium box. &nbsp; (C) Soft mechanical fingers can grip the box if the squeeze is kept low. &nbsp; (D) A parallel jaw gripper can hold any object wider than its maximum jaw opening.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The correct statements about end-effectors for a porous box.</li>
+      <li><strong>Which idea applies.</strong> Vacuum needs a sealed surface. Magnets need ferromagnetic material. Soft fingers rely on friction with low squeeze. A jaw gripper is limited by its opening.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, aluminium is not magnetic. (C) True, pads and low squeeze protect the card. (D) False, an object wider than the opening cannot be gripped by the jaws.</li>
+      <li><strong>Check.</strong> Two statements are true and two are false, which is a reasonable pattern for an MSQ.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Three-finger grip with friction</h3>
+    <div class="statement"><p>A 1.5 kg part is held by three fingers. Each finger has friction coefficient μ = 0.2 at the contact. The safety factor is 2. Find the minimum normal force per finger, in newton, to two decimal places. Use g = 9.81 m/s².</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The normal force N for each finger.</li>
+      <li><strong>Which idea applies.</strong> The friction from all contacts together must be at least S × m × g. With n = 3, we have 3 × μ × N ≥ S × m × g.</li>
+      <li><strong>Work it out.</strong> S × m × g = 2 × 1.5 × 9.81 = 29.43 N. n × μ = 3 × 0.2 = 0.6. N = 29.43 / 0.6 = 49.05 N.</li>
+      <li><strong>Check.</strong> Three fingers each give 0.2 × 49.05 = 9.81 N of friction, and the total is 29.43 N, equal to the required load with the safety factor.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>g = 9.81
+m = 1.5
+mu = 0.2
+safety = 2
+n_fingers = 3
+normal = safety * m * g / (n_fingers * mu)
+print("Normal force per finger (N):", round(normal, 2))</code></pre>
+<pre class="output">Normal force per finger (N): 49.05</pre>
+    <p class="cx">Answer: 49.05 N per finger.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Finding the piston diameter (numerical answer)</h3>
+    <div class="statement"><p>A pneumatic gripper must give a grip force of 300 N at an air pressure of 6 bar. Ignore losses. Find the piston diameter in millimetres, to one decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The diameter d in mm, not the force.</li>
+      <li><strong>Which idea applies.</strong> F = p × A and A = π × d² / 4. Combine them: d² = 4F / (π × p).</li>
+      <li><strong>Work it out.</strong> p = 600 000 Pa and F = 300 N. d² = 4 × 300 / (π × 600 000) = 1200 / 1 884 956 = 0.00063662 m². So d = 0.025231 m, which is 25.2 mm.</li>
+      <li><strong>Check.</strong> Put d = 0.025231 back in. A = π × 0.025231² / 4 = 0.00050 m². Then F = 600 000 × 0.0005 = 300 N, as required.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+F = 300
+p = 6 * 100000
+d = math.sqrt(4 * F / (math.pi * p))
+print("Diameter (m):", round(d, 6))
+print("Diameter (mm):", round(d * 1000, 1))</code></pre>
+<pre class="output">Diameter (m): 0.025231
+Diameter (mm): 25.2</pre>
+    <p class="cx">Answer: about 25.2 mm.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Gripper force (NAT, 2 marks)</h3>
+    <div class="statement"><p>A two finger friction gripper holds a 2 kg part vertically with μ = 0.25. Take g = 9.81 and a safety factor of 2. Find the normal force each finger must apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Finger force.</li>
+      <li><strong>Which idea applies.</strong> Total friction 2μF must support the weight times the safety factor.</li>
+      <li><strong>Work it out.</strong> 2 · 0.25 · F = 2 · 19.62, F = 78.48 N.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print("%.2f N" % (2 * 2 * 9.81 / (2 * 0.25)))
+</code></pre>
+    <pre class="output">78.48 N</pre>
+    <p class="cx">Answer: about 78.48 N.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Vacuum cup (NAT, 2 marks)</h3>
+    <div class="statement"><p>A suction cup of diameter 50 mm works at a vacuum of 60 kPa below atmosphere. Find the holding force in N, correct to 1 decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> F = ΔpA.</li>
+      <li><strong>Which idea applies.</strong> Area = πd²/4.</li>
+      <li><strong>Work it out.</strong> 60000 · 0.0019635 = 117.8 N.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("%.1f N" % (60e3 * math.pi * 0.05 ** 2 / 4))
+</code></pre>
+    <pre class="output">117.8 N</pre>
+    <p class="cx">Answer: about 117.8 N.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: End effector choice (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Vacuum grippers suit flat, smooth, non-porous parts. (B) Magnetic grippers handle only ferrous parts. (C) A welding torch is a tool type end effector. (D) A compliance device (RCC) helps peg in hole insertion.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Matching end effectors to tasks.</li>
+      <li><strong>Which idea applies.</strong> Grippers hold parts, tools do process work.</li>
+      <li><strong>Work it out.</strong> All four are true.</li>
+      <li><strong>Check.</strong> RCC devices allow small lateral and angular errors.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+
+  <dl>
+    <div><dt>End-effector</dt><dd>The tool at the end of a robot arm that does the job, such as gripping or welding.</dd></div>
+    <div><dt>Flange</dt><dd>The mounting plate at the end of the arm, where the end-effector is bolted on.</dd></div>
+    <div><dt>Tool centre point (TCP)</dt><dd>The chosen reference point on the end-effector that the program moves.</dd></div>
+    <div><dt>Gripper</dt><dd>An end-effector that holds a part by closing jaws or fingers around it.</dd></div>
+    <div><dt>Parallel jaw gripper</dt><dd>A gripper whose jaws close along a line while staying parallel.</dd></div>
+    <div><dt>Pneumatic actuator</dt><dd>A piston or cylinder driven by compressed air, with force F = p × A.</dd></div>
+    <div><dt>Friction coefficient (μ)</dt><dd>A number for how grippy two surfaces are: friction force divided by normal force.</dd></div>
+    <div><dt>Normal force</dt><dd>The squeeze pushing straight into the surface of the part.</dd></div>
+    <div><dt>Safety factor</dt><dd>A margin, often 1.5 or 2, so that the grip is never just barely enough.</dd></div>
+    <div><dt>Form closure</dt><dd>Holding a part by its shape rather than by friction.</dd></div>
+    <div><dt>Vacuum cup</dt><dd>A cup that holds a flat, sealed surface using a pressure difference.</dd></div>
+    <div><dt>Pressure difference (ΔP)</dt><dd>Outside air pressure minus the pressure inside the cup, in pascal.</dd></div>
+    <div><dt>Magnetic gripper</dt><dd>An end-effector that holds ferromagnetic materials such as iron, steel, nickel, and cobalt.</dd></div>
+    <div><dt>Ferromagnetic material</dt><dd>A material that a magnet attracts strongly, such as steel.</dd></div>
+    <div><dt>Payload</dt><dd>The maximum mass the robot can carry, which includes the end-effector and the part.</dd></div>
+    <div><dt>Process tool</dt><dd>An end-effector that changes the work, such as a welding torch or a spray gun.</dd></div>
+    <div><dt>Tool changer</dt><dd>A quick-release coupling that swaps end-effectors automatically and passes air and power through.</dd></div>
+    <div><dt>Interchangeable tooling</dt><dd>Many different tools built to one standard interface so they can be swapped on one robot.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>The arm moves the tool. The end-effector does the job.</li>
+    <li>Pneumatic force is F = p × A, and you must convert bar to Pa and mm to m first.</li>
+    <li>A friction grip needs n × μ × N ≥ S × m × g, where n is the number of contacts.</li>
+    <li>A vacuum cup holds with F = ΔP × A, but only on a flat, sealed, airtight surface.</li>
+    <li>A magnetic gripper works only on ferromagnetic materials such as steel.</li>
+    <li>Choose an end-effector by asking about the material, the surface, the shape, and the process.</li>
+    <li>A tool changer lets one robot use many tools, and it does not add payload.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 153?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 153 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-152.html"><small>Previous, topic 152</small>Forward kinematics</a><a class="next" href="gate-154.html"><small>Next, topic 154</small>Robot accuracy and repeatability</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

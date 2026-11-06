@@ -1,0 +1,377 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 149: Coordinate systems and degrees of freedom</title><meta name="description" content="To describe where a robot is, we need coordinate frames and a count of the independent motions, called degrees of freedom. This topic explains both ideas and shows how to count the degrees of freedom of a mechanism with Grubler&#x27;s equation. GATE Robotics questions often ask you to count DOF for a given linkage or robot."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g149" data-key="g149" data-noun="topic" data-num="149" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Coordinate systems and degrees of freedom</h1>
+<p class="lede">To describe where a robot is, we need coordinate frames and a count of the independent motions, called degrees of freedom. This topic explains both ideas and shows how to count the degrees of freedom of a mechanism with Grubler&#x27;s equation. GATE Robotics questions often ask you to count DOF for a given linkage or robot.</p>
+<div class="station"><b>149</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Coordinate frames in robotics</li><li>What a degree of freedom is</li><li>Degrees of freedom of joints and bodies</li><li>Grubler&#x27;s equation for planar mechanisms</li><li>Spatial mechanisms and redundancy</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you tell a friend where a cup is on a table. You might say "20 cm to the right of the lamp and 10 cm in front". You have used a reference point, a direction and two numbers. In robotics, the reference is called a <strong>coordinate frame</strong>. Every position and orientation of a robot part is measured from some frame.</p>
+  <p>Next, suppose a robot part is free to move. How many numbers do you need to describe its exact position and orientation? That number is its <strong>degrees of freedom</strong>, or DOF. A free block on a flat table needs three numbers: two for position and one for its turning angle. In space it needs six.</p>
+  <p><strong>Everyday analogy.</strong> A bead on a wire has one DOF, since you only need one number to say where it is. A ball rolling on a table in a room has more, because it can move left and right, forward and back, and also spin.</p>
+  <p><strong>Why it matters.</strong> A robot controller must know the position of every joint and the pose of the tool. A designer must also know whether a mechanism has too few DOF to do its job, or too many, which makes it hard to control. Counting DOF is the first check of any design.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper, you may be asked to count the DOF of a linkage or robot with Grubler's equation, or to say how many coordinates a body needs. These are direct calculations with clear rules.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Coordinate frame</dt><dd>A reference system with an origin point and three perpendicular axes, used to measure positions and orientations.</dd></div>
+    <div><dt>World frame (base frame)</dt><dd>The fixed frame of the whole robot, usually attached to the floor or to the robot base.</dd></div>
+    <div><dt>Joint frame</dt><dd>A frame attached to each link, which moves with that link.</dd></div>
+    <div><dt>End-effector frame</dt><dd>The frame attached to the tool, which tells us where the tool is and which way it points.</dd></div>
+    <div><dt>Pose</dt><dd>The position and orientation of a body, taken together.</dd></div>
+    <div><dt>Degree of freedom (DOF)</dt><dd>The number of independent parameters needed to specify the configuration of a body or mechanism.</dd></div>
+    <div><dt>Constraint</dt><dd>A restriction on motion. A joint removes some DOF, and the number removed is its number of constraints.</dd></div>
+    <div><dt>Link</dt><dd>A rigid body in a mechanism. Ground (the fixed frame) also counts as a link.</dd></div>
+    <div><dt>Joint or kinematic pair</dt><dd>A connection between two links. A lower pair has surface contact (revolute or prismatic) and a higher pair has point or line contact.</dd></div>
+    <div><dt>Grubler's equation (Kutzbach-Grubler)</dt><dd>A formula that counts the DOF of a mechanism from its number of links and joints.</dd></div>
+    <div><dt>Redundancy</dt><dd>Having more DOF than the task needs. A redundant arm can reach a pose in many ways.</dd></div>
+    <div><dt>Mechanism</dt><dd>A set of rigid links connected by joints, with motion relative to a fixed link.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Coordinate frames in robotics">
+  <h2>Coordinate frames in robotics</h2>
+  <h3>A frame is a ruler and a compass</h3>
+  <p>A coordinate frame gives you a starting point and three directions. It has an origin, and three axes x, y and z that are at right angles to each other. Any point in space is then given by three numbers (x, y, z), which tell how far to go along each axis from the origin.</p>
+  <p>In a robot, many frames appear. The <strong>world frame</strong> is fixed to the base. Each link also has a frame that moves with it. The <strong>end-effector frame</strong> sits at the tool, and it tells us both the position and the orientation of the gripper.</p>
+
+  <pre class="code" data-lang="text"><code>                 z (up)
+                 |
+                 |    y
+                 |   /
+                 |  /
+                 | /
+   origin O -----+-------------- x (to the right)
+
+   World frame: fixed at the base, axes x, y, z.
+   Link frame: attached to link 1, moves when link 1 moves.
+   End-effector frame: attached to the tool, shows where it points.</code></pre>
+
+  <h3>Position and orientation</h3>
+  <p>A position is three numbers: the coordinates of the origin of a frame. An orientation is also described by three numbers, such as three rotation angles. Together they give the pose. In planar robots, we use two numbers for position (x, y) and one angle θ for orientation.</p>
+  <p><strong>Worked example.</strong> A tool frame is at (0.4, 0.2) m from the world origin and turned by 90° about z. Its pose is written as position (0.4, 0.2) and angle 90°. This is a full description of where the tool is and which way it points, in the plane.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Frames are reference systems. Positions and orientations only mean something when you say which frame they are measured in.</p></div>
+
+  <details class="check"><summary>What is the difference between a position and a pose?</summary><div class="ans"><p>A position tells where a point is, using coordinates. A pose tells both the position and the orientation of a body, so it needs more numbers.</p></div></details>
+  <details class="check"><summary>Why does a robot need a frame on each link?</summary><div class="ans"><p>Each link moves, so its frame moves with it. Attaching frames to links lets us describe how each part is placed relative to the one before it.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="What a degree of freedom is">
+  <h2>What a degree of freedom is</h2>
+  <h3>Counting independent numbers</h3>
+  <p>The DOF of a body is the number of independent numbers needed to fix its position and orientation. "Independent" is the key word. If you know two numbers and the third is forced by the first two, the third is not an extra DOF.</p>
+  <p><strong>Free rigid body in the plane.</strong> A flat body can slide in two directions and turn about one axis perpendicular to the plane. So it needs x, y and θ, which gives 3 DOF.</p>
+  <p><strong>Free rigid body in space.</strong> A body in space can move in three directions (x, y, z) and turn in three ways (roll, pitch and yaw). So it needs six numbers, which gives 6 DOF.</p>
+  <div class="formula">Free body: 3 DOF in the plane, 6 DOF in space</div>
+
+  <h3>Joints remove DOF</h3>
+  <p>Each joint restricts the motion between two links. A revolute joint allows one rotation, so it removes five of the six spatial motions. A prismatic joint allows one slide, and also removes five. Counting the constraints is therefore easy: a joint with f DOF removes 6 − f constraints in space.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Joint</th><th>DOF allowed in space</th><th>Constraints removed in space</th></tr></thead>
+    <tbody>
+      <tr><td>Revolute (R)</td><td>1</td><td>5</td></tr>
+      <tr><td>Prismatic (P)</td><td>1</td><td>5</td></tr>
+      <tr><td>Cylindrical (C)</td><td>2</td><td>4</td></tr>
+      <tr><td>Spherical (S)</td><td>3</td><td>3</td></tr>
+      <tr><td>Planar (joint sliding on a plane)</td><td>3</td><td>3</td></tr>
+    </tbody>
+  </table></div>
+
+  <pre class="code" data-lang="text"><code>  Revolute joint: one hinge
+
+       link A ====o==== link B
+                  ^
+                  allows one turn about this axis only
+
+  Spherical joint: a ball and socket
+
+       link A ====(o)==== link B
+                   allows three turns about the centre</code></pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>A spherical joint in space has 3 DOF, not 2. A ball can turn about any of three axes. A hinge has only one turn. Students often count a ball joint as two.</p></div>
+
+  <details class="check"><summary>How many DOF does a rigid body in a plane have?</summary><div class="ans"><p>Three: two translations (x and y) and one rotation about the axis perpendicular to the plane.</p></div></details>
+  <details class="check"><summary>How many constraints does a revolute joint remove in space?</summary><div class="ans"><p>Five. It allows one DOF out of six, so it removes 6 − 1 = 5.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Grubler's equation for planar mechanisms">
+  <h2>Grubler's equation for planar mechanisms</h2>
+  <h3>Counting a whole mechanism</h3>
+  <p>Counting one body is easy, but a mechanism has many links and joints. Grubler's equation gives the DOF of a planar mechanism directly from its counts. Let N be the number of links, including the fixed ground link, J<sub>1</sub> the number of one-DOF joints (lower pairs, such as revolute and prismatic), and J<sub>2</sub> the number of higher pairs with point or line contact, such as a rolling wheel.</p>
+  <div class="formula">M = 3(N − 1) − 2 J<sub>1</sub> − J<sub>2</sub></div>
+  <p>Here M is the mobility, which is the DOF of the mechanism. The factor 3(N − 1) counts the three DOF of each moving link, since the ground link does not move. The term −2J<sub>1</sub> removes two constraints for each one-DOF joint, and −J<sub>2</sub> removes one constraint for each higher pair.</p>
+
+  <h3>Example 1: the four-bar linkage</h3>
+  <p>A four-bar linkage has four links, including the ground, and four revolute joints. So N = 4, J<sub>1</sub> = 4, J<sub>2</sub> = 0.</p>
+  <ol>
+    <li>Moving links: N − 1 = 3, which gives 3 × 3 = 9 DOF before joints.</li>
+    <li>Joint constraints: 2 × 4 = 8.</li>
+    <li>M = 9 − 8 = 1. The linkage has one DOF, so one input angle controls the whole motion.</li>
+  </ol>
+
+  <h3>Example 2: a planar two-link arm fixed at its base</h3>
+  <p>The arm has two revolute joints, and its base link is the ground. Count the links: ground, link 1, link 2, so N = 3. There are two joints, so J<sub>1</sub> = 2.</p>
+  <p>M = 3(3 − 1) − 2 × 2 = 6 − 4 = 2. The tool has two DOF, one for each joint angle.</p>
+
+  <pre class="code" data-lang="python"><code>def planar_dof(N, J1, J2=0):
+    # Grubler's equation for planar mechanisms: M = 3(N-1) - 2*J1 - J2
+    return 3 * (N - 1) - 2 * J1 - J2
+
+print("four-bar linkage:", planar_dof(4, 4))
+print("slider-crank (3 revolute + 1 prismatic):", planar_dof(4, 4))
+print("two-link arm on ground:", planar_dof(3, 2))
+print("three-link arm on ground:", planar_dof(4, 3))</code></pre>
+  <pre class="output">four-bar linkage: 1
+slider-crank (3 revolute + 1 prismatic): 1
+two-link arm on ground: 2
+three-link arm on ground: 3</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>Count N with the ground link included. Forgetting the ground link is the most common mistake in Grubler counting.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Grubler's equation gives the mobility, not a guarantee. Some special geometries give a different real DOF from the formula. The spatial Bennett linkage is a classic case: the formula gives a negative count, but the real mechanism moves with one DOF. For GATE questions, use the formula unless the problem says otherwise.</p></div>
+
+  <details class="check"><summary>What is N for a slider-crank mechanism with ground, crank, connecting rod and slider?</summary><div class="ans"><p>N = 4, because the four bodies are the ground, the crank, the connecting rod and the slider.</p></div></details>
+  <details class="check"><summary>Why does a rolling higher pair count as J<sub>2</sub> and not J<sub>1</sub>?</summary><div class="ans"><p>A rolling contact has point or line contact rather than surface contact, and it removes only one constraint instead of two. So it is counted in the J<sub>2</sub> term.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Spatial mechanisms and redundancy">
+  <h2>Spatial mechanisms and redundancy</h2>
+  <h3>The spatial version of the formula</h3>
+  <p>In space each moving link has six DOF, and each joint removes a number of constraints equal to 6 − f, where f is its DOF. Grubler's equation for spatial mechanisms is</p>
+  <div class="formula">M = 6(N − 1) − 5 J<sub>1</sub> − 4 J<sub>2</sub> − 3 J<sub>3</sub> − 2 J<sub>4</sub> − J<sub>5</sub></div>
+  <p>Here J<sub>k</sub> is the number of joints with k DOF. A revolute or prismatic joint has k = 1 and is in J<sub>1</sub>. A cylindrical joint (k = 2) is in J<sub>2</sub>. A spherical joint (k = 3) is in J<sub>3</sub>.</p>
+
+  <h3>Example: a 6R serial arm</h3>
+  <p>A six-revolute serial arm has seven links, including ground, and six joints. So N = 7 and J<sub>1</sub> = 6.</p>
+  <ol>
+    <li>Moving links: 6 × 6 = 36 DOF.</li>
+    <li>Joint constraints: 5 × 6 = 30.</li>
+    <li>M = 36 − 30 = 6. The tool can reach any pose in space, which is why six-joint industrial arms are common.</li>
+  </ol>
+
+  <h3>Example with a spherical joint</h3>
+  <p>Consider a spatial mechanism with N = 5 links, four revolute joints and one spherical joint. Then J<sub>1</sub> = 4 and J<sub>3</sub> = 1.</p>
+  <p>M = 6(5 − 1) − 5 × 4 − 3 × 1 = 24 − 20 − 3 = 1. The mechanism has one DOF.</p>
+  <pre class="code" data-lang="python"><code>def spatial_dof(N, J1=0, J2=0, J3=0, J4=0, J5=0):
+    # Grubler's equation for spatial mechanisms
+    return 6 * (N - 1) - 5 * J1 - 4 * J2 - 3 * J3 - 2 * J4 - J5
+
+print("spatial 6R serial arm:", spatial_dof(7, J1=6))
+print("N=5, four revolute and one spherical:", spatial_dof(5, J1=4, J3=1))</code></pre>
+  <pre class="output">spatial 6R serial arm: 6
+N=5, four revolute and one spherical: 1</pre>
+
+  <h3>Redundancy</h3>
+  <p>A task often needs fewer DOF than the robot has. For example, to place a tool at a point and a given direction, a robot needs at least six DOF in space, but a point alone needs three. A seven-DOF arm therefore has one extra DOF, which is called redundancy. Redundancy lets the arm avoid obstacles or keep joints away from their limits, while the tool stays fixed.</p>
+  <p>The planar case works the same way. A planar arm with four revolute joints has 4 DOF, but a tool position and orientation in the plane needs only 3. The extra DOF is redundancy.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Redundancy is not a fault. It is extra flexibility. Compare the number of DOF of the robot with the number of DOF the task needs, and the difference is the redundancy.</p></div>
+
+  <details class="check"><summary>What is the spatial DOF of a serial arm with six revolute joints?</summary><div class="ans"><p>Six. With N = 7 and J<sub>1</sub> = 6, the formula gives 6 × 6 − 5 × 6 = 6.</p></div></details>
+  <details class="check"><summary>A planar arm has four revolute joints. Does the tool orientation need all four DOF?</summary><div class="ans"><p>No. A planar pose has 3 DOF (x, y and angle), so the arm has one extra DOF, which is redundancy.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>M = 3(N − 1) − 2J<sub>1</sub> − J<sub>2</sub></td><td>N links including ground, J<sub>1</sub> one-DOF joints, J<sub>2</sub> higher pairs</td><td>Planar mechanism DOF</td></tr>
+      <tr><td>M = 6(N − 1) − 5J<sub>1</sub> − 4J<sub>2</sub> − 3J<sub>3</sub> − 2J<sub>4</sub> − J<sub>5</sub></td><td>J<sub>k</sub> joints with k DOF</td><td>Spatial mechanism DOF</td></tr>
+      <tr><td>Free body: 3 (plane), 6 (space)</td><td>independent coordinates</td><td>Counting an unconstrained body</td></tr>
+      <tr><td>Constraints = 6 − f (space)</td><td>f DOF of the joint</td><td>Counting joint restrictions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE multiple select and numerical questions. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>DOF of a free body in space</h3>
+    <div class="statement"><p>A rigid body moves freely in three-dimensional space with no joints. How many degrees of freedom does it have? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The DOF of an unconstrained rigid body in space.</li>
+      <li><strong>Which idea applies.</strong> A free body in space needs three translations and three rotations.</li>
+      <li><strong>Work it out.</strong> 3 + 3 = 6.</li>
+      <li><strong>Check.</strong> In the plane the same body has 3 DOF, and space adds one more translation and two more rotations.</li>
+    </ol>
+    <p class="cx">Answer: 6.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which statements about DOF are true</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) DOF is the number of independent parameters that specify a configuration.<br>(B) A revolute joint has one DOF.<br>(C) A spherical joint in space has two DOF.<br>(D) A rigid body in a plane has three DOF.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about DOF are correct.</li>
+      <li><strong>Which idea applies.</strong> DOF counts independent parameters. A revolute joint allows one turn. A spherical joint allows three turns.</li>
+      <li><strong>Work it out.</strong> (A) is true by definition. (B) is true. (C) is false, since a ball joint turns in three independent ways, so it has three DOF. (D) is true: two translations and one rotation.</li>
+      <li><strong>Check.</strong> Imagine a ball in a socket: it can turn about x, y and z, so there are three independent turns.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>DOF of a slider-crank mechanism</h3>
+    <div class="statement"><p>A planar slider-crank mechanism has four links, including the ground, and four joints: three revolute and one prismatic. Use Grubler's equation to find its DOF. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The DOF of a planar slider-crank.</li>
+      <li><strong>Which idea applies.</strong> M = 3(N − 1) − 2J<sub>1</sub> − J<sub>2</sub>, with N = 4 and J<sub>1</sub> = 4.</li>
+      <li><strong>Work it out.</strong> 3(4 − 1) = 9, and 2 × 4 = 8. So M = 9 − 8 − 0 = 1.</li>
+      <li><strong>Check.</strong> A slider-crank is driven by one input, the crank angle, which is what one DOF means.</li>
+    </ol>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>DOF of a planar mechanism with a rolling contact</h3>
+    <div class="statement"><p>A planar mechanism has six links, including the ground. It has six revolute joints and one higher pair with rolling contact. Use Grubler's equation to find its DOF. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The DOF with one higher pair.</li>
+      <li><strong>Which idea applies.</strong> N = 6, J<sub>1</sub> = 6, J<sub>2</sub> = 1.</li>
+      <li><strong>Work it out.</strong> 3(6 − 1) = 15. Then 2 × 6 = 12, and 1 for the higher pair. So M = 15 − 12 − 1 = 2.</li>
+      <li><strong>Check.</strong> Without the higher pair, the mechanism would have 3 DOF, and the rolling contact removes one more, leaving 2.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about planar Grubler counting</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) Each revolute joint in a planar mechanism removes two constraints.<br>(B) The planar formula counts three DOF for each moving link.<br>(C) The spatial formula counts six DOF for each moving link.<br>(D) The Grubler count always gives the exact DOF of every mechanism.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the counting rules are correct.</li>
+      <li><strong>Which idea applies.</strong> In the plane, a moving link has 3 DOF and a one-DOF joint removes 2 constraints. In space, a moving link has 6 DOF.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is true. (D) is false, since special geometries can give a different real DOF from the formula.</li>
+      <li><strong>Check.</strong> A useful test is that the formula is a count, not a proof. Special shapes can break it.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>DOF of a spatial mechanism with a spherical joint</h3>
+    <div class="statement"><p>A spatial mechanism has five links, including the ground. It has four revolute joints and one spherical joint. Use the spatial form of Grubler's equation to find its DOF. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The spatial DOF with a spherical joint.</li>
+      <li><strong>Which idea applies.</strong> M = 6(N − 1) − 5J<sub>1</sub> − 3J<sub>3</sub>, since a revolute is in J<sub>1</sub> and a spherical joint (3 DOF) is in J<sub>3</sub>.</li>
+      <li><strong>Work it out.</strong> 6(5 − 1) = 24. Then 5 × 4 = 20 for the revolute joints, and 3 × 1 = 3 for the spherical joint. So M = 24 − 20 − 3 = 1.</li>
+      <li><strong>Check.</strong> The spherical joint removes three constraints, not five, because it allows three turns. That is why it appears with coefficient 3.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def spatial_dof(N, J1=0, J2=0, J3=0, J4=0, J5=0):
+    return 6 * (N - 1) - 5 * J1 - 4 * J2 - 3 * J3 - 2 * J4 - J5
+
+print("DOF =", spatial_dof(5, J1=4, J3=1))</code></pre>
+    <pre class="output">DOF = 1</pre>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about DOF, redundancy and frames</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) A seven-DOF serial arm has one redundant DOF for a six-DOF task in space.<br>(B) A rigid body in a plane needs three coordinates.<br>(C) Grubler's formula can give a count that is different from the real DOF for special geometries.<br>(D) A planar four-bar linkage has 3 DOF.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about DOF and redundancy are true.</li>
+      <li><strong>Which idea applies.</strong> Redundancy is the difference between robot DOF and task DOF. A planar body needs x, y and θ. Grubler gives a count that can fail for special geometries.</li>
+      <li><strong>Work it out.</strong> (A) is true, since 7 − 6 = 1. (B) is true. (C) is true, since special geometries can break the count. (D) is false: a four-bar linkage has 1 DOF, as counted earlier.</li>
+      <li><strong>Check.</strong> The four-bar result of 1 DOF is the familiar one, since one input angle drives the whole linkage.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Spherical to Cartesian (NAT, 2 marks)</h3>
+    <div class="statement"><p>A point has spherical coordinates r = 2, polar angle θ = 60° from z, azimuth φ = 45°. Find its z coordinate and its x coordinate, correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two Cartesian coordinates.</li>
+      <li><strong>Which idea applies.</strong> x = r sin θ cos φ, z = r cos θ.</li>
+      <li><strong>Work it out.</strong> z = 1. x = 2 · 0.866 · 0.7071 = 1.225.</li>
+      <li><strong>Check.</strong> The code computes them.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+r, t, p = 2, math.radians(60), math.radians(45)
+print("x = %.3f, z = %.3f" % (r * math.sin(t) * math.cos(p), r * math.cos(t)))
+</code></pre>
+    <pre class="output">x = 1.225, z = 1.000</pre>
+    <p class="cx">Answer: z = 1 and x ≈ 1.225.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: DOF of a free body (NAT, 1 mark)</h3>
+    <div class="statement"><p>How many DOF does a rigid body moving freely in a plane have, and in space?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two counts.</li>
+      <li><strong>Which idea applies.</strong> Translations plus rotations.</li>
+      <li><strong>Work it out.</strong> Plane: 3. Space: 6.</li>
+      <li><strong>Check.</strong> A point in space has only 3.</li>
+    </ol>
+    <p class="cx">Answer: 3 and 6.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Redundancy (NAT, 2 marks)</h3>
+    <div class="statement"><p>A planar arm has 5 revolute joints and the task is to place the end effector at a point with a given orientation in the plane. What is its degree of redundancy?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Joint DOF minus task DOF.</li>
+      <li><strong>Which idea applies.</strong> Planar position and orientation need 3 DOF.</li>
+      <li><strong>Work it out.</strong> 5 − 3 = 2.</li>
+      <li><strong>Check.</strong> Redundancy can avoid obstacles while keeping the task.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Coordinate frame</dt><dd>A reference with an origin and three perpendicular axes.</dd></div>
+    <div><dt>World frame</dt><dd>The fixed frame of the robot, attached to the base.</dd></div>
+    <div><dt>Joint and end-effector frames</dt><dd>Frames that move with the links and with the tool.</dd></div>
+    <div><dt>Pose</dt><dd>Position and orientation together.</dd></div>
+    <div><dt>Degree of freedom</dt><dd>The number of independent parameters that specify a configuration.</dd></div>
+    <div><dt>Free body DOF</dt><dd>3 in the plane (x, y, θ), 6 in space.</dd></div>
+    <div><dt>Revolute and prismatic joints</dt><dd>One DOF each, and five constraints in space.</dd></div>
+    <div><dt>Spherical joint</dt><dd>Three DOF in space, three constraints.</dd></div>
+    <div><dt>Grubler (planar)</dt><dd>M = 3(N − 1) − 2J<sub>1</sub> − J<sub>2</sub>.</dd></div>
+    <div><dt>Grubler (spatial)</dt><dd>M = 6(N − 1) − 5J<sub>1</sub> − 4J<sub>2</sub> − 3J<sub>3</sub> − 2J<sub>4</sub> − J<sub>5</sub>.</dd></div>
+    <div><dt>N in the formula</dt><dd>The number of links, including the fixed ground link.</dd></div>
+    <div><dt>Higher pair</dt><dd>A contact with point or line contact, such as rolling, counted in J<sub>2</sub>.</dd></div>
+    <div><dt>Redundancy</dt><dd>Robot DOF greater than the DOF the task needs.</dd></div>
+    <div><dt>Four-bar linkage</dt><dd>Planar, with N = 4 and J<sub>1</sub> = 4, so 1 DOF.</dd></div>
+    <div><dt>Six-revolute serial arm</dt><dd>Spatial, with N = 7 and J<sub>1</sub> = 6, so 6 DOF.</dd></div>
+    <div><dt>Limit of the formula</dt><dd>Special geometries can give a different real DOF.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A rigid body needs 3 coordinates in a plane and 6 in space.</li>
+    <li>A revolute or prismatic joint has one DOF, and removes 2 constraints in the plane or 5 in space.</li>
+    <li>Count N with the ground link included.</li>
+    <li>Planar Grubler: M = 3(N − 1) − 2J<sub>1</sub> − J<sub>2</sub>.</li>
+    <li>Spatial Grubler uses 6 for each moving link and 5 for each one-DOF joint.</li>
+    <li>A spherical joint in space has 3 DOF and removes 3 constraints.</li>
+    <li>Redundancy means extra DOF beyond what the task needs.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 149?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 149 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-148.html"><small>Previous, topic 148</small>Geometrical configuration, links &amp; joints</a><a class="next" href="gate-150.html"><small>Next, topic 150</small>Rotation matrices in 2D and 3D</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

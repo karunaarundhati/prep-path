@@ -1,0 +1,394 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 140: Stepper motors</title><meta name="description" content="A stepper motor turns in fixed angular steps, one step for each electrical pulse. It can place a shaft accurately without a sensor, which is why it is common in printers, 3D printers and small robot joints. GATE asks about its types, step angle and speed."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g140" data-key="g140" data-noun="topic" data-num="140" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Stepper motors</h1>
+<p class="lede">A stepper motor turns in fixed angular steps, one step for each electrical pulse. It can place a shaft accurately without a sensor, which is why it is common in printers, 3D printers and small robot joints. GATE asks about its types, step angle and speed.</p>
+<div class="station"><b>140</b><span>Unit 13 · Actuators · Paper RA · New concept</span></div>
+<ul class="topics"><li>How a stepper motor steps</li><li>Types of stepper motor</li><li>Step angle and steps per revolution</li><li>Speed, half stepping and holding torque</li><li>Open loop versus servo control</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Most motors spin smoothly when you give them power. A <strong>stepper motor</strong> is different. It moves in small, exact jumps called steps. You send it one electrical pulse, and it moves one step. You send 200 pulses, and it turns exactly one full turn if each step is 1.8 degrees.</p>
+  <p><strong>Everyday analogy.</strong> Think of a clock hand that clicks forward one tooth at a time, with a ratchet holding it in place after each click. You know exactly where the hand is by counting the clicks. A stepper motor works the same way, but its clicks are made by magnetic pulls rather than a ratchet.</p>
+  <p><strong>Why it matters.</strong> If you know how many pulses you sent, you know where the shaft is. This is called <strong>open-loop</strong> control, and it saves the cost of a position sensor. The price is that the motor can lose a step if it is overloaded, and then nobody notices.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper, expect conceptual questions on the types of stepper motor and on open loop versus closed loop control. Expect numerical questions on step angle, steps per revolution and speed.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Stator</dt><dd>The fixed part of the motor. It carries the coils (windings) that are energised in sequence.</dd></div>
+    <div><dt>Rotor</dt><dd>The rotating part of the motor. It is pulled into line with the magnetic field of the energised coils.</dd></div>
+    <div><dt>Phase</dt><dd>One independent set of windings that is energised together. A two-phase stepper has two sets.</dd></div>
+    <div><dt>Pole</dt><dd>A part of the stator that carries a magnetic field when its winding is energised.</dd></div>
+    <div><dt>Step angle (θ<sub>s</sub>)</dt><dd>The angle the shaft turns for one full step, in degrees.</dd></div>
+    <div><dt>Steps per revolution</dt><dd>The number of steps for one full turn. Precisely: 360 / θ<sub>s</sub>.</dd></div>
+    <div><dt>Pulse rate</dt><dd>The number of step pulses sent to the motor each second.</dd></div>
+    <div><dt>Half stepping</dt><dd>A drive method that energises one and two phases alternately. It halves the step angle.</dd></div>
+    <div><dt>Holding torque</dt><dd>The torque the energised motor gives while standing still. It is the largest torque the motor can hold without moving.</dd></div>
+    <div><dt>Detent torque</dt><dd>A small torque that holds the rotor in a step when the motor is not energised. It is caused by the magnets or the rotor teeth.</dd></div>
+    <div><dt>Reluctance</dt><dd>The magnetic resistance of a path. A magnetic field takes the path of least reluctance, which pulls iron toward the energised poles.</dd></div>
+    <div><dt>Open-loop control</dt><dd>Control with no feedback. The controller assumes the motor moved as commanded.</dd></div>
+    <div><dt>Closed-loop control</dt><dd>Control with feedback. A sensor such as an encoder measures the real position, and the controller corrects the error.</dd></div>
+    <div><dt>Encoder</dt><dd>A sensor that measures the angle of a shaft, often by counting pulses from a disc with markings.</dd></div>
+    <div><dt>Servo motor</dt><dd>A motor used in closed-loop control, with a sensor and a controller that keeps the position accurate.</dd></div>
+    <div><dt>Step loss</dt><dd>A step that the motor fails to make, for example because the load is too big. The rotor then falls behind the pulses.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="How a stepper motor steps">
+  <h2>How a stepper motor steps</h2>
+
+  <h3>Step 1: a magnet lines up with the field</h3>
+  <p>Take a bar magnet and bring it near a stronger magnet. It swings until its poles face opposite poles. Now imagine the strong magnet is an electromagnet that you can switch on and off. Switch it on, and the bar magnet swings to line up. Move the field to the next pole, and the bar magnet follows.</p>
+  <p>A stepper motor uses this idea. The stator has several poles, each with a coil. The rotor has teeth or magnets. When one coil is energised, the rotor pulls into line with its poles and stops. Energise the next coil, and the rotor pulls to the next position.</p>
+
+  <h3>Step 2: the sequence of energising</h3>
+  <p>The controller energises the coils in a fixed order. A typical full-step sequence for a two-phase motor is:</p>
+  <pre class="code" data-lang="text"><code>Step   Coil energised        What the rotor does
+ 1     phase A, positive      lines up with the A pole
+ 2     phase B, positive      moves one step on
+ 3     phase A, reversed      moves one step on
+ 4     phase B, reversed      moves one step on, back to start
+</code></pre>
+  <p>Each change of the energised coil moves the rotor one step. If the sequence runs in reverse, the motor turns the other way.</p>
+  <pre class="code" data-lang="text"><code>        Stator poles (one phase on at a time, simplified)
+
+              A+                     The rotor (N and S, or teeth)
+          B-      B+                 lines up with the energised pole.
+              A-
+     Energise A+, then B+, then A-, then B-: the rotor walks round.
+</code></pre>
+
+  <h3>Why the motor does not need a sensor</h3>
+  <p>Each pulse moves the rotor by one fixed step, so the controller only needs to count pulses. A motor that is not overloaded does exactly what the pulses say. This is the great simplicity of the stepper, and it is also its weakness.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A stepper turns by known steps, and the position comes from counting pulses. It needs no sensor only while the load is small enough that no step is lost.</p></div>
+
+  <details class="check"><summary>Question: a stepper receives 400 pulses and each step is 1.8 degrees. What angle does the shaft turn?</summary><div class="ans"><p>400 × 1.8 = 720 degrees, which is two full turns.</p></div></details>
+  <details class="check"><summary>Question: what happens if the controller sends pulses in reverse order?</summary><div class="ans"><p>The rotor steps in the opposite direction.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Types of stepper motor">
+  <h2>Types of stepper motor</h2>
+  <p>There are three main types. Each uses a different way of making the rotor line up with the field.</p>
+
+  <h3>Variable reluctance (VR)</h3>
+  <p>The rotor is a plain piece of soft iron with teeth, and it has no magnets. When a stator pole is energised, the rotor teeth move to the position of least reluctance, which is the position where the teeth line up with that pole. The step size depends on the number of teeth and phases. VR motors are simple and cheap, but they have low holding torque and little detent torque.</p>
+
+  <h3>Permanent magnet (PM)</h3>
+  <p>The rotor is a permanent magnet. It has a fixed north and south pole. The stator coils pull the rotor magnets into line, and the rotor magnets also hold the position when the motor is off. This gives a useful detent torque. PM steppers have coarse steps, usually 7.5 or 15 degrees, and they are cheap.</p>
+
+  <h3>Hybrid</h3>
+  <p>The hybrid stepper combines both ideas. Its rotor is a permanent magnet with two toothed iron caps at its ends. The teeth on the two caps are offset by half a tooth. This gives fine steps, typically 1.8 degrees, and high holding torque. Hybrid steppers are the most common type in industry.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Type</th><th>Rotor</th><th>Typical step angle</th><th>Holding torque</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Variable reluctance</td><td>Soft iron with teeth, no magnet</td><td>Coarse, depends on design</td><td>Low</td><td>Simple, cheap, little detent torque</td></tr>
+      <tr><td>Permanent magnet</td><td>Permanent magnet</td><td>7.5 or 15 degrees</td><td>Medium</td><td>Cheap, good detent torque</td></tr>
+      <tr><td>Hybrid</td><td>Magnet with toothed caps</td><td>Typically 1.8 degrees</td><td>High</td><td>Fine steps, most common in industry</td></tr>
+    </tbody>
+  </table></div>
+
+  <details class="check"><summary>Question: which stepper type has no permanent magnet in its rotor?</summary><div class="ans"><p>The variable reluctance stepper. Its rotor is soft iron with teeth.</p></div></details>
+  <details class="check"><summary>Question: why do hybrid steppers give finer steps than simple PM steppers?</summary><div class="ans"><p>The toothed caps add more poles on the rotor, so the rotor can line up in more positions in one turn. More positions give smaller steps.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Step angle and steps per revolution">
+  <h2>Step angle and steps per revolution</h2>
+
+  <h3>The step angle formula</h3>
+  <p>The step angle depends on how many rotor teeth there are and how many phases are driven. For a hybrid stepper driven in full-step mode:</p>
+  <div class="formula">θ<sub>s</sub> = 360 / (2 × m × N<sub>r</sub>)</div>
+  <p>Here <strong>θ<sub>s</sub></strong> is the step angle in degrees, <strong>m</strong> is the number of phases, and <strong>N<sub>r</sub></strong> is the number of rotor teeth. The factor 2 appears because the two toothed caps are offset, which doubles the number of stable positions.</p>
+  <p>Once you know the step angle, the number of steps for one full turn is:</p>
+  <div class="formula">steps per revolution = 360 / θ<sub>s</sub></div>
+
+  <h3>Worked example: a common hybrid stepper</h3>
+  <p>A stepper has m = 2 phases and N<sub>r</sub> = 50 rotor teeth.</p>
+  <ol>
+    <li>Denominator: 2 × 2 × 50 = 200.</li>
+    <li>Step angle: θ<sub>s</sub> = 360 / 200 = 1.8 degrees.</li>
+    <li>Steps per revolution: 360 / 1.8 = 200.</li>
+    <li>Check: 200 steps × 1.8 degrees = 360 degrees, one full turn. Good.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>N_r = 50        # rotor teeth
+m = 2           # number of phases
+
+step_angle = 360 / (2 * m * N_r)
+steps_per_rev = 360 / step_angle
+
+print("Step angle = %.2f degrees" % step_angle)
+print("Steps per revolution = %.0f" % steps_per_rev)</code></pre>
+<pre class="output">Step angle = 1.80 degrees
+Steps per revolution = 200</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The step angle is for the motor shaft. If a gearbox sits between the motor and the load, the load moves by the step angle multiplied by the gear ratio, or divided by it, depending on which way you count. Always check where the angle is measured.</p></div>
+
+  <details class="check"><summary>Question: a stepper has 4 phases and 25 rotor teeth in full-step mode. What is its step angle?</summary><div class="ans"><p>θ<sub>s</sub> = 360 / (2 × 4 × 25) = 360 / 200 = 1.8 degrees.</p></div></details>
+  <details class="check"><summary>Question: how many steps does a 0.9 degree stepper need for a quarter turn?</summary><div class="ans"><p>A quarter turn is 90 degrees. 90 / 0.9 = 100 steps.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Speed, half stepping and holding torque">
+  <h2>Speed, half stepping and holding torque</h2>
+
+  <h3>Speed from the pulse rate</h3>
+  <p>The pulse rate is the number of steps each second. Dividing by the steps per revolution gives revolutions per second, and multiplying by 60 gives rpm:</p>
+  <div class="formula">speed (rev/s) = pulse rate / steps per revolution</div>
+  <p>Example: a 1.8 degree stepper receives 1000 pulses each second. It has 200 steps per revolution, so the speed is 1000 / 200 = 5 rev/s. In rpm this is 5 × 60 = 300 rpm.</p>
+
+  <h3>Half stepping</h3>
+  <p>In half-step mode, the controller energises one phase, then two phases, then one phase again. The rotor stops in a position between the two full-step positions. The step angle is halved, so the steps per revolution double. A 1.8 degree motor in half-step mode makes 400 steps per turn, each of 0.9 degrees. Smaller steps give smoother motion and less vibration, but the torque at each half step is a little lower.</p>
+
+  <h3>Holding torque and pull-out torque</h3>
+  <p><strong>Holding torque</strong> is the torque the energised motor gives while standing still. It is the largest torque the motor can hold without moving. As speed rises, the torque the motor can give falls, because the coils take time to change their field. The torque at a given speed is called the pull-out torque. If the load exceeds the pull-out torque at the pulse rate, the motor loses steps.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Holding torque is highest at standstill. Torque falls as speed rises. So a stepper is strongest when it is stopped and weakest when it runs fast.</p></div>
+
+  <details class="check"><summary>Question: a 1.8 degree stepper is driven at 3000 pulses per second. What speed does it reach in rev/s?</summary><div class="ans"><p>3000 / 200 = 15 rev/s, which is 900 rpm, if the motor does not lose steps.</p></div></details>
+  <details class="check"><summary>Question: why does a stepper lose steps at high speed?</summary><div class="ans"><p>At high speed the torque falls, and the coils cannot change their field fast enough to pull the rotor to each next step. If the load needs more torque than the motor can give at that speed, a step is missed.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Open loop versus servo control">
+  <h2>Open loop versus servo control</h2>
+
+  <h3>Open loop</h3>
+  <p>In open loop, the controller sends pulses and assumes the motor moved. There is no sensor on the shaft. The position is calculated by counting pulses. This is cheap and simple. It works well when the load is steady and the motor is not overloaded.</p>
+
+  <h3>Closed loop, as in a servo</h3>
+  <p>A servo motor uses closed-loop control. An encoder measures the real angle, and the controller compares it with the wanted angle. The difference is called the error. The controller then changes the motor drive until the error is zero. A servo can correct a lost step, follow a changing load, and hold a precise position. It costs more because of the sensor and the more complex drive.</p>
+  <pre class="code" data-lang="text"><code>Open loop:   controller --pulses--> stepper --> load
+                  (no sensor, position = pulses counted)
+
+Closed loop: controller --drive--> servo --> load
+                  ^                          |
+                  |----- encoder angle ------|
+                  (error = wanted - measured)
+</code></pre>
+
+  <h3>A comparison</h3>
+  <p>A stepper with an encoder is a hybrid of the two methods. It keeps the stepper's simple drive, and the encoder lets it detect a lost step and correct it.</p>
+
+  <details class="check"><summary>Question: a stepper runs open loop and an encoder is added. What new capability does the controller have?</summary><div class="ans"><p>It can compare the real position with the wanted position, so it can detect a lost step and correct the error.</p></div></details>
+  <details class="check"><summary>Question: which control method needs no sensor on the shaft?</summary><div class="ans"><p>Open-loop control, as used by a basic stepper motor.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>θ<sub>s</sub> = 360 / (2 × m × N<sub>r</sub>)</td><td>Full-step angle of a hybrid stepper</td><td>Step angle questions</td></tr>
+      <tr><td>steps per revolution = 360 / θ<sub>s</sub></td><td>Steps for one turn</td><td>Turn and position questions</td></tr>
+      <tr><td>steps per revolution (half step) = 2 × (full-step count)</td><td>Half-step count</td><td>Half-step questions</td></tr>
+      <tr><td>angle = steps × θ<sub>s</sub></td><td>Shaft angle after a number of steps</td><td>Position questions</td></tr>
+      <tr><td>speed (rev/s) = pulse rate / steps per revolution</td><td>Shaft speed</td><td>Speed questions</td></tr>
+      <tr><td>rpm = 60 × rev/s</td><td>Convert to rpm</td><td>Final unit conversion</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original problems in the GATE style. They are not real past paper questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Steps for a 0.9 degree stepper</h3>
+    <div class="statement"><p>A stepper motor has a full-step angle of 1.8 degrees and is run in half-step mode. How many steps does it take for one full revolution?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of steps for one turn in half-step mode.</li>
+      <li><strong>Which idea applies.</strong> In half-step mode the step angle is halved, so the step angle is 0.9 degrees.</li>
+      <li><strong>Work it out.</strong> Steps = 360 / 0.9 = 400.</li>
+      <li><strong>Check.</strong> 400 × 0.9 = 360 degrees. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>full_step = 1.8
+half_step = full_step / 2
+print("Steps per revolution = %.0f" % (360 / half_step))</code></pre>
+<pre class="output">Steps per revolution = 400</pre>
+    <p class="cx">Answer: 400 steps.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Shaft angle after some steps</h3>
+    <div class="statement"><p>A 1.8 degree stepper receives 75 pulses. Through what angle does the shaft turn?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The shaft angle in degrees.</li>
+      <li><strong>Which idea applies.</strong> Angle = number of steps × step angle.</li>
+      <li><strong>Work it out.</strong> 75 × 1.8 = 135 degrees.</li>
+      <li><strong>Check.</strong> 135 degrees is three quarters of 180 degrees, which is about 75 steps of the 1.8 degree size. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>steps = 75
+angle = steps * 1.8
+print("Angle = %.1f degrees" % angle)</code></pre>
+<pre class="output">Angle = 135.0 degrees</pre>
+    <p class="cx">Answer: 135 degrees.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about stepper motors are true?</h3>
+    <div class="statement"><p>Consider the following statements about stepper motors. Select all that apply.</p>
+    <p>(A) An open-loop stepper needs no position sensor if it is not overloaded.<br>(B) An open-loop stepper can lose steps under overload without the controller knowing.<br>(C) A servo motor is an open-loop device.<br>(D) A hybrid stepper uses both a permanent magnet and a toothed rotor.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are correct.</li>
+      <li><strong>Which idea applies.</strong> Open loop versus closed loop control, step loss, and the construction of a hybrid stepper.</li>
+      <li><strong>Work it out.</strong> (A) True, the position comes from counting pulses. (B) True, the controller has no sensor and cannot see the lost step. (C) False, a servo uses feedback, so it is closed loop. (D) True, the hybrid rotor has a magnet with toothed caps.</li>
+      <li><strong>Check.</strong> Statement (C) contradicts the definition of a servo, which needs an encoder.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Statement (C) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Shaft speed in half-step mode</h3>
+    <div class="statement"><p>A 1.8 degree hybrid stepper runs in half-step mode and receives 2500 pulses each second. Find its speed in rpm.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The speed in rpm.</li>
+      <li><strong>Which idea applies.</strong> Steps per revolution in half-step mode, then rev/s = pulse rate / steps per revolution, then rpm = 60 × rev/s.</li>
+      <li><strong>Work it out.</strong> Steps per revolution = 400. Rev/s = 2500 / 400 = 6.25. rpm = 6.25 × 60 = 375 rpm.</li>
+      <li><strong>Check.</strong> At 400 steps per revolution, 400 pulses would give one turn per second, or 60 rpm. 2500 pulses is 6.25 times that, so 6.25 × 60 = 375 rpm. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>steps_per_rev = 400
+pulse_rate = 2500
+rev_per_s = pulse_rate / steps_per_rev
+print("Speed = %.0f rpm" % (rev_per_s * 60))</code></pre>
+<pre class="output">Speed = 375 rpm</pre>
+    <p class="cx">Answer: 375 rpm.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Steps for a pan movement</h3>
+    <div class="statement"><p>A camera pan axis must turn through 270 degrees. It uses a 1.8 degree stepper in full-step mode, directly on the axis. How many steps are needed?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The whole number of steps.</li>
+      <li><strong>Which idea applies.</strong> Steps = angle / step angle.</li>
+      <li><strong>Work it out.</strong> 270 / 1.8 = 150 steps.</li>
+      <li><strong>Check.</strong> 150 × 1.8 = 270 degrees. Good.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>angle = 270.0
+step_angle = 1.8
+print("Steps = %.0f" % (angle / step_angle))</code></pre>
+<pre class="output">Steps = 150</pre>
+    <p class="cx">Answer: 150 steps.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Linear speed of a geared lead screw</h3>
+    <div class="statement"><p>A 1.8 degree hybrid stepper is run in 1/8 microstep mode at 1600 microsteps per second. Its shaft drives a gear with 20 teeth. This gear meshes with a second gear with 40 teeth, which turns a lead screw with a 5 mm lead (the screw moves 5 mm per turn). Find the linear speed of the nut in mm/s.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The linear speed of the nut in mm/s.</li>
+      <li><strong>Which idea applies.</strong> Steps per revolution in microstep mode, then the motor speed in rev/s, then the gear ratio, then the lead.</li>
+      <li><strong>Work it out.</strong> Steps per revolution = 200 × 8 = 1600. Motor speed = 1600 / 1600 = 1 rev/s. The gear ratio is 40 / 20 = 2, so the screw turns at 1 / 2 = 0.5 rev/s. Linear speed = 0.5 × 5 = 2.5 mm/s.</li>
+      <li><strong>Check.</strong> Half a turn per second with a 5 mm lead gives 2.5 mm per second. The bigger gear slows the screw, as expected.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>steps_per_rev = 200 * 8
+pulse_rate = 1600
+motor_rev_per_s = pulse_rate / steps_per_rev
+gear_ratio = 40 / 20
+screw_rev_per_s = motor_rev_per_s / gear_ratio
+lead_mm = 5.0
+print("Linear speed = %.2f mm/s" % (screw_rev_per_s * lead_mm))</code></pre>
+<pre class="output">Linear speed = 2.50 mm/s</pre>
+    <p class="cx">Answer: 2.50 mm/s.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Choose the correct statements about stepper control</h3>
+    <div class="statement"><p>A designer uses a stepper for a robot joint. Select all that apply.</p>
+    <p>(A) If the load torque exceeds the pull-out torque at the pulse rate, steps can be lost.<br>(B) A stepper's holding torque is at its lowest when the shaft stands still.<br>(C) Adding an encoder lets the controller detect a lost step.<br>(D) A stepper with an encoder and correction works in closed loop.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> Pull-out torque, holding torque, and feedback.</li>
+      <li><strong>Work it out.</strong> (A) True, the motor cannot follow the pulses. (B) False, holding torque is the largest at standstill. (C) True, the encoder shows the real position. (D) True, feedback with correction is closed loop.</li>
+      <li><strong>Check.</strong> Statement (B) reverses the holding torque idea, so it is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D). Statement (B) is false.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Step angle (NAT, 1 mark)</h3>
+    <div class="statement"><p>A stepper motor has 200 full steps per revolution. Find the step angle and the steps for 90°.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Step angle and step count.</li>
+      <li><strong>Which idea applies.</strong> Step angle = 360/steps per rev.</li>
+      <li><strong>Work it out.</strong> 1.8°, and 90/1.8 = 50 steps.</li>
+      <li><strong>Check.</strong> Half stepping would need 100 steps.</li>
+    </ol>
+    <p class="cx">Answer: 1.8° and 50 steps.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Speed from pulse rate (NAT, 2 marks)</h3>
+    <div class="statement"><p>A 1.8° stepper is driven at 2000 pulses per second in half step mode. Find the speed in rpm.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Shaft speed.</li>
+      <li><strong>Which idea applies.</strong> Half step angle = 0.9°, so 400 pulses per revolution.</li>
+      <li><strong>Work it out.</strong> 2000/400 = 5 rev/s = 300 rpm.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print(2000 / 400 * 60, "rpm")
+</code></pre>
+    <pre class="output">300.0 rpm</pre>
+    <p class="cx">Answer: 300 rpm.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Variable reluctance geometry (NAT, 2 marks)</h3>
+    <div class="statement"><p>A variable reluctance stepper has 8 stator teeth and 6 rotor teeth. Find the step angle.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The step angle.</li>
+      <li><strong>Which idea applies.</strong> Step = |360/N<sub>r</sub> − 360/N<sub>s</sub>|.</li>
+      <li><strong>Work it out.</strong> 60 − 45 = 15°.</li>
+      <li><strong>Check.</strong> That gives 24 steps per revolution.</li>
+    </ol>
+    <p class="cx">Answer: 15°.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Each line gives the plain idea first, then the short definition.</p>
+  <dl>
+    <div><dt>Stepper motor</dt><dd>A motor that moves in fixed angular steps, one for each pulse.</dd></div>
+    <div><dt>Stator</dt><dd>The fixed part with the energised coils.</dd></div>
+    <div><dt>Rotor</dt><dd>The rotating part that lines up with the energised poles.</dd></div>
+    <div><dt>Variable reluctance stepper</dt><dd>A stepper with a soft iron toothed rotor and no magnet.</dd></div>
+    <div><dt>Permanent magnet stepper</dt><dd>A stepper with a magnet rotor, coarse steps and good detent torque.</dd></div>
+    <div><dt>Hybrid stepper</dt><dd>A magnet rotor with toothed caps. Fine steps and high holding torque.</dd></div>
+    <div><dt>Step angle</dt><dd>θ<sub>s</sub> = 360 / (2 × m × N<sub>r</sub>) for a hybrid in full-step mode.</dd></div>
+    <div><dt>Steps per revolution</dt><dd>360 / θ<sub>s</sub>.</dd></div>
+    <div><dt>Half stepping</dt><dd>Halves the step angle and doubles the steps per turn.</dd></div>
+    <div><dt>Pulse rate</dt><dd>The number of step pulses per second.</dd></div>
+    <div><dt>Holding torque</dt><dd>The torque the energised motor gives at standstill. The largest torque it can hold.</dd></div>
+    <div><dt>Pull-out torque</dt><dd>The torque available at a given speed. Falls as speed rises.</dd></div>
+    <div><dt>Step loss</dt><dd>A missed step, when the load exceeds the available torque.</dd></div>
+    <div><dt>Open-loop control</dt><dd>Control with no feedback. Position is taken from the pulse count.</dd></div>
+    <div><dt>Closed-loop control</dt><dd>Control with feedback, such as an encoder, that corrects the error.</dd></div>
+    <div><dt>Servo motor</dt><dd>A motor in closed-loop control, with a sensor and a controller.</dd></div>
+    <div><dt>Encoder</dt><dd>A sensor that measures shaft angle.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Each pulse makes one step, and the step angle comes from the motor's construction.</li>
+    <li>Steps per revolution = 360 / step angle.</li>
+    <li>Half stepping halves the step angle.</li>
+    <li>Speed in rev/s = pulse rate / steps per revolution. Multiply by 60 for rpm.</li>
+    <li>Holding torque is highest at standstill, and torque falls as speed rises.</li>
+    <li>Open loop is cheap and simple, but a lost step goes unnoticed without a sensor.</li>
+  </ol>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 140?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 140 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-139.html"><small>Previous, topic 139</small>Hydraulic and pneumatic actuators</a><a class="next" href="gate-141.html"><small>Next, topic 141</small>Servo motors &amp; torque-speed characteristics</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

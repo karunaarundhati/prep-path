@@ -1,0 +1,433 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 112: Informed search: A*, Greedy Best-First</title><meta name="description" content="Informed search uses a guess about how far each state is from the goal. That guess is called a heuristic. A* and Greedy Best-First are the two standard informed searches. A* stays optimal when the guess is well behaved, while greedy search is faster but can return a worse path. GATE Data Science and AI often asks you to trace A* on a small graph with given heuristic values."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g112" data-key="g112" data-noun="topic" data-num="112" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Informed search: <em>A*, Greedy Best-First</em></h1>
+<p class="lede">Informed search uses a guess about how far each state is from the goal. That guess is called a heuristic. A* and Greedy Best-First are the two standard informed searches. A* stays optimal when the guess is well behaved, while greedy search is faster but can return a worse path. GATE Data Science and AI often asks you to trace A* on a small graph with given heuristic values.</p>
+<div class="station"><b>112</b><span>Unit 9 · Artificial intelligence · Paper DA · Quick Recap</span></div>
+<ul class="topics"><li>Heuristics: estimates of distance to the goal</li><li>Admissible and consistent heuristics</li><li>Greedy Best-First search</li><li>A* search: f = g + h</li><li>Comparing A*, greedy search and UCS</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Suppose you are driving to a friend's house in a city. The uninformed search from the last topic would try every road in turn, like a blind explorer. A sensible driver instead glances at a map and prefers roads that point towards the friend's street. That glance is a <strong>heuristic</strong>: a rough estimate of how far you still have to go.</p>
+
+  <p>Informed search uses this estimate to choose which node to expand next. Two standard methods are:</p>
+  <ul>
+    <li><strong>Greedy Best-First search</strong>: always expand the node that looks closest to the goal, according to the heuristic alone.</li>
+    <li><strong>A* search</strong>: expand the node with the smallest total estimate, which is the cost so far plus the estimated cost still to go.</li>
+  </ul>
+
+  <p>Why does this matter for GATE? The Data Science and AI paper asks you to trace A* on a small graph, to say whether a heuristic is admissible, and to compare greedy search with A*. Every term is defined below, and the traces are checked with Python.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Heuristic h(n)</dt><dd>An estimate of the cheapest cost from node n to a goal. Precise: a function of the node, not a measured value.</dd></div>
+    <div><dt>True cost h*(n)</dt><dd>The actual cheapest cost from n to a goal. Precise: the minimum path cost, which the heuristic tries to estimate.</dd></div>
+    <div><dt>Path cost g(n)</dt><dd>The cost paid so far from the start to n. Precise: the sum of step costs along the path found.</dd></div>
+    <div><dt>Evaluation f(n)</dt><dd>The number used to rank the frontier. Precise: the value that decides which node is expanded next.</dd></div>
+    <div><dt>Admissible heuristic</dt><dd>Never overestimates. Precise: h(n) is at most h*(n) for every node n.</dd></div>
+    <div><dt>Consistent heuristic</dt><dd>Never drops too fast along an edge. Precise: h(u) is at most c(u, v) + h(v) for every edge, and h(goal) = 0.</dd></div>
+    <div><dt>Greedy Best-First search</dt><dd>Expands the node with the smallest h(n). Precise: uses f(n) = h(n) only.</dd></div>
+    <div><dt>A* search</dt><dd>Expands the node with the smallest g(n) + h(n). Precise: uses f(n) = g(n) + h(n).</dd></div>
+    <div><dt>Optimal</dt><dd>Returns the cheapest solution. Precise: a property of the search, not of the heuristic alone.</dd></div>
+    <div><dt>Complete</dt><dd>Finds a solution whenever one exists. Precise: a search property.</dd></div>
+    <div><dt>Informed search</dt><dd>Search that uses a heuristic. Precise: contrasted with uninformed search, which uses only the graph and costs.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Heuristics">
+  <h2>Concept 1: Heuristics, admissible and consistent</h2>
+
+  <p>A heuristic is only as good as its promises. Two promises matter for GATE.</p>
+
+  <h3>Admissible: never too pessimistic</h3>
+  <p>A heuristic is <strong>admissible</strong> if it never overestimates the true cost. For every node n:</p>
+  <div class="formula">h(n) ≤ h*(n)</div>
+  <p>If the estimate is never bigger than the truth, then an A* search that trusts it will never throw away the best path by mistake. Think of a shop assistant who says a jacket costs at least 30 when it actually costs 40. Saying "at least 30" is safe. Saying "at most 30" is not.</p>
+
+  <h3>Consistent: no sudden drops</h3>
+  <p>A heuristic is <strong>consistent</strong> if, for every edge from u to v with cost c(u, v):</p>
+  <div class="formula">h(u) ≤ c(u, v) + h(v), and h(goal) = 0</div>
+  <p>In words: the estimate at u cannot be larger than the step cost to v plus the estimate at v. A consistent heuristic is always admissible, as long as h(goal) = 0. Consistency is the stronger promise, and it lets A* avoid revisiting nodes.</p>
+
+  <h3>A worked check</h3>
+  <p>Use the graph from the earlier topics: S connects to A (cost 1) and B (cost 4); A connects to C (cost 5) and B (cost 2); B connects to D (cost 1); C connects to G (cost 2); D connects to G (cost 3). Take the heuristic h(S) = 6, h(A) = 5, h(B) = 4, h(C) = 2, h(D) = 3, h(G) = 0. The Python code computes the true costs to the goal and tests both promises.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Admissible means "never too pessimistic". Consistent means "never drops too fast along an edge", and it implies admissible.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>A heuristic that is close to the truth is not automatically admissible. One overestimate, even by 1, is enough to break the optimality guarantee.</p></div>
+
+  <details class="check"><summary>If h(n) = 9 but the true cost from n to the goal is 7, is h admissible at n?</summary><div class="ans"><p>No. The estimate 9 is bigger than the truth, 7, so it overestimates.</p></div></details>
+
+  <details class="check"><summary>Does admissible imply consistent?</summary><div class="ans"><p>No. A heuristic can be admissible but still drop too fast along an edge. Consistency is the stronger property.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Greedy Best-First">
+  <h2>Concept 2: Greedy Best-First search</h2>
+
+  <p>Greedy Best-First search is the impatient one. At each step it expands the frontier node that looks closest to the goal, using only the heuristic. It ignores how much cost has already been paid.</p>
+
+  <ol>
+    <li>Put the start node in a priority queue, ordered by h(n).</li>
+    <li>Remove the node with the smallest h(n). If it is the goal, stop.</li>
+    <li>Add its unvisited neighbours, each ordered by their h values.</li>
+    <li>Repeat.</li>
+  </ol>
+
+  <div class="note trap"><p><span class="t">Trap</span>Greedy search is not optimal. Because it ignores g(n), it can walk into a costly corridor that merely looks close to the goal. Its path may be much more expensive than the best one.</p></div>
+
+  <details class="check"><summary>What does greedy search use to rank nodes?</summary><div class="ans"><p>Only h(n), the heuristic estimate. The cost paid so far, g(n), is ignored.</p></div></details>
+
+  <details class="check"><summary>Is greedy search guaranteed to find the cheapest path?</summary><div class="ans"><p>No. It can return a path whose cost is higher than the optimum, as the trace in Concept 5 shows.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="A* search">
+  <h2>Concept 3: A* search, f = g + h</h2>
+
+  <p>A* balances the two. It ranks each node by f(n) = g(n) + h(n): the cost paid so far, plus the estimate of the cost still to go. A node that is cheap to reach and near the goal gets a low f, so it is expanded early. A node that is expensive so far gets pushed back, even if its heuristic looks good.</p>
+
+  <h3>The steps</h3>
+  <ol>
+    <li>Put the start node in a priority queue with f = 0 + h(start).</li>
+    <li>Remove the node with the smallest f. If it is the goal, stop.</li>
+    <li>For each neighbour, compute g = g(current) + step cost, then f = g + h. If this g is better than any earlier value for that neighbour, record it and push it.</li>
+    <li>Repeat.</li>
+  </ol>
+
+  <h3>Why A* is optimal</h3>
+  <p>If h is admissible, A* returns an optimal path, because it never delays the optimal path behind a worse one. If h is consistent, the f values along any path never decrease, so A* expands nodes in order of non-decreasing f, and it never needs to reopen a node it has already expanded.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A* is optimal with an admissible heuristic. It is also the same as UCS when h = 0, and it is faster when h is informative.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Exam questions often give a graph with g values and h values and ask for the A* path. Compute f = g + h at each step, expand the smallest, and stop at the goal.</p></div>
+
+  <details class="check"><summary>A node has g = 3 and h = 4. What is its f value?</summary><div class="ans"><p>f = g + h = 3 + 4 = 7.</p></div></details>
+
+  <details class="check"><summary>Why does A* need g as well as h?</summary><div class="ans"><p>Without g, A* would ignore the cost already paid, and it could choose an expensive route that merely looks close to the goal. Adding g keeps the total cost in view.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Comparing the methods">
+  <h2>Concept 4: Comparing A*, greedy search and UCS</h2>
+
+  <p>All three methods are priority-queue searches. They differ only in the ranking they use.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Ranking f(n)</th><th>Optimal?</th><th>Typical behaviour</th></tr></thead>
+    <tbody>
+      <tr><td>UCS</td><td>g(n)</td><td>Yes</td><td>Explores everything cheaper than the solution</td></tr>
+      <tr><td>Greedy Best-First</td><td>h(n)</td><td>No</td><td>Fast, heads straight for the goal</td></tr>
+      <tr><td>A*</td><td>g(n) + h(n)</td><td>Yes, with an admissible heuristic</td><td>Between the two, guided and still optimal</td></tr>
+    </tbody>
+  </table></div>
+
+
+  <details class="check"><summary>Which method is A* when the heuristic is zero everywhere?</summary><div class="ans"><p>Uniform-cost search, since f = g + 0 = g.</p></div></details>
+
+  <details class="check"><summary>Which method is A* when the cost g is ignored?</summary><div class="ans"><p>Greedy Best-First search, since f = h.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Tracing A* and greedy">
+  <h2>Concept 5: Tracing A* and greedy search on one graph</h2>
+
+  <p>The code below checks the heuristic and runs both searches. It computes the true costs to the goal with Dijkstra's method, tests admissibility and consistency, then prints the expansion order and path of A* and of greedy search.</p>
+  <pre class="code" data-lang="python"><code>import heapq
+
+graph = {
+    "S": [("A", 1), ("B", 4)],
+    "A": [("S", 1), ("C", 5), ("B", 2)],
+    "B": [("S", 4), ("A", 2), ("D", 1)],
+    "C": [("A", 5), ("G", 2)],
+    "D": [("B", 1), ("G", 3)],
+    "G": [("C", 2), ("D", 3)],
+}
+start, goal = "S", "G"
+h = {"S": 6, "A": 5, "B": 4, "C": 2, "D": 3, "G": 0}
+
+# true cheapest cost to goal, by Dijkstra from the goal
+dist = {goal: 0}
+pq = [(0, goal)]
+while pq:
+    d, u = heapq.heappop(pq)
+    if d > dist[u]:
+        continue
+    for v, c in graph[u]:
+        if d + c < dist.get(v, 10**9):
+            dist[v] = d + c
+            heapq.heappush(pq, (d + c, v))
+
+print("true cost to goal:", " ".join(f"{n}={dist[n]}" for n in sorted(dist)))
+print("heuristic:", " ".join(f"{n}={h[n]}" for n in sorted(h)))
+print("admissible:", all(h[n] <= dist[n] for n in h))
+consistent = all(h[u] <= c + h[v] for u in graph for v, c in graph[u]) and h[goal] == 0
+print("consistent:", consistent)
+
+def path_cost(path):
+    return sum(c for u, v in zip(path, path[1:]) for nb, c in graph[u] if nb == v)
+
+def best_first(f_of):
+    frontier = [(f_of(start, 0), start)]
+    best_g = {start: 0}
+    parent = {start: None}
+    done = set()
+    order = []
+    while frontier:
+        _, node = heapq.heappop(frontier)
+        if node in done:
+            continue
+        done.add(node)
+        order.append(node)
+        if node == goal:
+            break
+        for nb, c in graph[node]:
+            g = best_g[node] + c
+            if nb not in best_g or g < best_g[nb]:
+                best_g[nb] = g
+                parent[nb] = node
+                heapq.heappush(frontier, (f_of(nb, g), nb))
+    path = []
+    node = goal
+    while node is not None:
+        path.append(node)
+        node = parent[node]
+    return order, path[::-1]
+
+order, p = best_first(lambda n, g: g + h[n])
+print("A* expansion order:", " ".join(order))
+print("A* path:", " ".join(p), "cost", path_cost(p))
+order, p = best_first(lambda n, g: h[n])
+print("greedy expansion order:", " ".join(order))
+print("greedy path:", " ".join(p), "cost", path_cost(p))</code></pre>
+  <pre class="output">true cost to goal: A=6 B=4 C=2 D=3 G=0 S=7
+heuristic: A=5 B=4 C=2 D=3 G=0 S=6
+admissible: True
+consistent: True
+A* expansion order: S A B D G
+A* path: S A B D G cost 7
+greedy expansion order: S B D G
+greedy path: S B D G cost 8</pre>
+
+  <p>Read the output. A* expands 5 nodes and returns the optimal cost-7 path. Greedy search expands 4 nodes, jumping to B because its h is smaller, but it returns the costlier cost-8 path. From S, A has f = 1 + 5 = 6 and B has f = 4 + 4 = 8, so A* goes to A first.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A* chose A first because its f value 6 was lower than B's 8, even though B looked closer to the goal by h alone.</p></div>
+
+  <details class="check"><summary>Why did greedy search choose B first, when A* chose A?</summary><div class="ans"><p>Greedy compares only h. B has h = 4, which is smaller than A's h = 5. A* compares g + h, where A's total is 6 and B's is 8, so A wins.</p></div></details>
+
+  <details class="check"><summary>Why is the A* path cost 7 and not 8?</summary><div class="ans"><p>A* reaches B through A at cost 1 + 2 = 3, which is cheaper than the direct cost 4. Then B to D to G adds 1 + 3, giving 3 + 1 + 3 = 7.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>f(n) = h(n)</td><td>Greedy ranking</td><td>Greedy Best-First trace</td></tr>
+      <tr><td>f(n) = g(n) + h(n)</td><td>A* ranking</td><td>A* trace</td></tr>
+      <tr><td>h(n) ≤ h*(n)</td><td>Admissible</td><td>Checking for optimality</td></tr>
+      <tr><td>h(u) ≤ c(u, v) + h(v), h(goal) = 0</td><td>Consistent</td><td>Checking edges</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Some use the graph in Concept 5.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>The A* ranking</h3>
+    <div class="statement"><p>In A* search, the frontier is ordered by which value? (MCQ, select one)</p>
+      <p>(A) h(n) only<br>(B) g(n) + h(n)<br>(C) g(n) − h(n)<br>(D) g(n) only</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The ranking used by A*.</li>
+      <li><strong>Which idea applies.</strong> A* adds the cost so far to the estimate.</li>
+      <li><strong>Work it out.</strong> (A) is greedy search. (D) is uniform-cost search. (C) subtracts, which is not A*. (B) adds the two.</li>
+      <li><strong>Check.</strong> The formula sheet lists f = g + h for A*.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Computing f</h3>
+    <div class="statement"><p>A node has g = 3 and h = 4. What is its f value? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The A* value f.</li>
+      <li><strong>Which idea applies.</strong> f = g + h.</li>
+      <li><strong>Work it out.</strong> f = 3 + 4 = 7.</li>
+      <li><strong>Check.</strong> Greedy search would rank this node by h alone, giving 4, which is a different ranking.</li>
+    </ol>
+    <p class="cx">Answer: 7</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Facts about heuristics and search</h3>
+    <div class="statement"><p>Select all statements that are correct. (MSQ)</p>
+      <p>(A) An admissible heuristic never overestimates the true cost to the goal.<br>(B) With an admissible heuristic on a tree search, A* returns an optimal path.<br>(C) Greedy Best-First search always returns an optimal path.<br>(D) A consistent heuristic with h(goal) = 0 is admissible.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> The definitions of admissible and consistent, and the optimality of A*.</li>
+      <li><strong>Work it out.</strong> (A) is the definition. (B) is the standard optimality result. (C) is false, since greedy search ignores g. (D) is true: consistency implies admissibility when the goal estimate is zero.</li>
+      <li><strong>Check.</strong> The example in Concept 5 has greedy search returning cost 8 against the optimum 7, which confirms (C) is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Statement (C) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Cost of the A* path</h3>
+    <div class="statement"><p>On the graph of Concept 5 with heuristic h(S) = 6, h(A) = 5, h(B) = 4, h(C) = 2, h(D) = 3 and h(G) = 0, what is the cost of the path that A* returns? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The cost of the A* path.</li>
+      <li><strong>Which idea applies.</strong> Trace the smallest f at each step.</li>
+      <li><strong>Work it out.</strong> S has f = 6. Expand S: A has f = 1 + 5 = 6, B has f = 4 + 4 = 8. Expand A (f = 6): B reached through A at g = 3, so f = 7. Expand B (f = 7): D at g = 4, f = 7. Expand D: G at g = 7, f = 7. G is the goal. Path S, A, B, D, G costs 7.</li>
+      <li><strong>Check.</strong> The Python output in Concept 5 prints A* path S A B D G with cost 7.</li>
+    </ol>
+    <p class="cx">Answer: 7</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Cost of the greedy path</h3>
+    <div class="statement"><p>On the same graph and heuristic as the previous problem, what is the cost of the path returned by Greedy Best-First search? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The cost of the greedy path.</li>
+      <li><strong>Which idea applies.</strong> Greedy ranks by h alone.</li>
+      <li><strong>Work it out.</strong> From S, B has h = 4 and A has h = 5, so B is chosen. From B, D has h = 3, so D is chosen. From D, G is the goal. Path S, B, D, G costs 4 + 1 + 3 = 8.</li>
+      <li><strong>Check.</strong> The Python output prints greedy path S B D G with cost 8.</li>
+    </ol>
+    <p class="cx">Answer: 8</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>A* with no heuristic</h3>
+    <div class="statement"><p>If h(n) = 0 for every node, A* behaves like: (MCQ, select one)</p>
+      <p>(A) depth-first search<br>(B) breadth-first search<br>(C) uniform-cost search<br>(D) greedy Best-First search</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The method A* becomes when h = 0.</li>
+      <li><strong>Which idea applies.</strong> f = g + h.</li>
+      <li><strong>Work it out.</strong> With h = 0, f = g, so nodes are expanded in order of path cost. That is uniform-cost search.</li>
+      <li><strong>Check.</strong> Greedy search would need f = h, which is 0 everywhere here, so it cannot be the answer.</li>
+    </ol>
+    <p class="cx">Answer: (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>How far can h(A) be raised</h3>
+    <div class="statement"><p>On the graph of Concept 5, the true cost from A to the goal is 6. What is the smallest integer value of h(A) that would make the heuristic inadmissible, keeping the other values unchanged? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest integer that breaks admissibility at A.</li>
+      <li><strong>Which idea applies.</strong> Admissible means h(n) ≤ h*(n).</li>
+      <li><strong>Work it out.</strong> h*(A) = 6. Values up to 6 are allowed. The next integer, 7, is an overestimate, so it is inadmissible.</li>
+      <li><strong>Check.</strong> The current h(A) = 5 is below 6, so it is admissible, which matches the Python output.</li>
+    </ol>
+    <p class="cx">Answer: 7</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about A* are true</h3>
+    <div class="statement"><p>Select all that apply. (MSQ)</p>
+      <p>(A) Greedy Best-First search may return a non-optimal path.<br>(B) With a consistent heuristic, A* never needs to reopen a node it has already expanded.<br>(C) With a consistent heuristic, A* expands nodes in non-decreasing order of f.<br>(D) An overestimating heuristic always makes A* faster and still optimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about A* and greedy search are true.</li>
+      <li><strong>Which idea applies.</strong> The optimality and consistency results from Concept 3.</li>
+      <li><strong>Work it out.</strong> (A) is true: the trace gives cost 8 against 7. (B) is true: consistency ensures a node is first reached at its best g. (C) is true: f never decreases along a path. (D) is false: overestimating can cause the optimal path to be missed.</li>
+      <li><strong>Check.</strong> Statement (D) contradicts the admissibility guarantee, which is the reason A* is optimal.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: A* expansion order (MCQ, 2 marks)</h3>
+    <div class="statement"><p>Graph: S→A cost 1, S→B cost 4, A→B cost 2, A→G cost 6, B→G cost 2. Heuristic: h(S) = 5, h(A) = 4, h(B) = 2, h(G) = 0. Using A* graph search, what is the cost of the path found? (A) 5 (B) 6 (C) 7 (D) 8</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The cost of the path A* returns.</li>
+      <li><strong>Which idea applies.</strong> Expand the node with the smallest f = g + h.</li>
+      <li><strong>Work it out.</strong> f(A) = 1 + 4 = 5, f(B) = 4 + 2 = 6. Expand A: B via A has g = 3, f = 5. G via A has f = 7. Expand B (f = 5): G with g = 5. Expand G: cost 5.</li>
+      <li><strong>Check.</strong> The code runs A*.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import heapq
+G = {"S": [("A", 1), ("B", 4)], "A": [("B", 2), ("G", 6)], "B": [("G", 2)], "G": []}
+h = {"S": 5, "A": 4, "B": 2, "G": 0}
+pq = [(h["S"], 0, "S", "S")]; best = {}
+while pq:
+    f, g, u, path = heapq.heappop(pq)
+    if u == "G": print(path, g); break
+    if best.get(u, 1e9) &lt;= g: continue
+    best[u] = g
+    for v, w in G[u]: heapq.heappush(pq, (g + w + h[v], g + w, v, path + v))
+</code></pre>
+    <pre class="output">SABG 5</pre>
+    <p class="cx">Answer: (A).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Admissibility (MSQ, 2 marks)</h3>
+    <div class="statement"><p>With the graph above, which are TRUE? (A) The heuristic is admissible. (B) The heuristic is consistent. (C) Greedy best-first search (using h only) finds the optimal path here. (D) A* with h = 0 is uniform cost search.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of the heuristic and searches.</li>
+      <li><strong>Which idea applies.</strong> Admissible means h(n) ≤ true cost to goal. Consistent means h(u) ≤ c(u, v) + h(v) for every edge.</li>
+      <li><strong>Work it out.</strong> True costs: S 5, A 4, B 2. All h equal true cost, so admissible. Edges: S→A 5 ≤ 1 + 4, S→B 5 ≤ 4 + 2, A→B 4 ≤ 2 + 2, A→G 4 ≤ 6, B→G 2 ≤ 2. Consistent. Greedy picks B first (h = 2), then G, cost 6, not optimal. (D) True.</li>
+      <li><strong>Check.</strong> (C) fails because greedy ignores the cost already paid.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Nodes on the frontier (NAT, 2 marks)</h3>
+    <div class="statement"><p>In a tree with branching factor 3 and the shallowest goal at depth 4, how many nodes does breadth first search generate in the worst case, counting the root and all nodes up to depth 4?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of nodes in a full tree to depth 4.</li>
+      <li><strong>Which idea applies.</strong> Σ 3<sup>d</sup> for d = 0..4.</li>
+      <li><strong>Work it out.</strong> 1 + 3 + 9 + 27 + 81 = 121.</li>
+      <li><strong>Check.</strong> A good heuristic for A* aims to cut this sharply.</li>
+    </ol>
+    <p class="cx">Answer: 121.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and explain each line in your own words.</p>
+  <dl>
+    <div><dt>Informed search</dt><dd>Search that uses a heuristic estimate of distance to the goal.</dd></div>
+    <div><dt>Heuristic h(n)</dt><dd>An estimate of the cost from n to the goal.</dd></div>
+    <div><dt>True cost h*(n)</dt><dd>The actual cheapest cost from n to the goal.</dd></div>
+    <div><dt>Path cost g(n)</dt><dd>The cost paid so far from the start to n.</dd></div>
+    <div><dt>Admissible</dt><dd>h(n) never exceeds h*(n).</dd></div>
+    <div><dt>Consistent</dt><dd>h(u) ≤ c(u, v) + h(v) on every edge, with h(goal) = 0.</dd></div>
+    <div><dt>Greedy Best-First</dt><dd>Ranks nodes by h(n) alone. Fast, not optimal.</dd></div>
+    <div><dt>A*</dt><dd>Ranks nodes by f = g + h. Optimal with an admissible heuristic.</dd></div>
+    <div><dt>Evaluation f(n)</dt><dd>The number that decides which node is expanded next.</dd></div>
+    <div><dt>UCS</dt><dd>A* with h = 0, ranking by g alone.</dd></div>
+    <div><dt>Optimal</dt><dd>Returns the cheapest solution.</dd></div>
+    <div><dt>Complete</dt><dd>Finds a solution whenever one exists.</dd></div>
+    <div><dt>Expansion order</dt><dd>The sequence in which a search takes nodes off the frontier.</dd></div>
+    <div><dt>Overestimate</dt><dd>A heuristic value larger than the true cost. It can break optimality.</dd></div>
+    <div><dt>Reopening</dt><dd>Revisiting an expanded node with a better cost. A consistent heuristic avoids it.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>A* ranks by f = g + h. Greedy ranks by h alone.</li>
+    <li>An admissible heuristic never overestimates the true cost to the goal.</li>
+    <li>With an admissible heuristic, A* is optimal.</li>
+    <li>Greedy Best-First is fast but can return a non-optimal path.</li>
+    <li>A* with h = 0 is uniform-cost search.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 112?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 112 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-111.html"><small>Previous, topic 111</small>Uninformed search: BFS, DFS, UCS, IDDFS</a><a class="next" href="gate-113.html"><small>Next, topic 113</small>Adversarial search: Minimax &amp; Alpha-Beta pruning</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

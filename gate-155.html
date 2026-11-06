@@ -1,0 +1,484 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 155: Robot applications: point-to-point & continuous path control</title><meta name="description" content="A robot can move in two basic ways. Point-to-point (PTP) control cares only about where the robot starts and stops, while continuous path (CP) control makes the tool follow a precise line or curve. Knowing which one a job needs is a common GATE conceptual question."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g155" data-key="g155" data-noun="topic" data-num="155" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Robot applications: <em>point-to-point &amp; continuous path control</em></h1>
+<p class="lede">A robot can move in two basic ways. Point-to-point (PTP) control cares only about where the robot starts and stops, while continuous path (CP) control makes the tool follow a precise line or curve. Knowing which one a job needs is a common GATE conceptual question.</p>
+<div class="station"><b>155</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Point-to-point (PTP) control</li><li>Continuous path (CP) control</li><li>Joint space and Cartesian space</li><li>Choosing PTP or CP for an application</li><li>Path accuracy and chord error</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Imagine two ways of getting from your desk to the door. In the first way, you only care that you start at the desk and end at the door. You can walk any route you like, as long as you arrive. In the second way, you must walk exactly along a straight painted line on the floor. You must not step off it.</p>
+
+  <p>The first way is like <strong>point-to-point</strong> (PTP) control. The robot is given a start point and an end point, and it moves between them by whatever route is easiest for its joints. The second way is like <strong>continuous path</strong> (CP) control. The robot is given many points along a line or curve, and it moves so that the tool stays on that path at the right speed.</p>
+
+  <p>Why does this matter? A pick-and-place robot that takes a box from a bin and drops it on a conveyor does not care about the route between the two. A robot that welds a seam along a car door must follow the seam exactly. The control method you choose decides how hard the controller works and how precise the path is.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>PTP cares about the points. CP cares about the path between the points.</p></div>
+
+  <h3>Where this appears in GATE</h3>
+  <p>In the RA paper, PTP and CP questions are usually conceptual. You may be asked which control suits a given application, which one needs more computation, or which one gives a predictable path. Some questions also ask for a short calculation, such as the time for a move or the number of segments needed to keep a path within a tolerance. This page covers both.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these now. You will meet each one again below.</p>
+
+  <dl>
+    <div><dt>Point-to-point (PTP) control</dt><dd>Moving between a start and an end point without controlling the path between them. Precise definition: a motion mode in which only the target points are specified, and the controller moves the joints towards the target in a way it chooses.</dd></div>
+    <div><dt>Continuous path (CP) control</dt><dd>Moving the tool along a specified line or curve. Precise definition: a motion mode in which many points on the path are specified, and the controller keeps the tool on the path at a set speed.</dd></div>
+    <div><dt>Waypoint</dt><dd>A point the robot passes through or stops at. Precise definition: a stored position in the program, given as joint angles or as a position and orientation of the tool.</dd></div>
+    <div><dt>Trajectory</dt><dd>The full history of position, velocity, and time along a motion. Precise definition: a function that gives the position of the robot at every instant.</dd></div>
+    <div><dt>Joint space</dt><dd>A description of the robot by the angle of each joint. Precise definition: the space whose coordinates are the joint variables (for example θ<sub>1</sub>, θ<sub>2</sub>, θ<sub>3</sub>).</dd></div>
+    <div><dt>Cartesian space</dt><dd>A description of the tool by its x, y, and z position. Precise definition: the space of tool positions in the world frame, usually with orientation.</dd></div>
+    <div><dt>Joint interpolation</dt><dd>Moving each joint from its start to its end angle. Precise definition: a motion in joint space, where each joint moves in a smooth way from start to end, often used for PTP.</dd></div>
+    <div><dt>Linear interpolation</dt><dd>Moving the tool along a straight line in Cartesian space. Precise definition: a motion in which the tool position is a straight-line function of time.</dd></div>
+    <div><dt>Path deviation</dt><dd>How far the tool is from the ideal path. Precise definition: the distance from the actual tool position to the nearest point on the ideal path.</dd></div>
+    <div><dt>Chord error</dt><dd>The gap between a curve and a straight segment that approximates it. Precise definition: the distance from the middle of a straight chord to the arc it replaces, also called the sagitta.</dd></div>
+    <div><dt>Segment</dt><dd>One short straight piece of a path. Precise definition: a part of a path between two consecutive points used for approximation.</dd></div>
+    <div><dt>Servo control</dt><dd>A feedback loop that drives a joint to a commanded value. Precise definition: a controller that measures the joint position, compares it with the command, and adjusts the motor torque to remove the difference.</dd></div>
+    <div><dt>Teaching</dt><dd>Programming the robot by moving it by hand or with a pendant. Precise definition: recording waypoints or a path directly from the robot's own positions.</dd></div>
+    <div><dt>Interpolation</dt><dd>Filling in the points between given points. Precise definition: calculating intermediate positions along a path from known positions, usually at a fixed time step.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Point-to-point (PTP) control">
+  <h2>Point-to-point (PTP) control</h2>
+
+  <p>In PTP control, the programmer gives a list of target points. The controller moves the robot to each point in turn, and the robot stops at each point before it moves on. What happens between the points is not specified. The robot may curve through the air, swing wide, or take the shortest joint route. The important thing is that it arrives at each target.</p>
+
+  <h3>How PTP moves the joints</h3>
+  <p>Most PTP moves are <strong>joint interpolation</strong>. Each joint starts moving at the same time and moves to its own target angle. Joints that have a long way to go take longer. The move is finished when the slowest joint arrives. The tool path in Cartesian space is therefore curved, even though the joint motion is smooth.</p>
+
+  <p>Here is a simple text diagram of a PTP move in a plane. Two points are shown, A and B. The tool does not follow a straight line, so the path between A and B is only what the joints happen to produce.</p>
+
+<pre class="code" data-lang="text"><code>        B *
+           \
+            \      joint-driven path (curved)
+             \
+              \__
+                 \__
+                    \__
+  A *                  \_
+</code></pre>
+
+  <p>The picture shows a curve from A to B. The curve depends on the robot and the speeds of the joints. It is not a straight line, and the programmer does not control its exact shape.</p>
+
+  <h3>Time for a PTP move</h3>
+  <p>Suppose each joint moves at its own constant maximum speed. Joint <em>i</em> with angle change |Δθ<sub>i</sub>| and speed ω<sub>i</sub> takes this long:</p>
+
+  <div class="formula">t<sub>i</sub> = |Δθ<sub>i</sub>| / ω<sub>i</sub></div>
+
+  <p>The whole PTP move takes the longest of these times, because all joints start together and the move ends when the slowest joint arrives:</p>
+
+  <div class="formula">t<sub>move</sub> = max(t<sub>1</sub>, t<sub>2</sub>, t<sub>3</sub>)</div>
+
+  <p>Here the joint angles are in degrees and the speeds are in degrees per second. The next example uses three joints.</p>
+
+  <p>Worked example. Joint 1 must turn 120 degrees at 60 degrees per second. Joint 2 must turn 45 degrees at 90 degrees per second. Joint 3 must turn 30 degrees at 30 degrees per second.</p>
+  <ol>
+    <li><strong>Joint 1 time.</strong> 120 / 60 = 2.0 s.</li>
+    <li><strong>Joint 2 time.</strong> 45 / 90 = 0.5 s.</li>
+    <li><strong>Joint 3 time.</strong> 30 / 30 = 1.0 s.</li>
+    <li><strong>Move time.</strong> The slowest joint is joint 1, so the PTP move takes 2.0 s. Joints 2 and 3 wait at their targets.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>joint_moves = [120.0, 45.0, 30.0]
+joint_speeds = [60.0, 90.0, 30.0]
+times = [abs(d) / v for d, v in zip(joint_moves, joint_speeds)]
+for i, t in enumerate(times, 1):
+    print("Joint", i, "time (s):", round(t, 2))
+print("Point-to-point move time (s):", round(max(times), 2))</code></pre>
+<pre class="output">Joint 1 time (s): 2.0
+Joint 2 time (s): 0.5
+Joint 3 time (s): 1.0
+Point-to-point move time (s): 2.0</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The move time is the maximum of the joint times, not the sum. Students often add them. The joints move at the same time, so you add nothing.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>PTP is cheap to program and fast to compute, because the controller only needs the target joint angles. That is one reason pick-and-place robots use it.</p></div>
+
+  <details class="check"><summary>Question: In PTP, which points must the robot reach exactly?</summary><div class="ans"><p>The programmed target points (waypoints). The path between them is not controlled.</p></div></details>
+
+  <details class="check"><summary>Question: Why is the PTP path between two points usually curved in Cartesian space?</summary><div class="ans"><p>Each joint moves in joint space to its own target. The tool position is a nonlinear function of the joint angles, so a smooth joint motion gives a curved Cartesian path.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Continuous path (CP) control">
+  <h2>Continuous path (CP) control</h2>
+
+  <p>In CP control, the tool must follow a specified path closely while it moves. Examples are a welding torch that follows a seam, a paint nozzle that follows a car body, or a cutting head that follows a drawn outline. The path is given as a set of points, and the controller fills in the gaps with very small steps.</p>
+
+  <p>The idea is called <strong>interpolation</strong>. Between two given points, the controller calculates many intermediate points, one for each small time step. Each step is a short segment of the path. The controller then moves the joints so that the tool passes through each step at the right time and speed.</p>
+
+  <h3>Straight-line motion and speed</h3>
+  <p>For a straight line in Cartesian space, the tool moves at a constant speed along the line. The distance from A to B is found with Pythagoras, and the time is distance divided by speed:</p>
+
+  <div class="formula">L = √(dx² + dy²)    t = L / v</div>
+
+  <p>Here <em>dx</em> and <em>dy</em> are the differences along each axis, <em>L</em> is the path length in mm, <em>v</em> is the speed in mm/s, and <em>t</em> is the time in seconds.</p>
+
+  <p>Worked example. The tool moves from A to B where dx = 120 mm and dy = 160 mm. The required speed is 50 mm/s.</p>
+  <ol>
+    <li><strong>Path length.</strong> L = √(120² + 160²) = √(14 400 + 25 600) = √40 000 = 200 mm.</li>
+    <li><strong>Time.</strong> t = 200 / 50 = 4.0 s.</li>
+    <li><strong>Check.</strong> In 4 seconds at 50 mm/s the tool covers 200 mm, which is the path length. The numbers agree.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>import math
+dx = 120.0
+dy = 160.0
+speed = 50.0
+length = math.sqrt(dx**2 + dy**2)
+time = length / speed
+print("Path length (mm):", round(length, 2))
+print("Time at 50 mm/s (s):", round(time, 2))</code></pre>
+<pre class="output">Path length (mm): 200.0
+Time at 50 mm/s (s): 4.0</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>In CP, the controller must move several joints together so that the tool stays on the line. Each joint speed is scaled so that all joints arrive at the same time. This is called coordinated motion.</p></div>
+
+  <h3>Why CP is harder</h3>
+  <p>CP asks more of the controller. It must:</p>
+  <ul>
+    <li>calculate the joint positions many times a second (inverse kinematics at each step);</li>
+    <li>keep several joints synchronised, so the tool does not drift off the line;</li>
+    <li>tune the servo loops tightly, so that the joints follow their commands closely during fast changes in direction;</li>
+    <li>control the speed along the path, which may need slowing at corners.</li>
+  </ul>
+
+  <p>Because of these demands, CP controllers cost more and need more computing power than PTP controllers. They also need a more accurate robot, because a small joint error becomes a visible error on the path.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>When a question asks which mode needs more computation, the answer is CP. When it asks which mode gives control of the path, the answer is also CP. PTP only controls the endpoints.</p></div>
+
+  <details class="check"><summary>Question: A robot must weld along a curved seam. Should the robot use PTP or CP?</summary><div class="ans"><p>CP. The weld must follow the seam, so the path between points must be controlled.</p></div></details>
+
+  <details class="check"><summary>Question: Why do the joints need to be coordinated in CP but not in PTP?</summary><div class="ans"><p>In CP the tool must stay on a straight or curved line, so the joints must move together in a precise ratio. In PTP the path between points does not matter, so each joint can move on its own schedule.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Joint space and Cartesian space">
+  <h2>Joint space and Cartesian space</h2>
+
+  <p>PTP and CP can be described in two different spaces. This is a small idea with a big effect on the path.</p>
+
+  <p>In <strong>joint space</strong>, the robot is described by its joint angles. A 3-joint arm is a point (θ<sub>1</sub>, θ<sub>2</sub>, θ<sub>3</sub>). In <strong>Cartesian space</strong>, the robot is described by where the tool is, a point (x, y, z), and often its orientation.</p>
+
+  <p>The two descriptions are linked by the robot's kinematics. Going from joint angles to tool position is called <strong>forward kinematics</strong>. Going from a tool position to joint angles is called <strong>inverse kinematics</strong>. CP usually works in Cartesian space and uses inverse kinematics at each step. PTP often works in joint space, which avoids inverse kinematics for each move.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>Joint interpolation (usual for PTP)</th><th>Linear or circular interpolation (usual for CP)</th></tr></thead>
+    <tbody>
+      <tr><td>Space used to plan the move</td><td>Joint space</td><td>Cartesian space</td></tr>
+      <tr><td>Shape of the tool path</td><td>Curved, not controlled</td><td>Straight line or arc, controlled</td></tr>
+      <tr><td>Inverse kinematics at each step</td><td>Not needed in real time</td><td>Needed at each step</td></tr>
+      <tr><td>Controller effort</td><td>Low</td><td>High</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>A PTP move that is linear in joint space is not linear in Cartesian space. If a question says "straight line", check whether it means the tool path or the joint motion.</p></div>
+
+  <details class="check"><summary>Question: Which space is used to describe the tool's x, y, and z position?</summary><div class="ans"><p>Cartesian space.</p></div></details>
+
+  <details class="check"><summary>Question: What does inverse kinematics compute?</summary><div class="ans"><p>The joint angles needed to place the tool at a given position and orientation.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Choosing PTP or CP">
+  <h2>Choosing PTP or CP for an application</h2>
+
+  <p>Choosing the control mode is a question about the job. Ask two questions: "does the path matter?" and "does the tool have to stay on a line?" If the answer to both is no, PTP is usually the choice. If either answer is yes, CP is needed.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Application</th><th>Does the path matter?</th><th>Usual mode</th></tr></thead>
+    <tbody>
+      <tr><td>Pick a part from a bin and place it on a conveyor</td><td>No, only the start and end matter</td><td>PTP</td></tr>
+      <tr><td>Spot welding of car body panels</td><td>No, only the spot positions matter</td><td>PTP</td></tr>
+      <tr><td>Machine tending (loading a press)</td><td>No, only the load and unload points matter</td><td>PTP</td></tr>
+      <tr><td>Arc welding along a seam</td><td>Yes, the torch must follow the seam</td><td>CP</td></tr>
+      <tr><td>Painting a car body</td><td>Yes, the spray must follow the surface</td><td>CP</td></tr>
+      <tr><td>Dispensing glue along a bead</td><td>Yes, the bead must be on the line</td><td>CP</td></tr>
+      <tr><td>Deburring a machined edge</td><td>Yes, the tool must follow the edge</td><td>CP</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Spot welding looks like a path, but only the spot positions matter, because the tool does not weld between the spots. That is why it is PTP.</p></div>
+
+  <details class="check"><summary>Question: Why is PTP used for pick-and-place?</summary><div class="ans"><p>The path between the bin and the conveyor does not matter, only the two points. PTP is simpler and faster to program.</p></div></details>
+
+  <details class="check"><summary>Question: Why might a company choose PTP even for a job that could be done with CP?</summary><div class="ans"><p>PTP is cheaper, needs less computing power, and is easier to program. If the path does not matter for the job, the extra cost of CP is wasted.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Path accuracy and chord error">
+  <h2>Path accuracy and chord error</h2>
+
+  <p>Many CP controllers do not follow a true curve. They follow short straight segments that approximate the curve. This works well if the segments are short enough. The error that comes from replacing a curve by straight segments is called the <strong>chord error</strong>.</p>
+
+  <p>Picture an arc of a circle. Draw a straight line (a chord) between two points on the arc. The chord lies inside the circle, and its middle is a little away from the arc. That gap is the chord error, also called the sagitta. Here is a text picture.</p>
+
+<pre class="code" data-lang="text"><code>        ____
+      /        \          arc (true path)
+     /          \
+    /      .      \       chord error: gap from the middle
+   ------------------     chord (straight segment)
+</code></pre>
+
+  <p>For a circle of radius <em>R</em>, a segment that turns through an angle θ has a chord error of:</p>
+
+  <div class="formula">e = R × (1 − cos(θ / 2))</div>
+
+  <p>Here <em>R</em> is the radius in mm, θ is the angle of the segment in radians, and cos is the cosine. A smaller segment angle gives a smaller error.</p>
+
+  <p>Worked example. A circle has radius 100 mm. The controller uses segments that each turn through 10 degrees. Find the chord error.</p>
+  <ol>
+    <li><strong>Convert the angle.</strong> θ = 10 degrees. The half angle is θ / 2 = 5 degrees.</li>
+    <li><strong>Find the cosine.</strong> cos(5°) = 0.99619 (about).</li>
+    <li><strong>Apply the formula.</strong> e = 100 × (1 − 0.99619) = 100 × 0.00381 = 0.38 mm.</li>
+    <li><strong>Check.</strong> The error is small compared with the radius, which is what we expect for a small angle.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>import math
+R = 100.0
+seg_deg = 10.0
+half = math.radians(seg_deg / 2)
+print("Chord error at 10 deg (mm):", round(R * (1 - math.cos(half)), 2))</code></pre>
+<pre class="output">Chord error at 10 deg (mm): 0.38</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>To keep the chord error below a tolerance, the segment angle must be small. Smaller segments mean more points, more computing, and a slower program.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Use the half angle in the formula. Many students put the full segment angle in the cosine, which gives a wrong and much larger error.</p></div>
+
+  <details class="check"><summary>Question: A segment turns through 0 degrees. What is the chord error?</summary><div class="ans"><p>Zero. A segment that does not turn is a straight line, so it has no error. The formula gives R × (1 − cos 0) = R × 0 = 0.</p></div></details>
+
+  <details class="check"><summary>Question: Why does a bigger radius give a bigger chord error for the same segment angle?</summary><div class="ans"><p>The chord error is R times a number that depends only on the angle. A bigger R multiplies that number by more, so the error grows.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Use this table as a quick reminder. Each row is explained above.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>t<sub>i</sub> = |Δθ<sub>i</sub>| / ω<sub>i</sub></td><td>Joint angle change and joint speed</td><td>Time for one joint in a PTP move</td></tr>
+      <tr><td>t<sub>move</sub> = max(t<sub>1</sub>, t<sub>2</sub>, …)</td><td>The slowest joint sets the time</td><td>PTP move time</td></tr>
+      <tr><td>L = √(dx² + dy²)</td><td>Path length in mm</td><td>Straight-line CP path length</td></tr>
+      <tr><td>t = L / v</td><td>Time (s), path length (mm), speed (mm/s)</td><td>Time for a constant-speed CP move</td></tr>
+      <tr><td>e = R × (1 − cos(θ / 2))</td><td>Chord error e, radius R, segment angle θ in radians</td><td>Path error from straight segments</td></tr>
+      <tr><td>N = 360 / θ<sub>deg</sub> (rounded up)</td><td>Number of segments for a full circle</td><td>Segments needed for a full circle</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Before using the chord error formula, convert the segment angle to radians, or use math.radians in code. Do not forget the half angle.</p></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems, not real past exam questions. Try each one before reading the method.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which mode for arc welding?</h3>
+    <div class="statement"><p>A robot must weld along a straight seam on a steel frame. The torch must stay on the seam. Which control mode is needed?</p>
+    <p>(A) PTP &nbsp; (B) CP &nbsp; (C) Joint space only &nbsp; (D) Neither, the robot does not need control</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The control mode for a seam weld.</li>
+      <li><strong>Which idea applies.</strong> If the path between points matters, the mode must be CP.</li>
+      <li><strong>Work it out.</strong> The torch must stay on the seam, so the path matters. That is CP. Option (C) is a space, not a mode. Option (D) is wrong because the path must be controlled.</li>
+      <li><strong>Check.</strong> A seam weld is a classic CP job.</li>
+    </ol>
+    <p class="cx">Answer: (B) CP.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which mode for which job?</h3>
+    <div class="statement"><p>Two jobs are compared. Job X moves a part from a tray to a fixture, and only the two points matter. Job Y moves a sealant nozzle along a curved edge. Which statement is correct?</p>
+    <p>(A) Job X needs CP and job Y needs PTP. &nbsp; (B) Job X needs PTP and job Y needs CP. &nbsp; (C) Both need PTP. &nbsp; (D) Both need CP.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which pairing of modes is correct.</li>
+      <li><strong>Which idea applies.</strong> Only endpoints matter gives PTP. A path that must be followed gives CP.</li>
+      <li><strong>Work it out.</strong> Job X: only endpoints, so PTP. Job Y: a curved edge that must be followed, so CP.</li>
+      <li><strong>Check.</strong> Option (B) matches both jobs.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Move time for a three-joint PTP motion</h3>
+    <div class="statement"><p>A PTP move changes three joints. Joint 1 turns 120 degrees at 60 degrees per second. Joint 2 turns 45 degrees at 30 degrees per second. Joint 3 turns 30 degrees at 40 degrees per second. Find the time for the whole move in seconds, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total move time, in seconds.</li>
+      <li><strong>Which idea applies.</strong> Each joint time is |Δθ| / ω. The move time is the largest.</li>
+      <li><strong>Work it out.</strong> Joint 1: 120 / 60 = 2.00 s. Joint 2: 45 / 30 = 1.50 s. Joint 3: 30 / 40 = 0.75 s. The largest is 2.00 s.</li>
+      <li><strong>Check.</strong> Joint 1 is the slowest, so it sets the time. Joint 2 would finish earlier at 1.50 s and wait.</li>
+    </ol>
+    <p class="cx">Answer: 2.00 s.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements are true? (select all that apply)</h3>
+    <div class="statement"><p>Select all the statements that are correct about PTP and CP.</p>
+    <p>(A) PTP controls the path between the points. &nbsp; (B) CP needs inverse kinematics many times per second. &nbsp; (C) PTP is usual for spot welding. &nbsp; (D) In CP, the joints must be coordinated.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> PTP ignores the path. CP needs inverse kinematics at each step and joint coordination.</li>
+      <li><strong>Work it out.</strong> (A) False, PTP does not control the path. (B) True. (C) True, only the spot positions matter. (D) True, the tool must stay on a line.</li>
+      <li><strong>Check.</strong> Statement (A) reverses the definition, which is the trap.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Time to draw a straight line</h3>
+    <div class="statement"><p>A tool moves in a straight line in a plane with dx = 90 mm and dy = 120 mm, at a constant speed of 30 mm/s. Find the time in seconds.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The time t in seconds.</li>
+      <li><strong>Which idea applies.</strong> L = √(dx² + dy²), then t = L / v.</li>
+      <li><strong>Work it out.</strong> L = √(8100 + 14400) = √22500 = 150 mm. t = 150 / 30 = 5 s.</li>
+      <li><strong>Check.</strong> 90, 120, 150 is a scaled 3-4-5 triangle (multiply by 30), so L = 150 is right.</li>
+    </ol>
+    <p class="cx">Answer: 5 s.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Segments for a circle (numerical answer)</h3>
+    <div class="statement"><p>A circle of radius 100 mm must be drawn by straight segments. The chord error must not exceed 0.1 mm. Find the largest segment angle, in degrees to three decimal places, and the smallest whole number of segments needed to draw the full circle.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest segment angle θ and the number of segments N.</li>
+      <li><strong>Which idea applies.</strong> e = R × (1 − cos(θ/2)). Set e = 0.1 and solve for θ/2 with the inverse cosine.</li>
+      <li><strong>Work it out.</strong> 1 − cos(θ/2) = 0.1 / 100 = 0.001, so cos(θ/2) = 0.999. Then θ/2 = arccos(0.999) = 0.044721 rad, so θ = 0.089443 rad = 5.125 degrees. N = 360 / 5.125 = 70.24, which rounds up to 71.</li>
+      <li><strong>Check.</strong> 71 segments of 5.125 degrees give 71 × 5.125 = 363.9 degrees, which is more than 360. That is correct, because we rounded up. The segment angle with 70 segments would be 5.143 degrees, which is too big for the tolerance.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+R = 100.0
+tol = 0.1
+half = math.acos(1 - tol / R)
+seg = math.degrees(2 * half)
+print("Max segment angle (deg):", round(seg, 3))
+print("Segments needed:", math.ceil(360 / seg))</code></pre>
+<pre class="output">Max segment angle (deg): 5.125
+Segments needed: 71</pre>
+    <p class="cx">Answer: θ = 5.125 degrees, and 71 segments.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>What makes CP harder? (select all that apply)</h3>
+    <div class="statement"><p>A company moves from PTP to CP for a sealing job. Which of the following are true reasons why the controller must do more work? Select all that apply.</p>
+    <p>(A) The tool must stay on the path, so joints must be coordinated. &nbsp; (B) Only the endpoints of each move are stored. &nbsp; (C) The controller must compute joint angles many times a second. &nbsp; (D) Speed along the path may need changing at corners.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which reasons are correct.</li>
+      <li><strong>Which idea applies.</strong> CP needs path control, coordination, and real-time inverse kinematics.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, CP stores many path points, not only endpoints. (C) True. (D) True.</li>
+      <li><strong>Check.</strong> Option (B) describes PTP, not CP, so it is the one to reject.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Chord error for a larger radius</h3>
+    <div class="statement"><p>A circle of radius 200 mm is drawn with segments that each turn through 6 degrees. Find the chord error in mm, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The chord error e.</li>
+      <li><strong>Which idea applies.</strong> e = R × (1 − cos(θ/2)) with θ/2 = 3 degrees.</li>
+      <li><strong>Work it out.</strong> cos(3°) = 0.998630. 1 − 0.998630 = 0.001370. e = 200 × 0.001370 = 0.274 mm, which rounds to 0.27 mm.</li>
+      <li><strong>Check.</strong> Doubling the radius to 200 mm roughly doubles the 100 mm error at the same angle, and the error at 6 degrees is smaller than at 10 degrees, which is the expected trend.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+R = 200.0
+seg_deg = 6.0
+half = math.radians(seg_deg / 2)
+sagitta = R * (1 - math.cos(half))
+print("Chord error (mm):", round(sagitta, 2))</code></pre>
+<pre class="output">Chord error (mm): 0.27</pre>
+    <p class="cx">Answer: about 0.27 mm.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Trapezoidal motion time (NAT, 2 marks)</h3>
+    <div class="statement"><p>A joint must turn 90° with maximum speed 60°/s and acceleration 120°/s². Using a trapezoidal velocity profile, find the move time.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Total time.</li>
+      <li><strong>Which idea applies.</strong> Accelerate time t<sub>a</sub> = v/a. Distance in each ramp is v²/(2a).</li>
+      <li><strong>Work it out.</strong> t<sub>a</sub> = 0.5 s, ramp distance 15° each. Cruise 60° at 60°/s = 1 s. Total 2 s.</li>
+      <li><strong>Check.</strong> The code integrates the profile.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>v, a, D = 60, 120, 90
+ta = v / a; dc = D - v * v / a
+print(2 * ta + dc / v, "s")
+</code></pre>
+    <pre class="output">2.0 s</pre>
+    <p class="cx">Answer: 2 s.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Cubic trajectory (NAT, 2 marks)</h3>
+    <div class="statement"><p>A cubic θ(t) = a<sub>0</sub> + a<sub>1</sub>t + a<sub>2</sub>t² + a<sub>3</sub>t³ moves from 0 to 90° in 3 s with zero start and end velocity. Find the peak velocity in °/s.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Maximum of θ′.</li>
+      <li><strong>Which idea applies.</strong> a<sub>2</sub> = 3Δθ/T², a<sub>3</sub> = −2Δθ/T³. Peak at T/2.</li>
+      <li><strong>Work it out.</strong> a<sub>2</sub> = 30, a<sub>3</sub> = −20/3. θ′(1.5) = 2 · 30 · 1.5 + 3(−20/3)(2.25) = 90 − 45 = 45°/s.</li>
+      <li><strong>Check.</strong> Peak velocity = 1.5Δθ/T = 45.</li>
+    </ol>
+    <p class="cx">Answer: 45°/s.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: PTP versus CP (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Spot welding is a point to point task. (B) Spray painting needs continuous path control. (C) Arc welding is point to point. (D) In PTP control the path between points is not tightly controlled.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Classify tasks.</li>
+      <li><strong>Which idea applies.</strong> CP control keeps the tool on a path the whole time.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) Arc welding follows a seam: CP. False. (D) True.</li>
+      <li><strong>Check.</strong> Pick and place is another PTP task.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+
+  <dl>
+    <div><dt>Point-to-point (PTP)</dt><dd>Control that cares only about the start and end points of each move.</dd></div>
+    <div><dt>Continuous path (CP)</dt><dd>Control that makes the tool follow a specified line or curve.</dd></div>
+    <div><dt>Waypoint</dt><dd>A stored point the robot moves to or through.</dd></div>
+    <div><dt>Trajectory</dt><dd>The position of the robot as a function of time along a motion.</dd></div>
+    <div><dt>Joint space</dt><dd>A description of the robot by its joint angles.</dd></div>
+    <div><dt>Cartesian space</dt><dd>A description of the tool by its x, y, and z position.</dd></div>
+    <div><dt>Joint interpolation</dt><dd>Moving each joint from start to end angle, usually for PTP.</dd></div>
+    <div><dt>Linear interpolation</dt><dd>Moving the tool along a straight line at a set speed.</dd></div>
+    <div><dt>Interpolation</dt><dd>Calculating intermediate points between given points.</dd></div>
+    <div><dt>Path deviation</dt><dd>The distance from the actual tool position to the ideal path.</dd></div>
+    <div><dt>Chord error</dt><dd>The gap between an arc and the straight chord that replaces it, also called the sagitta.</dd></div>
+    <div><dt>Segment</dt><dd>One short straight piece of a path.</dd></div>
+    <div><dt>Servo control</dt><dd>A feedback loop that drives a joint to its commanded value.</dd></div>
+    <div><dt>Inverse kinematics</dt><dd>Calculating joint angles from a desired tool position.</dd></div>
+    <div><dt>Forward kinematics</dt><dd>Calculating the tool position from joint angles.</dd></div>
+    <div><dt>Coordinated motion</dt><dd>Moving several joints together so that the tool follows the path.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>PTP controls the points. CP controls the path between the points.</li>
+    <li>The PTP move time is the largest joint time, not the sum.</li>
+    <li>Pick-and-place and spot welding use PTP. Seam welding, painting, and deburring use CP.</li>
+    <li>CP needs more computation, tighter servo control, and joint coordination.</li>
+    <li>Chord error is e = R × (1 − cos(θ/2)), and the half angle is the one to use.</li>
+    <li>Smaller segments give smaller chord error, but more points.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 155?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 155 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-154.html"><small>Previous, topic 154</small>Robot accuracy and repeatability</a><a class="next" href="gate-156.html"><small>Next, topic 156</small>Automation in Manufacturing &amp; PLCs</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

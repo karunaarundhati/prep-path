@@ -1,0 +1,472 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 106: Cross-validation: LOO & k-fold</title><meta name="description" content="Cross-validation is a way to estimate how well a model will work on new data, using only the data you already have. Leave-one-out and k-fold are the two standard versions. Both are used to choose settings and avoid fooling yourself, and GATE Data Science and AI asks about how they differ."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g106" data-key="g106" data-noun="topic" data-num="106" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Cross-validation: <em>LOO &amp; k-fold</em></h1>
+<p class="lede">Cross-validation is a way to estimate how well a model will work on new data, using only the data you already have. Leave-one-out and k-fold are the two standard versions. Both are used to choose settings and avoid fooling yourself, and GATE Data Science and AI asks about how they differ.</p>
+<div class="station"><b>106</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Why we need cross-validation</li><li>Leave-one-out cross-validation (LOOCV)</li><li>k-fold cross-validation</li><li>Choosing k and comparing the methods</li><li>Using cross-validation to choose a model</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Imagine a study group preparing for an exam. Each member writes five practice questions. Then the group takes turns: one person is the "tester" and answers nobody else's questions in advance, while the others study on the rest. Each person gets a turn as the tester, so the whole group's knowledge is checked, and nobody is ever tested on questions they wrote themselves.</p>
+
+  <p>Cross-validation does the same thing with data. We have a set of examples with known answers. We cannot wait for new data to test a model, so we split the data we have. Part of the data is used to train the model. The other part is used to test it. Then we swap roles and repeat, until every example has been used for testing once. The average test error is our estimate of how the model will behave on new data.</p>
+
+  <p>Why does GATE care? Questions often ask you to say what a method costs, which estimate has low bias or high variance, or how many model fits are needed. Every term is defined below, and every number is checked with Python.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Training set</dt><dd>The examples used to fit the model. Precise: the data whose inputs and answers the learning algorithm uses.</dd></div>
+    <div><dt>Test or validation fold</dt><dd>The examples held out of training so that they can measure error. Precise: the part of the data used for scoring in one round of cross-validation.</dd></div>
+    <div><dt>Fold</dt><dd>One of the equal parts the data is divided into. Precise: a subset of the data used once as the held-out part.</dd></div>
+    <div><dt>k</dt><dd>The number of folds. Precise: a whole number of at least 2 that sets how many rounds are run.</dd></div>
+    <div><dt>n</dt><dd>The number of examples in the data. Precise: the total count of input and answer pairs.</dd></div>
+    <div><dt>Leave-one-out cross-validation (LOOCV)</dt><dd>Hold out one example at a time. Precise: the special case of k-fold where k = n.</dd></div>
+    <div><dt>k-fold cross-validation</dt><dd>Split the data into k folds and take turns holding each one out. Precise: a resampling method that trains k models and averages their held-out errors.</dd></div>
+    <div><dt>CV error</dt><dd>The average held-out error over all rounds. Precise: the cross-validation estimate of prediction error.</dd></div>
+    <div><dt>Model fit</dt><dd>One act of training a model on a training set. Precise: each round of cross-validation requires one fit.</dd></div>
+    <div><dt>Hyperparameter</dt><dd>A setting chosen before training, such as the degree of a polynomial or a penalty strength. Precise: a value not learned from the data by the fitting step itself.</dd></div>
+    <div><dt>Model selection</dt><dd>Choosing between candidate models or settings. Precise: picking the candidate with the lowest estimated error.</dd></div>
+    <div><dt>Optimistic estimate</dt><dd>An estimate that is too good to be true. Precise: an error estimate that is lower than the real error on new data.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Why we need CV">
+  <h2>Concept 1: Why we need cross-validation</h2>
+
+  <h3>The problem with one simple split</h3>
+  <p>The simplest method is a single split: keep 20 percent of the data for testing and train on the rest. This works, but it has two weaknesses. First, the test set may be small, so the error estimate is noisy. Second, the result depends on which examples happened to land in the test set. Another split could give a very different answer.</p>
+
+  <h3>The problem with testing on training data</h3>
+  <p>The other tempting mistake is to measure error on the same data used for training. A flexible model can make the training error almost zero by memorising the examples. That number tells you nothing about new data, as we saw in the bias-variance topic. Cross-validation avoids this by making sure every error is measured on examples that were not used to fit that particular model.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Every error in cross-validation is measured on data the model did not train on. Averaging over all rounds makes the estimate less dependent on one lucky or unlucky split.</p></div>
+
+  <details class="check"><summary>Why is training error a poor estimate of new-data error?</summary><div class="ans"><p>Training error is measured on the same examples the model was fitted to, so it is usually too optimistic. A flexible model can fit those examples closely while doing badly on new points.</p></div></details>
+
+  <details class="check"><summary>What does cross-validation give us that one simple split does not?</summary><div class="ans"><p>Every example is used for testing exactly once, and the errors are averaged. The estimate depends less on one particular split, and all the data contributes to the final estimate.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Leave-one-out">
+  <h2>Concept 2: Leave-one-out cross-validation (LOOCV)</h2>
+
+  <h3>What it is, step by step</h3>
+  <p>LOOCV is the most extreme version. It uses n rounds, where n is the number of examples. In each round:</p>
+  <ol>
+    <li>Hold out exactly one example.</li>
+    <li>Train the model on the other n − 1 examples.</li>
+    <li>Predict the held-out example and measure the error.</li>
+  </ol>
+  <p>After n rounds, every example has been held out once. The LOOCV estimate is the average of the n errors:</p>
+  <div class="formula">CV<sub>LOO</sub> = (1/n) × Σ e<sub>i</sub></div>
+  <ul>
+    <li><strong>n</strong> is the number of examples.</li>
+    <li><strong>e<sub>i</sub></strong> is the squared error on example i, measured when example i was the one held out.</li>
+    <li><strong>Σ</strong> means add up the n errors, from i = 1 to n.</li>
+  </ul>
+
+  <h3>A worked example with a very simple model</h3>
+  <p>To keep the arithmetic clear, use a model that predicts the average of its training answers. Take six answers: 1, 3, 5, 7, 9, 11. The sum of all six is 36. In round i, the training average is the sum of the other five answers divided by 5. For example, when 1 is held out, the training answers are 3, 5, 7, 9, 11 with sum 35, so the prediction is 35/5 = 7 and the error is (1 − 7)² = 36.</p>
+  <p>Python can do the other five rounds exactly, using fractions so that no rounding creeps in.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+ys = [1, 3, 5, 7, 9, 11]
+n = len(ys)
+
+errors = []
+for i in range(n):
+    train = ys[:i] + ys[i+1:]           # everything except point i
+    pred = F(sum(train), len(train))    # the mean-only model
+    errors.append((ys[i] - pred) ** 2)
+
+loo = sum(errors) / n
+print("number of fits:", n)
+print("training size each time:", n - 1)
+print("errors:", [str(e) for e in errors])
+print("LOOCV estimate:", loo)</code></pre>
+  <pre class="output">number of fits: 6
+training size each time: 5
+errors: ['36', '324/25', '36/25', '36/25', '324/25', '36']
+LOOCV estimate: 84/5</pre>
+
+  <p>The six errors are 36, 324/25, 36/25, 36/25, 324/25 and 36. Their sum is 504/5, and dividing by six gives 84/5, which is 16.8. The model needed six fits, one per example.</p>
+
+  <h3>Bias and variance of the LOOCV estimate</h3>
+  <p>Each LOOCV model is trained on n − 1 examples, which is almost all the data. So the estimate is close to the error you would get from a model trained on all n examples. That means <strong>LOOCV has low bias</strong>.</p>
+  <p>The downside is variance. The n training sets overlap almost completely, since any two of them differ by only two examples. So the n error values move together. Averaging highly correlated numbers does not reduce the spread much, so the final estimate can change a lot when the data changes. <strong>LOOCV can have high variance</strong>.</p>
+  <p>The cost is also high. You need n fits. For a large dataset or a slow model, this can take too long.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often say "LOOCV is the best because it uses the most data, so its variance must be low". The first half is true, the second half is not. Low bias does not mean low variance.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Remember the pair: LOOCV has low bias but high variance and high computation. This pairing is a common target in multiple-choice questions.</p></div>
+
+  <details class="check"><summary>How many models does LOOCV train on a dataset of 200 points?</summary><div class="ans"><p>200 models, one per example. Each one is trained on 199 points and tested on the one point left out.</p></div></details>
+
+  <details class="check"><summary>Why does LOOCV have low bias?</summary><div class="ans"><p>Because each training set has n − 1 examples, which is nearly the full dataset. The models it builds are therefore close to the model you would fit on all the data.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="k-fold">
+  <h2>Concept 3: k-fold cross-validation</h2>
+
+  <h3>What it is, step by step</h3>
+  <p>k-fold cross-validation splits the n examples into k groups of roughly equal size, called folds. Then:</p>
+  <ol>
+    <li>Choose one fold as the test fold.</li>
+    <li>Train the model on the other k − 1 folds together.</li>
+    <li>Measure the average error on the test fold.</li>
+    <li>Repeat so that each fold is the test fold once.</li>
+  </ol>
+  <p>The k-fold CV estimate is the average of the k fold errors. For this to equal the average over all n examples, the folds should be the same size, so that each fold contributes equally. The formula is:</p>
+  <div class="formula">CV<sub>k</sub> = (1/k) × Σ (average error on fold j)</div>
+  <ul>
+    <li><strong>k</strong> is the number of folds.</li>
+    <li><strong>average error on fold j</strong> is the mean squared error on the examples of fold j, measured by a model trained on the other folds.</li>
+  </ul>
+
+  <h3>Sizes of the training and test sets</h3>
+  <p>If there are n examples and k folds, each fold has about n/k examples. Each round trains on the other n − n/k examples, and tests on n/k. Let us check this with n = 10 for several values of k. Note that LOOCV is the case k = n.</p>
+  <pre class="code" data-lang="python"><code>n = 10
+for k in [2, 5, 10]:
+    test = n // k
+    train = n - test
+    print("k =", k, "fits =", k, "train size =", train, "test size =", test)
+print("LOOCV fits for n = 10:", n)</code></pre>
+  <pre class="output">k = 2 fits = 2 train size = 5 test size = 5
+k = 5 fits = 5 train size = 8 test size = 2
+k = 10 fits = 10 train size = 9 test size = 1
+LOOCV fits for n = 10: 10</pre>
+
+  <p>Read the output. With k = 5 you fit 5 models, each trained on 8 points and tested on 2. With k = 10 you fit 10 models. When k = n, which is 10 here, the method has become LOOCV.</p>
+
+  <h3>A worked example with three folds</h3>
+  <p>Use the same six answers, 1, 3, 5, 7, 9 and 11, split into three folds of two points in order: [1, 3], [5, 7] and [9, 11]. The code below trains the mean-only model three times and then averages the six squared errors.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+ys = [1, 3, 5, 7, 9, 11]
+n = len(ys)
+k = 3
+size = n // k
+fold_errors = []
+for f in range(k):
+    test_idx = list(range(f * size, (f + 1) * size))
+    train = [ys[i] for i in range(n) if i not in test_idx]
+    pred = F(sum(train), len(train))
+    for i in test_idx:
+        fold_errors.append((ys[i] - pred) ** 2)
+    print("fold", f + 1, "test points:", [ys[i] for i in test_idx], "train mean:", pred)
+
+kfold = sum(fold_errors) / n
+print("3-fold CV estimate:", kfold)</code></pre>
+  <pre class="output">fold 1 test points: [1, 3] train mean: 8
+fold 2 test points: [5, 7] train mean: 6
+fold 3 test points: [9, 11] train mean: 4
+3-fold CV estimate: 25</pre>
+
+  <p>Check the first fold by hand. The test points are 1 and 3. The training points are 5, 7, 9 and 11, with average (5 + 7 + 9 + 11)/4 = 32/4 = 8. The errors are (1 − 8)² = 49 and (3 − 8)² = 25. The other two folds give 1, 1, 25 and 49. The six errors sum to 150, and 150/6 = 25.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>k-fold trains only k models, not n. It is much cheaper than LOOCV, and it is still a fair estimate because every example is tested exactly once.</p></div>
+
+  <details class="check"><summary>With n = 50 and k = 5, how many examples does each model train on?</summary><div class="ans"><p>Each fold has 50/5 = 10 examples. Each model is trained on the other 4 folds, which is 40 examples, and tested on the 10 held out.</p></div></details>
+
+  <details class="check"><summary>Is 10-fold CV the same as LOOCV when n = 10?</summary><div class="ans"><p>Yes. Each fold has one example, so each round holds out one example and trains on the other nine. That is exactly leave-one-out.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Choosing k">
+  <h2>Concept 4: Choosing k and comparing the methods</h2>
+
+  <h3>Which value of k?</h3>
+  <p>Choosing k is a tradeoff, the same kind you met in the bias-variance topic. A small k, such as 2, trains each model on only half the data, so each model is weaker than the full-data model. The estimate is then pessimistic, meaning it tends to overstate the error, which is high bias. A large k, such as n, uses almost all the data, which lowers bias, but the rounds overlap heavily, which raises variance and cost. Textbooks and practitioners often recommend <strong>k = 5 or k = 10</strong> as a good middle ground, which gives reasonable bias and variance at moderate cost.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Model fits</th><th>Training size per fit</th><th>Bias of the estimate</th><th>Variance of the estimate</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>2-fold</td><td>2</td><td>n/2</td><td>Higher (pessimistic)</td><td>Lower</td><td>Lowest</td></tr>
+      <tr><td>5-fold</td><td>5</td><td>4n/5</td><td>Moderate</td><td>Moderate</td><td>Low</td></tr>
+      <tr><td>10-fold</td><td>10</td><td>9n/10</td><td>Low</td><td>Moderate</td><td>Moderate</td></tr>
+      <tr><td>LOOCV (k = n)</td><td>n</td><td>n − 1</td><td>Lowest</td><td>Highest</td><td>Highest</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>When a question asks which method has low bias, look for the method that uses the most training data per fit. When it asks which has low variance, look for the method with fewer, less overlapping rounds. These two answers often point in opposite directions.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not say "k-fold has lower variance than LOOCV, so k-fold always gives the better estimate". The bias of a small k can outweigh the variance benefit. The table shows a balance, and 5 or 10 folds is usually the reasonable choice.</p></div>
+
+  <details class="check"><summary>Why is 2-fold CV called pessimistic?</summary><div class="ans"><p>Because each model is trained on only half of the data. A model with less data usually makes bigger errors, so the estimate overstates the error of a model trained on all the data.</p></div></details>
+
+  <details class="check"><summary>Which method is cheapest, and why?</summary><div class="ans"><p>2-fold, because it trains only two models. The cost grows with k, so LOOCV, which trains n models, is the most expensive.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Model selection">
+  <h2>Concept 5: Using cross-validation to choose a model</h2>
+
+  <h3>The main job of CV</h3>
+  <p>Cross-validation is most often used for <strong>model selection</strong>. Suppose you have several candidate models, or several settings of a hyperparameter such as a polynomial degree or a penalty strength. You compute the CV error for each candidate, using the same folds for all of them, and choose the candidate with the lowest error. Then you retrain that choice on all of the data to make the final model.</p>
+
+  <p>As a tiny example, compare two candidates on the same three folds: "predict the average of the training answers" and "always predict zero". The code below computes the CV error of each and picks the smaller one.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+ys = [1, 3, 5, 7, 9, 11]
+n = len(ys)
+k = 3
+size = n // k
+
+def cv(predict):
+    total = F(0)
+    for f in range(k):
+        test = list(range(f * size, (f + 1) * size))
+        train = [ys[i] for i in range(n) if i not in test]
+        for i in test:
+            total += (ys[i] - predict(train)) ** 2
+    return total / n
+
+def mean_model(train):
+    return F(sum(train), len(train))
+
+def zero_model(train):
+    return F(0)
+
+print("CV error, predict the mean:", cv(mean_model))
+print("CV error, predict zero:", cv(zero_model))
+print("choose:", "mean" if cv(mean_model) < cv(zero_model) else "zero")</code></pre>
+  <pre class="output">CV error, predict the mean: 25
+CV error, predict zero: 143/3
+choose: mean</pre>
+
+  <p>The mean-only model has CV error 25, while the always-zero model has CV error 143/3, about 47.67. The mean wins, so it is chosen. The final model is then trained on all six points, not only on the training folds.</p>
+
+  <h3>The trap: the chosen score is a little too kind</h3>
+  <p>When you try many candidates and keep the best, the winning CV error is slightly optimistic. You picked it because it looked best on those same folds, so some luck is built in. For an honest final score, either keep a separate test set that you never touched during selection, or use nested cross-validation, which runs an inner loop for selection inside an outer loop for scoring.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Cross-validation chooses the setting. It does not automatically give an unbiased final score for that same setting. Keep something untouched for the final report.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect a question about the correct workflow: choose by CV, retrain on all the data, and report on data kept aside. Reporting the winning CV error as the final result is the common mistake.</p></div>
+
+  <details class="check"><summary>After choosing a model by CV, should you use the fold models as the final model?</summary><div class="ans"><p>Usually not. The common approach is to retrain the chosen setting on all the available training data, so the final model uses every example.</p></div></details>
+
+  <details class="check"><summary>Why must every candidate be compared on the same folds?</summary><div class="ans"><p>If the folds differ, one candidate may look better simply because it was lucky with its splits. Using the same folds makes the comparison fair.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>CV<sub>LOO</sub> = (1/n) × Σ e<sub>i</sub></td><td>Average of the n held-out errors</td><td>Leave-one-out estimate</td></tr>
+      <tr><td>n fits for LOOCV, k fits for k-fold</td><td>Number of models trained</td><td>Counting computation cost</td></tr>
+      <tr><td>Training size = n − n/k</td><td>Examples used to train each k-fold model</td><td>Checking how much data each model sees</td></tr>
+      <tr><td>Test size = n/k</td><td>Examples held out in each k-fold round</td><td>Checking fold sizes</td></tr>
+      <tr><td>Choose the setting with the lowest CV error</td><td>Model selection rule</td><td>Picking a degree, a penalty or a model</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Counting the fits</h3>
+    <div class="statement"><p>A dataset has 8 examples. Leave-one-out cross-validation is used with a model that takes the same time to fit each time. How many models are trained? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of model fits.</li>
+      <li><strong>Which idea applies.</strong> LOOCV has one round per example, and each round trains one model.</li>
+      <li><strong>Work it out.</strong> There are 8 examples, so there are 8 rounds, so 8 models.</li>
+      <li><strong>Check.</strong> Each example is held out once, so 8 held-out examples means 8 rounds.</li>
+    </ol>
+    <p class="cx">Answer: 8</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Training size in 5-fold</h3>
+    <div class="statement"><p>A dataset has 20 examples and 5-fold cross-validation is used. How many examples does each model train on? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The training size per model.</li>
+      <li><strong>Which idea applies.</strong> Each fold has n/k examples, and each model trains on the rest.</li>
+      <li><strong>Work it out.</strong> Fold size: 20/5 = 4. Training size: 20 − 4 = 16.</li>
+      <li><strong>Check.</strong> Training plus test is 16 + 4 = 20, which is the whole dataset.</li>
+    </ol>
+    <p class="cx">Answer: 16</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Comparing LOOCV and 5-fold</h3>
+    <div class="statement"><p>Select all that apply. Consider LOOCV and 5-fold cross-validation on the same dataset with n = 50 examples. (MSQ)</p>
+      <p>(A) LOOCV fits 50 models and 5-fold fits 5 models.<br>(B) Each LOOCV model trains on more examples than each 5-fold model.<br>(C) LOOCV usually has higher variance as an estimate of error than 5-fold.<br>(D) LOOCV always gives a lower estimate of error than 5-fold.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct.</li>
+      <li><strong>Which idea applies.</strong> The counts of fits, the training sizes, and the bias-variance behaviour from Concepts 2 and 4.</li>
+      <li><strong>Work it out.</strong> (A) is true: 50 rounds for LOOCV and 5 for 5-fold. (B) is true: LOOCV trains on 49 examples, while 5-fold trains on 40. (C) is true: the 50 LOOCV errors are highly correlated, so their average varies more. (D) is false: the two methods give different estimates, and nothing guarantees that one is always lower. The 5-fold estimate is usually more pessimistic, not less.</li>
+      <li><strong>Check.</strong> (A) and (B) follow from the sizes, and (C) follows from the overlap of training sets. (D) claims a rule that is not a theorem.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Training size with 4 folds</h3>
+    <div class="statement"><p>A dataset has 12 examples. 4-fold cross-validation is used. How many examples does each model train on? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The training size.</li>
+      <li><strong>Which idea applies.</strong> Test size is n/k, and training size is n minus the test size.</li>
+      <li><strong>Work it out.</strong> Test size: 12/4 = 3. Training size: 12 − 3 = 9.</li>
+      <li><strong>Check.</strong> Four folds of 3 make 12 examples. Each round uses 3 folds to train, which is 9 examples.</li>
+    </ol>
+    <p class="cx">Answer: 9</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>LOOCV by hand with three points</h3>
+    <div class="statement"><p>The data are 2, 4 and 9. The model predicts the average of its training answers. Find the LOOCV estimate, which is the average of the three squared errors. Give your answer as a decimal. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The LOOCV estimate as a decimal.</li>
+      <li><strong>Which idea applies.</strong> In each round, train on the other two points, predict the held-out point, and square the gap.</li>
+      <li><strong>Work it out.</strong> Hold out 2: training average (4 + 9)/2 = 6.5, error (2 − 6.5)² = 20.25. Hold out 4: training average (2 + 9)/2 = 5.5, error (4 − 5.5)² = 2.25. Hold out 9: training average (2 + 4)/2 = 3, error (9 − 3)² = 36. Average: (20.25 + 2.25 + 36)/3 = 58.5/3 = 19.5.</li>
+      <li><strong>Check.</strong> The Python run below repeats the same steps with exact fractions.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+ys = [2, 4, 9]
+n = len(ys)
+errors = []
+for i in range(n):
+    train = ys[:i] + ys[i+1:]
+    pred = F(sum(train), len(train))
+    errors.append((ys[i] - pred) ** 2)
+
+loo = sum(errors) / n
+print("errors:", [str(e) for e in errors])
+print("LOOCV estimate:", loo)
+print("decimal:", float(loo))</code></pre>
+    <pre class="output">errors: ['81/4', '9/4', '36']
+LOOCV estimate: 39/2
+decimal: 19.5</pre>
+    <p class="cx">Answer: 19.5</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Reporting a cross-validated score</h3>
+    <div class="statement"><p>A student tries 10 values of a penalty λ, using 10-fold cross-validation on the same folds for all of them. The best λ has the lowest CV error, and the student reports that CV error as the final performance of the model. Select all statements that are correct. (MSQ)</p>
+      <p>(A) The reported score is slightly optimistic because the best λ was chosen using those same folds.<br>(B) A separate test set that was never used for choosing λ would give a fairer report.<br>(C) The final model is usually retrained on all the data using the chosen λ.<br>(D) In each fold, the error is measured on the examples used to train that fold's model.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements describe the correct use of cross-validation.</li>
+      <li><strong>Which idea applies.</strong> Selection bias from picking the best of many candidates, and the rule that the test fold must be held out.</li>
+      <li><strong>Work it out.</strong> (A) is true: picking the minimum of ten noisy scores makes that minimum look better than it really is. (B) is true: a fresh test set has never influenced the choice. (C) is true: the usual final step is a refit on all the data with the chosen λ. (D) is false: the whole point of a fold is that its examples were not used to train the model that is scored on them.</li>
+      <li><strong>Check.</strong> Statement (D) describes the trap that cross-validation exists to avoid, so it must be false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Zero predictor on the same folds</h3>
+    <div class="statement"><p>The data are 1, 3, 5, 7, 9 and 11, split into three folds of two points each, as in the worked example. A model that always predicts 0 is scored with 3-fold cross-validation. Find its CV error as a decimal rounded to two places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The CV error of the zero predictor, rounded.</li>
+      <li><strong>Which idea applies.</strong> The prediction is always 0, whatever the training data, so each error is simply the square of the answer.</li>
+      <li><strong>Work it out.</strong> Squares: 1, 9, 25, 49, 81, 121. Sum: 286. Average over the 6 points: 286/6 = 143/3, which is about 47.67.</li>
+      <li><strong>Check.</strong> The Python run repeats the sum and the division with exact fractions, then rounds.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+ys = [1, 3, 5, 7, 9, 11]
+total = sum(y * y for y in ys)
+print("sum of squares:", total)
+print("average:", F(total, len(ys)))
+print("decimal:", round(float(F(total, len(ys))), 2))</code></pre>
+    <pre class="output">sum of squares: 286
+average: 143/3
+decimal: 47.67</pre>
+    <p class="cx">Answer: 47.67</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Fold sizes (NAT, 1 mark)</h3>
+    <div class="statement"><p>A data set has 1000 points. In 5-fold cross validation, how many points are used to train each model, and how many models are trained?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Training size per fold and the number of fits.</li>
+      <li><strong>Which idea applies.</strong> Each fold holds out 1/k of the data.</li>
+      <li><strong>Work it out.</strong> Train on 800 points, 5 models.</li>
+      <li><strong>Check.</strong> Every point is used for validation exactly once.</li>
+    </ol>
+    <p class="cx">Answer: 800 points per model, 5 models.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: LOOCV for the mean predictor (NAT, 2 marks)</h3>
+    <div class="statement"><p>Data: 2, 4, 6, 8. The model predicts the mean of the training points. Compute the leave-one-out CV mean squared error, correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The average squared error over the 4 held out points.</li>
+      <li><strong>Which idea applies.</strong> Holding out y<sub>i</sub>, the prediction is the mean of the other three.</li>
+      <li><strong>Work it out.</strong> Hold out 2: mean 6, error 16. Hold out 4: mean 16/3, error 16/9. Hold out 6: mean 14/3, error 16/9. Hold out 8: mean 4, error 16. Average (32 + 32/9)/4 = 8.889.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>y = [2, 4, 6, 8]
+errs = [(v - (sum(y) - v) / 3) ** 2 for v in y]
+print("%.3f" % (sum(errs) / 4))
+</code></pre>
+    <pre class="output">8.889</pre>
+    <p class="cx">Answer: about 8.889.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: CV facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) LOOCV on n points trains n models. (B) LOOCV has lower bias than 5-fold CV. (C) Hyperparameters should be chosen on the test set. (D) Stratified k-fold keeps class proportions in each fold.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of cross validation.</li>
+      <li><strong>Which idea applies.</strong> LOOCV trains on n − 1 points each time, almost the whole set.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) That leaks test data. False. (D) True.</li>
+      <li><strong>Check.</strong> LOOCV's estimates are highly correlated, which gives it higher variance.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and explain each line in your own words.</p>
+  <dl>
+    <div><dt>Cross-validation</dt><dd>Estimating error by testing on held-out data, in turns.</dd></div>
+    <div><dt>Fold</dt><dd>One of the equal parts the data is split into.</dd></div>
+    <div><dt>k</dt><dd>The number of folds, and the number of models in k-fold CV.</dd></div>
+    <div><dt>LOOCV</dt><dd>Leave-one-out CV, where each example is held out once, so k = n.</dd></div>
+    <div><dt>k-fold CV</dt><dd>Split into k folds and hold out each fold once.</dd></div>
+    <div><dt>CV error</dt><dd>The average held-out error over all the rounds.</dd></div>
+    <div><dt>Model fit</dt><dd>One act of training a model. CV needs one fit per round.</dd></div>
+    <div><dt>LOOCV bias</dt><dd>Low, because each model sees almost all the data.</dd></div>
+    <div><dt>LOOCV variance</dt><dd>High, because the training sets overlap so much.</dd></div>
+    <div><dt>Small k</dt><dd>Cheap, but each model sees less data, so the estimate is pessimistic.</dd></div>
+    <div><dt>Typical k</dt><dd>5 or 10, a common balance of bias, variance and cost.</dd></div>
+    <div><dt>Hyperparameter</dt><dd>A setting chosen before training, such as a degree or a penalty.</dd></div>
+    <div><dt>Model selection</dt><dd>Choosing the candidate with the lowest CV error.</dd></div>
+    <div><dt>Optimistic estimate</dt><dd>An error score that is too good, usually because it was used to choose.</dd></div>
+    <div><dt>Nested CV</dt><dd>An inner loop for choosing and an outer loop for an honest score.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Every error in cross-validation is measured on data the model did not train on.</li>
+    <li>LOOCV trains n models, each on n − 1 examples.</li>
+    <li>k-fold trains k models, each on about n − n/k examples.</li>
+    <li>LOOCV has low bias and high variance, and it is the most expensive.</li>
+    <li>Use k = 5 or k = 10 for a sensible balance.</li>
+    <li>Choose by CV, retrain on all the data, and report on data you did not use for choosing.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 106?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 106 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-105.html"><small>Previous, topic 105</small>Bias-variance tradeoff</a><a class="next" href="gate-107.html"><small>Next, topic 107</small>Multi-layer perceptron &amp; feedforward NN</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,432 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 108: K-means / K-medoid clustering</title><meta name="description" content="Clustering means grouping similar items together when nobody has given you the group labels. K-means and K-medoids are the two most common ways to do this. Both repeat a simple two-step loop until the groups settle, and GATE Data Science and AI often asks you to run a step or two of this loop by hand."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g108" data-key="g108" data-noun="topic" data-num="108" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>K-means / K-medoid clustering</h1>
+<p class="lede">Clustering means grouping similar items together when nobody has given you the group labels. K-means and K-medoids are the two most common ways to do this. Both repeat a simple two-step loop until the groups settle, and GATE Data Science and AI often asks you to run a step or two of this loop by hand.</p>
+<div class="station"><b>108</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>What clustering is and why it is unsupervised</li><li>The K-means loop and its objective</li><li>Sensitivity to starting points and to k (elbow method)</li><li>K-medoids: centres that are real data points</li><li>Comparing K-means and K-medoids</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Imagine sorting a box of mixed buttons. Nobody tells you the categories. You just look for buttons that look alike and put them in piles. You might end up with three piles: small red ones, large black ones, and shiny gold ones. That is <strong>clustering</strong>: grouping similar things without being told the groups in advance.</p>
+
+  <p>In machine learning this is called <strong>unsupervised learning</strong>, because the data has no answer labels. The algorithm must find structure by itself. You must decide how many piles you want, and the algorithm decides which item goes in which pile.</p>
+
+  <p>The two methods in this topic share the same big idea. Each pile has a <strong>centre</strong>. Each item joins the pile whose centre is nearest. Then the centres move to suit their new members, and the process repeats. K-means uses the average of the members as the centre. K-medoids uses one of the actual members as the centre.</p>
+
+  <p>Why does this matter for GATE? The Data Science and AI paper expects you to know the steps of K-means, to recognise the effect of a bad starting point, to read an elbow plot, and to explain why K-medoids is more robust to outliers. Each term is defined below, and each step is worked with exact numbers.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Clustering</dt><dd>Grouping similar items without labels. Precise: partitioning data into groups so that items in a group are more alike than items in different groups.</dd></div>
+    <div><dt>Unsupervised learning</dt><dd>Learning from data with no answer labels. Precise: the algorithm finds structure using the inputs alone.</dd></div>
+    <div><dt>Cluster</dt><dd>One group produced by the algorithm. Precise: a set of points assigned to the same centre.</dd></div>
+    <div><dt>Centroid</dt><dd>The average position of a cluster's points. Precise: for points (x, y), the centroid is (mean of x, mean of y).</dd></div>
+    <div><dt>Medoid</dt><dd>The member of a cluster that is most central. Precise: the actual data point that minimises the total distance to the other points in its cluster.</dd></div>
+    <div><dt>Euclidean distance</dt><dd>The straight-line distance between two points. Precise: for (a, b) and (c, d), the distance is the square root of (a − c)² + (b − d)².</dd></div>
+    <div><dt>Squared distance</dt><dd>The distance squared, without the square root. Precise: K-means compares squared distances, because they rank points in the same order and avoid roots.</dd></div>
+    <div><dt>Within-cluster sum of squares (WCSS)</dt><dd>The total squared distance from each point to its own centroid. Precise: the objective that K-means tries to make small.</dd></div>
+    <div><dt>Iteration</dt><dd>One full round of assign and update. Precise: one pass of the K-means loop.</dd></div>
+    <div><dt>Convergence</dt><dd>The point where the algorithm stops changing. Precise: when assignments do not change, so the centroids do not change either.</dd></div>
+    <div><dt>Initialisation</dt><dd>Choosing the starting centres. Precise: the first set of centroids or medoids, often chosen at random.</dd></div>
+    <div><dt>Elbow method</dt><dd>A way to pick k by looking at WCSS. Precise: plot WCSS against k and pick the point where the drop slows sharply.</dd></div>
+    <div><dt>Outlier</dt><dd>A point far away from the rest. Precise: a value that is unusually large or small compared with the others.</dd></div>
+    <div><dt>Robust</dt><dd>Not easily thrown off by outliers. Precise: a method whose result changes little when a few extreme points are added.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The K-means loop">
+  <h2>Concept 1: The K-means loop and its objective</h2>
+
+  <h3>The goal</h3>
+  <p>K-means splits n points into k clusters. You choose k in advance. The algorithm tries to make each point close to its own centroid. It measures closeness by squared Euclidean distance, and its goal is to make the total WCSS as small as possible:</p>
+  <div class="formula">WCSS = Σ (over clusters) Σ (over points in the cluster) ‖point − centroid‖²</div>
+  <ul>
+    <li><strong>‖point − centroid‖²</strong> is the squared distance from one point to its cluster's centroid.</li>
+    <li>The inner Σ adds these up for every point in one cluster. The outer Σ adds over all clusters.</li>
+  </ul>
+
+  <h3>The steps</h3>
+  <ol>
+    <li><strong>Initialise.</strong> Choose k starting centroids.</li>
+    <li><strong>Assign.</strong> Give each point to the nearest centroid.</li>
+    <li><strong>Update.</strong> Move each centroid to the average of the points assigned to it.</li>
+    <li><strong>Repeat.</strong> Go back to step 2 until the assignments stop changing.</li>
+  </ol>
+  <p>Each assign step can only lower or keep WCSS, because each point is moved to a nearer centre. Each update step also lowers or keeps WCSS, because the average is the position that minimises squared distance. So WCSS never goes up. Since there are only finitely many ways to split the points, the algorithm must stop. It stops at a <strong>local</strong> minimum, which is not always the best possible split.</p>
+
+  <h3>A worked trace with exact numbers</h3>
+  <p>Here are six points in the plane: P1 = (1, 1), P2 = (2, 1), P3 = (1, 2), P4 = (8, 8), P5 = (9, 8) and P6 = (8, 9). The natural answer is two clusters: the left-bottom three points and the right-top three points. To show the algorithm working, we start with a poor choice of centroids, both on the left: (1, 1) and (2, 1). The code below runs the loop with exact fractions and prints each step.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+points = [(1, 1), (2, 1), (1, 2), (8, 8), (9, 8), (8, 9)]
+centroids = [(F(1), F(1)), (F(2), F(1))]   # a poor start: both on the left
+
+def dist2(p, q):
+    return (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+
+for it in range(1, 6):
+    clusters = [[], []]
+    for p in points:
+        d = [dist2(p, c) for c in centroids]
+        clusters[d.index(min(d))].append(p)
+    new = []
+    for cl in clusters:
+        mx = F(sum(p[0] for p in cl), len(cl))
+        my = F(sum(p[1] for p in cl), len(cl))
+        new.append((mx, my))
+    print("iteration", it)
+    print("  cluster 1:", clusters[0])
+    print("  cluster 2:", clusters[1])
+    print("  new centroids:", ", ".join(f"({a}, {b})" for a, b in new))
+    if new == centroids:
+        print("  no change, stop")
+        break
+    centroids = new</code></pre>
+  <pre class="output">iteration 1
+  cluster 1: [(1, 1), (1, 2)]
+  cluster 2: [(2, 1), (8, 8), (9, 8), (8, 9)]
+  new centroids: (1, 3/2), (27/4, 13/2)
+iteration 2
+  cluster 1: [(1, 1), (2, 1), (1, 2)]
+  cluster 2: [(8, 8), (9, 8), (8, 9)]
+  new centroids: (4/3, 4/3), (25/3, 25/3)
+iteration 3
+  cluster 1: [(1, 1), (2, 1), (1, 2)]
+  cluster 2: [(8, 8), (9, 8), (8, 9)]
+  new centroids: (4/3, 4/3), (25/3, 25/3)
+  no change, stop</pre>
+
+  <p>Read the trace slowly. In iteration 1, the point (2, 1) is nearer to the centroid at (2, 1) than to (1, 1), so it joins cluster 2. That is a poor split, and the first update pulls the centroid of cluster 2 far to the right, to (27/4, 13/2). In iteration 2, the point (2, 1) is now nearer to the left centroid, and it joins cluster 1. The centroids settle at (4/3, 4/3) and (25/3, 25/3). Iteration 3 changes nothing, so the algorithm has converged.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>K-means always converges, because WCSS never increases. But it converges to a local answer that depends on where you started.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The centroid is an average, so it is usually not one of the data points. In the trace, the centroid (4/3, 4/3) is not a data point at all.</p></div>
+
+  <details class="check"><summary>In iteration 1, which cluster does the point (2, 1) join, and why?</summary><div class="ans"><p>Cluster 2. Its squared distance to the centroid (2, 1) is 0, while its squared distance to (1, 1) is 1. The point goes to the nearest centroid, which is the one at (2, 1).</p></div></details>
+
+  <details class="check"><summary>Does K-means need the number of clusters to be known in advance?</summary><div class="ans"><p>Yes. You choose k before running the loop. Methods such as the elbow method, described next, help you pick a good k.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Starting points and the elbow">
+  <h2>Concept 2: Sensitivity to starting points and the elbow method</h2>
+
+  <h3>Why the starting points matter</h3>
+  <p>Look again at the trace. With a good start, one centroid near each natural group, the loop finds the natural answer in one or two steps. With a poor start, it can still reach the right answer here, but in general it can get stuck in a worse split. Standard remedies are to run K-means several times from different random starts and keep the run with the lowest WCSS, or to use a smarter start such as k-means++, which spreads the starting centres apart.</p>
+
+  <h3>Choosing k with the elbow method</h3>
+  <p>If k is not known, we can compare WCSS across values of k. More clusters always give a lower or equal WCSS, so we cannot just pick the smallest WCSS. Instead, we look for the <strong>elbow</strong>: the point where adding one more cluster stops giving a big improvement.</p>
+  <p>Here is WCSS for our six points, with one cluster and with the natural two clusters. The code uses exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+points = [(1, 1), (2, 1), (1, 2), (8, 8), (9, 8), (8, 9)]
+
+def wcss(clusters):
+    total = F(0)
+    for cl in clusters:
+        mx = F(sum(p[0] for p in cl), len(cl))
+        my = F(sum(p[1] for p in cl), len(cl))
+        total += sum((p[0] - mx) ** 2 + (p[1] - my) ** 2 for p in cl)
+    return total
+
+print("WCSS with k = 1:", wcss([points]))
+print("WCSS with k = 2:", wcss([points[:3], points[3:]]))</code></pre>
+  <pre class="output">WCSS with k = 1: 449/3
+WCSS with k = 2: 8/3</pre>
+
+  <p>With one cluster, WCSS is 449/3, about 149.7. With the two natural clusters, it drops to 8/3, about 2.7. That huge drop is the sign that two is the right number here. If we tried k = 3, the drop would be much smaller, because the natural groups are already separated. The elbow is the bend at k = 2.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>When reading an elbow plot in a GATE question, look for the k where the curve bends most sharply. The values after the bend fall only slightly, so extra clusters add little.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not choose k with the smallest WCSS. WCSS falls every time k increases, even when the extra clusters are meaningless. That is why the elbow, not the minimum, is used.</p></div>
+
+  <details class="check"><summary>Why does WCSS always fall, or stay the same, when k increases?</summary><div class="ans"><p>More centres means each point has more chances to sit close to its own centre. A split into more clusters can never be worse for the squared distances, so WCSS cannot rise.</p></div></details>
+
+  <details class="check"><summary>What does a flat curve after k = 4 tell you on an elbow plot?</summary><div class="ans"><p>That extra clusters beyond four bring little improvement, so four is a sensible choice for k.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="K-medoids">
+  <h2>Concept 3: K-medoids, centres that are real data points</h2>
+
+  <h3>The idea</h3>
+  <p>K-medoids works in the same spirit as K-means, with two changes. First, the centre of each cluster is always one of the actual data points, called the <strong>medoid</strong>. Second, the cost is the total ordinary distance to the medoid, not the squared distance to a mean. Because the medoid is a real point, a single extreme value cannot drag it far away from the group.</p>
+
+  <h3>The steps</h3>
+  <ol>
+    <li>Choose k actual data points as the initial medoids.</li>
+    <li>Assign each point to its nearest medoid.</li>
+    <li>In each cluster, test each member as a candidate medoid. Keep the member whose total distance to the others is smallest.</li>
+    <li>Repeat until the medoids stop changing.</li>
+  </ol>
+  <p>Full methods such as PAM also try swapping a medoid for a non-medoid point when that lowers the total cost. The steps above capture the main idea.</p>
+
+  <h3>A worked example with an outlier</h3>
+  <p>Take five one-dimensional values: 1, 2, 3, 4 and 100. The value 100 is an outlier. Compare the centre chosen by K-means style averaging with the centre chosen by K-medoids. The code uses the total absolute distance, which is the cost K-medoids minimises.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+data = [1, 2, 3, 4, 100]
+n = len(data)
+mean = F(sum(data), n)
+print("mean:", mean)
+print("total distance from mean:", sum(abs(x - mean) for x in data))
+best = min(data, key=lambda c: sum(abs(x - c) for x in data))
+print("medoid:", best)
+print("total distance from medoid:", sum(abs(x - best) for x in data))</code></pre>
+  <pre class="output">mean: 22
+total distance from mean: 156
+medoid: 3
+total distance from medoid: 101</pre>
+
+  <p>The mean is 110/5 = 22. That is far from four of the five values, which is the outlier's doing. The total distance from 22 is 156. The medoid is 3, a real data point near the middle of the four ordinary values. The total distance from 3 is 101, which is smaller. The medoid is robust: the outlier still adds its large distance, but it does not move the centre.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>K-medoids uses an actual point as the centre, so the centre always lies among the data. K-means uses an average, which an outlier can drag far off.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>A classic question asks why K-medoids is more robust to outliers. The answer: the centre is a real data point and the cost is a sum of distances, not squared distances, so an outlier has less pull.</p></div>
+
+  <details class="check"><summary>Could the medoid of a cluster be a point that is not in the data?</summary><div class="ans"><p>No. By definition the medoid is one of the cluster's own data points. This is the key difference from a K-means centroid.</p></div></details>
+
+  <details class="check"><summary>Why does the mean get pulled by 100 but the medoid does not move?</summary><div class="ans"><p>The mean is an average, so a large value adds directly to the total and shifts the result. The medoid is chosen by comparing candidates, and 3 remains the best candidate, because moving to 100 would add much more total distance.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Comparing the methods">
+  <h2>Concept 4: Comparing K-means and K-medoids</h2>
+
+  <p>The two methods make different choices, and GATE often asks you to contrast them. The table summarises the main differences.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>K-means</th><th>K-medoids</th></tr></thead>
+    <tbody>
+      <tr><td>Cluster centre</td><td>Mean of the members (centroid)</td><td>An actual data point (medoid)</td></tr>
+      <tr><td>Distance used</td><td>Squared Euclidean distance</td><td>Any distance, often Euclidean or Manhattan</td></tr>
+      <tr><td>Effect of outliers</td><td>Sensitive, because the mean moves</td><td>More robust</td></tr>
+      <tr><td>Cost per update</td><td>Cheap: one average per cluster</td><td>More: compare candidates within each cluster</td></tr>
+      <tr><td>Fits well with</td><td>Large datasets, round clusters</td><td>Small or noisy datasets, outliers</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>K-medoids is not always better. It costs more to run, and K-means is often preferred for large datasets with roughly round clusters. Choose the method that fits the data.</p></div>
+
+  <details class="check"><summary>Which method is cheaper per iteration, and why?</summary><div class="ans"><p>K-means. Its update is a simple average of each cluster. K-medoids must compare many candidate points within each cluster to find the best medoid.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Squared distance: (a − c)² + (b − d)²</td><td>Squared straight-line distance between (a, b) and (c, d)</td><td>Assigning points in K-means</td></tr>
+      <tr><td>Centroid = (mean of x, mean of y)</td><td>Average position of a cluster</td><td>K-means update step</td></tr>
+      <tr><td>WCSS = Σ squared distances to own centroid</td><td>K-means objective</td><td>Comparing splits, elbow plots</td></tr>
+      <tr><td>Medoid = point minimising Σ distances to others</td><td>Most central actual point</td><td>K-medoids update step</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>What a K-means centre is</h3>
+    <div class="statement"><p>In K-means, each cluster's centre is: (MCQ, select one)</p>
+      <p>(A) always one of the data points in that cluster<br>(B) the mean of the points assigned to that cluster<br>(C) the median of all the data<br>(D) chosen at random after every iteration</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The definition of a K-means centre.</li>
+      <li><strong>Which idea applies.</strong> The update step: the centroid is the average of the assigned points.</li>
+      <li><strong>Work it out.</strong> (A) describes a medoid, not a centroid. (C) describes a median, which K-means does not use. (D) is wrong, since the update is deterministic. (B) is the update step.</li>
+      <li><strong>Check.</strong> The trace in Concept 1 used averages, such as (4/3, 4/3).</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>One assignment and one update</h3>
+    <div class="statement"><p>Points on a line are 1, 2 and 9. Two clusters are used, with starting centres 1 and 9. After one assign step and one update step, what is the new centre of the cluster that started at 1? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The new centre of the first cluster.</li>
+      <li><strong>Which idea applies.</strong> Assign each point to the nearest centre, then take the mean.</li>
+      <li><strong>Work it out.</strong> The point 1 is at distance 0 from centre 1. The point 2 is at distance 1 from centre 1 and 7 from centre 9, so it joins cluster 1. The point 9 joins cluster 2. The new centre of cluster 1 is (1 + 2)/2 = 1.5.</li>
+      <li><strong>Check.</strong> The mean must lie between the two points in the cluster, and 1.5 does.</li>
+    </ol>
+    <p class="cx">Answer: 1.5</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>K-means and K-medoids facts</h3>
+    <div class="statement"><p>Select all statements that are correct. (MSQ)</p>
+      <p>(A) A K-means centroid can be a point that is not in the data.<br>(B) A K-medoids centre must be one of the actual data points.<br>(C) K-medoids is usually less affected by outliers than K-means.<br>(D) K-means always finds the global minimum of WCSS.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts are correct.</li>
+      <li><strong>Which idea applies.</strong> The definitions of centroid and medoid, and the local-minimum behaviour of K-means.</li>
+      <li><strong>Work it out.</strong> (A) is true: the trace produced (4/3, 4/3). (B) is true: by definition. (C) is true: the medoid example above. (D) is false: K-means stops at a local minimum that depends on the start.</li>
+      <li><strong>Check.</strong> The bad start in Concept 1 is the counterexample to (D).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Centre after a few steps</h3>
+    <div class="statement"><p>Points on a line are 1, 2, 3 and 10. K-means uses k = 2, with starting centres 1 and 10. What is the final centre of the cluster that contains the point 1? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The final centre of the cluster containing 1.</li>
+      <li><strong>Which idea applies.</strong> Assign, update, repeat until nothing changes.</li>
+      <li><strong>Work it out.</strong> Assign: 1 goes to centre 1 (distance 0). 2 goes to centre 1 (distance 1, against 8). 3 goes to centre 1 (distance 2, against 7). 10 goes to centre 10. Update: cluster 1 has 1, 2, 3, with mean 2. Cluster 2 has only 10, so its centre stays 10. Next round: 1, 2 and 3 are still nearer to centre 2, and 10 is still nearer to 10, so nothing changes. Converged.</li>
+      <li><strong>Check.</strong> Distances to the final centres: 3 is at distance 1 from centre 2 and at distance 7 from centre 10, so it stays in cluster 1.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>WCSS of a clustering</h3>
+    <div class="statement"><p>Using the same points as the previous problem, the clustering is {1, 2, 3} and {10}. Find the WCSS of this clustering, using the mean of each cluster as its centroid. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total squared distance from points to their own centroids.</li>
+      <li><strong>Which idea applies.</strong> WCSS formula. Find each centroid, then the squared distances.</li>
+      <li><strong>Work it out.</strong> Cluster {1, 2, 3} has centroid 2. Squared distances: (1 − 2)² = 1, (2 − 2)² = 0, (3 − 2)² = 1. Sum = 2. Cluster {10} has centroid 10, and its only point is 10, so its squared distance is 0. Total WCSS = 2 + 0 = 2.</li>
+      <li><strong>Check.</strong> A single point always contributes zero, which is why the second cluster adds nothing.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Reading an elbow</h3>
+    <div class="statement"><p>WCSS values for a dataset are: k = 1 gives 100, k = 2 gives 20, k = 3 gives 6, and k = 4 gives 5. Which value of k does the elbow point suggest? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The k at the bend of the curve.</li>
+      <li><strong>Which idea applies.</strong> Compare the drops from one k to the next.</li>
+      <li><strong>Work it out.</strong> Drop from k = 1 to 2: 80. Drop from k = 2 to 3: 14. Drop from k = 3 to 4: 1. The drop shrinks sharply after k = 3, so the bend is at k = 3.</li>
+      <li><strong>Check.</strong> Going beyond 3 gives almost nothing, which is the signature of the elbow.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about the loop are true</h3>
+    <div class="statement"><p>Select all that apply. (MSQ)</p>
+      <p>(A) K-means can converge to different final clusters depending on the initial centroids.<br>(B) In K-means, neither the assign step nor the update step can increase WCSS.<br>(C) K-medoids restricts each centre to a data point and minimises the sum of distances.<br>(D) The K-means loop can run forever if the data is continuous.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the algorithms are true.</li>
+      <li><strong>Which idea applies.</strong> The objective decreases monotonically, and the trace in Concept 1 showed the start dependence.</li>
+      <li><strong>Work it out.</strong> (A) is true: the trace started badly and reached a different intermediate split. (B) is true: each step moves points to nearer centres or moves centres to the mean, and both lower or keep WCSS. (C) is true: that is the K-medoids definition. (D) is false: the number of possible splits of n points is finite, and WCSS never increases, so the loop stops.</li>
+      <li><strong>Check.</strong> Statement (D) is wrong because the set of possible partitions is finite, so a loop that never increases WCSS must stop.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>The best medoid of a small set</h3>
+    <div class="statement"><p>Find the medoid of the values 2, 3, 4, 5 and 50, using total absolute distance as the cost. Then give the total absolute distance from that medoid. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total absolute distance from the best medoid.</li>
+      <li><strong>Which idea applies.</strong> Try each data point as the medoid and keep the cheapest.</li>
+      <li><strong>Work it out.</strong> From 2: 0 + 1 + 2 + 3 + 48 = 54. From 3: 1 + 0 + 1 + 2 + 47 = 51. From 4: 2 + 1 + 0 + 1 + 46 = 50. From 5: 3 + 2 + 1 + 0 + 45 = 51. From 50: 186. The smallest is 50, from the medoid 4.</li>
+      <li><strong>Check.</strong> The Python run below repeats the same five sums.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>data = [2, 3, 4, 5, 50]
+costs = {c: sum(abs(x - c) for x in data) for c in data}
+for c in data:
+    print("candidate", c, "total distance", costs[c])
+best = min(costs, key=costs.get)
+print("best medoid:", best, "cost", costs[best])</code></pre>
+    <pre class="output">candidate 2 total distance 54
+candidate 3 total distance 51
+candidate 4 total distance 50
+candidate 5 total distance 51
+candidate 50 total distance 186
+best medoid: 4 cost 50</pre>
+    <p class="cx">Answer: 50</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: One k-means step (NAT, 2 marks)</h3>
+    <div class="statement"><p>Points on a line: 1, 2, 3, 8, 9, 10, 25. Initial centres 2 and 9. After one assignment and update step, find the new second centre.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The updated centre of cluster 2.</li>
+      <li><strong>Which idea applies.</strong> Assign each point to its nearest centre, then take the mean.</li>
+      <li><strong>Work it out.</strong> Cluster 1: 1, 2, 3 (mean 2). Cluster 2: 8, 9, 10, 25 (mean 13).</li>
+      <li><strong>Check.</strong> The code runs one step.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>P = [1, 2, 3, 8, 9, 10, 25]; c = [2, 9]
+A = [min(range(2), key=lambda k: abs(p - c[k])) for p in P]
+print([sum(p for p, a in zip(P, A) if a == k) / A.count(k) for k in range(2)])
+</code></pre>
+    <pre class="output">[2.0, 13.0]</pre>
+    <p class="cx">Answer: 13.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: k-medoid versus k-means (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) A medoid is always one of the data points. (B) k-medoids is less sensitive to outliers than k-means. (C) k-means always finds the global optimum. (D) The k-means objective never rises from one iteration to the next.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Differences between the two methods.</li>
+      <li><strong>Which idea applies.</strong> Each step of Lloyd's algorithm either keeps or lowers the within-cluster sum of squares.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) It finds a local optimum that depends on the start. False. (D) True.</li>
+      <li><strong>Check.</strong> In the problem above, the outlier 25 dragged the mean to 13, while the medoid would stay at 9 or 10.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Within-cluster sum of squares (NAT, 2 marks)</h3>
+    <div class="statement"><p>For the final clusters {1, 2, 3} and {8, 9, 10} (with 25 removed), compute the total within-cluster sum of squares.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The k-means objective.</li>
+      <li><strong>Which idea applies.</strong> Sum of squared distances to each cluster mean.</li>
+      <li><strong>Work it out.</strong> Cluster 1: 1 + 0 + 1 = 2. Cluster 2: 1 + 0 + 1 = 2. Total 4.</li>
+      <li><strong>Check.</strong> Both clusters are symmetric about their means.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read this list, close the page, and explain each line in your own words.</p>
+  <dl>
+    <div><dt>Clustering</dt><dd>Grouping similar items without labels.</dd></div>
+    <div><dt>Unsupervised learning</dt><dd>Learning structure from inputs alone, with no answer labels.</dd></div>
+    <div><dt>Centroid</dt><dd>The average position of a cluster's points. Used by K-means.</dd></div>
+    <div><dt>Medoid</dt><dd>The most central actual data point of a cluster. Used by K-medoids.</dd></div>
+    <div><dt>K-means loop</dt><dd>Assign each point to the nearest centroid, then move centroids to their means. Repeat.</dd></div>
+    <div><dt>WCSS</dt><dd>Sum of squared distances from points to their own centroids. K-means minimises it.</dd></div>
+    <div><dt>Convergence</dt><dd>The point where assignments stop changing.</dd></div>
+    <div><dt>Local minimum</dt><dd>A good but not necessarily best answer that K-means can stop at.</dd></div>
+    <div><dt>Initialisation</dt><dd>The starting centres. A poor start can lead to a worse split.</dd></div>
+    <div><dt>Elbow method</dt><dd>Choosing k where the WCSS drop suddenly slows.</dd></div>
+    <div><dt>K-medoids</dt><dd>Clustering with real data points as centres and a sum of distances as cost.</dd></div>
+    <div><dt>Robust</dt><dd>Little affected by outliers. K-medoids is more robust than K-means.</dd></div>
+    <div><dt>Outlier</dt><dd>A point far from the rest, which can drag a mean away from the group.</dd></div>
+    <div><dt>Iteration</dt><dd>One full round of assign and update in the K-means loop.</dd></div>
+    <div><dt>Euclidean distance</dt><dd>The straight-line distance between two points. Squared in K-means.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>K-means alternates assign and update steps, and WCSS never increases.</li>
+    <li>K-means centroids are averages and can lie off the data. K-medoids centres are always data points.</li>
+    <li>A poor start can trap K-means in a worse split, so try several starts.</li>
+    <li>Choose k at the elbow, not at the smallest WCSS.</li>
+    <li>K-medoids is more robust to outliers, but costs more per iteration.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 108?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 108 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-107.html"><small>Previous, topic 107</small>Multi-layer perceptron &amp; feedforward NN</a><a class="next" href="gate-109.html"><small>Next, topic 109</small>Hierarchical clustering (single/multi linkage)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

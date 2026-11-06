@@ -1,0 +1,467 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 102: Linear Discriminant Analysis</title><meta name="description" content="Linear Discriminant Analysis, or LDA, finds the single direction in which the classes are best separated. It is a supervised method that uses the labels, unlike PCA. You will learn projections, Fisher&#x27;s criterion, the scatter matrices, how to compute the LDA direction for two classes, and how LDA differs from PCA."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g102" data-key="g102" data-noun="topic" data-num="102" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Linear Discriminant Analysis</h1>
+<p class="lede">Linear Discriminant Analysis, or LDA, finds the single direction in which the classes are best separated. It is a supervised method that uses the labels, unlike PCA. You will learn projections, Fisher&#x27;s criterion, the scatter matrices, how to compute the LDA direction for two classes, and how LDA differs from PCA.</p>
+<div class="station"><b>102</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Projecting data onto a direction</li><li>Fisher&#x27;s criterion and the scatter matrices</li><li>Computing the LDA direction</li><li>Using LDA as a classifier</li><li>LDA compared with PCA</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a box of red and blue beads spread across a table. You want to shine a torch and cast the shadow of the beads onto a wall, so that the red and blue shadows are as far apart as possible and each colour stays bunched together. The angle of the torch matters a great deal. Some angles mix the colours into one smudge. Other angles separate them cleanly. LDA is the search for the best angle.</p>
+  <p>In data language, the torch angle is a <strong>direction</strong>, and the shadow is a <strong>projection</strong>. Each data point with two or more features becomes a single number: how far along that direction it lies. LDA picks the direction so that the projected classes are far apart in the middle and tight inside.</p>
+  <p>The method is supervised, meaning it uses the class labels to decide the direction. This is what separates it from principal component analysis (PCA), which ignores labels and only looks for the direction of largest spread. For GATE, LDA appears in the Machine Learning part of the Data Science and AI paper (DA). Questions ask you to compute scatter matrices, find the LDA direction for two classes, compare LDA with PCA, and state the number of useful directions. You need matrix arithmetic on 2 by 2 matrices and some care with signs.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Each term is used again on the page.</p>
+  <dl>
+    <div><dt>Class</dt><dd>A group of data points that share a label, such as red beads or blue beads.</dd></div>
+    <div><dt>Direction w</dt><dd>A column of numbers that points one way. Only its direction matters, so w and 2w give the same result for ranking.</dd></div>
+    <div><dt>Projection</dt><dd>The shadow of a point on a direction. Precisely: the dot product w<sup>T</sup>x, a single number.</dd></div>
+    <div><dt>Dot product</dt><dd>Multiply matching entries and add. For w = (3, 2) and x = (1, 4), the dot product is 3×1 + 2×4 = 11.</dd></div>
+    <div><dt>Class mean μ</dt><dd>The average point of one class. Precisely: the sum of its points divided by how many there are.</dd></div>
+    <div><dt>Within-class scatter S<sub>W</sub></dt><dd>How spread out each class is around its own mean, added over classes.</dd></div>
+    <div><dt>Between-class scatter S<sub>B</sub></dt><dd>How far apart the class means are from each other.</dd></div>
+    <div><dt>Scatter matrix</dt><dd>A 2 by 2 (or n by n) table that records spreads and co-spreads of the features.</dd></div>
+    <div><dt>Fisher's criterion J(w)</dt><dd>The ratio of between-class to within-class spread after projecting onto w. Bigger is better separation.</dd></div>
+    <div><dt>Inverse matrix</dt><dd>The matrix that undoes another, like dividing by a number. The inverse of M is written M<sup>-1</sup>.</dd></div>
+    <div><dt>Principal component analysis PCA</dt><dd>An unsupervised method that finds the directions of largest total variance, ignoring labels.</dd></div>
+    <div><dt>Covariance</dt><dd>How two features vary together. Positive means they tend to rise together.</dd></div>
+    <div><dt>Shared covariance</dt><dd>The assumption that all classes have the same spread pattern, so their scatter can be pooled.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Projecting data onto a direction">
+  <h2>Projecting data onto a direction</h2>
+  <h3>From a point to a number</h3>
+  <p>A point with two features, such as (2, 1), lies somewhere on a flat plane. A direction is an arrow from the origin, such as w = (3, 2). Ask: how far does the point go along the arrow? The answer is the projection, computed as a dot product.</p>
+  <div class="formula">projection of x on w = w<sup>T</sup>x = w<sub>1</sub>x<sub>1</sub> + w<sub>2</sub>x<sub>2</sub></div>
+  <p>Read it. w<sup>T</sup> means w written as a row. x is the point written as a column. The result is one number for each point. Think of a long line of coats hung on a single rail. Each coat has one position along the rail. The rail is the direction, and the position is the projection.</p>
+  <h3>Worked example</h3>
+  <p>Take w = (3, 2) and the point x = (2, 1).</p>
+  <ol>
+    <li><strong>Multiply the first pair.</strong> 3 × 2 = 6.</li>
+    <li><strong>Multiply the second pair.</strong> 2 × 1 = 2.</li>
+    <li><strong>Add.</strong> 6 + 2 = 8.</li>
+    <li><strong>Read.</strong> The point projects to 8 along the direction (3, 2).</li>
+  </ol>
+  <h3>Why the length of w does not matter</h3>
+  <p>If we double w to (6, 4), every projection doubles. The ranking of points stays the same, and so does the separation measured in relative terms. For this reason we often write the direction with its length scaled to suit us. The direction is what matters.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Whenever LDA gives you a direction, you may multiply it by any non-zero number and still have a valid answer. A question that asks for the direction usually wants a clean version such as (1, 0.5) or (3, 2) that points the same way.</p></div>
+  <details class="check"><summary>Question: what is the projection of (1, 4) on (3, 2)?</summary><div class="ans"><p>3 × 1 + 2 × 4 = 3 + 8 = 11.</p></div></details>
+  <details class="check"><summary>Question: if the projection of a point is 0, where is the point?</summary><div class="ans"><p>It lies on the line through the origin that is perpendicular to w. Such points have no component along the direction.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Fisher's criterion and the scatter matrices">
+  <h2>Fisher's criterion and the scatter matrices</h2>
+  <h3>What makes a good direction</h3>
+  <p>Think again of the beads. Two things make the shadows easy to separate. First, the two shadow centres should be far apart. Second, each colour's shadow should be narrow. Ronald Fisher turned this idea into a single number. Let the projected class means be m<sub>1</sub> and m<sub>2</sub>, and the projected spreads be s<sub>1</sub>² and s<sub>2</sub>². Fisher's criterion is:</p>
+  <div class="formula">J(w) = (m<sub>1</sub> minus m<sub>2</sub>)² / (s<sub>1</sub>² + s<sub>2</sub>²)</div>
+  <p>Read it. The top is the squared gap between the projected means, which is the between-class separation. The bottom adds the two projected spreads, the within-class scatter. A big gap and small spreads give a big J. LDA chooses the w that makes J as large as possible.</p>
+  <h3>The scatter matrices</h3>
+  <p>We can write these quantities without projecting first, using matrices. Define the within-class scatter S<sub>W</sub> as the total spread of each class around its own mean, added over both classes. For one class with points x, the contribution is the sum of (x minus μ)(x minus μ)<sup>T</sup>. A product of a column with its own transpose is a 2 by 2 matrix that records the spread in each feature and how the features vary together.</p>
+  <div class="formula">S<sub>W</sub> = Σ<sub>classes</sub> Σ<sub>x in class</sub> (x minus μ<sub>class</sub>)(x minus μ<sub>class</sub>)<sup>T</sup></div>
+  <p>The between-class scatter for two classes is</p>
+  <div class="formula">S<sub>B</sub> = (μ<sub>1</sub> minus μ<sub>2</sub>)(μ<sub>1</sub> minus μ<sub>2</sub>)<sup>T</sup></div>
+  <p>With these, the spread of the projection onto w is simply w<sup>T</sup>S<sub>W</sub>w, and the squared gap between the projected means is (w<sup>T</sup>(μ<sub>1</sub> minus μ<sub>2</sub>))² = w<sup>T</sup>S<sub>B</sub>w. So Fisher's criterion becomes:</p>
+  <div class="formula">J(w) = (w<sup>T</sup>S<sub>B</sub>w) / (w<sup>T</sup>S<sub>W</sub>w)</div>
+  <div class="note key"><p><span class="t">Key idea</span>LDA is the direction that maximises the ratio of between-class to within-class scatter. Everything else in the method is arithmetic that finds this direction.</p></div>
+  <h3>Worked example of the scatter matrix</h3>
+  <p>Take a single class with points (1, 1), (3, 1), (2, 2) and (2, 0). Its mean is ((1+3+2+2)/4, (1+1+2+0)/4) = (2, 1). The deviations from the mean are (minus 1, 0), (1, 0), (0, 1) and (0, minus 1).</p>
+  <ol>
+    <li><strong>First point.</strong> (minus 1, 0) times its transpose gives [[1, 0], [0, 0]].</li>
+    <li><strong>Second point.</strong> (1, 0) gives [[1, 0], [0, 0]].</li>
+    <li><strong>Third point.</strong> (0, 1) gives [[0, 0], [0, 1]].</li>
+    <li><strong>Fourth point.</strong> (0, minus 1) gives [[0, 0], [0, 1]].</li>
+    <li><strong>Add.</strong> The sum is [[2, 0], [0, 2]]. This is the scatter matrix for this class.</li>
+  </ol>
+  <p>The diagonal entries are the total squared spread in each feature, and the off-diagonal entries show how the features vary together. Here they are zero, so the features are uncorrelated within the class.</p>
+  <details class="check"><summary>Question: why is the scatter matrix built from (x minus μ)(x minus μ)<sup>T</sup> and not from the plain values of x?</summary><div class="ans"><p>Subtracting the mean measures spread around the centre. Without the subtraction, the matrix would mostly measure where the class sits, not how wide it is.</p></div></details>
+  <details class="check"><summary>Question: what does a large S<sub>B</sub> compared with S<sub>W</sub> mean for the classes?</summary><div class="ans"><p>The class centres are far apart compared with how spread each class is, so the classes are likely to be well separated along that direction.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Computing the LDA direction">
+  <h2>Computing the LDA direction</h2>
+  <h3>The answer for two classes</h3>
+  <p>For two classes, the direction that maximises Fisher's ratio has a neat closed form:</p>
+  <div class="formula">w ∝ S<sub>W</sub><sup>-1</sup> (μ<sub>2</sub> minus μ<sub>1</sub>)</div>
+  <p>The symbol ∝ means "points in the same direction as", so any positive or negative multiple is equally good. Read the parts. S<sub>W</sub><sup>-1</sup> is the inverse of the within-class scatter. It shrinks directions where the classes are already spread out and boosts directions where they are tight. μ<sub>2</sub> minus μ<sub>1</sub> is the direction from the first mean to the second. The answer combines the two: follow the gap between the means, but correct it for the spread.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The inverse of S<sub>W</sub> is what turns "the means are far apart" into "the means are far apart relative to how spread each class is".</p></div>
+  <h3>The inverse of a 2 by 2 matrix</h3>
+  <p>For a matrix [[a, b], [c, d]], the inverse is a fraction times [[d, minus b], [minus c, a]]. The fraction is 1 divided by the determinant ad minus bc. If the determinant is zero, there is no inverse.</p>
+  <div class="formula">[[a, b], [c, d]]<sup>-1</sup> = (1/(ad minus bc)) × [[d, minus b], [minus c, a]]</div>
+  <h3>Worked example</h3>
+  <p>Class 1 has points (1, 1), (3, 1), (2, 2) and (2, 0). Its mean is μ<sub>1</sub> = (2, 1), and its scatter matrix is [[2, 0], [0, 2]], as computed above. Class 2 has points (4, 3), (6, 3), (5, 4) and (5, 2). Its mean is μ<sub>2</sub> = (5, 3), and by the same steps its scatter matrix is also [[2, 0], [0, 2]].</p>
+  <ol>
+    <li><strong>Add the scatters.</strong> S<sub>W</sub> = [[2, 0], [0, 2]] + [[2, 0], [0, 2]] = [[4, 0], [0, 4]].</li>
+    <li><strong>Find the gap between means.</strong> μ<sub>2</sub> minus μ<sub>1</sub> = (5 minus 2, 3 minus 1) = (3, 2).</li>
+    <li><strong>Invert S<sub>W</sub>.</strong> The determinant is 4 × 4 minus 0 × 0 = 16. The inverse is (1/16) × [[4, 0], [0, 4]] = [[1/4, 0], [0, 1/4]].</li>
+    <li><strong>Multiply.</strong> S<sub>W</sub><sup>-1</sup>(3, 2) = (3/4, 2/4) = (3/4, 1/2).</li>
+    <li><strong>Choose a clean scale.</strong> Multiply by 4 to get w = (3, 2). This is the LDA direction.</li>
+  </ol>
+  <p>The direction (3, 2) leans more toward the first feature than toward the second, because the gap between the means is (3, 2) and the classes are equally spread in both features.</p>
+  <h3>Checking the separation</h3>
+  <p>Project every point onto w = (3, 2). Class 1 gives 5, 11, 10 and 6. Class 2 gives 18, 24, 23 and 19. The projected means are 8 and 21. The threshold halfway between them is 14.5. Every class 1 value is below 14.5 and every class 2 value is above it, so the two classes are perfectly separated along this line.</p>
+  <p>The code below verifies the scatter matrices, the direction and the projections with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+C1 = [(1, 1), (3, 1), (2, 2), (2, 0)]
+C2 = [(4, 3), (6, 3), (5, 4), (5, 2)]
+
+def mean(points):
+    n = len(points)
+    return (F(sum(p[0] for p in points), n), F(sum(p[1] for p in points), n))
+
+def scatter(points, m):
+    a = b = c = F(0)
+    for x, y in points:
+        dx, dy = x - m[0], y - m[1]
+        a += dx * dx
+        b += dx * dy
+        c += dy * dy
+    return [[a, b], [b, c]]
+
+m1, m2 = mean(C1), mean(C2)
+S1, S2 = scatter(C1, m1), scatter(C2, m2)
+SW = [[S1[i][j] + S2[i][j] for j in range(2)] for i in range(2)]
+print("mean 1 =", [str(v) for v in m1], " mean 2 =", [str(v) for v in m2])
+print("S_W =", [[str(v) for v in row] for row in SW])
+
+det = SW[0][0] * SW[1][1] - SW[0][1] * SW[1][0]
+inv = [[SW[1][1] / det, -SW[0][1] / det], [-SW[1][0] / det, SW[0][0] / det]]
+diff = (m2[0] - m1[0], m2[1] - m1[1])
+w_exact = [inv[0][0] * diff[0] + inv[0][1] * diff[1], inv[1][0] * diff[0] + inv[1][1] * diff[1]]
+print("S_W^-1 (m2 - m1) =", [str(v) for v in w_exact])
+
+w = (3, 2)
+proj1 = [w[0] * x + w[1] * y for x, y in C1]
+proj2 = [w[0] * x + w[1] * y for x, y in C2]
+print("projections class 1 =", proj1, " class 2 =", proj2)
+print("projected means =", str(F(sum(proj1), 4)), str(F(sum(proj2), 4)))
+
+d = (m1[0] - m2[0], m1[1] - m2[1])
+num = (w[0] * d[0] + w[1] * d[1]) ** 2
+den = (w[0] * (SW[0][0] * w[0] + SW[0][1] * w[1]) + w[1] * (SW[1][0] * w[0] + SW[1][1] * w[1]))
+print("Fisher ratio J =", str(num / den), "=", round(float(num / den), 2))</code></pre>
+  <pre class="output">mean 1 = ['2', '1']  mean 2 = ['5', '3']
+S_W = [['4', '0'], ['0', '4']]
+S_W^-1 (m2 - m1) = ['3/4', '1/2']
+projections class 1 = [5, 11, 10, 6]  class 2 = [18, 24, 23, 19]
+projected means = 8 21
+Fisher ratio J = 13/4 = 3.25</pre>
+  <details class="check"><summary>Question: what would happen to w if the two classes were equally spread in one feature but very spread in the other?</summary><div class="ans"><p>The inverse of S<sub>W</sub> would down-weight the widely spread feature. The direction would then favour the feature in which the classes are tight, because that is where the separation is most reliable.</p></div></details>
+  <details class="check"><summary>Question: why is the solution unique up to scale?</summary><div class="ans"><p>Fisher's ratio does not change when w is multiplied by a non-zero number, since the same factor appears on top and bottom. So only the direction is determined.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Using LDA as a classifier">
+  <h2>Using LDA as a classifier</h2>
+  <h3>From a direction to a decision</h3>
+  <p>Once we have w, each point becomes one number, its projection. To classify a new point, compute its projection and compare it with a threshold. A natural choice when the classes are of similar size is the midpoint between the two projected means.</p>
+  <div class="formula">threshold = (w<sup>T</sup>μ<sub>1</sub> + w<sup>T</sup>μ<sub>2</sub>) / 2</div>
+  <p>Using the example above, w<sup>T</sup>μ<sub>1</sub> = 8 and w<sup>T</sup>μ<sub>2</sub> = 21, so the threshold is 14.5. A new point with projection 15 is assigned to class 2, because it lies above the threshold.</p>
+  <h3>The boundary is a line</h3>
+  <p>The points that project exactly onto the threshold form the decision boundary. In two features this is a straight line perpendicular to w. Here the boundary satisfies 3x<sub>1</sub> + 2x<sub>2</sub> = 14.5. Every point on the far side of the line is class 2, and every point on the near side is class 1.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The threshold at the midpoint assumes the two classes have about equal size and equal spread along w. If the classes are unbalanced, the best threshold moves toward the smaller class. Always check the priors before trusting the midpoint.</p></div>
+  <h3>Why this is a good classifier</h3>
+  <p>LDA assumes each class follows a Gaussian distribution, and that all classes share the same covariance matrix. Under those assumptions, the best possible decision boundary between two classes is linear, and LDA estimates exactly that boundary from the data. When the assumptions hold roughly, LDA is simple, fast, and hard to beat. When one class has a very different spread, a quadratic method may be better.</p>
+  <details class="check"><summary>Question: a new point projects to 14.5 exactly. What is the prediction?</summary><div class="ans"><p>It lies on the decision boundary, so the classes are equally likely with the midpoint rule. In practice we pick either class by a fixed convention and note the tie.</p></div></details>
+  <details class="check"><summary>Question: what assumption makes the LDA boundary linear?</summary><div class="ans"><p>The shared covariance assumption. If the classes had different covariances, the boundary would curve, which is the quadratic discriminant case.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="LDA compared with PCA">
+  <h2>LDA compared with PCA</h2>
+  <h3>Two directions, two purposes</h3>
+  <p>PCA looks at the data as one cloud and asks: where is the spread largest? It finds the direction with the largest total variance. It never looks at labels. LDA asks a different question: where are the classes most separated? It uses the labels to answer.</p>
+  <p>Here is a picture in words. Suppose the red points lie on the line y = 1 and the blue points on y = minus 1, and both groups stretch from x = minus 5 to x = 5. The overall cloud is wide in x and narrow in y. PCA picks the x-axis, the direction of largest spread, which mixes the two colours completely. LDA picks the y-axis, because the classes differ there and each class is narrow in y. LDA gives the useful direction for classification and PCA does not.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>PCA</th><th>LDA</th></tr></thead>
+    <tbody>
+      <tr><td>Uses class labels</td><td>No (unsupervised)</td><td>Yes (supervised)</td></tr>
+      <tr><td>Objective</td><td>Maximum total variance</td><td>Maximum between-class to within-class ratio</td></tr>
+      <tr><td>Maximum useful directions</td><td>Up to the number of features</td><td>At most K minus 1, where K is the number of classes</td></tr>
+      <tr><td>Main purpose</td><td>Compression and noise reduction</td><td>Classification and separation</td></tr>
+      <tr><td>Key matrices</td><td>Covariance matrix of all data</td><td>S<sub>W</sub> and S<sub>B</sub></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>The number of useful LDA directions is at most K minus 1. With two classes there is exactly one direction. With five classes there are at most four, no matter how many features there are.</p></div>
+  <details class="check"><summary>Question: can PCA ever pick the same direction as LDA?</summary><div class="ans"><p>Yes, if the direction of largest total spread also happens to separate the classes. That is a coincidence, not a rule.</p></div></details>
+  <details class="check"><summary>Question: with 10 features and 4 classes, how many LDA directions are useful?</summary><div class="ans"><p>At most 4 minus 1 = 3, even though there are 10 features.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close when you solve problems.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>projection = w<sup>T</sup>x</td><td>One number per point along direction w</td><td>Turning points into a single feature</td></tr>
+      <tr><td>S<sub>W</sub> = Σ (x minus μ)(x minus μ)<sup>T</sup></td><td>Within-class scatter</td><td>Measuring spread inside classes</td></tr>
+      <tr><td>S<sub>B</sub> = (μ<sub>1</sub> minus μ<sub>2</sub>)(μ<sub>1</sub> minus μ<sub>2</sub>)<sup>T</sup></td><td>Between-class scatter for two classes</td><td>Measuring separation of means</td></tr>
+      <tr><td>J(w) = w<sup>T</sup>S<sub>B</sub>w / w<sup>T</sup>S<sub>W</sub>w</td><td>Fisher's criterion</td><td>Judging how good a direction is</td></tr>
+      <tr><td>w ∝ S<sub>W</sub><sup>-1</sup>(μ<sub>2</sub> minus μ<sub>1</sub>)</td><td>LDA direction for two classes</td><td>Computing the best direction</td></tr>
+      <tr><td>[[a, b], [c, d]]<sup>-1</sup> = (1/(ad minus bc))[[d, minus b], [minus c, a]]</td><td>Inverse of a 2 by 2 matrix</td><td>Solving the LDA direction by hand</td></tr>
+      <tr><td>Maximum LDA directions = K minus 1</td><td>Limit on useful directions</td><td>Counting directions for K classes</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems written for this page. They are not real past paper questions. Try each one before you read the answer. MSQ means more than one option can be correct. NAT means you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Counting LDA directions (NAT)</h3>
+    <div class="statement"><p>A dataset has 10 features and 5 classes. What is the maximum number of useful LDA projection directions? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest number of LDA directions that can be useful.</li>
+      <li><strong>Which idea applies.</strong> LDA gives at most K minus 1 useful directions, where K is the number of classes. The number of features does not raise this limit.</li>
+      <li><strong>Work it out.</strong> K = 5, so K minus 1 = 4. The 10 features do not change the answer, though they can limit it in other cases.</li>
+      <li><strong>Check.</strong> With 2 classes the rule gives 1 direction, which matches the two-class formula.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about LDA and PCA (MSQ)</h3>
+    <div class="statement"><p>Which statements are true? Select all that apply.</p>
+    <p>(A) LDA is a supervised method.</p>
+    <p>(B) PCA uses the class labels to choose its directions.</p>
+    <p>(C) LDA assumes the classes have a shared covariance.</p>
+    <p>(D) LDA gives at most K minus 1 useful directions.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about LDA and PCA are correct.</li>
+      <li><strong>Which idea applies.</strong> Supervised means it uses labels. Shared covariance is the standard LDA assumption. The K minus 1 limit is a key fact.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is false, PCA ignores labels. (C) is true. (D) is true.</li>
+      <li><strong>Check.</strong> The false statement is the one that gives PCA the labels, which is the defining difference between the two.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Fisher ratio for a diagonal case (NAT)</h3>
+    <div class="statement"><p>Within-class scatter is S<sub>W</sub> = [[4, 0], [0, 1]]. The difference of the class means is μ<sub>1</sub> minus μ<sub>2</sub> = (0, 2). Let S<sub>B</sub> = (μ<sub>1</sub> minus μ<sub>2</sub>)(μ<sub>1</sub> minus μ<sub>2</sub>)<sup>T</sup>. Compute Fisher's ratio J(w) for w = (0, 2). (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A single value of J at a given direction.</li>
+      <li><strong>Which idea applies.</strong> J = (w<sup>T</sup>S<sub>B</sub>w)/(w<sup>T</sup>S<sub>W</sub>w). With S<sub>B</sub> = dd<sup>T</sup>, w<sup>T</sup>S<sub>B</sub>w = (w<sup>T</sup>d)².</li>
+      <li><strong>Work it out.</strong> d = (0, 2) and w = (0, 2). w<sup>T</sup>d = 4, so the numerator is 16. For the denominator, w<sup>T</sup>S<sub>W</sub>w = 0 × 4 × 0 + 2 × 1 × 2 = 4. So J = 16/4 = 4.</li>
+      <li><strong>Check.</strong> Along this direction the means are 4 units of projection apart, while the spread is 2 units of standard deviation in total, which fits a ratio of 4 when squared.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Scaling the LDA direction (NAT)</h3>
+    <div class="statement"><p>Within-class scatter is S<sub>W</sub> = [[4, 0], [0, 1]] and the difference of the means is μ<sub>2</sub> minus μ<sub>1</sub> = (2, 2). The LDA direction is w ∝ S<sub>W</sub><sup>-1</sup>(μ<sub>2</sub> minus μ<sub>1</sub>). Scale w so that its second entry is 1. What is the first entry? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first entry of w after scaling its second entry to 1.</li>
+      <li><strong>Which idea applies.</strong> The inverse of a diagonal matrix takes reciprocals of the diagonal.</li>
+      <li><strong>Work it out.</strong> S<sub>W</sub><sup>-1</sup> = [[1/4, 0], [0, 1]]. Multiply by (2, 2): (2/4, 2) = (1/2, 2). Divide both entries by 2 so the second is 1: (1/4, 1). The first entry is 1/4 = 0.25.</li>
+      <li><strong>Check.</strong> The class difference is equal in both features, but the first feature is four times more spread, so its weight is reduced by a factor of 4 relative to the second.</li>
+    </ol>
+    <p class="cx">Answer: 0.25</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which direction does each method choose? (MCQ)</h3>
+    <div class="statement"><p>Red points lie on the line y = 1 and blue points on y = minus 1. Both colours spread from x = minus 5 to x = 5. Which direction does LDA choose? Select the single correct option.</p>
+    <p>(A) the x-axis (B) the y-axis (C) the line y = x</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The direction that best separates the two colours.</li>
+      <li><strong>Which idea applies.</strong> LDA maximises between-class separation divided by within-class spread.</li>
+      <li><strong>Work it out.</strong> Along the x-axis the two classes overlap completely, because both spread from minus 5 to 5. Along the y-axis the means are 2 apart and each class has no spread at all, so the separation is large relative to the spread.</li>
+      <li><strong>Check.</strong> PCA would pick the x-axis, since that is the largest spread. LDA picks the y-axis, which is the classification-friendly answer.</li>
+    </ol>
+    <p class="cx">Answer: (B) the y-axis</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>A non-diagonal within-class scatter (NAT)</h3>
+    <div class="statement"><p>Within-class scatter is S<sub>W</sub> = [[2, 1], [1, 2]]. The difference of the class means is μ<sub>2</sub> minus μ<sub>1</sub> = (3, 0). The LDA direction is w ∝ S<sub>W</sub><sup>-1</sup>(μ<sub>2</sub> minus μ<sub>1</sub>). Find the ratio w<sub>2</sub>/w<sub>1</sub>. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The slope of the LDA direction, as a ratio.</li>
+      <li><strong>Which idea applies.</strong> Use the 2 by 2 inverse formula, then multiply.</li>
+      <li><strong>Work it out.</strong> The determinant is 2 × 2 minus 1 × 1 = 3. So S<sub>W</sub><sup>-1</sup> = (1/3)[[2, minus 1], [minus 1, 2]]. Multiply by (3, 0): the first entry is (1/3)(2 × 3 + (minus 1) × 0) = 2, and the second is (1/3)((minus 1) × 3 + 2 × 0) = minus 1. So w is proportional to (2, minus 1), and the ratio is minus 1/2 = minus 0.5.</li>
+      <li><strong>Check.</strong> Multiply back: S<sub>W</sub>(2, minus 1) = (2 × 2 + 1 × (minus 1), 1 × 2 + 2 × (minus 1)) = (3, 0), which is the mean difference. The answer is confirmed.</li>
+    </ol>
+    <p class="cx">Answer: minus 0.5</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about Fisher's ratio hold? (MSQ)</h3>
+    <div class="statement"><p>Select all true statements.</p>
+    <p>(A) Multiplying w by any non-zero number leaves Fisher's ratio J(w) unchanged.</p>
+    <p>(B) The LDA derivation assumes the two classes have the same covariance.</p>
+    <p>(C) If the class means differ, LDA always separates the classes perfectly.</p>
+    <p>(D) For two classes, the LDA direction is proportional to S<sub>W</sub><sup>-1</sup>(μ<sub>1</sub> minus μ<sub>2</sub>), up to sign.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims about J and LDA are correct.</li>
+      <li><strong>Which idea applies.</strong> A scale factor appears on top and bottom of J. LDA assumes shared covariance. Overlapping classes cannot always be separated. The two-class formula can use either order of means if the sign is ignored.</li>
+      <li><strong>Work it out.</strong> (A) is true, the factor cancels in the ratio. (B) is true, that is the shared-covariance assumption. (C) is false, the spreads may overlap so much that no line separates them perfectly. (D) is true, the two orders differ only by a sign, and a sign does not change the direction up to scale.</li>
+      <li><strong>Check.</strong> The false claim uses the word "always", which is a warning sign in exam questions.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D)</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+# Problem 3: Fisher ratio with S_W = diag(4, 1), d = (0, 2), w = (0, 2)
+SW = [[4, 0], [0, 1]]
+d, w = (0, 2), (0, 2)
+num = (w[0] * d[0] + w[1] * d[1]) ** 2
+den = w[0] * (SW[0][0] * w[0] + SW[0][1] * w[1]) + w[1] * (SW[1][0] * w[0] + SW[1][1] * w[1])
+print("P3 J =", num / den)
+
+# Problem 4: scale so the second entry is 1
+w4 = (F(2, 4), F(2))
+print("P4 first entry =", str(w4[0] / w4[1]))
+
+# Problem 6: non-diagonal inverse
+SW6 = [[2, 1], [1, 2]]
+det = SW6[0][0] * SW6[1][1] - SW6[0][1] * SW6[1][0]
+inv = [[F(SW6[1][1], det), F(-SW6[0][1], det)], [F(-SW6[1][0], det), F(SW6[0][0], det)]]
+w6 = (inv[0][0] * 3, inv[1][0] * 3)
+print("P6 w =", [str(v) for v in w6], " ratio w2/w1 =", str(w6[1] / w6[0]))</code></pre>
+  <pre class="output">P3 J = 4.0
+P4 first entry = 1/4
+P6 w = ['2', '-1']  ratio w2/w1 = -1/2</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Fisher direction and a projection (NAT, 2 marks)</h3>
+    <div class="statement"><p>Two classes in two dimensions have class means m<sub>1</sub> = (1, 2) and m<sub>2</sub> = (3, 0). The within class scatter matrix is S<sub>W</sub> = [[4, 0], [0, 2]]. Fisher LDA chooses the direction w = S<sub>W</sub> inverse times (m<sub>1</sub> minus m<sub>2</sub>). Find the projection w dot x of the point x = (4, 1) onto this direction. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One number: the projection of a point onto the Fisher direction.</li>
+      <li><strong>Which idea applies.</strong> Compute the difference of the means, multiply by the inverse of S<sub>W</sub>, then take a dot product with the point.</li>
+      <li><strong>Work it out.</strong> m<sub>1</sub> minus m<sub>2</sub> = (1 minus 3, 2 minus 0) = (minus 2, 2). The inverse of a diagonal matrix divides each entry by its diagonal value, so w = (minus 2/4, 2/2) = (minus 1/2, 1). The projection is (minus 1/2) times 4 plus 1 times 1 = minus 2 plus 1 = minus 1.</li>
+      <li><strong>Check.</strong> The direction w points from class 2 toward class 1, since w times the mean difference should be positive. Here w dot (m<sub>1</sub> minus m<sub>2</sub>) = (minus 1/2) times (minus 2) + 1 times 2 = 1 + 2 = 3, which is positive as expected.</li>
+    </ol>
+    <p class="cx">Answer: minus 1 (the projection w dot x = -1, with w = (-1/2, 1))</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: LDA versus PCA facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A student compares linear discriminant analysis (LDA) with principal component analysis (PCA). Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) PCA ignores the class labels, while LDA uses them.</p><p>(B) For C classes, LDA gives at most C minus 1 useful discriminant directions.</p><p>(C) PCA keeps the directions of largest variance, and these directions can mix the classes together.</p><p>(D) LDA assumes that each class has its own separate covariance matrix.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four comparisons between LDA and PCA are true.</li>
+      <li><strong>Which idea applies.</strong> PCA is unsupervised and maximises variance. LDA is supervised, uses the between class and within class scatter, and has a rank limit from the number of classes.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true, because the between class scatter has rank at most C minus 1. (C) is true, because the top variance direction can separate nothing if the classes overlap along it. (D) is false: standard LDA assumes one shared covariance matrix for all classes, and quadratic discriminant analysis is the version that allows separate ones.</li>
+      <li><strong>Check.</strong> The code below shows the rank limit for three classes in five dimensions. It gives 2 useful LDA directions, while PCA can offer up to 5.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Option (D) is wrong because standard LDA assumes a shared covariance matrix.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Trace of the between class scatter (NAT, 2 marks)</h3>
+    <div class="statement"><p>Two classes have n<sub>1</sub> = 4 and n<sub>2</sub> = 6 training points, with class means (1, 2) and (3, 0). The between class scatter matrix is S<sub>B</sub> = (n<sub>1</sub> n<sub>2</sub> / n) times (m<sub>1</sub> minus m<sub>2</sub>)(m<sub>1</sub> minus m<sub>2</sub>) transpose, where n = n<sub>1</sub> + n<sub>2</sub>. Find the trace of S<sub>B</sub>, which is the sum of its diagonal entries. Give the exact value. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The trace of S<sub>B</sub>.</li>
+      <li><strong>Which idea applies.</strong> Compute the scaling factor, the outer product of the mean difference, then add the two diagonal entries.</li>
+      <li><strong>Work it out.</strong> n = 10, so the factor is 4 times 6 divided by 10 = 2.4. The difference is (minus 2, 2). The outer product has diagonal entries 4 and 4. So the diagonal of S<sub>B</sub> is 2.4 times 4 = 9.6 and 9.6. The trace is 9.6 plus 9.6 = 19.2.</li>
+      <li><strong>Check.</strong> The trace of an outer product d d transpose equals the squared length of d, which is 4 plus 4 = 8. Multiply by the factor 2.4 to get 19.2.</li>
+    </ol>
+    <p class="cx">Answer: 19.2</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Threshold and distance in the projected space (NAT, 2 marks)</h3>
+    <div class="statement"><p>A two-class LDA model uses the direction w = (minus 1/2, 1). The class means are (1, 2) for class 1 and (3, 0) for class 2. The classes have equal priors, so the decision threshold is the midpoint of the two projected means. A new point is x = (minus 2, 3). Project each mean and the new point onto w, find the threshold, and then find the distance between the projected value of x and the threshold. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A distance on the projected line, not in the original plane.</li>
+      <li><strong>Which idea applies.</strong> Project everything with the same dot product. The threshold is the average of the projected means when priors are equal.</li>
+      <li><strong>Work it out.</strong> Projected mean of class 1: (minus 1/2) times 1 + 1 times 2 = 3/2. Projected mean of class 2: (minus 1/2) times 3 + 0 = minus 3/2. The threshold is (3/2 plus minus 3/2)/2 = 0. The new point projects to (minus 1/2) times (minus 2) + 1 times 3 = 1 + 3 = 4. The distance to the threshold is |4 minus 0| = 4.</li>
+      <li><strong>Check.</strong> The projected value 4 lies on class 1's side, since it is closer to 3/2 (distance 5/2) than to minus 3/2 (distance 11/2). That agrees with the threshold being at 0.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+# Exam-level 1: Fisher direction and projection
+SW = [[F(4), F(0)], [F(0), F(2)]]
+m1 = [F(1), F(2)]
+m2 = [F(3), F(0)]
+diff = [m1[0] - m2[0], m1[1] - m2[1]]
+w = [diff[0] / SW[0][0], diff[1] / SW[1][1]]
+x = [F(4), F(1)]
+print("E1 w1 =", w[0], " w2 =", w[1], " projection =", w[0] * x[0] + w[1] * x[1])
+
+# Exam-level 2: LDA versus PCA facts
+C, d = 3, 5
+print("E2 max LDA directions =", min(C - 1, d), " PCA directions available =", d)
+
+# Exam-level 3: trace of between class scatter
+n1, n2 = 4, 6
+n = n1 + n2
+dd = [m1[0] - m2[0], m1[1] - m2[1]]
+f = F(n1 * n2, n)
+SB = [[f * dd[i] * dd[j] for j in range(2)] for i in range(2)]
+print("E3 S_B =", [[float(v) for v in row] for row in SB], " trace =", float(SB[0][0] + SB[1][1]))
+
+# Exam-level 4: projected means, threshold and distance
+wv = [F(-1, 2), F(1)]
+p1 = wv[0] * m1[0] + wv[1] * m1[1]
+p2 = wv[0] * m2[0] + wv[1] * m2[1]
+t = (p1 + p2) / 2
+xv = [F(-2), F(3)]
+px = wv[0] * xv[0] + wv[1] * xv[1]
+print("E4 projected means =", p1, p2, " threshold =", t, " projection of x =", px, " distance =", abs(px - t))</code></pre>
+  <pre class="output">E1 w1 = -1/2  w2 = 1  projection = -1
+E2 max LDA directions = 2  PCA directions available = 5
+E3 S_B = [[9.6, -9.6], [-9.6, 9.6]]  trace = 19.2
+E4 projected means = 3/2 -3/2  threshold = 0  projection of x = 4  distance = 4</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>Linear Discriminant Analysis (LDA)</dt><dd>A supervised method that finds the direction that best separates classes.</dd></div>
+    <div><dt>Direction w</dt><dd>An arrow whose length does not matter, only its direction.</dd></div>
+    <div><dt>Projection</dt><dd>The dot product w<sup>T</sup>x, one number per point.</dd></div>
+    <div><dt>Class mean</dt><dd>The average point of one class.</dd></div>
+    <div><dt>Within-class scatter S<sub>W</sub></dt><dd>The total spread of each class around its own mean.</dd></div>
+    <div><dt>Between-class scatter S<sub>B</sub></dt><dd>The outer product of the difference between class means.</dd></div>
+    <div><dt>Fisher's criterion</dt><dd>The ratio of projected between-class to within-class scatter, to be maximised.</dd></div>
+    <div><dt>LDA direction</dt><dd>For two classes, w is proportional to S<sub>W</sub><sup>-1</sup>(μ<sub>2</sub> minus μ<sub>1</sub>).</dd></div>
+    <div><dt>Inverse matrix</dt><dd>The matrix that undoes another, found for 2 by 2 matrices by the swap-and-divide rule.</dd></div>
+    <div><dt>Decision threshold</dt><dd>The midpoint of the two projected class means, for classes of similar size.</dd></div>
+    <div><dt>Decision boundary</dt><dd>The line of points that project onto the threshold.</dd></div>
+    <div><dt>Shared covariance</dt><dd>The assumption that all classes have the same spread pattern, which makes the boundary linear.</dd></div>
+    <div><dt>Principal component analysis (PCA)</dt><dd>An unsupervised method that finds the direction of largest total variance.</dd></div>
+    <div><dt>Maximum LDA directions</dt><dd>K minus 1, where K is the number of classes.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>LDA uses the labels. PCA does not.</li>
+    <li>Fisher's ratio is between-class separation divided by within-class spread.</li>
+    <li>For two classes, the LDA direction is S<sub>W</sub><sup>-1</sup> times the difference of the means.</li>
+    <li>The scale of w does not matter, only its direction.</li>
+    <li>LDA gives at most K minus 1 useful directions.</li>
+    <li>The LDA boundary is linear under shared covariance and roughly equal class sizes.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 102?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 102 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-101.html"><small>Previous, topic 101</small>Naive Bayes classifier</a><a class="next" href="gate-103.html"><small>Next, topic 103</small>Decision Trees</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

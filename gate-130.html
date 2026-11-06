@@ -1,0 +1,596 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 130: Boolean algebra basics</title><meta name="description" content="Boolean algebra is the arithmetic of yes and no, written with 1 and 0. Every digital circuit, from a calculator to a robot controller, is built from it. This topic teaches the basic gates, the laws you use to simplify expressions, and the methods that give the smallest circuit for a given logic function."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g130" data-key="g130" data-noun="topic" data-num="130" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Boolean algebra basics</h1>
+<p class="lede">Boolean algebra is the arithmetic of yes and no, written with 1 and 0. Every digital circuit, from a calculator to a robot controller, is built from it. This topic teaches the basic gates, the laws you use to simplify expressions, and the methods that give the smallest circuit for a given logic function.</p>
+<div class="station"><b>130</b><span>Unit 11 · Digital circuits · Paper RA · New concept</span></div>
+<ul class="topics"><li>Logic gates and truth tables</li><li>Boolean laws and De Morgan&#x27;s theorems</li><li>SOP and POS forms</li><li>Simplification with algebra and K-maps</li><li>Universal gates: NAND and NOR</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine two light switches wired to one lamp. If you want the lamp on only when switch A is on <strong>and</strong> switch B is on, you wire the switches in series. If you want the lamp on when either switch is on, you wire them in parallel. Digital circuits work the same way, but with voltages instead of switches. A high voltage means 1 (true), and a low voltage means 0 (false). A logic gate is a small circuit that takes 1s and 0s in and gives a 1 or 0 out, following a fixed rule.</p>
+  <p>Boolean algebra is the mathematics of those rules. It was invented by George Boole in the nineteenth century, long before computers existed. It has a few simple laws, and those laws let us rewrite a circuit as a simpler circuit that does exactly the same job. A simpler circuit uses fewer gates, costs less, uses less power and is faster. That is why simplification matters.</p>
+  <p>In GATE Robotics and Automation (RA) and Data Science and AI (DA), you will meet this topic as truth tables to read, expressions to simplify, and questions about which gate or form is equivalent to another. Once you know the laws and the truth table method, almost every question becomes a step-by-step exercise.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Boolean variable</dt><dd>A variable that can only be 0 or 1. Plain meaning: a switch that is off or on.</dd></div>
+    <div><dt>Literal</dt><dd>A variable or its complement, such as A or A'. Precise: a single variable in true or complemented form.</dd></div>
+    <div><dt>Complement</dt><dd>The opposite value. Written A' (read "A bar" or "A prime"). If A = 1, then A' = 0.</dd></div>
+    <div><dt>AND, OR, NOT</dt><dd>The three basic operations. AND gives 1 only if all inputs are 1. OR gives 1 if any input is 1. NOT flips the input.</dd></div>
+    <div><dt>NAND, NOR</dt><dd>NOT of AND, and NOT of OR. Precise: NAND(A, B) = (AB)', NOR(A, B) = (A + B)'.</dd></div>
+    <div><dt>XOR, XNOR</dt><dd>Exclusive OR gives 1 when the inputs differ. XNOR gives 1 when the inputs are the same. Precise: A ⊕ B = A'B + AB'.</dd></div>
+    <div><dt>Truth table</dt><dd>A table that lists every input combination and the output for each. For n variables it has 2<sup>n</sup> rows.</dd></div>
+    <div><dt>Minterm</dt><dd>An AND term that contains every variable once, true or complemented, and is 1 for exactly one input row.</dd></div>
+    <div><dt>Maxterm</dt><dd>An OR term that contains every variable once, and is 0 for exactly one input row.</dd></div>
+    <div><dt>SOP (sum of products)</dt><dd>An OR of AND terms, such as AB + A'C.</dd></div>
+    <div><dt>POS (product of sums)</dt><dd>An AND of OR terms, such as (A + B)(A' + C).</dd></div>
+    <div><dt>Karnaugh map (K-map)</dt><dd>A grid of the truth table, arranged so that neighbouring cells differ in one variable. It makes grouping easy.</dd></div>
+    <div><dt>Implicant</dt><dd>An AND term that is 1 for some rows of the function. A prime implicant cannot be made bigger.</dd></div>
+    <div><dt>Universal gate</dt><dd>A gate that can build every other gate. NAND and NOR are universal.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Logic gates and truth tables">
+  <h2>Step 1: Logic gates and truth tables</h2>
+  <p>A truth table is the simplest way to define a logic function. You list every input combination, and beside each one you write the output. For two inputs there are 2² = 4 rows. For three inputs there are 2³ = 8 rows. The number of rows doubles every time you add a variable.</p>
+  <p>Here are the basic gates, described in words first:</p>
+  <ul>
+    <li><strong>AND:</strong> output 1 only when both inputs are 1. Written AB or A · B.</li>
+    <li><strong>OR:</strong> output 1 when at least one input is 1. Written A + B.</li>
+    <li><strong>NOT:</strong> output is the opposite of the input. Written A'.</li>
+    <li><strong>NAND:</strong> the output of AND, flipped. Written (AB)'.</li>
+    <li><strong>NOR:</strong> the output of OR, flipped. Written (A + B)'.</li>
+    <li><strong>XOR:</strong> output 1 when the inputs differ. Written A ⊕ B.</li>
+    <li><strong>XNOR:</strong> output 1 when the inputs are equal. Written (A ⊕ B)'.</li>
+  </ul>
+  <h3>Worked example: building a truth table</h3>
+  <p>Take the function F = A'B + AB'. Read it as: F is 1 when (A is 0 and B is 1) or (A is 1 and B is 0). Build the table one row at a time:</p>
+  <ol>
+    <li>Row A = 0, B = 0. A'B = 1 · 0 = 0, and AB' = 0 · 1 = 0. F = 0 + 0 = 0.</li>
+    <li>Row A = 0, B = 1. A'B = 1 · 1 = 1, and AB' = 0 · 0 = 0. F = 1 + 0 = 1.</li>
+    <li>Row A = 1, B = 0. A'B = 0 · 0 = 0, and AB' = 1 · 1 = 1. F = 0 + 1 = 1.</li>
+    <li>Row A = 1, B = 1. A'B = 0 · 1 = 0, and AB' = 1 · 0 = 0. F = 0 + 0 = 0.</li>
+  </ol>
+  <p>The output is 1 when the inputs differ. So F = A ⊕ B. Here is a Python check that builds the same table and compares it with XOR. In Python, the bitwise AND is written with an ampersand, which we escape in the page as <code>&amp;</code>.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def F(A, B):
+    return (1 - A) * B | A * (1 - B)   # F = A'B + AB'
+
+print("A B | F")
+for A, B in product([0, 1], repeat=2):
+    print(A, B, "|", F(A, B))
+print("F equals XOR everywhere:", all(F(A, B) == (A ^ B) for A, B in product([0, 1], repeat=2)))</code></pre>
+  <pre class="output">A B | F
+0 0 | 0
+0 1 | 1
+1 0 | 1
+1 1 | 0
+F equals XOR everywhere: True</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Do not read AB + C as A(B + C). Precedence matters: AND binds more tightly than OR, so AB + C means (AB) + C. Use brackets whenever you are unsure.</p></div>
+  <details class="check"><summary>What is the output of NOR when both inputs are 0?</summary><div class="ans"><p>OR of 0 and 0 is 0. Flipping it gives 1. So NOR(0, 0) = 1.</p></div></details>
+  <details class="check"><summary>How many rows does a truth table for four variables have?</summary><div class="ans"><p>2<sup>4</sup> = 16 rows.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Boolean laws and De Morgan's theorems">
+  <h2>Step 2: Boolean laws and De Morgan's theorems</h2>
+  <p>A law is a rule that is always true, for every value of the variables. You can check any law by building a truth table, but in GATE you usually apply the laws to rewrite an expression. Here are the most useful ones, each written as a pair, one for AND and one for OR.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Law</th><th>AND form</th><th>OR form</th></tr></thead>
+    <tbody>
+      <tr><td>Identity</td><td>A · 1 = A</td><td>A + 0 = A</td></tr>
+      <tr><td>Null (annihilator)</td><td>A · 0 = 0</td><td>A + 1 = 1</td></tr>
+      <tr><td>Idempotent</td><td>A · A = A</td><td>A + A = A</td></tr>
+      <tr><td>Complement</td><td>A · A' = 0</td><td>A + A' = 1</td></tr>
+      <tr><td>Involution</td><td colspan="2">(A')' = A</td></tr>
+      <tr><td>Commutative</td><td>AB = BA</td><td>A + B = B + A</td></tr>
+      <tr><td>Associative</td><td>(AB)C = A(BC)</td><td>(A + B) + C = A + (B + C)</td></tr>
+      <tr><td>Distributive</td><td>A(B + C) = AB + AC</td><td>A + BC = (A + B)(A + C)</td></tr>
+      <tr><td>Absorption</td><td>A(A + B) = A</td><td>A + AB = A</td></tr>
+    </tbody>
+  </table></div>
+  <p>Look at the distributive law in the OR form. It is surprising, because ordinary algebra has no rule like A + BC = (A + B)(A + C). Boolean algebra does, and that is why truth tables are a good way to confirm it.</p>
+  <h3>De Morgan's theorems</h3>
+  <p>De Morgan's theorems are the most important pair for GATE. They tell you how to move a bar across a bracket:</p>
+  <div class="formula">(A + B)' = A' B'</div>
+  <div class="formula">(AB)' = A' + B'</div>
+  <p>Symbols: the bar on the outside means NOT of the whole bracket, and the bars inside mean NOT of each variable. In words: the NOT of an OR is the AND of the NOTs, and the NOT of an AND is the OR of the NOTs. Break the bar, and change the sign.</p>
+  <h3>Worked example: simplifying step by step</h3>
+  <p>Simplify F = A'B + AB + AB'. Show every step:</p>
+  <ol>
+    <li><strong>Group the first two terms.</strong> A'B + AB = B(A' + A), by the distributive law in reverse.</li>
+    <li><strong>Use the complement law.</strong> A' + A = 1, so B(A' + A) = B · 1 = B.</li>
+    <li><strong>Now the expression is F = B + AB'.</strong></li>
+    <li><strong>Use the absorption-like law.</strong> B + AB' = (B + A)(B + B') by the distributive law, and B + B' = 1, so F = (B + A) · 1 = A + B.</li>
+  </ol>
+  <p>The answer is F = A + B, a single OR gate. The original had three product terms. Here is a Python check that tests a few laws over every row.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def check(name, lhs, rhs, n):
+    ok = all(lhs(*v) == rhs(*v) for v in product([0, 1], repeat=n))
+    print(name, ok)
+
+check("absorption A + AB = A        ", lambda A, B: A | (A &amp; B), lambda A, B: A, 2)
+check("absorption A(A + B) = A      ", lambda A, B: A &amp; (A | B), lambda A, B: A, 2)
+check("De Morgan (A + B)' = A'B'    ", lambda A, B: 1 - (A | B), lambda A, B: (1 - A) &amp; (1 - B), 2)
+check("De Morgan (AB)' = A' + B'    ", lambda A, B: 1 - (A &amp; B), lambda A, B: (1 - A) | (1 - B), 2)
+check("distributive A(B + C) = AB+AC", lambda A, B, C: A &amp; (B | C), lambda A, B, C: (A &amp; B) | (A &amp; C), 3)
+check("A + BC = (A+B)(A+C)          ", lambda A, B, C: A | (B &amp; C), lambda A, B, C: (A | B) &amp; (A | C), 3)
+check("A + A'B = A + B              ", lambda A, B: A | ((1 - A) &amp; B), lambda A, B: A | B, 2)</code></pre>
+  <pre class="output">absorption A + AB = A         True
+absorption A(A + B) = A       True
+De Morgan (A + B)' = A'B'     True
+De Morgan (AB)' = A' + B'     True
+distributive A(B + C) = AB+AC True
+A + BC = (A+B)(A+C)           True
+A + A'B = A + B               True</pre>
+  <p>Every line says True, so each law holds for every input row. That is what makes it a law.</p>
+  <div class="note tip"><p><span class="t">Tip</span>When you simplify, look first for a complement pair (X + X' = 1), then for a common factor, then for absorption. Write each step on its own line.</p></div>
+  <details class="check"><summary>Simplify A(A' + B). What do you get?</summary><div class="ans"><p>Distribute: AA' + AB = 0 + AB = AB. The complement law gives AA' = 0, so the answer is AB.</p></div></details>
+  <details class="check"><summary>What is the complement of A + BC by De Morgan's theorem?</summary><div class="ans"><p>(A + BC)' = A' (BC)' = A' (B' + C'). The bar breaks, and the sign changes from OR to AND and then the inside becomes B' + C'.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="SOP and POS forms">
+  <h2>Step 3: SOP and POS forms</h2>
+  <p>Any logic function can be written in a standard form. There are two main ones. The first is the <strong>sum of products (SOP)</strong>: several AND terms joined by OR. The second is the <strong>product of sums (POS)</strong>: several OR terms joined by AND. Both come directly from a truth table, so you never need to guess the expression.</p>
+  <h3>Building an SOP from a truth table</h3>
+  <p>Use the majority function as the example. F(A, B, C) = 1 when at least two inputs are 1. The rows where F = 1 are 011, 101, 110 and 111. Read each row as a binary number to get its row number: 011 is 3, 101 is 5, 110 is 6, and 111 is 7. Each row gives a <strong>minterm</strong>. Write 1 as the variable itself, and 0 as the complement:</p>
+  <ol>
+    <li>Row 011: A = 0, so A'. B = 1, so B. C = 1, so C. Minterm: A'BC.</li>
+    <li>Row 101: AB'C.</li>
+    <li>Row 110: ABC'.</li>
+    <li>Row 111: ABC.</li>
+  </ol>
+  <div class="formula">F = A'BC + AB'C + ABC' + ABC = Σm(3, 5, 6, 7)</div>
+  <p>Symbols: Σ means "sum" (OR), and m(3, 5, 6, 7) lists the row numbers where F = 1. Let us check that the simplified form BC + AC + AB gives the same rows.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def majority(A, B, C):
+    return 1 if A + B + C &gt;= 2 else 0
+
+minterms = []
+for i, (A, B, C) in enumerate(product([0, 1], repeat=3)):
+    if majority(A, B, C) == 1:
+        minterms.append(i)
+print("minterms of F =", minterms)
+
+def simplified(A, B, C):
+    return (B &amp; C) | (A &amp; C) | (A &amp; B)
+
+same = all(majority(*v) == simplified(*v) for v in product([0, 1], repeat=3))
+print("BC + AC + AB equals F:", same)</code></pre>
+  <pre class="output">minterms of F = [3, 5, 6, 7]
+BC + AC + AB equals F: True</pre>
+  <h3>Building a POS from the zeros</h3>
+  <p>A POS is built from the rows where F = 0. Each such row gives a <strong>maxterm</strong>, an OR term that is 0 for exactly that row. Write 0 as the variable itself, and 1 as the complement, which is the opposite of the minterm rule. The rows where the majority function is 0 are 000, 001, 010 and 100, that is, rows 0, 1, 2 and 4.</p>
+  <div class="formula">F = (A + B + C)(A + B + C')(A + B' + C)(A' + B + C) = ΠM(0, 1, 2, 4)</div>
+  <p>Symbols: Π means "product" (AND), and M(0, 1, 2, 4) lists the rows where F = 0. Take the row 001 as a check: A = 0 and B = 0 make A and B both 0, and C = 1 makes C' = 0, so the maxterm A + B + C' is 0 for that row. Here is the Python check.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def majority(A, B, C):
+    return 1 if A + B + C &gt;= 2 else 0
+
+zeros = [i for i, (A, B, C) in enumerate(product([0, 1], repeat=3)) if majority(A, B, C) == 0]
+print("rows where F = 0:", zeros)
+pos = all(
+    ((A | B | C) &amp; (A | B | (1 - C)) &amp; (A | (1 - B) | C) &amp; ((1 - A) | B | C)) == majority(A, B, C)
+    for A, B, C in product([0, 1], repeat=3)
+)
+print("POS form equals F:", pos)</code></pre>
+  <pre class="output">rows where F = 0: [0, 1, 2, 4]
+POS form equals F: True</pre>
+  <div class="note trap"><p><span class="t">Trap</span>The minterm and maxterm rules are opposite. For a minterm, a 1 in the row gives the variable and a 0 gives its complement. For a maxterm, a 0 gives the variable and a 1 gives its complement.</p></div>
+  <details class="check"><summary>Write the minterm for the row A = 1, B = 0, C = 0.</summary><div class="ans"><p>AB'C'. A is 1 so A appears. B is 0 so B'. C is 0 so C'.</p></div></details>
+  <details class="check"><summary>Which row number is the maxterm A' + B + C'?</summary><div class="ans"><p>It is 0 only when A = 1, B = 0 and C = 1. That row is 101, which is row 5.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Simplification with K-maps">
+  <h2>Step 4: Simplification with K-maps</h2>
+  <p>Algebra works, but it is easy to miss a simplification. A Karnaugh map (K-map) shows the whole truth table on a grid, so that simplification becomes visual. The trick is the column order. Neighbouring cells differ in exactly one variable, so a group of neighbouring 1s can be combined into one term.</p>
+  <p>Here is the function F = Σm(0, 1, 2, 5, 6, 7) on a 3-variable K-map. Rows are A, and the columns follow BC in the order 00, 01, 11, 10. The last two columns are swapped on purpose, so that neighbours differ by one bit.</p>
+  <pre class="code" data-lang="text"><code>          BC = 00   01    11    10
+A = 0          1      1     0     1      (m0 m1 m3 m2)
+A = 1          0      1     1     1      (m4 m5 m7 m6)</code></pre>
+  <p>The rules for grouping are simple. Groups must contain 1, 2, 4 or 8 cells. Make each group as large as you can. Every 1 must be covered at least once. The grid wraps around at the edges, so the left and right columns are neighbours.</p>
+  <ol>
+    <li><strong>Group m0 and m2</strong> (column 00 and column 10, row A = 0). They share A' and C'. Term: A'C'.</li>
+    <li><strong>Group m1 and m5</strong> (column 01, both rows). They share B' and C. Term: B'C.</li>
+    <li><strong>Group m6 and m7</strong> (row A = 1, columns 10 and 11). They share A and B. Term: AB.</li>
+    <li><strong>Check coverage.</strong> m0 and m2 by A'C'. m1 and m5 by B'C. m6 and m7 by AB. All six 1s are covered.</li>
+  </ol>
+  <div class="formula">F = A'C' + B'C + AB</div>
+  <p>This answer has three terms and six literals. The term A'C' uses two literals, B'C uses two, and AB uses two. Without the map, the original sum had six product terms, so the simplification is large. Here is the Python check that the answer equals F on all eight rows.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def F(A, B, C):
+    m = [0, 1, 2, 5, 6, 7]
+    i = 4 * A + 2 * B + C
+    return 1 if i in m else 0
+
+def candidate(A, B, C):
+    return ((1 - A) &amp; (1 - C)) | ((1 - B) &amp; C) | (A &amp; B)
+
+ones = [4 * A + 2 * B + C for A, B, C in product([0, 1], repeat=3) if F(A, B, C)]
+print("minterms =", ones)
+print("A'C' + B'C + AB equals F:", all(F(*v) == candidate(*v) for v in product([0, 1], repeat=3)))
+print("literals in the answer =", 2 + 2 + 2)</code></pre>
+  <pre class="output">minterms = [0, 1, 2, 5, 6, 7]
+A'C' + B'C + AB equals F: True
+literals in the answer = 6</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect a K-map question with a "don't care" cell or a question asking for the number of literals. Count the literals in the final answer, not in the original expression.</p></div>
+  <details class="check"><summary>Why are the columns in a K-map ordered 00, 01, 11, 10 and not 00, 01, 10, 11?</summary><div class="ans"><p>Because in 00, 01, 11, 10 every neighbour differs in only one bit. In 00, 01, 10, 11 the step from 01 to 10 changes two bits, so those cells would not be neighbours.</p></div></details>
+  <details class="check"><summary>Can a group in a 3-variable K-map contain 3 cells?</summary><div class="ans"><p>No. Groups must contain 1, 2, 4 or 8 cells, because a group always removes a whole number of variables, one variable for each doubling.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Universal gates: NAND and NOR">
+  <h2>Step 5: Universal gates: NAND and NOR</h2>
+  <p>Factories do not build every gate from scratch. Chip designers prefer to use one kind of gate everywhere, because it is simpler to make. NAND and NOR have that property. Each is a <strong>universal gate</strong>, which means that any Boolean function can be built from NAND gates alone, or from NOR gates alone.</p>
+  <p>Here is how a NAND gate can imitate the three basic gates. Use the fact that NAND(A, B) = (AB)':</p>
+  <ul>
+    <li><strong>NOT:</strong> tie both inputs of a NAND gate together. NAND(A, A) = (AA)' = A'.</li>
+    <li><strong>AND:</strong> take a NAND and feed its output into a NOT (itself a NAND). NOT(NAND(A, B)) = AB.</li>
+    <li><strong>OR:</strong> feed NOT A and NOT B into a NAND. NAND(A', B') = (A'B')' = A + B, by De Morgan's theorem.</li>
+  </ul>
+  <div class="note key"><p><span class="t">Key idea</span>Universal does not mean convenient. It means possible. A NAND-only circuit can be bigger, but it uses only one type of chip.</p></div>
+  <p>Python can confirm each construction over every input row. Here the NOT is written as 1 minus a, and the bitwise AND is escaped as <code>&amp;</code>.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def NOT(a):
+    return 1 - (a &amp; a)                 # NAND(a, a)
+
+def NAND(a, b):
+    return 1 - (a &amp; b)
+
+def AND_from_NAND(a, b):
+    return NOT(NAND(a, b))
+
+def OR_from_NAND(a, b):
+    return NAND(NOT(a), NOT(b))
+
+print("NOT via NAND:", all(NOT(a) == 1 - a for a in [0, 1]))
+print("AND via NAND:", all(AND_from_NAND(a, b) == (a &amp; b) for a, b in product([0, 1], repeat=2)))
+print("OR via NAND: ", all(OR_from_NAND(a, b) == (a | b) for a, b in product([0, 1], repeat=2)))</code></pre>
+  <pre class="output">NOT via NAND: True
+AND via NAND: True
+OR via NAND:  True</pre>
+  <h3>Worked example: counting NAND gates for XOR</h3>
+  <p>XOR is not a basic gate in every chip family, so it is a good test. The standard construction uses four NAND gates. Let t = NAND(A, B). Then:</p>
+  <ol>
+    <li>Gate 1: t = NAND(A, B).</li>
+    <li>Gate 2: u = NAND(A, t). This is 1 unless A and t are both 1.</li>
+    <li>Gate 3: v = NAND(B, t).</li>
+    <li>Gate 4: output = NAND(u, v).</li>
+  </ol>
+  <p>Try A = 1, B = 0. Then t = NAND(1, 0) = 1, u = NAND(1, 1) = 0, v = NAND(0, 1) = 1, and the output is NAND(0, 1) = 1. The output is 1, which is XOR of 1 and 0. Try A = 1, B = 1: t = 0, u = 1, v = 1, and the output is NAND(1, 1) = 0, which is XOR of 1 and 1. The Python check below tests all four rows, and also tests two claims about NOR.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+
+def NAND(a, b):
+    return 1 - (a &amp; b)
+
+def NOR(a, b):
+    return 1 - (a | b)
+
+def XOR_from_NAND(a, b):
+    t = NAND(a, b)
+    return NAND(NAND(a, t), NAND(b, t))
+
+print("XOR from 4 NAND gates:", all(XOR_from_NAND(a, b) == (a ^ b) for a, b in product([0, 1], repeat=2)))
+print("NOR(A,B) equals A' + B':", all(NOR(a, b) == ((1 - a) | (1 - b)) for a, b in product([0, 1], repeat=2)))
+print("NOR(A,B) equals A'B':", all(NOR(a, b) == ((1 - a) &amp; (1 - b)) for a, b in product([0, 1], repeat=2)))</code></pre>
+  <pre class="output">XOR from 4 NAND gates: True
+NOR(A,B) equals A' + B': False
+NOR(A,B) equals A'B': True</pre>
+  <div class="note trap"><p><span class="t">Trap</span>NOR(A, B) is A'B', not A' + B'. The second one is NAND(A, B). Remember: the NOT of an OR is an AND of NOTs.</p></div>
+  <details class="check"><summary>How do you make a NOT gate using only NOR gates?</summary><div class="ans"><p>Tie both inputs of a NOR together. NOR(A, A) = (A + A)' = A'.</p></div></details>
+  <details class="check"><summary>Which gate is NOT(NAND(A, B)) equal to?</summary><div class="ans"><p>AND. Flipping (AB)' gives AB.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close while you practise. Every law here was tested in the Python checks above.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>X + X' = 1, XX' = 0</td><td>Complement law</td><td>Removing a pair of opposite literals</td></tr>
+      <tr><td>A + AB = A</td><td>Absorption</td><td>Removing a term that is already covered</td></tr>
+      <tr><td>A + A'B = A + B</td><td>Absorption with complement</td><td>Removing a complemented literal</td></tr>
+      <tr><td>(A + B)' = A'B'</td><td>De Morgan, OR form</td><td>Moving a bar across an OR</td></tr>
+      <tr><td>(AB)' = A' + B'</td><td>De Morgan, AND form</td><td>Moving a bar across an AND</td></tr>
+      <tr><td>A(B + C) = AB + AC</td><td>Distributive, AND over OR</td><td>Expanding brackets</td></tr>
+      <tr><td>A + BC = (A + B)(A + C)</td><td>Distributive, OR over AND</td><td>Converting to POS, or factoring</td></tr>
+      <tr><td>A ⊕ B = A'B + AB'</td><td>XOR as SOP</td><td>Writing XOR in basic gates</td></tr>
+      <tr><td>F = Σm(list)</td><td>SOP from rows where F = 1</td><td>Building an SOP from a truth table</td></tr>
+      <tr><td>F = ΠM(list)</td><td>POS from rows where F = 0</td><td>Building a POS from a truth table</td></tr>
+      <tr><td>NAND(A, A) = A'</td><td>NOT from NAND</td><td>Building a NAND-only circuit</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style questions for practice. They are not real past paper questions. Try each one on paper before reading the answer, and then check it with the code.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Simplify A + A'B</h3>
+    <div class="statement"><p>Simplify the expression A + A'B as far as possible.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The simplest equal expression.</li>
+      <li><strong>Which idea applies.</strong> Absorption with a complement: A + A'B = A + B.</li>
+      <li><strong>Work it out.</strong> Expand A + A'B = (A + A')(A + B) by the distributive law in reverse. Then A + A' = 1, so the product is 1 × (A + B) = A + B.</li>
+      <li><strong>Check.</strong> Test the rows. A = 0, B = 1 gives 0 + 1 = 1 on both sides. A = 1 gives 1 on both sides.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+ok = all((A | ((1 - A) &amp; B)) == (A | B) for A, B in product([0, 1], repeat=2))
+print("A + A'B equals A + B:", ok)</code></pre>
+    <pre class="output">A + A'B equals A + B: True</pre>
+    <p class="cx">Answer: A + B.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which laws are correct?</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) A(A + B) = A<br>(B) (A + B)' = A'B'<br>(C) A + A' = 1<br>(D) A ⊕ A = 1</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four laws hold for every value of A and B.</li>
+      <li><strong>Which idea applies.</strong> Absorption, De Morgan, and the complement law. XOR needs its own rule.</li>
+      <li><strong>Work it out.</strong> (A) Absorption, true. (B) De Morgan, true. (C) Complement, true. (D) A ⊕ A is 1 only if the inputs differ, and they never differ when both are A, so A ⊕ A = 0. False.</li>
+      <li><strong>Check.</strong> Put A = 1 into (D). The inputs are both 1, so XOR gives 0, not 1.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Option (D) is false, because A ⊕ A = 0.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting the 1s in a truth table</h3>
+    <div class="statement"><p>For the function F = AB + A'C of three variables A, B and C, how many of the eight input rows give F = 1? Then list those rows.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of rows where F = 1.</li>
+      <li><strong>Which idea applies.</strong> Test each of the eight rows, or reason by cases on A.</li>
+      <li><strong>Work it out.</strong> If A = 1 and B = 1, then AB = 1, so F = 1 for both values of C. That is 2 rows. If A = 0, then AB = 0, and F = C. So F = 1 when C = 1, with B either value: 2 rows. Total 4 rows.</li>
+      <li><strong>Check.</strong> The two cases do not overlap, because AB needs A = 1 and A'C needs A = 0. So 2 + 2 = 4 with no double counting.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+rows = [(A, B, C) for A, B, C in product([0, 1], repeat=3) if (A &amp; B) | ((1 - A) &amp; C)]
+print("rows where F = 1:", len(rows))
+for row in rows:
+    print(row)</code></pre>
+    <pre class="output">rows where F = 1: 4
+(0, 0, 1)
+(0, 1, 1)
+(1, 1, 0)
+(1, 1, 1)</pre>
+    <p class="cx">Answer: 4 rows, namely (A, B, C) = (0, 0, 1), (0, 1, 1), (1, 1, 0) and (1, 1, 1).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Simplest equivalent expression</h3>
+    <div class="statement"><p>Let F = A'B + AB + AB'. Which expression is equal to F?<br>(A) A + B<br>(B) AB + A'B'<br>(C) A'B</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The option that equals F on every row.</li>
+      <li><strong>Which idea applies.</strong> Group A'B + AB = B, then use B + AB' = A + B.</li>
+      <li><strong>Work it out.</strong> A'B + AB = B. Then F = B + AB'. By the absorption law with complement, B + AB' = A + B. So F = A + B, which is option (A).</li>
+      <li><strong>Check.</strong> The Python output shows F and A + B agree on all four rows.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+F = lambda A, B: ((1 - A) &amp; B) | (A &amp; B) | (A &amp; (1 - B))
+G = lambda A, B: A | B
+for A, B in product([0, 1], repeat=2):
+    print(A, B, F(A, B), G(A, B))
+print("same function:", all(F(A, B) == G(A, B) for A, B in product([0, 1], repeat=2)))</code></pre>
+    <pre class="output">0 0 0 0
+0 1 1 1
+1 0 1 1
+1 1 1 1
+same function: True</pre>
+    <p class="cx">Answer: (A), A + B.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Minterms and SOP of the majority function</h3>
+    <div class="statement"><p>A function F(A, B, C) outputs 1 when at least two of its three inputs are 1. Write F as a sum of minterms, using the row numbers, and then give a simpler SOP.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Σm(...) and a simpler SOP.</li>
+      <li><strong>Which idea applies.</strong> Rows with F = 1 give minterms. Then simplify.</li>
+      <li><strong>Work it out.</strong> F = 1 for 011, 101, 110, 111, which are rows 3, 5, 6, 7. So F = Σm(3, 5, 6, 7). Grouping pairs of these, the simpler form is BC + AC + AB.</li>
+      <li><strong>Check.</strong> The Python code shows the minterm list and that BC + AC + AB gives the same rows.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+
+def majority(A, B, C):
+    return 1 if A + B + C &gt;= 2 else 0
+
+minterms = []
+for i, (A, B, C) in enumerate(product([0, 1], repeat=3)):
+    if majority(A, B, C) == 1:
+        minterms.append(i)
+print("minterms of F =", minterms)
+
+def simplified(A, B, C):
+    return (B &amp; C) | (A &amp; C) | (A &amp; B)
+
+same = all(majority(*v) == simplified(*v) for v in product([0, 1], repeat=3))
+print("BC + AC + AB equals F:", same)</code></pre>
+    <pre class="output">minterms of F = [3, 5, 6, 7]
+BC + AC + AB equals F: True</pre>
+    <p class="cx">Answer: F = Σm(3, 5, 6, 7), which simplifies to BC + AC + AB.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>K-map for six minterms</h3>
+    <div class="statement"><p>F(A, B, C) = Σm(0, 1, 2, 5, 6, 7). Find a minimal SOP and state how many literals it has.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A minimal SOP and its literal count.</li>
+      <li><strong>Which idea applies.</strong> K-map grouping in a 2 by 4 grid with BC in Gray-code order.</li>
+      <li><strong>Work it out.</strong> Groups: {m0, m2} gives A'C'. {m1, m5} gives B'C. {m6, m7} gives AB. Together they cover 0, 1, 2, 5, 6 and 7. So F = A'C' + B'C + AB, which has 2 + 2 + 2 = 6 literals.</li>
+      <li><strong>Check.</strong> The Python code confirms the expression equals F on all eight rows.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+
+def F(A, B, C):
+    m = [0, 1, 2, 5, 6, 7]
+    i = 4 * A + 2 * B + C
+    return 1 if i in m else 0
+
+def candidate(A, B, C):
+    return ((1 - A) &amp; (1 - C)) | ((1 - B) &amp; C) | (A &amp; B)
+
+print("A'C' + B'C + AB equals F:", all(F(*v) == candidate(*v) for v in product([0, 1], repeat=3)))
+print("literals in the answer =", 2 + 2 + 2)</code></pre>
+    <pre class="output">A'C' + B'C + AB equals F: True
+literals in the answer = 6</pre>
+    <p class="cx">Answer: F = A'C' + B'C + AB, with 6 literals.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>How many functions of two variables?</h3>
+    <div class="statement"><p>A Boolean function of two variables A and B is defined by its output for each of the four input rows. How many different functions of two variables exist? Give a number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of distinct functions, not of expressions.</li>
+      <li><strong>Which idea applies.</strong> Each of the 4 rows can output 0 or 1 independently. Count the choices.</li>
+      <li><strong>Work it out.</strong> There are 2 choices for each of 4 rows, so 2 × 2 × 2 × 2 = 2<sup>4</sup> = 16 functions. The Python code lists every output pattern and counts the distinct ones.</li>
+      <li><strong>Check.</strong> The same rule gives 2<sup>2</sup> = 4 functions of one variable, which is right: 0, 1, A and A'.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+inputs = list(product([0, 1], repeat=2))   # the 4 input rows
+functions = set()
+for outputs in product([0, 1], repeat=len(inputs)):
+    functions.add(outputs)                 # each output pattern is one function
+print("distinct functions of 2 variables =", len(functions))</code></pre>
+    <pre class="output">distinct functions of 2 variables = 16</pre>
+    <p class="cx">Answer: 16.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about NAND and NOR</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) XOR can be built from four NAND gates.<br>(B) NOR(A, B) equals A' + B'.<br>(C) NOR(A, B) equals A'B'.<br>(D) NAND(A, A) is the NOT of A.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims hold for every input row.</li>
+      <li><strong>Which idea applies.</strong> Test each claim on the four rows, or use De Morgan's theorem.</li>
+      <li><strong>Work it out.</strong> (A) The four-NAND XOR was tested above, true. (B) NOR(A, B) = (A + B)' = A'B' by De Morgan. A' + B' is NAND(A, B), so (B) is false. (C) True, by De Morgan. (D) NAND(A, A) = (AA)' = A', true.</li>
+      <li><strong>Check.</strong> The Python output shows B is False and C is True for the NOR statements.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+
+def NAND(a, b):
+    return 1 - (a &amp; b)
+
+def NOR(a, b):
+    return 1 - (a | b)
+
+def XOR_from_NAND(a, b):
+    t = NAND(a, b)
+    return NAND(NAND(a, t), NAND(b, t))
+
+print("XOR from 4 NAND gates:", all(XOR_from_NAND(a, b) == (a ^ b) for a, b in product([0, 1], repeat=2)))
+print("NOR(A,B) equals A' + B':", all(NOR(a, b) == ((1 - a) | (1 - b)) for a, b in product([0, 1], repeat=2)))
+print("NOR(A,B) equals A'B':", all(NOR(a, b) == ((1 - a) &amp; (1 - b)) for a, b in product([0, 1], repeat=2)))</code></pre>
+    <pre class="output">XOR from 4 NAND gates: True
+NOR(A,B) equals A' + B': False
+NOR(A,B) equals A'B': True</pre>
+    <p class="cx">Answer: (A), (C) and (D). Option (B) is false.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Simplification (MCQ, 2 marks)</h3>
+    <div class="statement"><p>The minimal sum of products of F(A, B, C) = Σm(0, 1, 2, 3, 5, 7) is (A) A′ + C (B) A + C′ (C) A′ + B (D) A′C + B</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The simplest SOP.</li>
+      <li><strong>Which idea applies.</strong> Group on a Karnaugh map.</li>
+      <li><strong>Work it out.</strong> Minterms 0 to 3 give A′. Minterms 1, 3, 5, 7 give C. So F = A′ + C.</li>
+      <li><strong>Check.</strong> The code checks every row.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+m = {0, 1, 2, 3, 5, 7}
+print(all(((not A) or C) == (4 * A + 2 * B + C in m) for A, B, C in product([0, 1], repeat=3)))
+</code></pre>
+    <pre class="output">True</pre>
+    <p class="cx">Answer: (A).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Number of functions (NAT, 1 mark)</h3>
+    <div class="statement"><p>How many distinct Boolean functions of 3 variables are self-dual?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Functions with F(x′) = F(x)′.</li>
+      <li><strong>Which idea applies.</strong> Each of the 4 complementary pairs of inputs fixes one output and forces the other.</li>
+      <li><strong>Work it out.</strong> 2<sup>4</sup> = 16.</li>
+      <li><strong>Check.</strong> The code counts by brute force.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+cnt = 0
+for f in product([0, 1], repeat=8):
+    if all(f[7 - i] == 1 - f[i] for i in range(8)): cnt += 1
+print(cnt)
+</code></pre>
+    <pre class="output">16</pre>
+    <p class="cx">Answer: 16.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Identities (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) A + AB = A (B) A + A′B = A + B (C) (A + B)(A + C) = A + BC (D) AB + A′C + BC = AB + A′C + B</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Valid Boolean identities.</li>
+      <li><strong>Which idea applies.</strong> Absorption, the redundancy rule and the consensus theorem.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) Consensus says AB + A′C + BC = AB + A′C, not with B. For A = 0, B = 1, C = 0 the left is 0 and the right is 1. False.</li>
+      <li><strong>Check.</strong> The code checks (D).</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import product
+print([(A, B, C) for A, B, C in product([0, 1], repeat=3) if (A &amp; B | (1 - A) &amp; C | B &amp; C) != (A &amp; B | (1 - A) &amp; C | B)])
+</code></pre>
+    <pre class="output">[(0, 1, 0)]</pre>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Boolean variable</dt><dd>A variable that is 0 or 1.</dd></div>
+    <div><dt>Complement</dt><dd>The opposite value, written A'.</dd></div>
+    <div><dt>AND</dt><dd>Output 1 only when all inputs are 1.</dd></div>
+    <div><dt>OR</dt><dd>Output 1 when any input is 1.</dd></div>
+    <div><dt>NOT</dt><dd>Flips its input.</dd></div>
+    <div><dt>NAND and NOR</dt><dd>NOT of AND, and NOT of OR.</dd></div>
+    <div><dt>XOR</dt><dd>Output 1 when the inputs differ. A ⊕ B = A'B + AB'.</dd></div>
+    <div><dt>Truth table</dt><dd>Lists every input row and its output. Has 2 to the power n rows.</dd></div>
+    <div><dt>Minterm</dt><dd>An AND term that is 1 for exactly one row. Used for SOP.</dd></div>
+    <div><dt>Maxterm</dt><dd>An OR term that is 0 for exactly one row. Used for POS.</dd></div>
+    <div><dt>SOP</dt><dd>Sum of products: an OR of AND terms.</dd></div>
+    <div><dt>POS</dt><dd>Product of sums: an AND of OR terms.</dd></div>
+    <div><dt>K-map</dt><dd>A grid of the truth table, with neighbours differing in one variable.</dd></div>
+    <div><dt>Implicant</dt><dd>An AND term that is 1 for some of the rows where F is 1.</dd></div>
+    <div><dt>Universal gate</dt><dd>A gate that can build every other gate. NAND and NOR.</dd></div>
+    <div><dt>Absorption</dt><dd>A + AB = A, and A + A'B = A + B.</dd></div>
+    <div><dt>De Morgan</dt><dd>(A + B)' = A'B' and (AB)' = A' + B'.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A truth table is the ground truth. Build it when you are unsure.</li>
+    <li>De Morgan: break the bar and change the sign.</li>
+    <li>AND binds more tightly than OR. Use brackets when unsure.</li>
+    <li>Minterms come from rows where F = 1. Maxterms come from rows where F = 0.</li>
+    <li>In a K-map, groups have 1, 2, 4 or 8 cells, and the grid wraps around.</li>
+    <li>NAND(A, A) = A'. NOR(A, A) = A'.</li>
+    <li>Simplify one step at a time, and write each step down.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 130?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 130 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-129.html"><small>Previous, topic 129</small>Complex power &amp; power factor</a><a class="next" href="gate-131.html"><small>Next, topic 131</small>Combinational circuits: MUX, encoders, decoders</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

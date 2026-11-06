@@ -1,0 +1,497 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 183: Design for static loading</title><meta name="description" content="Design for static loading means choosing the size of a machine part so that a steady load never makes it fail. This page builds the ideas step by step: stress, factor of safety, allowable stress, the failure theories that tell us when yield happens under combined stresses, and the design equations for rods, pins and shafts, with GATE-style numbers."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g183" data-key="g183" data-noun="topic" data-num="183" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Design for static loading</h1>
+<p class="lede">Design for static loading means choosing the size of a machine part so that a steady load never makes it fail. This page builds the ideas step by step: stress, factor of safety, allowable stress, the failure theories that tell us when yield happens under combined stresses, and the design equations for rods, pins and shafts, with GATE-style numbers.</p>
+<div class="station"><b>183</b><span>Unit 18 · Machine design and CIM · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Stress, strength and the factor of safety</li><li>Allowable stress and design of simple members</li><li>Shear stress and design of shafts in torsion</li><li>Combined stresses and Mohr&#x27;s circle</li><li>Failure theories: maximum shear stress and distortion energy</li><li>Combined bending and torsion of shafts</li><li>Brittle materials and the maximum normal stress theory</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you hang a bag of shopping from a thin string. The string holds for a while, then one day it snaps. A designer wants to prevent this. The question is how thick the string must be so that it never breaks in normal use, even if the load is a little more than expected.</p>
+  <p>This is the job of <strong>design for static loading</strong>. A static load is one that is applied slowly and stays the same. We must find the size of a rod, pin, shaft or bracket so that the stress it feels stays safely below the strength of its material. The safety margin is called the <strong>factor of safety</strong>.</p>
+  <p>This is the first step of machine design, and it leads to the fatigue topic. In GATE, the <strong>Robotics and Automation (RA)</strong> paper uses these ideas for robot links, shafts and fasteners.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once, then use it as a reference. Each term gives the plain meaning first.</p>
+  <dl>
+    <div><dt>Force (F)</dt><dd>A push or pull, in newtons (N). Plain meaning: how hard something is pulled or pushed.</dd></div>
+    <div><dt>Area (A)</dt><dd>The size of the surface that carries the force, in mm² when the stress is in N/mm².</dd></div>
+    <div><dt>Normal stress (σ)</dt><dd>Force per unit area acting at right angles to the surface, σ = F/A. Plain meaning: the pull or push spread over the cross section.</dd></div>
+    <div><dt>Shear stress (τ)</dt><dd>Force per unit area acting along the surface, τ = F/A for a sliding force. Plain meaning: a sliding or cutting stress.</dd></div>
+    <div><dt>Stress unit</dt><dd>N/mm² is the same as MPa (megapascal). A stress of 250 MPa means 250 N per square millimetre.</dd></div>
+    <div><dt>Yield strength (S<sub>y</sub>)</dt><dd>The stress at which a ductile material starts to deform permanently.</dd></div>
+    <div><dt>Ultimate strength (S<sub>ut</sub>)</dt><dd>The largest stress a material can carry in a tension test before fracture.</dd></div>
+    <div><dt>Ductile material</dt><dd>A material such as mild steel that stretches a lot before breaking, and shows a clear yield point.</dd></div>
+    <div><dt>Brittle material</dt><dd>A material such as cast iron or glass that breaks with little stretching.</dd></div>
+    <div><dt>Factor of safety (n)</dt><dd>The ratio of the strength to the working stress: n = S<sub>y</sub>/σ for ductile parts, n = S<sub>ut</sub>/σ for brittle parts.</dd></div>
+    <div><dt>Allowable stress (σ<sub>all</sub>)</dt><dd>The highest working stress permitted, σ<sub>all</sub> = S<sub>y</sub>/n.</dd></div>
+    <div><dt>Principal stresses (σ<sub>1</sub>, σ<sub>2</sub>)</dt><dd>The largest and smallest normal stresses at a point, found when the shear stress on the plane is zero.</dd></div>
+    <div><dt>Mohr's circle</dt><dd>A circle drawing that shows the normal and shear stress on all planes at a point.</dd></div>
+    <div><dt>Failure theory</dt><dd>A rule that predicts when a material fails under a combined stress. Examples: Tresca and von Mises.</dd></div>
+    <div><dt>Second moment of area (I) and polar second moment (J)</dt><dd>Shape numbers for bending and torsion. For a solid shaft of diameter d, J = πd⁴/32 and the radius is d/2.</dd></div>
+    <div><dt>Torque (T)</dt><dd>A turning force on a shaft, in N m. In stress calculations we convert it to N mm.</dd></div>
+  </dl>
+  <div class="note trap"><p><span class="t">Trap</span>Always convert lengths to millimetres when stress is in N/mm². A torque of 200 N m is 200 000 N mm, and a diameter of 0.02 m is 20 mm. Forgetting this factor of a thousand is one of the most common errors.</p></div>
+</section>
+
+<section class="unit" id="c1" data-title="Stress and the factor of safety">
+  <h2>Stress, strength and the factor of safety</h2>
+  <h3>Why stress, not force, matters</h3>
+  <p>A rope that carries 1 kN will fail sooner if it is thin than if it is thick. The force is the same, but the thin rope spreads it over a smaller area. Stress is the force divided by the area it spreads over. Materials fail at a particular stress, not at a particular force, so we compare stress with strength.</p>
+  <div class="formula">σ = F / A (normal stress) and τ = F / A (shear stress)</div>
+  <p>Here F is the force in newtons and A is the area in mm². The result is in N/mm², which is written MPa. Steel used in machines typically has a yield strength of a few hundred MPa.</p>
+  <h3>The factor of safety</h3>
+  <p>Machines never see exactly the load that was calculated. Loads can be higher than expected, the material may have flaws, and the manufacturing may vary. So we design for a margin. The <strong>factor of safety</strong> n is</p>
+  <div class="formula">n = S<sub>y</sub> / σ<sub>working</sub> (ductile material, yield basis)</div>
+  <p>A factor of safety of 1 means the part is on the edge of yield. Typical design values are in the range 1.5 to 4, chosen by the designer according to the risk, the uncertainty and the consequence of failure. GATE questions usually give the factor of safety directly.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A factor of safety compares the material's strength with the actual working stress. Larger n means more margin and a heavier part.</p></div>
+  <h3>Worked example: finding the factor of safety</h3>
+  <p>A flat steel bar 20 mm wide and 10 mm thick carries an axial tensile force of 40 kN. The yield strength of the steel is 400 MPa. Find the working stress and the factor of safety.</p>
+  <p>Step 1. Area: A = 20 × 10 = 200 mm².</p>
+  <p>Step 2. Working stress: σ = 40 000 N/200 mm² = 200 MPa.</p>
+  <p>Step 3. Factor of safety: n = 400/200 = 2.</p>
+  <p>Step 4. Check: the stress is half the yield strength, so the bar has a factor of safety of 2. This is a sensible margin.</p>
+  <pre class="code" data-lang="python"><code>F = 40000.0          # N
+A = 20.0 * 10.0      # mm^2
+Sy = 400.0           # MPa = N/mm^2
+
+sigma = F / A
+n = Sy / sigma
+print(f"working stress = {sigma:.0f} MPa")
+print(f"factor of safety = {n:.1f}")</code></pre>
+  <pre class="output">working stress = 200 MPa
+factor of safety = 2.0</pre>
+  <details class="check"><summary>Self-check: if the same bar is made 40 mm wide, what is the factor of safety?</summary><div class="ans"><p>The area doubles to 400 mm², so the stress is 100 MPa and the factor of safety is 4.</p></div></details>
+  <details class="check"><summary>Self-check: why is the factor of safety defined with yield strength for ductile materials?</summary><div class="ans"><p>Yield is the point where the part is no longer usable, because it stays permanently deformed. Designers keep the working stress below this point.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Allowable stress and simple members">
+  <h2>Allowable stress and the design of simple members</h2>
+  <h3>From factor of safety to size</h3>
+  <p>Designing a part is the reverse of checking it. We know the force, the material and the factor of safety, and we want the size. First find the allowable stress:</p>
+  <div class="formula">σ<sub>all</sub> = S<sub>y</sub> / n</div>
+  <p>Then the area must be big enough that the working stress does not exceed the allowable stress:</p>
+  <div class="formula">A ≥ F / σ<sub>all</sub> = F n / S<sub>y</sub></div>
+  <p>For a round rod of diameter d, the area is A = πd²/4, so the diameter is</p>
+  <div class="formula">d = √(4 F n / (π S<sub>y</sub>))</div>
+  <h3>Worked example: a tie rod</h3>
+  <p>A round tie rod must carry a tensile force of 50 kN. The material has yield strength 250 MPa, and the factor of safety is 2.5. Find the minimum diameter.</p>
+  <p>Step 1. Allowable stress: σ<sub>all</sub> = 250/2.5 = 100 MPa.</p>
+  <p>Step 2. Minimum area: A = 50 000/100 = 500 mm².</p>
+  <p>Step 3. Diameter: d = √(4 × 500/π) = √636.6 = 25.2 mm.</p>
+  <p>Step 4. Check: the area of a 25.2 mm circle is π × 25.2²/4 = 498.5 mm², which is close to the 500 mm² needed. In practice we round up, to 26 mm or the next standard size.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+F = 50000.0        # N
+Sy = 250.0         # MPa
+n = 2.5
+
+sigma_all = Sy / n
+A = F / sigma_all
+d = math.sqrt(4 * A / math.pi)
+print(f"allowable stress = {sigma_all:.0f} MPa")
+print(f"area = {A:.0f} mm^2")
+print(f"diameter = {d:.1f} mm")</code></pre>
+  <pre class="output">allowable stress = 100 MPa
+area = 500 mm^2
+diameter = 25.2 mm</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Check which area the stress acts on. A pin in a clevis is in shear across its cross section, while a tie rod is in tension across its cross section. The same force gives different stresses in different cases.</p></div>
+  <h3>Shear in a pin</h3>
+  <p>A pin that carries a force across a joint is in shear. If it is in single shear, the shear area is one circle, A = πd²/4. In double shear, the force is shared across two surfaces, so the area is 2 × πd²/4. The design equation is then</p>
+  <div class="formula">τ = F/A, with τ<sub>all</sub> = S<sub>sy</sub>/n</div>
+  <p>where S<sub>sy</sub> is the shear yield strength. For ductile steel, Tresca's theory gives S<sub>sy</sub> = 0.5S<sub>y</sub> and von Mises gives S<sub>sy</sub> = 0.577S<sub>y</sub>. Section C shows where these come from.</p>
+  <details class="check"><summary>Self-check: a rod of diameter 25.2 mm is used at a factor of safety of 2.5. What is the stress?</summary><div class="ans"><p>The stress is about 100 MPa, since the area is about 500 mm² and the force is 50 kN. This is the allowable stress.</p></div></details>
+  <details class="check"><summary>Self-check: a pin is in double shear instead of single shear. For the same force, what happens to the required area?</summary><div class="ans"><p>It halves. Two shear planes share the load, so each carries half, and the required total shear area is halved.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Shafts in torsion">
+  <h2>Shear stress and the design of shafts in torsion</h2>
+  <h3>What torsion does</h3>
+  <p>Twisting a shaft produces shear stress that is zero at the centre and largest at the surface.</p>
+  <pre class="code" data-lang="text"><code>      cross section of a solid shaft, diameter d
+
+           ___________
+         /   stress   \       shear stress tau is zero at the centre
+        |   rises to   |      and largest at the outer surface (radius d/2)
+        |  maximum at  |
+         \  surface    /
+           -----------
+   torque T twists the section; the outer fibres shear the most</code></pre>
+  <p>The shear stress at radius r in a solid shaft is τ = Tr/J. The largest value occurs at the surface, where r = d/2 and J = πd⁴/32. This gives the maximum shear stress:</p>
+  <div class="formula">τ<sub>max</sub> = 16T / (π d³)</div>
+  <p>Read each symbol: <em>T</em> is the torque in N mm, <em>d</em> is the shaft diameter in mm, and τ<sub>max</sub> is in N/mm² (MPa).</p>
+  <h3>Designing a shaft for torque alone</h3>
+  <p>For pure torsion, the simple design uses the shear yield strength. Set τ<sub>max</sub> equal to the allowable shear stress S<sub>sy</sub>/n and solve for d:</p>
+  <div class="formula">d = [16 n T / (π S<sub>sy</sub>)]<sup>1/3</sup></div>
+  <h3>Worked example</h3>
+  <p>A solid shaft transmits a torque of 200 N m. The material has yield strength 300 MPa, and the factor of safety is 2. Use the Tresca shear yield, S<sub>sy</sub> = 0.5 × 300 = 150 MPa. Find the minimum diameter.</p>
+  <p>Step 1. Convert the torque: T = 200 N m = 200 000 N mm.</p>
+  <p>Step 2. Substitute: d³ = 16 × 2 × 200 000/(π × 150) = 6 400 000/471.24 = 13 580.</p>
+  <p>Step 3. Cube root: d = 13 580^(1/3) = 23.9 mm.</p>
+  <p>Step 4. Round up to a standard size, such as 24 mm, and check the stress: 16 × 200 000/(π × 24³) = 3.2 × 10⁶/43 429 = 73.7 MPa, which is below 150 MPa.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+T = 200.0 * 1000.0       # N mm
+Sy, n = 300.0, 2.0
+Ssy = 0.5 * Sy           # Tresca shear yield
+d = (16 * n * T / (math.pi * Ssy)) ** (1 / 3)
+print(f"diameter = {d:.1f} mm")
+print(f"stress at 24 mm = {16 * T / (math.pi * 24 ** 3):.1f} MPa")</code></pre>
+  <pre class="output">diameter = 23.9 mm
+stress at 24 mm = 73.7 MPa</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>When a question says "design for torque only" and gives the shear yield or the ultimate shear, use that value directly. If it gives only S<sub>y</sub>, use S<sub>sy</sub> = 0.5S<sub>y</sub> for Tresca or 0.577S<sub>y</sub> for von Mises.</p></div>
+  <details class="check"><summary>Self-check: the torque is doubled and the other values are fixed. By what factor does the diameter change?</summary><div class="ans"><p>The diameter changes by 2<sup>1/3</sup> = 1.26, so it increases by about 26 per cent.</p></div></details>
+  <details class="check"><summary>Self-check: where in a solid shaft is the shear stress zero?</summary><div class="ans"><p>At the centre axis, where r = 0.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Combined stresses and Mohr's circle">
+  <h2>Combined stresses and Mohr's circle</h2>
+  <h3>Why stresses combine</h3>
+  <p>Most parts carry several stresses at once, described at a point by σ<sub>x</sub>, σ<sub>y</sub> and τ<sub>xy</sub>. To check failure we need the largest normal and shear stresses at that point. Mohr's circle gives both.</p>
+  <h3>The formulas for principal stresses</h3>
+  <p>Mohr's circle has a centre and a radius. The centre is at the average normal stress, and the radius is the largest shear stress in the plane. The principal stresses are</p>
+  <div class="formula">σ<sub>1,2</sub> = (σ<sub>x</sub> + σ<sub>y</sub>)/2 ± √[((σ<sub>x</sub> - σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²]</div>
+  <p>The maximum in-plane shear stress is the radius of the circle:</p>
+  <div class="formula">τ<sub>max</sub> = √[((σ<sub>x</sub> - σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²] = (σ<sub>1</sub> - σ<sub>2</sub>)/2</div>
+  <p>Here the sign convention is that tension is positive and compression is negative. The "+" gives the larger principal stress σ<sub>1</sub>, and the "-" gives σ<sub>2</sub>.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Principal stresses are the normal stresses on the planes where the shear is zero. Failure theories use the principal stresses, not the original x and y stresses.</p></div>
+  <h3>Worked example</h3>
+  <p>At a point, σ<sub>x</sub> = 80 MPa, σ<sub>y</sub> = -40 MPa (compression) and τ<sub>xy</sub> = 30 MPa. Find the principal stresses and the maximum shear stress.</p>
+  <p>Step 1. Centre: (80 + (-40))/2 = 20 MPa.</p>
+  <p>Step 2. Radius: √[((80 - (-40))/2)² + 30²] = √[60² + 30²] = √4500 = 67.08 MPa.</p>
+  <p>Step 3. Principal stresses: σ<sub>1</sub> = 20 + 67.08 = 87.08 MPa and σ<sub>2</sub> = 20 - 67.08 = -47.08 MPa.</p>
+  <p>Step 4. Maximum shear: τ<sub>max</sub> = 67.08 MPa, which equals (87.08 - (-47.08))/2 = 67.08. The two values agree.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+sx, sy, txy = 80.0, -40.0, 30.0
+centre = (sx + sy) / 2
+radius = math.sqrt(((sx - sy) / 2) ** 2 + txy ** 2)
+s1, s2 = centre + radius, centre - radius
+print(f"s1 = {s1:.2f} MPa")
+print(f"s2 = {s2:.2f} MPa")
+print(f"tau max = {radius:.2f} MPa")
+print(f"check = {(s1 - s2) / 2:.2f} MPa")</code></pre>
+  <pre class="output">s1 = 87.08 MPa
+s2 = -47.08 MPa
+tau max = 67.08 MPa
+check = 67.08 MPa</pre>
+  <details class="check"><summary>Self-check: if τ<sub>xy</sub> is zero, what are the principal stresses?</summary><div class="ans"><p>They are simply σ<sub>x</sub> and σ<sub>y</sub>, because the shear is zero on the x and y planes already.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Failure theories">
+  <h2>Failure theories: maximum shear stress and distortion energy</h2>
+  <h3>Why we need failure theories</h3>
+  <p>A tension test gives the yield strength in one direction only. A failure theory says when a combined stress state reaches yield, using only that strength. For ductile machine parts, two theories are common.</p>
+  <h3>Maximum shear stress theory (Tresca)</h3>
+  <p>Tresca says that yield starts when the largest shear stress in the material reaches the shear stress at yield in a simple tension test. In a tension test, the maximum shear is S<sub>y</sub>/2. So the rule is</p>
+  <div class="formula">σ<sub>1</sub> - σ<sub>3</sub> = S<sub>y</sub>/n, where σ<sub>3</sub> is the smallest principal stress</div>
+  <p>For plane stress (where one principal stress is zero), Tresca gives the test: the largest of |σ<sub>1</sub>|, |σ<sub>2</sub>| and |σ<sub>1</sub> - σ<sub>2</sub>| must be at most S<sub>y</sub>/n.</p>
+  <h3>Maximum distortion energy theory (von Mises)</h3>
+  <p>Von Mises says that yield starts when the energy that changes the shape of the material reaches the value at yield in a simple tension test. The result is an equivalent stress, which is compared with S<sub>y</sub>/n. For plane stress:</p>
+  <div class="formula">σ' = √(σ<sub>x</sub>² - σ<sub>x</sub>σ<sub>y</sub> + σ<sub>y</sub>² + 3τ<sub>xy</sub>²) ≤ S<sub>y</sub>/n</div>
+  <p>For a simple case, with only a normal stress σ and a shear τ, this becomes σ' = √(σ² + 3τ²). Each term is in MPa, and the square root is taken of the whole sum.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Tresca is simpler and always a little more conservative. Von Mises is less conservative and is most often used for ductile machine parts.</p></div>
+  <h3>Comparing the two in pure shear</h3>
+  <p>Consider a pure shear state τ with no normal stress. Tresca says yield at τ = S<sub>y</sub>/2 = 0.5 S<sub>y</sub>. Von Mises gives σ' = √(3τ²) = √3 τ, so yield at τ = S<sub>y</sub>/√3 = 0.577 S<sub>y</sub>. Von Mises predicts a higher shear yield strength, which is why it is less conservative.</p>
+  <h3>Worked example</h3>
+  <p>Use the stresses from the previous section: σ<sub>x</sub> = 80, σ<sub>y</sub> = -40 and τ<sub>xy</sub> = 30 MPa. The material has S<sub>y</sub> = 300 MPa, and the factor of safety is 2. Check the design with both theories.</p>
+  <p>Step 1. Von Mises: σ' = √(80² - 80 × (-40) + (-40)² + 3 × 30²) = √(6400 + 3200 + 1600 + 2700) = √13 900 = 117.9 MPa.</p>
+  <p>Step 2. Allowable: S<sub>y</sub>/n = 300/2 = 150 MPa. Since 117.9 is less than 150, the design is safe by von Mises.</p>
+  <p>Step 3. Tresca: σ<sub>1</sub> - σ<sub>2</sub> = 87.08 - (-47.08) = 134.2 MPa. Compare with 150 MPa. Since 134.2 is less than 150, the design is also safe by Tresca.</p>
+  <p>Step 4. Check: von Mises gave a smaller equivalent stress (117.9) than Tresca's difference (134.2), which is the usual pattern.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+sx, sy, txy = 80.0, -40.0, 30.0
+Sy, n = 300.0, 2.0
+vm = math.sqrt(sx ** 2 - sx * sy + sy ** 2 + 3 * txy ** 2)
+centre = (sx + sy) / 2
+radius = math.sqrt(((sx - sy) / 2) ** 2 + txy ** 2)
+tresca = 2 * radius
+print(f"von Mises stress = {vm:.1f} MPa")
+print(f"Tresca stress = {tresca:.1f} MPa")
+print(f"allowable = {Sy / n:.0f} MPa")</code></pre>
+  <pre class="output">von Mises stress = 117.9 MPa
+Tresca stress = 134.2 MPa
+allowable = 150 MPa</pre>
+  <div class="note trap"><p><span class="t">Trap</span>For Tresca, the comparison is σ<sub>1</sub> - σ<sub>3</sub> against S<sub>y</sub>/n, not against S<sub>y</sub>/(2n). Students who halve the stress by mistake reach the wrong answer.</p></div>
+  <details class="check"><summary>Self-check: a pure tension of 100 MPa is applied. What is the von Mises equivalent stress?</summary><div class="ans"><p>σ' = 100 MPa. With no shear, von Mises reduces to the tensile stress itself.</p></div></details>
+  <details class="check"><summary>Self-check: which theory gives the higher allowable shear stress for a ductile steel in pure shear?</summary><div class="ans"><p>Von Mises, with 0.577 S<sub>y</sub>, which is higher than Tresca's 0.5 S<sub>y</sub>.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Combined bending and torsion">
+  <h2>Combined bending and torsion of shafts</h2>
+  <h3>The real shaft</h3>
+  <p>A gearbox shaft carries a bending moment M and a torque T. At the critical section, the bending gives σ = 32M/(πd³) and the torque gives τ = 16T/(πd³), both at the outer surface.</p>
+  <div class="formula">σ = 32M/(πd³), τ = 16T/(πd³)</div>
+  <p>Here M and T are in N mm and d is in mm.</p>
+  <h3>Von Mises design equation</h3>
+  <p>The von Mises equivalent stress for the bending normal stress σ and the shear τ is σ' = √(σ² + 3τ²). Substituting the two expressions gives</p>
+  <div class="formula">σ' = (16/(πd³)) √(4M² + 3T²)</div>
+  <p>Set σ' equal to the allowable stress S<sub>y</sub>/n and solve for the diameter:</p>
+  <div class="formula">d³ = 16n √(4M² + 3T²) / (π S<sub>y</sub>)</div>
+  <h3>Tresca design equation</h3>
+  <p>For Tresca, the maximum shear stress is the radius of Mohr's circle. For the shaft, this gives τ<sub>max</sub> = (16/(πd³)) √(M² + T²). Setting τ<sub>max</sub> = S<sub>sy</sub>/n with S<sub>sy</sub> = S<sub>y</sub>/2 gives</p>
+  <div class="formula">d³ = 32n √(M² + T²) / (π S<sub>y</sub>)</div>
+  <p>Notice that the Tresca formula uses 32 where the von Mises formula uses 16 with the factor 4M². For a pure torque the two agree.</p>
+  <h3>Worked example</h3>
+  <p>A shaft carries a bending moment M = 200 N m and a torque T = 150 N m. The material has S<sub>y</sub> = 300 MPa and the factor of safety is 2. Find the minimum diameter by von Mises and by Tresca.</p>
+  <p>Step 1. Convert: M = 200 000 N mm and T = 150 000 N mm.</p>
+  <p>Step 2. Von Mises: √(4M² + 3T²) = √(4 × 4 × 10¹⁰ + 3 × 2.25 × 10¹⁰) = √(2.275 × 10¹¹) = 476 970 N mm. Then d³ = 16 × 2 × 476 970/(π × 300) = 16 195, so d = 25.3 mm.</p>
+  <p>Step 3. Tresca: √(M² + T²) = √(4 × 10¹⁰ + 2.25 × 10¹⁰) = 250 000 N mm. Then d³ = 32 × 2 × 250 000/(π × 300) = 16 977, so d = 25.7 mm.</p>
+  <p>Step 4. Check: the Tresca diameter is slightly larger, which is the expected conservative result. Round up to a standard size, such as 26 mm.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+M, T = 200000.0, 150000.0      # N mm
+Sy, n = 300.0, 2.0
+
+d_vm = (16 * n * math.sqrt(4 * M ** 2 + 3 * T ** 2) / (math.pi * Sy)) ** (1 / 3)
+d_tr = (32 * n * math.sqrt(M ** 2 + T ** 2) / (math.pi * Sy)) ** (1 / 3)
+print(f"von Mises diameter = {d_vm:.1f} mm")
+print(f"Tresca diameter = {d_tr:.1f} mm")</code></pre>
+  <pre class="output">von Mises diameter = 25.3 mm
+Tresca diameter = 25.7 mm</pre>
+  <div class="note trap"><p><span class="t">Trap</span>The bending stress uses 32M/(πd³), but the shear stress uses 16T/(πd³). If you use 16 for both, the bending term is too small by a factor of 2, which gives an unsafe shaft.</p></div>
+  <details class="check"><summary>Self-check: with M = 0, does the von Mises formula reduce to the torsion formula?</summary><div class="ans"><p>Yes. d³ = 16n√(3)T/(π S<sub>y</sub>), which equals the torsion result with S<sub>sy</sub> = S<sub>y</sub>/√3.</p></div></details>
+  <details class="check"><summary>Self-check: a shaft has zero torque. Which formula applies, and why is the result a bending design?</summary><div class="ans"><p>Either formula reduces to d³ = 16n(2M)/(π S<sub>y</sub>) or the Tresca equivalent, which is a pure bending design. The bending stress alone sets the size.</p></div></details>
+</section>
+
+<section class="unit" id="c7" data-title="Brittle materials">
+  <h2>Brittle materials and the maximum normal stress theory</h2>
+  <h3>Why brittle materials are different</h3>
+  <p>Cast iron and ceramics break with little yielding, so their factor of safety uses the ultimate strength.</p>
+  <h3>Maximum normal stress theory</h3>
+  <p>The maximum normal stress theory says that failure occurs when the largest principal stress reaches the ultimate tensile strength. The design rule is</p>
+  <div class="formula">n = S<sub>ut</sub> / σ<sub>1</sub>, where σ<sub>1</sub> is the largest principal stress</div>
+  <div class="note tip"><p><span class="t">Tip</span>If a question gives a brittle material and asks for the factor of safety, use the ultimate strength and the largest principal stress. Do not use the yield strength for cast iron.</p></div>
+  <h3>Worked example</h3>
+  <p>A cast iron bracket has a largest principal stress of 60 MPa and an ultimate tensile strength of 200 MPa. Find the factor of safety by maximum normal stress.</p>
+  <p>Step 1. Largest principal stress: σ<sub>1</sub> = 60 MPa.</p>
+  <p>Step 2. Factor of safety: n = 200/60 = 3.33.</p>
+  <p>Step 3. Check: the bracket is well within its tensile strength, which is consistent with a safe design.</p>
+  <details class="check"><summary>Self-check: why do we use ultimate strength rather than yield for cast iron?</summary><div class="ans"><p>Cast iron does not show a clear yield point. It fractures at about the ultimate strength, so that is the limiting value.</p></div></details>
+  <details class="check"><summary>Self-check: a brittle part has σ<sub>1</sub> = 0 and σ<sub>2</sub> = -100 MPa. Is the maximum normal stress theory useful here?</summary><div class="ans"><p>Not directly. The largest principal stress is zero, so this theory gives an infinite factor of safety, which is not realistic. Brittle materials in compression need a different theory that uses the compression strength.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>σ = F/A, τ = F/A</td><td>Normal and shear stress</td><td>Every stress calculation</td></tr>
+      <tr><td>n = S<sub>y</sub>/σ (ductile), n = S<sub>ut</sub>/σ (brittle)</td><td>Factor of safety</td><td>Checking and designing</td></tr>
+      <tr><td>σ<sub>all</sub> = S<sub>y</sub>/n</td><td>Allowable stress</td><td>Design of a member</td></tr>
+      <tr><td>d = √(4Fn/(πS<sub>y</sub>))</td><td>Diameter of a round rod in tension</td><td>Tie rods, bolts</td></tr>
+      <tr><td>τ<sub>max</sub> = 16T/(πd³)</td><td>Torsional shear at the surface of a solid shaft</td><td>Shafts in torsion</td></tr>
+      <tr><td>d = [16nT/(πS<sub>sy</sub>)]<sup>1/3</sup></td><td>Shaft diameter for torque</td><td>Pure torsion design</td></tr>
+      <tr><td>σ<sub>1,2</sub> = (σ<sub>x</sub> + σ<sub>y</sub>)/2 ± √[((σ<sub>x</sub> - σ<sub>y</sub>)/2)² + τ<sub>xy</sub>²]</td><td>Principal stresses</td><td>Combined stress</td></tr>
+      <tr><td>σ' = √(σ<sub>x</sub>² - σ<sub>x</sub>σ<sub>y</sub> + σ<sub>y</sub>² + 3τ<sub>xy</sub>²)</td><td>Von Mises equivalent stress</td><td>Ductile failure check</td></tr>
+      <tr><td>σ<sub>1</sub> - σ<sub>3</sub> ≤ S<sub>y</sub>/n</td><td>Tresca criterion</td><td>Ductile failure check</td></tr>
+      <tr><td>d³ = 16n√(4M² + 3T²)/(πS<sub>y</sub>)</td><td>Shaft under bending and torsion, von Mises</td><td>Shaft design</td></tr>
+      <tr><td>d³ = 32n√(M² + T²)/(πS<sub>y</sub>)</td><td>Shaft under bending and torsion, Tresca</td><td>Shaft design</td></tr>
+      <tr><td>n = S<sub>ut</sub>/σ<sub>1</sub></td><td>Maximum normal stress, brittle</td><td>Cast iron, brittle parts</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style problems for practice, not real past paper questions. Work each one on paper before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Factor of safety of a bar</h3>
+    <div class="statement"><p>A rectangular steel bar of cross section 25 mm × 8 mm carries an axial tensile load of 30 kN. The yield strength is 400 MPa. Find the factor of safety (numerical answer, one decimal place).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> n, using yield strength.</li>
+      <li><strong>Which idea applies.</strong> σ = F/A, then n = S<sub>y</sub>/σ.</li>
+      <li><strong>Work it out.</strong> A = 25 × 8 = 200 mm². σ = 30 000/200 = 150 MPa. n = 400/150 = 2.67.</li>
+      <li><strong>Check.</strong> Stress is less than yield, so n is greater than 1, as required.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>F, A, Sy = 30000.0, 25.0 * 8.0, 400.0
+print(f"n = {Sy / (F / A):.2f}")</code></pre>
+    <pre class="output">n = 2.67</pre>
+    <p class="cx">Answer: n = 2.7 (2.67).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Size of a tie rod</h3>
+    <div class="statement"><p>A solid round rod must carry 20 kN in tension. The material has yield strength 300 MPa and the factor of safety is 2. Find the minimum diameter in mm (numerical answer, one decimal place).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimum diameter.</li>
+      <li><strong>Which idea applies.</strong> σ<sub>all</sub> = S<sub>y</sub>/n, A = F/σ<sub>all</sub>, d = √(4A/π).</li>
+      <li><strong>Work it out.</strong> σ<sub>all</sub> = 150 MPa. A = 20 000/150 = 133.3 mm². d = √(4 × 133.3/π) = √169.7 = 13.0 mm.</li>
+      <li><strong>Check.</strong> The area of a 13 mm circle is π × 13²/4 = 132.7 mm², very close to 133.3 mm².</li>
+    </ol>
+    <p class="cx">Answer: about 13.0 mm.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements are true?</h3>
+    <div class="statement"><p>Consider these statements about static design.</p>
+    <p>(A) In pure shear, von Mises predicts a higher shear yield strength than Tresca for a ductile material.<br>(B) For brittle materials the factor of safety is based on the ultimate strength.<br>(C) For a state of pure tension, Tresca and von Mises give the same yield condition.<br>(D) Stress concentration can always be ignored in static design of ductile parts.</p>
+    <p>Select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true (multiple selection).</li>
+      <li><strong>Which idea applies.</strong> Pure shear: Tresca gives 0.5 S<sub>y</sub>, von Mises gives 0.577 S<sub>y</sub>. Brittle parts use the ultimate. Pure tension gives the same result for both theories.</li>
+      <li><strong>Work it out.</strong> (A) true. (B) true. (C) true, since with no shear both theories give σ = S<sub>y</sub>. (D) false: stress concentration is often ignored for ductile parts under static load, but "always" is too strong and brittle parts need it.</li>
+      <li><strong>Check.</strong> Compare numbers: 0.577 > 0.5 confirms (A).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Diameter of a torque-only shaft</h3>
+    <div class="statement"><p>A solid shaft transmits a torque of 200 N m. The material has yield strength 300 MPa, and the factor of safety is 2. Use Tresca with S<sub>sy</sub> = 0.5 S<sub>y</sub>. Find the minimum diameter in mm (numerical answer, one decimal place).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimum diameter in mm.</li>
+      <li><strong>Which idea applies.</strong> d = [16nT/(πS<sub>sy</sub>)]<sup>1/3</sup> with T in N mm.</li>
+      <li><strong>Work it out.</strong> T = 200 000 N mm, S<sub>sy</sub> = 150 MPa. d³ = 16 × 2 × 200 000/(π × 150) = 13 580. d = 23.9 mm.</li>
+      <li><strong>Check.</strong> A 24 mm shaft gives a shear stress of 73.7 MPa, below the 150 MPa allowable.</li>
+    </ol>
+    <p class="cx">Answer: 23.9 mm.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Principal stress of a biaxial state</h3>
+    <div class="statement"><p>At a point of a machine part, σ<sub>x</sub> = 80 MPa, σ<sub>y</sub> = -40 MPa and τ<sub>xy</sub> = 30 MPa. Find the larger principal stress σ<sub>1</sub> in MPa (numerical answer, two decimal places).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> σ<sub>1</sub> in MPa.</li>
+      <li><strong>Which idea applies.</strong> Mohr's circle: σ<sub>1</sub> = centre + radius.</li>
+      <li><strong>Work it out.</strong> Centre = 20 MPa. Radius = √(60² + 30²) = 67.08 MPa. σ<sub>1</sub> = 87.08 MPa.</li>
+      <li><strong>Check.</strong> σ<sub>1</sub> must be larger than both σ<sub>x</sub> and σ<sub>y</sub>, and 87.08 is larger than 80.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+sx, sy, txy = 80.0, -40.0, 30.0
+s1 = (sx + sy) / 2 + math.sqrt(((sx - sy) / 2) ** 2 + txy ** 2)
+print(f"s1 = {s1:.2f} MPa")</code></pre>
+    <pre class="output">s1 = 87.08 MPa</pre>
+    <p class="cx">Answer: 87.08 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Shaft under bending and torsion</h3>
+    <div class="statement"><p>A solid shaft of diameter 40 mm carries a bending moment of 500 N m and a torque of 300 N m at the critical section. The yield strength is 350 MPa. Using the von Mises criterion, find the factor of safety (numerical answer, two decimal places).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The factor of safety n by von Mises.</li>
+      <li><strong>Which idea applies.</strong> σ' = (16/(πd³))√(4M² + 3T²), then n = S<sub>y</sub>/σ'.</li>
+      <li><strong>Work it out.</strong> M = 500 000 N mm, T = 300 000 N mm. √(4M² + 3T²) = √(1.0 × 10¹² + 2.7 × 10¹¹) = √(1.27 × 10¹²) = 1.1269 × 10⁶ N mm. With d = 40 mm: 16/(π × 64 000) = 7.958 × 10⁻⁵. σ' = 7.958 × 10⁻⁵ × 1.1269 × 10⁶ = 89.7 MPa. n = 350/89.7 = 3.90.</li>
+      <li><strong>Check.</strong> The stress is much less than yield, so a factor of about 4 is consistent.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+M, T, d, Sy = 500000.0, 300000.0, 40.0, 350.0
+sigma_vm = 16 / (math.pi * d ** 3) * math.sqrt(4 * M ** 2 + 3 * T ** 2)
+print(f"von Mises stress = {sigma_vm:.2f} MPa")
+print(f"factor of safety = {Sy / sigma_vm:.2f}")</code></pre>
+    <pre class="output">von Mises stress = 89.68 MPa
+factor of safety = 3.90</pre>
+    <p class="cx">Answer: n = 3.90.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Brittle bracket</h3>
+    <div class="statement"><p>A cast iron bracket has a largest principal stress of 60 MPa and an ultimate tensile strength of 200 MPa. The smallest principal stress is -20 MPa. Using the maximum normal stress theory, find the factor of safety, and say which value is compared with the ultimate strength.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The factor of safety and the stress that is compared.</li>
+      <li><strong>Which idea applies.</strong> For brittle materials, n = S<sub>ut</sub>/σ<sub>1</sub>, using only the largest principal stress.</li>
+      <li><strong>Work it out.</strong> σ<sub>1</sub> = 60 MPa, and n = 200/60 = 3.33. The value -20 MPa is not used in the maximum normal stress theory.</li>
+      <li><strong>Check.</strong> The compressive stress is small compared with the tensile strength, so it does not change the answer here.</li>
+    </ol>
+    <p class="cx">Answer: n = 3.33. The largest principal stress, 60 MPa, is compared with the ultimate tensile strength.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Factor of safety (NAT, 2 marks)</h3>
+    <div class="statement"><p>A rod of diameter 20 mm carries 40 kN tension. The yield strength is 300 MPa. Find the factor of safety, correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> FOS = S<sub>y</sub>/σ.</li>
+      <li><strong>Which idea applies.</strong> σ = P/A.</li>
+      <li><strong>Work it out.</strong> A = 314.16 mm². σ = 127.32 MPa. FOS = 2.36.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+s = 40e3 / (math.pi * 10 ** 2)
+print("%.2f MPa, FOS = %.2f" % (s, 300 / s))
+</code></pre>
+    <pre class="output">127.32 MPa, FOS = 2.36</pre>
+    <p class="cx">Answer: about 2.36.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Stress concentration (NAT, 2 marks)</h3>
+    <div class="statement"><p>A plate with a hole has a nominal stress of 60 MPa and K<sub>t</sub> = 2.5. The material is brittle with ultimate strength 200 MPa. Find the factor of safety.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> FOS using the peak stress.</li>
+      <li><strong>Which idea applies.</strong> Brittle materials feel the full stress concentration.</li>
+      <li><strong>Work it out.</strong> Peak 150 MPa. FOS = 200/150 = 1.33.</li>
+      <li><strong>Check.</strong> A ductile part under static load would usually ignore K<sub>t</sub>.</li>
+    </ol>
+    <p class="cx">Answer: about 1.33.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Combined loading (NAT, 2 marks)</h3>
+    <div class="statement"><p>A shaft of diameter 50 mm has M = 1 kN·m and T = 1.5 kN·m. Find the maximum shear stress by τ = 16√(M² + T²)/(πd³), in MPa.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The combined shear stress.</li>
+      <li><strong>Which idea applies.</strong> Equivalent torque √(M² + T²).</li>
+      <li><strong>Work it out.</strong> √(1 + 2.25) = 1.803 kN·m. τ = 16 · 1.803e6/(π · 125000) = 73.45 MPa.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("%.2f MPa" % (16 * math.hypot(1e6, 1.5e6) / (math.pi * 50 ** 3)))
+</code></pre>
+    <pre class="output">73.45 MPa</pre>
+    <p class="cx">Answer: about 73.45 MPa.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Normal stress</dt><dd>σ = F/A, force per area acting at right angles to the surface.</dd></div>
+    <div><dt>Shear stress</dt><dd>τ = F/A, force per area acting along the surface.</dd></div>
+    <div><dt>Factor of safety</dt><dd>n = strength divided by working stress.</dd></div>
+    <div><dt>Yield strength</dt><dd>The stress at which a ductile material starts to deform permanently.</dd></div>
+    <div><dt>Ultimate strength</dt><dd>The largest stress before fracture, used for brittle materials.</dd></div>
+    <div><dt>Allowable stress</dt><dd>σ<sub>all</sub> = S<sub>y</sub>/n, the highest permitted working stress.</dd></div>
+    <div><dt>Tie rod diameter</dt><dd>d = √(4Fn/(πS<sub>y</sub>)) for a round rod in tension.</dd></div>
+    <div><dt>Torsional shear</dt><dd>τ<sub>max</sub> = 16T/(πd³) at the surface of a solid shaft.</dd></div>
+    <div><dt>Principal stresses</dt><dd>The largest and smallest normal stresses at a point, from Mohr's circle.</dd></div>
+    <div><dt>Maximum shear stress</dt><dd>The radius of Mohr's circle, equal to (σ<sub>1</sub> - σ<sub>2</sub>)/2.</dd></div>
+    <div><dt>Tresca criterion</dt><dd>σ<sub>1</sub> - σ<sub>3</sub> must not exceed S<sub>y</sub>/n.</dd></div>
+    <div><dt>Von Mises equivalent stress</dt><dd>σ' = √(σ<sub>x</sub>² - σ<sub>x</sub>σ<sub>y</sub> + σ<sub>y</sub>² + 3τ<sub>xy</sub>²) for plane stress.</dd></div>
+    <div><dt>Shaft design, von Mises</dt><dd>d³ = 16n√(4M² + 3T²)/(πS<sub>y</sub>).</dd></div>
+    <div><dt>Shaft design, Tresca</dt><dd>d³ = 32n√(M² + T²)/(πS<sub>y</sub>).</dd></div>
+    <div><dt>Maximum normal stress</dt><dd>For brittle parts, n = S<sub>ut</sub>/σ<sub>1</sub>.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>Convert to mm and N before using N/mm² (MPa).</li>
+    <li>Ductile parts use yield strength, brittle parts use ultimate strength.</li>
+    <li>Shear yield is 0.5 S<sub>y</sub> (Tresca) or 0.577 S<sub>y</sub> (von Mises).</li>
+    <li>The bending stress uses 32M/(πd³) and the torsional stress uses 16T/(πd³).</li>
+    <li>Von Mises is less conservative than Tresca, and Tresca gives the larger diameter.</li>
+    <li>Check the answer by putting the stress back and comparing it with the allowable value.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 183?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 183 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-182.html"><small>Previous, topic 182</small>Resonance &amp; critical speeds of shafts</a><a class="next" href="gate-184.html"><small>Next, topic 184</small>Design for dynamic loading</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,366 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 148: Geometrical configuration, links & joints</title><meta name="description" content="A robot arm is built from rigid links joined by joints, and the order and type of its joints give it a geometric configuration. Each configuration has its own workspace shape, so choosing one is a design decision. GATE Robotics questions often ask you to name a configuration from its joints or to match it with its workspace."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g148" data-key="g148" data-noun="topic" data-num="148" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Geometrical configuration, links &amp; joints</h1>
+<p class="lede">A robot arm is built from rigid links joined by joints, and the order and type of its joints give it a geometric configuration. Each configuration has its own workspace shape, so choosing one is a design decision. GATE Robotics questions often ask you to name a configuration from its joints or to match it with its workspace.</p>
+<div class="station"><b>148</b><span>Unit 15 · Robotics and automation · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Links and joints</li><li>Joint types and notation</li><li>Cartesian, cylindrical and spherical configurations</li><li>Articulated and SCARA configurations</li><li>Choosing a configuration</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Look at your own arm. The upper arm and forearm are rigid pieces, and they bend at the elbow and turn at the shoulder. In robotics, the rigid pieces are called <strong>links</strong>, and the places where two links meet and move relative to each other are called <strong>joints</strong>. A robot arm is simply links joined by joints.</p>
+  <p>The arrangement of the joints is the <strong>geometric configuration</strong> of the robot. Two robots with the same number of joints can have very different shapes of workspace, depending on whether their joints turn or slide, and on the order in which they appear.</p>
+  <p><strong>Everyday analogy.</strong> Think of a crane. Its base turns, its boom swings up and down, and its cable slides in and out. Those three movements are three joints, and the crane's reach and height come from how these joints are arranged. A robot arm can be designed in the same way.</p>
+  <p><strong>Why it matters.</strong> A welding arm needs to reach the seams of a car body. A pick-and-place machine needs to move flat objects quickly on a conveyor. A ceiling-mounted machine needs a long slide along one axis. The configuration decides which of these tasks is easy.</p>
+  <p><strong>Where it appears in GATE.</strong> In the Robotics and Automation (RA) paper, you may be asked to name a robot configuration from a description of its joints, to state its workspace shape, or to count the degrees of freedom of a given arm. These are short conceptual questions with clear answers.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Link</dt><dd>A rigid body in a robot arm. It does not change shape. Plain meaning: a bar or arm segment.</dd></div>
+    <div><dt>Joint</dt><dd>A connection between two links that allows one relative motion. Plain meaning: a hinge or a slide.</dd></div>
+    <div><dt>Revolute joint (R)</dt><dd>A joint that rotates about an axis. Plain meaning: a hinge, like an elbow.</dd></div>
+    <div><dt>Prismatic joint (P)</dt><dd>A joint that slides along a straight line. Plain meaning: a drawer or a telescope.</dd></div>
+    <div><dt>Degree of freedom (DOF)</dt><dd>One independent way a joint or mechanism can move. A revolute or prismatic joint has one DOF.</dd></div>
+    <div><dt>Kinematic chain</dt><dd>A series of links and joints connected end to end.</dd></div>
+    <div><dt>Geometric configuration</dt><dd>The arrangement of the joint types and their order, which decides the shape of the workspace.</dd></div>
+    <div><dt>Workspace</dt><dd>The set of all points the tool can reach.</dd></div>
+    <div><dt>Cartesian robot</dt><dd>A robot with three prismatic joints in line with the x, y and z axes.</dd></div>
+    <div><dt>Cylindrical robot</dt><dd>A robot with one revolute joint at the base and two prismatic joints.</dd></div>
+    <div><dt>Spherical robot</dt><dd>A robot with two revolute joints and one prismatic joint, whose workspace is shaped like a shell of a sphere.</dd></div>
+    <div><dt>Articulated robot</dt><dd>A robot with three revolute joints, like a human arm.</dd></div>
+    <div><dt>SCARA</dt><dd>Selective Compliance Assembly Robot Arm. Two horizontal revolute joints and one vertical prismatic joint.</dd></div>
+    <div><dt>End-effector</dt><dd>The tool at the end of the arm, such as a gripper.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Links and joints">
+  <h2>Links and joints</h2>
+  <h3>The parts of a robot arm</h3>
+  <p>A robot arm has a <strong>base</strong>, which is fixed to a floor or frame. It has a sequence of links, each one rigid. It has joints between the links, and an end-effector at the far end. Each joint is driven by a motor, which changes the joint value. For a revolute joint the value is an angle, and for a prismatic joint it is a distance.</p>
+  <p>We number the links and joints from the base. Joint 1 connects the base to link 1. Joint 2 connects link 1 to link 2, and so on. This numbering is used throughout robotics, and it makes the notation easy to follow.</p>
+
+  <pre class="code" data-lang="text"><code>  base     joint 1      link 1      joint 2     link 2     joint 3     end-effector
+ [fixed] ==(  R  )====================(  R  )======================(  P  )=====[ gripper ]
+                     ^ rotates         ^ rotates                  ^ slides
+                       about this        about this                 along this
+                       axis              axis                       line
+
+ Each link is rigid. Each joint gives one motion. Joint values are the motor commands.</code></pre>
+
+  <p>The sketch shows three joints: two revolute and one prismatic. The gripper at the end can then be moved to a position that depends on all three joint values.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Links are the rigid parts, joints are the moving connections, and joint values are what the motors control. Everything about the reach and shape of a robot follows from these three ideas.</p></div>
+
+  <details class="check"><summary>What is the difference between a link and a joint?</summary><div class="ans"><p>A link is a rigid body that does not change shape. A joint is the connection between two links that allows one relative motion.</p></div></details>
+  <details class="check"><summary>In the sketch, how many joints does the arm have?</summary><div class="ans"><p>Three: a revolute joint at the base, a revolute joint between link 1 and link 2, and a prismatic joint at the end.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Joint types and notation">
+  <h2>Joint types and notation</h2>
+  <h3>The two basic joints</h3>
+  <p>Most industrial robots use only two kinds of joint. A <strong>revolute joint (R)</strong> rotates about one axis, and its joint value is an angle. A <strong>prismatic joint (P)</strong> slides along one line, and its joint value is a distance. Each has exactly one degree of freedom, because each allows one independent motion.</p>
+  <p>Other joints exist, such as spherical joints that rotate in three ways, but the basic configurations in this topic use only R and P.</p>
+
+  <h3>Notation: a string of letters</h3>
+  <p>We describe a robot by listing its joints from the base outward, using a letter for each joint. A robot whose base joint is revolute, followed by a revolute joint and a prismatic joint, is written <strong>RRP</strong>. The order matters, because the first joint moves the whole arm and the last joint moves only the gripper.</p>
+  <p>The number of letters is the number of joints, and for an open chain of simple joints this is also the number of degrees of freedom. A three-joint arm with R, R, P has three degrees of freedom.</p>
+  <div class="formula">DOF of an open chain of simple joints = number of joints</div>
+
+  <div class="note tip"><p><span class="t">Tip</span>When you read a robot name, write the letters down from the base. Then the first letter tells you what moves the whole arm, and the last letter tells you what moves the tool.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not confuse the order of the letters with the order of the motions in the workspace. "RRP" means the base joint is revolute, not that the arm moves in the order R, then R, then P. All joints can move at the same time.</p></div>
+
+  <details class="check"><summary>What is the notation for a robot whose base joint slides, followed by two revolute joints?</summary><div class="ans"><p>PRR. The letters run from the base outward, so the first letter is the base joint.</p></div></details>
+  <details class="check"><summary>How many degrees of freedom does a robot with joints R, P, R have?</summary><div class="ans"><p>Three, because it has three simple joints, each with one DOF.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Cartesian, cylindrical and spherical configurations">
+  <h2>Cartesian, cylindrical and spherical configurations</h2>
+  <h3>Cartesian (PPP)</h3>
+  <p>A Cartesian robot has three prismatic joints, one for each axis x, y and z. Each joint slides in a straight line at right angles to the others. The tool moves like a point on a graph paper grid. Many gantry robots and 3D printers use this configuration.</p>
+  <p>Its workspace is a rectangular box. Its volume is the product of the three strokes (the lengths of each slide). The shape is easy to understand, and the control is simple because each axis works on its own.</p>
+  <pre class="code" data-lang="python"><code>x_stroke, y_stroke, z_stroke = 0.5, 0.4, 0.3   # slide lengths in metres
+print(f"Cartesian workspace volume = {x_stroke * y_stroke * z_stroke:.2f} m^3")</code></pre>
+  <pre class="output">Cartesian workspace volume = 0.06 m^3</pre>
+
+  <h3>Cylindrical (RPP)</h3>
+  <p>A cylindrical robot has a revolute joint at the base, which turns the whole arm about a vertical axis. Above it, a prismatic joint slides the arm in and out horizontally, and another prismatic joint moves it up and down. The tool sweeps out a cylinder-shaped region. Machine tending and some assembly robots use this layout.</p>
+  <p>Its workspace is roughly a cylinder with a hole in the middle, because the arm cannot reach directly above or close to its own base. Ideal volume is π r² h, for reach r and height h.</p>
+  <pre class="code" data-lang="python"><code>import math
+reach, height = 0.4, 0.3                       # reach and height in metres
+print(f"ideal cylinder volume = {math.pi * reach ** 2 * height:.2f} m^3")</code></pre>
+  <pre class="output">ideal cylinder volume = 0.15 m^3</pre>
+
+  <h3>Spherical (RRP)</h3>
+  <p>A spherical robot has two revolute joints and one prismatic joint. The two revolute joints act like the longitude and latitude of a globe, pointing the arm in any direction. The prismatic joint slides the tool along that direction, from a short distance to a long one. The reachable region is a shell, like a hollow ball, between a minimum radius and a maximum radius.</p>
+  <p>Its workspace is therefore a spherical shell. The tool cannot reach points too close to the centre, because the sliding joint has a minimum extension. Older industrial robots, such as some welding and handling machines, used this configuration.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The workspace shape follows the joints. Three slides give a box, a turn plus two slides give a cylinder, and two turns plus a slide give a shell.</p></div>
+
+  <details class="check"><summary>What is the workspace shape of a Cartesian robot?</summary><div class="ans"><p>A rectangular box, because each of the three prismatic joints moves along one straight axis.</p></div></details>
+  <details class="check"><summary>Why can a spherical robot not reach points near its base?</summary><div class="ans"><p>Its prismatic joint has a minimum extension, so the tool cannot be closer to the centre than that. The workspace is a shell, not a full sphere.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Articulated and SCARA configurations">
+  <h2>Articulated and SCARA configurations</h2>
+  <h3>Articulated (RRR)</h3>
+  <p>An articulated robot has three revolute joints, arranged like a human arm. The base joint turns the arm about a vertical axis, the shoulder joint raises and lowers the upper arm, and the elbow joint bends the forearm. This is the most common industrial robot, and it is used for welding, painting and assembly.</p>
+  <p>Its workspace is complex. It is roughly a ball with a hollow space near the base, and it can reach over obstacles, which makes it very flexible. The price is that its control is harder, because the joint angles depend on each other in a nonlinear way.</p>
+  <pre class="code" data-lang="text"><code>        side view of an articulated arm (RRR)
+
+                 o  elbow (R)
+                / \
+   shoulder (R)o   \       upper arm, forearm
+               |    \
+               |     o  wrist, then tool
+   base (R) ==[ ]
+
+   The base joint turns the whole arm about a vertical axis.</code></pre>
+
+  <h3>SCARA (RRP, vertical slide)</h3>
+  <p>SCARA stands for Selective Compliance Assembly Robot Arm. It has two revolute joints whose axes are vertical, so the arm moves in a horizontal plane like a hand writing on a table. Its third joint is prismatic and slides up and down along a vertical axis. The motion is fast in the plane, and it is firm and accurate in the vertical direction, which suits insertion tasks.</p>
+  <p>Its workspace is an annular ring (from the two-link reach) in the horizontal plane, extended vertically by the slide stroke. Electronics assembly and pick-and-place machines often use SCARA robots.</p>
+  <pre class="code" data-lang="text"><code>        top view of SCARA (horizontal plane)
+
+            joint 2 (R, vertical axis)
+                    o----------o  link 2
+                   /
+   joint 1 (R)    o  link 1
+   vertical axis
+   at base       [ base ]
+
+   Joint 3 (P) slides the tool up and down along a vertical axis.</code></pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>SCARA's third joint is prismatic, but its two first joints are revolute with vertical axes. Do not mistake the horizontal motion for a prismatic joint. The two horizontal motions are turns.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>SCARA is written RRP in the letter notation. Remember that the P is vertical, which is what makes SCARA stiff in the vertical direction and fast in the horizontal plane.</p></div>
+
+  <details class="check"><summary>What is the joint notation of a SCARA robot?</summary><div class="ans"><p>RRP, with two revolute joints about vertical axes and one prismatic joint sliding vertically.</p></div></details>
+  <details class="check"><summary>What is the typical workspace of an articulated arm?</summary><div class="ans"><p>A complex, roughly ball-shaped region with a hollow near the base. It is not a simple box or cylinder.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Choosing a configuration">
+  <h2>Choosing a configuration</h2>
+  <h3>The design trade-offs</h3>
+  <p>No configuration is best for every task. The choice depends on the workspace needed, the stiffness, the speed, the cost and the obstacles near the robot. A table of the usual trade-offs helps you compare them quickly.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Configuration</th><th>Joints</th><th>Workspace shape</th><th>Typical use</th><th>Main strength</th></tr></thead>
+    <tbody>
+      <tr><td>Cartesian</td><td>PPP</td><td>Rectangular box</td><td>Gantry, 3D printing</td><td>Simple, rigid control</td></tr>
+      <tr><td>Cylindrical</td><td>RPP</td><td>Cylinder with a hole</td><td>Machine tending</td><td>Good reach in a plane</td></tr>
+      <tr><td>Spherical</td><td>RRP</td><td>Spherical shell</td><td>Older handling machines</td><td>Reaches in many directions</td></tr>
+      <tr><td>Articulated</td><td>RRR</td><td>Complex, ball-like</td><td>Welding, painting</td><td>Reaches over obstacles</td></tr>
+      <tr><td>SCARA</td><td>RRP (vertical P)</td><td>Ring plus vertical stroke</td><td>Assembly, pick-and-place</td><td>Fast, stiff vertically</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>A short design example</h3>
+  <p>Suppose a factory needs a robot to pick small circuit boards from a flat tray and place them into slots on a board below. The motion is mostly in a horizontal plane, with a single vertical stroke. A SCARA robot matches this task well: its two revolute joints cover the plane quickly, and its prismatic joint handles the vertical insertion firmly.</p>
+  <p>Now suppose a welding robot must reach around a car body from many angles. An articulated arm is better, because its complex workspace reaches over and around obstacles.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Match the configuration to the task. Ask: what workspace do I need, what obstacles are present, and how stiff and fast must the motion be?</p></div>
+
+  <details class="check"><summary>Which configuration would you choose for a robot that moves boxes along a warehouse grid?</summary><div class="ans"><p>A Cartesian robot, whose rectangular workspace fits a grid and whose three slides are easy to control.</p></div></details>
+  <details class="check"><summary>Why might a designer avoid a Cartesian robot for welding a car body?</summary><div class="ans"><p>Its box-shaped workspace and straight slides cannot easily reach around the curved body and over obstacles, so an articulated arm is more flexible.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What the symbols mean</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>DOF = number of simple joints</td><td>R or P joints, each with one DOF</td><td>Open chains of simple joints</td></tr>
+      <tr><td>Cartesian volume = x × y × z</td><td>strokes along each axis, in m</td><td>Box-shaped workspace</td></tr>
+      <tr><td>Cylinder volume = π r² h</td><td>reach r and height h, in m</td><td>Ideal cylindrical workspace</td></tr>
+      <tr><td>Shell volume = (4/3)π(R<sub>out</sub>³ − R<sub>in</sub>³)</td><td>outer and inner radius, in m</td><td>Spherical workspace</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE multiple select and numerical questions. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which statements about joints are true</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) A revolute joint allows rotation about one axis.<br>(B) A prismatic joint allows sliding along one line.<br>(C) A revolute joint has two degrees of freedom.<br>(D) The third joint of a SCARA robot is usually revolute.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about joints are correct.</li>
+      <li><strong>Which idea applies.</strong> R joints turn about an axis, P joints slide along a line, and each has one DOF.</li>
+      <li><strong>Work it out.</strong> (A) is true by definition. (B) is true by definition. (C) is false, since a revolute joint has one DOF. (D) is false, since a SCARA's third joint slides vertically, so it is prismatic.</li>
+      <li><strong>Check.</strong> Each simple joint gives one independent motion, so no single joint can have two DOF.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Degrees of freedom of a three-joint arm</h3>
+    <div class="statement"><p>A robot arm has three simple joints in the order revolute, revolute, prismatic. How many degrees of freedom does it have? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of DOF of an open chain with three joints.</li>
+      <li><strong>Which idea applies.</strong> Each simple joint gives one DOF, and an open chain of simple joints has DOF equal to the number of joints.</li>
+      <li><strong>Work it out.</strong> There are three joints, each with one DOF, so the total is 1 + 1 + 1 = 3.</li>
+      <li><strong>Check.</strong> The notation RRP has three letters, and the count matches.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Naming a configuration from its joints</h3>
+    <div class="statement"><p>A robot arm has a revolute joint at the base that turns the whole arm about a vertical axis. Above it, one prismatic joint slides the arm in and out horizontally, and a second prismatic joint raises and lowers the tool. Which configuration is this?</p>
+    <p>(A) Cartesian<br>(B) Cylindrical<br>(C) Spherical<br>(D) Articulated</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The name of the configuration.</li>
+      <li><strong>Which idea applies.</strong> Write the joints from the base: revolute, prismatic, prismatic. That is RPP.</li>
+      <li><strong>Work it out.</strong> RPP is the cylindrical configuration. Cartesian is PPP, spherical is RRP, and articulated is RRR.</li>
+      <li><strong>Check.</strong> Only the cylindrical letters match the description: one turn at the base and two slides.</li>
+    </ol>
+    <p class="cx">Answer: (B) Cylindrical.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Degrees of freedom of a planar four-revolute chain</h3>
+    <div class="statement"><p>An open planar chain has four revolute joints, all with axes perpendicular to the plane. How many degrees of freedom does the chain have? (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The DOF of an open chain of four revolute joints.</li>
+      <li><strong>Which idea applies.</strong> An open chain of simple joints has DOF equal to the number of joints.</li>
+      <li><strong>Work it out.</strong> Four revolute joints, each with one DOF, give 4 DOF.</li>
+      <li><strong>Check.</strong> The end-effector position and orientation in a plane need only 3 DOF, so the fourth gives redundancy, which is a real feature of some planar arms.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about spherical robots are true</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) A spherical robot has joints in the order RRP.<br>(B) Its workspace is approximately a spherical shell.<br>(C) Its base joint is prismatic.<br>(D) It cannot reach points closer to its base than its minimum extension.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements describe a spherical configuration.</li>
+      <li><strong>Which idea applies.</strong> Spherical is RRP: two revolute joints and one prismatic joint, with a shell workspace.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is false, since its base joint is revolute (the first R). (D) is true, because the prismatic joint has a minimum extension.</li>
+      <li><strong>Check.</strong> If the base joint were prismatic, the notation would start with P, which is the Cartesian or cylindrical family, not spherical.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Volume of a spherical workspace shell</h3>
+    <div class="statement"><p>A spherical robot's workspace is a shell with outer radius 0.6 m and inner radius 0.2 m. Treat the workspace as an ideal shell. What is its volume, in m³? Give your answer to two decimal places. (Numerical answer.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The volume of a hollow spherical shell.</li>
+      <li><strong>Which idea applies.</strong> Shell volume = (4/3)π(R<sub>out</sub>³ − R<sub>in</sub>³).</li>
+      <li><strong>Work it out.</strong> R<sub>out</sub>³ = 0.6³ = 0.216, and R<sub>in</sub>³ = 0.2³ = 0.008. The difference is 0.208. Then (4/3)π × 0.208 = 0.8711..., which is 0.87 m³.</li>
+      <li><strong>Check.</strong> The full sphere of radius 0.6 has volume (4/3)π(0.216) = 0.9048. Our shell is slightly smaller, because the hollow centre is removed.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+R_out, R_in = 0.6, 0.2
+volume = (4 / 3) * math.pi * (R_out ** 3 - R_in ** 3)
+print(f"shell volume = {volume:.2f} m^3")</code></pre>
+    <pre class="output">shell volume = 0.87 m^3</pre>
+    <p class="cx">Answer: 0.87 m³.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Configurations and their joints</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <p>(A) SCARA has joints RRP, with the prismatic joint vertical.<br>(B) A Cartesian robot has joints PPP.<br>(C) An articulated robot has joints RRP.<br>(D) A cylindrical robot has joints RPP.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which pairings of configuration and joint notation are correct.</li>
+      <li><strong>Which idea applies.</strong> Each configuration has a standard letter pattern: Cartesian PPP, cylindrical RPP, spherical RRP, articulated RRR, and SCARA RRP with a vertical P.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is false, since articulated is RRR, and RRP is spherical or SCARA. (D) is true.</li>
+      <li><strong>Check.</strong> Articulated has no prismatic joint, so any notation with a P cannot be articulated.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Spatial mobility (NAT, 2 marks)</h3>
+    <div class="statement"><p>A spatial mechanism has 7 links (including the ground), 6 revolute joints and 1 spherical joint, in a single closed loop. Use the Kutzbach formula to find its mobility.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> M = 6(n − 1) − Σ(6 − f<sub>i</sub>).</li>
+      <li><strong>Which idea applies.</strong> Revolute removes 5 freedoms, spherical removes 3.</li>
+      <li><strong>Work it out.</strong> 6 · 6 − (6 · 5 + 3) = 36 − 33 = 3.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>n = 7; joints = [1] * 6 + [3]
+print(6 * (n - 1) - sum(6 - f for f in joints))
+</code></pre>
+    <pre class="output">3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Joint types (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) A revolute joint has 1 DOF. (B) A cylindrical joint has 2 DOF. (C) A spherical joint has 3 DOF. (D) A prismatic joint has 2 DOF.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Freedoms of joints.</li>
+      <li><strong>Which idea applies.</strong> Count independent motions allowed.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) Rotation plus sliding. True. (C) True. (D) One sliding motion. False.</li>
+      <li><strong>Check.</strong> Universal joints have 2 DOF.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Links for 6 DOF (NAT, 1 mark)</h3>
+    <div class="statement"><p>A serial arm with only 1 DOF joints must reach any position and orientation in space. What is the minimum number of joints, and how many links including the base?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Joint and link counts.</li>
+      <li><strong>Which idea applies.</strong> Full pose in space needs 6 DOF.</li>
+      <li><strong>Work it out.</strong> 6 joints and 7 links.</li>
+      <li><strong>Check.</strong> A 7th joint would add redundancy.</li>
+    </ol>
+    <p class="cx">Answer: 6 joints and 7 links.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Link</dt><dd>A rigid part of a robot arm.</dd></div>
+    <div><dt>Joint</dt><dd>A connection between two links that allows one relative motion.</dd></div>
+    <div><dt>Revolute joint (R)</dt><dd>Rotates about one axis. Its value is an angle.</dd></div>
+    <div><dt>Prismatic joint (P)</dt><dd>Slides along one line. Its value is a distance.</dd></div>
+    <div><dt>Degree of freedom</dt><dd>One independent motion. A simple joint has one.</dd></div>
+    <div><dt>Notation</dt><dd>Joint letters listed from the base outward, such as RRP.</dd></div>
+    <div><dt>Geometric configuration</dt><dd>The arrangement of joint types, which sets the workspace shape.</dd></div>
+    <div><dt>Workspace</dt><dd>The set of points the tool can reach.</dd></div>
+    <div><dt>Cartesian (PPP)</dt><dd>Three slides, rectangular box workspace.</dd></div>
+    <div><dt>Cylindrical (RPP)</dt><dd>One turn and two slides, cylinder-shaped workspace.</dd></div>
+    <div><dt>Spherical (RRP)</dt><dd>Two turns and one slide, spherical shell workspace.</dd></div>
+    <div><dt>Articulated (RRR)</dt><dd>Three turns, complex ball-like workspace.</dd></div>
+    <div><dt>SCARA</dt><dd>Two vertical-axis turns and a vertical slide, fast in the plane.</dd></div>
+    <div><dt>Box volume</dt><dd>Strokes multiplied together.</dd></div>
+    <div><dt>Shell volume</dt><dd>(4/3)π(R<sub>out</sub>³ − R<sub>in</sub>³).</dd></div>
+    <div><dt>Trade-off</dt><dd>Each configuration suits a different task, workspace and stiffness need.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Links are rigid, and joints are the moving connections between them.</li>
+    <li>Write the joint letters from the base outward.</li>
+    <li>An open chain of simple joints has DOF equal to its number of joints.</li>
+    <li>Cartesian is PPP, cylindrical is RPP, spherical is RRP, articulated is RRR.</li>
+    <li>SCARA is RRP with a vertical prismatic joint.</li>
+    <li>The workspace shape follows the joint arrangement.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 148?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 148 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-147.html"><small>Previous, topic 147</small>Robot classification: serial &amp; parallel manipulators</a><a class="next" href="gate-149.html"><small>Next, topic 149</small>Coordinate systems and degrees of freedom</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

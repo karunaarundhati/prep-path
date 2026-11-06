@@ -1,0 +1,405 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 134: Transducers: displacement (linear & angular)</title><meta name="description" content="A robot must know where each of its joints is, and displacement transducers provide that answer. Some measure how far a part moves in a straight line, and others measure how far a shaft has turned. This topic explains the LVDT, the potentiometer, the resolver and the synchro, and how to work out their outputs, resolution and accuracy."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g134" data-key="g134" data-noun="topic" data-num="134" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Transducers: <em>displacement (linear &amp; angular)</em></h1>
+<p class="lede">A robot must know where each of its joints is, and displacement transducers provide that answer. Some measure how far a part moves in a straight line, and others measure how far a shaft has turned. This topic explains the LVDT, the potentiometer, the resolver and the synchro, and how to work out their outputs, resolution and accuracy.</p>
+<div class="station"><b>134</b><span>Unit 12 · Sensors · Paper RA · New concept</span></div>
+<ul class="topics"><li>Linear displacement: LVDT and potentiometer</li><li>Angular displacement: rotary potentiometer</li><li>Resolver and synchro</li><li>Range, resolution and accuracy</li><li>Position sensing in a robot joint</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Picture a car odometer. It counts how far the wheels have turned, and from that it knows how far the car has travelled. A robot joint needs the same kind of knowledge. It must know the angle of the shaft, or the position of a slide, at every moment. A <strong>displacement transducer</strong> is a device that turns a movement into an electrical signal. It is called <strong>linear</strong> when the movement is a straight line, and <strong>angular</strong> when the movement is a rotation.</p>
+  <p>Why does a robot care? If the controller knows the joint angle exactly, it can stop the arm at the right place. If the sensor is wrong by a little, the hand may miss the object by a little. So the questions in this topic are always about three things: how the output changes with position, how small a change the sensor can see, and how far from the true value the reading can be.</p>
+  <p>In GATE Robotics and Automation (RA), you will meet this topic as output formulas for the LVDT and the potentiometer, angle calculations for the resolver, and questions on resolution and accuracy. The formulas are simple, and each example below shows every step.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Displacement</dt><dd>How far something has moved from a reference position. Linear displacement is in a straight line, and angular displacement is a rotation.</dd></div>
+    <div><dt>Transducer</dt><dd>A device that converts one form of energy or motion into another, here into an electrical signal.</dd></div>
+    <div><dt>LVDT</dt><dd>Linear variable differential transformer. A transformer with a movable core that gives an output voltage proportional to the core position in its linear range.</dd></div>
+    <div><dt>Null position</dt><dd>The centre position of an LVDT, where the output is ideally zero.</dd></div>
+    <div><dt>Excitation</dt><dd>The supply voltage or current applied to a transducer.</dd></div>
+    <div><dt>Potentiometer</dt><dd>A resistor with a sliding contact. Its output voltage follows the wiper position.</dd></div>
+    <div><dt>Resolver</dt><dd>A rotating transformer with two stator outputs. Its outputs are proportional to the sine and cosine of the shaft angle.</dd></div>
+    <div><dt>Synchro</dt><dd>An angular transmitter and receiver pair that carries a shaft angle as electrical voltages between units.</dd></div>
+    <div><dt>Range</dt><dd>The span of input values the sensor can measure, from its lowest to its highest value.</dd></div>
+    <div><dt>Resolution</dt><dd>The smallest change in input that the sensor and its readout can detect.</dd></div>
+    <div><dt>Accuracy</dt><dd>How close the reading is to the true value. Often stated as a percentage of full scale.</dd></div>
+    <div><dt>Full scale (FS)</dt><dd>The full span of the measuring range, used as the base for the accuracy percentage.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Linear displacement: LVDT and potentiometer">
+  <h2>Step 1: Linear displacement sensors</h2>
+  <p>A linear displacement sensor reports how far a part has moved along a straight line. Two of the most common types are the LVDT and the linear potentiometer.</p>
+  <h3>The LVDT</h3>
+  <p>An LVDT has three coils wound on a hollow former. The middle coil is the primary, and it is supplied with an AC voltage. The two outer coils are secondaries, and they are wired in opposition, which means that their outputs subtract. A movable iron core slides inside the former. The core couples the primary to the secondaries.</p>
+  <p>Here is the picture in words. When the core is at the centre, the two secondaries receive equal voltages, which cancel. The output is zero. This is the <strong>null position</strong>. When the core moves towards one secondary, that coil receives more flux and its voltage grows. The output is in phase with the primary. When the core moves towards the other secondary, the output is out of phase, so it is reversed. Moving the core the same distance in the other direction gives an output of the same size but the opposite sign.</p>
+  <p>Inside its linear range, the output is proportional to the displacement:</p>
+  <div class="formula">V<sub>out</sub> = K × x</div>
+  <p>Symbols: x is the core displacement from null in millimetres, K is the sensitivity in volts per millimetre, and V<sub>out</sub> is the output voltage. Outside the linear range the relation no longer holds, so questions will always state the range.</p>
+  <h3>Worked example: LVDT output on both sides of null</h3>
+  <p>An LVDT has K = 0.2 V/mm in its linear range. The core is moved 1.5 mm to one side, and then 1.5 mm to the other side.</p>
+  <ol>
+    <li><strong>First side.</strong> x = +1.5 mm. V<sub>out</sub> = 0.2 × 1.5 = 0.3 V, in phase with the primary.</li>
+    <li><strong>Other side.</strong> x = −1.5 mm. V<sub>out</sub> = 0.2 × (−1.5) = −0.3 V. Same size, opposite phase.</li>
+    <li><strong>Reading the sign.</strong> The sign of the output shows the direction, and the size shows the distance. This is why the LVDT is useful: it gives both.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>K = 0.2                  # LVDT sensitivity in volts per millimetre (in the linear range)
+for x in [1.5, -1.5]:    # core displacement in mm, one each side of null
+    Vout = K * x
+    print("x =", x, "mm  Vout =", round(Vout, 2), "V")</code></pre>
+  <pre class="output">x = 1.5 mm  Vout = 0.3 V
+x = -1.5 mm  Vout = -0.3 V</pre>
+  <h3>The linear potentiometer</h3>
+  <p>A linear potentiometer is a straight resistance track with a wiper that slides along it. Connect the two ends of the track to a supply V<sub>s</sub>. If the wiper is at a distance x from one end of a track of length L, the unloaded output is:</p>
+  <div class="formula">V<sub>out</sub> = V<sub>s</sub> × x / L</div>
+  <p>Symbols: x is the wiper position, L is the full track length, and V<sub>s</sub> is the supply. The output is a straight line in position. Its weakness is wear: the wiper rubs on the track, so the sensor ages and can become noisy.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The LVDT is not a potentiometer. An LVDT has no sliding contact, so it does not wear in the same way. A question that mentions "no contact" or "no wear" usually points to an LVDT.</p></div>
+  <details class="check"><summary>An LVDT output is 0 V at the null position. Why?</summary><div class="ans"><p>The two secondary coils are wired in opposition and receive equal voltages at null. Their outputs cancel, so the net output is zero.</p></div></details>
+  <details class="check"><summary>A linear potentiometer has V<sub>s</sub> = 10 V and track length L = 50 mm. The wiper is at 20 mm. What is V<sub>out</sub>?</summary><div class="ans"><p>V<sub>out</sub> = 10 × 20 / 50 = 4 V.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Angular displacement: rotary potentiometer">
+  <h2>Step 2: Angular displacement with a rotary potentiometer</h2>
+  <p>A rotary potentiometer is the same idea as the linear one, but the track is a circular arc. Its mechanical range is written as θ<sub>max</sub>. Many rotary potentiometers cover 270 degrees, which leaves a gap of 90 degrees where the wiper is not in contact with the track. Other types cover a full turn or several turns.</p>
+  <div class="formula">V<sub>out</sub> = V<sub>s</sub> × θ / θ<sub>max</sub></div>
+  <p>Symbols: θ is the angle of the wiper from the zero end, θ<sub>max</sub> is the total electrical range, and V<sub>s</sub> is the supply. The output is linear in angle over the range.</p>
+  <h3>Worked example: a robot elbow</h3>
+  <p>A rotary potentiometer covers 270°, is supplied with 5 V, and the elbow has turned 90°. Find the output:</p>
+  <ol>
+    <li>Write the formula: V<sub>out</sub> = V<sub>s</sub> × θ / θ<sub>max</sub>.</li>
+    <li>Substitute: V<sub>out</sub> = 5 × 90 / 270.</li>
+    <li>Divide first: 90 / 270 = 1/3 = 0.3333.</li>
+    <li>Multiply: 5 × 0.3333 = 1.667 V.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>Vs = 5.0               # supply voltage on the potentiometer track
+theta_max = 270.0      # mechanical range of the rotary potentiometer, degrees
+theta = 90.0           # angle of the wiper
+Vout = Vs * theta / theta_max
+print("Vout =", round(Vout, 3), "V")</code></pre>
+  <pre class="output">Vout = 1.667 V</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Use the electrical range, θ<sub>max</sub>, in the denominator, not 360. A 270° potentiometer reaches its full output at 270, not at 360.</p></div>
+  <details class="check"><summary>A 270° potentiometer shows V<sub>out</sub> = 2.5 V with V<sub>s</sub> = 5 V. What angle is the wiper at?</summary><div class="ans"><p>θ = V<sub>out</sub> × θ<sub>max</sub> / V<sub>s</sub> = 2.5 × 270 / 5 = 135°. This is exactly half of the range.</p></div></details>
+  <details class="check"><summary>Why can a single 270° potentiometer not measure a full turn of a robot joint?</summary><div class="ans"><p>Because the track ends after 270°. Beyond that the wiper gives no new information, so the sensor cannot tell a full turn from a partial one. A multi-turn potentiometer or an encoder is needed for that.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Resolver and synchro">
+  <h2>Step 3: Resolver and synchro</h2>
+  <p>A potentiometer has a sliding contact, which wears. A <strong>resolver</strong> avoids this by using a rotating transformer. Its rotor carries one winding, which is excited by an AC supply. Its stator carries two windings placed at 90 degrees to each other. As the rotor turns, the voltages induced in the two stator windings change with the sine and cosine of the shaft angle:</p>
+  <div class="formula">V<sub>s</sub> = K × V × sin θ,  V<sub>c</sub> = K × V × cos θ</div>
+  <p>Symbols: V is the rotor excitation amplitude, K is the transformation ratio, θ is the shaft angle, and V<sub>s</sub> and V<sub>c</sub> are the sine and cosine outputs. Because the outputs are sine and cosine, the angle can be found from them exactly, even if the amplitude changes a little. That is the great advantage of the resolver.</p>
+  <h3>Worked example: recovering the angle</h3>
+  <p>Suppose the rotor excitation gives V = 10 V and the shaft is at θ = 30°. Find the two outputs and then recover the angle from them. Use K = 1 to keep the numbers simple.</p>
+  <ol>
+    <li><strong>Sine output.</strong> V<sub>s</sub> = 10 × sin 30° = 10 × 0.5 = 5 V.</li>
+    <li><strong>Cosine output.</strong> V<sub>c</sub> = 10 × cos 30° = 10 × 0.866 = 8.66 V.</li>
+    <li><strong>Recover the angle.</strong> θ = arctan(V<sub>s</sub> / V<sub>c</sub>), using the two-argument arctangent so that the quadrant is correct. Here θ = atan2(5, 8.66).</li>
+    <li><strong>Result.</strong> θ = 30.0°.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+V = 10.0                              # resolver amplitude
+theta_true = math.radians(30)         # the shaft angle we want to recover
+Vs = V * math.sin(theta_true)         # sine winding output
+Vc = V * math.cos(theta_true)         # cosine winding output
+print("Vs =", round(Vs, 3), "V")
+print("Vc =", round(Vc, 3), "V")
+theta = math.degrees(math.atan2(Vs, Vc))
+print("recovered angle =", round(theta, 1), "degrees")</code></pre>
+  <pre class="output">Vs = 5.0 V
+Vc = 8.66 V
+recovered angle = 30.0 degrees</pre>
+  <p>Notice that the amplitude V was not needed to find the angle. The ratio of the two outputs cancels it out. This is a strong reason resolvers are used in demanding motion control.</p>
+  <h3>The synchro</h3>
+  <p>A <strong>synchro</strong> is a pair of rotating transformers, a transmitter and a receiver, joined by three wires. The transmitter's rotor is turned by the shaft to be measured. The receiver's rotor then turns to the same angle, so that a distant display or controller can read the shaft position. Synchros are used to carry an angle over a distance using electrical signals. In a GATE question you are most likely to be asked the principle, not the wiring.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A resolver gives sine and cosine outputs, so the angle is found from their ratio. The excitation amplitude cancels out, which makes the resolver robust.</p></div>
+  <details class="check"><summary>A resolver gives V<sub>s</sub> = 0 and V<sub>c</sub> at its maximum. What is the shaft angle?</summary><div class="ans"><p>θ = 0°, because sin 0° = 0 and cos 0° = 1, the maximum.</p></div></details>
+  <details class="check"><summary>Why does a resolver last longer than a potentiometer in a robot joint?</summary><div class="ans"><p>A resolver has no sliding electrical contact on its track. The rotor and stator are coupled by magnetic flux, so there is no wiper to wear out.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Range, resolution and accuracy">
+  <h2>Step 4: Range, resolution and accuracy</h2>
+  <p>Three words describe how good a sensor is, and they are often confused. <strong>Range</strong> is the span of values the sensor can measure. <strong>Resolution</strong> is the smallest change it can see. <strong>Accuracy</strong> is how far the reading can be from the true value.</p>
+  <h3>Resolution from the number of steps</h3>
+  <p>When a sensor output is converted to a digital number, the resolution depends on the number of steps. An n-bit converter has 2<sup>n</sup> steps across the full span:</p>
+  <div class="formula">Resolution = full span / 2<sup>n</sup></div>
+  <p>Symbols: full span is the angle or distance covered by the sensor, and n is the number of bits in the converter. Example: a 12-bit converter reading a full 360° turn has 2<sup>12</sup> = 4096 steps, so the resolution is 360 / 4096 = 0.0879° per step.</p>
+  <pre class="code" data-lang="python"><code>bits = 12
+steps = 2**bits
+print("steps =", steps)
+print("resolution =", round(360 / steps, 4), "degrees")</code></pre>
+  <pre class="output">steps = 4096
+resolution = 0.0879 degrees</pre>
+  <p>So the smallest angle the controller can see is about 0.09 degrees. Doubling the number of bits halves the step size, which is why higher-bit converters give finer resolution.</p>
+  <h3>Accuracy as a percentage of full scale</h3>
+  <p>Accuracy is often given as a percentage of full scale. If a sensor has a full span of 10 mm and an accuracy of ±0.5% FS, the reading can be wrong by up to 0.5% of 10 mm:</p>
+  <div class="formula">Error = accuracy (%) / 100 × full scale</div>
+  <p>Symbols: accuracy is a percentage, and full scale is the span in the same units as the answer. So the error is 0.005 × 10 mm = 0.05 mm. Note that the error is in millimetres, the same unit as the span, and that it is the same at every point in the range.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Accuracy stated as a percentage of full scale is not a percentage of the reading. At a reading of 1 mm, a ±0.05 mm error is 5% of the reading, even though it is only 0.5% of full scale.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>Resolution is about the smallest step you can see. Accuracy is about how close the reading is to the truth. A sensor can have fine resolution and still be inaccurate.</p></div>
+  <details class="check"><summary>A 10-bit converter reads a full 90° range. What is the resolution?</summary><div class="ans"><p>2<sup>10</sup> = 1024 steps, so 90 / 1024 = 0.0879 degrees per step.</p></div></details>
+  <details class="check"><summary>A sensor has range 0 to 200 mm and accuracy ±1% FS. What is the largest possible error?</summary><div class="ans"><p>1% of 200 mm = 2 mm. The reading can be wrong by up to 2 mm anywhere in the range.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Position sensing in a robot joint">
+  <h2>Step 5: Position sensing in a robot joint</h2>
+  <p>Now bring the ideas together for a robot joint. The joint is driven by a motor, and a sensor reports the joint angle to the controller. The controller compares the measured angle with the target angle and corrects the error. This is called closed-loop control, and the accuracy of the sensor limits the accuracy of the whole joint.</p>
+  <p>Consider a joint with a 270° rotary potentiometer, read by a 10-bit converter. The resolution is the span divided by the number of steps: 270 / 2<sup>10</sup> = 270 / 1024 = 0.2637 degrees per step. The Python check below prints this value.</p>
+  <pre class="code" data-lang="python"><code>span_deg = 270.0
+bits = 10
+print("resolution =", round(span_deg / 2**bits, 4), "degrees")</code></pre>
+  <pre class="output">resolution = 0.2637 degrees</pre>
+  <p>Look at what the resolution means in practice. If the joint must be positioned to within 0.1 degrees, this sensor is not fine enough, because one step is 0.26 degrees. A 12-bit converter or a resolver would be needed. This kind of check is what a robot designer does before choosing a sensor.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The sensor sets the limit. The controller cannot place the joint more accurately than the sensor can measure it, however powerful the motor.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Questions often give a sensor, a bit count and a required accuracy, and ask whether the sensor is good enough. Compare the resolution with the required accuracy, and state which is the limit.</p></div>
+  <details class="check"><summary>Why is a potentiometer alone often not enough for a continuously rotating robot joint?</summary><div class="ans"><p>Because its track covers only a limited angle, such as 270°, and it gives no new information past the end of the track. Continuous rotation needs a multi-turn sensor or an encoder.</p></div></details>
+  <details class="check"><summary>Which two quantities must you compare to decide if a sensor is good enough for a joint?</summary><div class="ans"><p>The sensor resolution and the accuracy needed by the task. The resolution must be finer than the required accuracy, and the sensor accuracy must also meet the task.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close while you practise.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>V<sub>out</sub> = K × x</td><td>LVDT output in its linear range</td><td>Finding the output for a core displacement</td></tr>
+      <tr><td>V<sub>out</sub> = V<sub>s</sub> × x / L</td><td>Linear potentiometer</td><td>Position from a linear track</td></tr>
+      <tr><td>V<sub>out</sub> = V<sub>s</sub> × θ / θ<sub>max</sub></td><td>Rotary potentiometer</td><td>Angle from a rotary track</td></tr>
+      <tr><td>V<sub>s</sub> = KV sin θ, V<sub>c</sub> = KV cos θ</td><td>Resolver outputs</td><td>Finding the shaft angle</td></tr>
+      <tr><td>θ = atan2(V<sub>s</sub>, V<sub>c</sub>)</td><td>Resolver angle</td><td>Recovering the angle from its outputs</td></tr>
+      <tr><td>Resolution = span / 2<sup>n</sup></td><td>Smallest step of an n-bit reading</td><td>Comparing a sensor with a required accuracy</td></tr>
+      <tr><td>Error = accuracy (%) / 100 × full scale</td><td>Accuracy as a fixed error</td><td>Finding the largest error in the range</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style questions for practice. They are not real past paper questions. Try each one before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Rotary potentiometer output</h3>
+    <div class="statement"><p>A 270° rotary potentiometer is supplied with 5 V. The wiper is at 90°. Find V<sub>out</sub> in volts, to three decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V<sub>out</sub> at one angle.</li>
+      <li><strong>Which idea applies.</strong> V<sub>out</sub> = V<sub>s</sub> θ / θ<sub>max</sub>, with θ<sub>max</sub> = 270, not 360.</li>
+      <li><strong>Work it out.</strong> 5 × 90 / 270 = 5 / 3 = 1.667 V.</li>
+      <li><strong>Check.</strong> 90° is one third of 270°, so the output is one third of 5 V, which is 1.667 V.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>Vs = 5.0
+theta_max = 270.0
+theta = 90.0
+Vout = Vs * theta / theta_max
+print("Vout =", round(Vout, 3), "V")</code></pre>
+    <pre class="output">Vout = 1.667 V</pre>
+    <p class="cx">Answer: 1.667 V.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which statements about these sensors are true?</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) An LVDT output changes phase when the core crosses the null position.<br>(B) An LVDT output is linear over the whole of its travel.<br>(C) A resolver gives sine and cosine outputs.<br>(D) A linear potentiometer output is V<sub>s</sub> x / L when unloaded.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the sensor principles hold.</li>
+      <li><strong>Which idea applies.</strong> LVDT phase behaviour, the linear range, and the resolver and potentiometer formulas.</li>
+      <li><strong>Work it out.</strong> (A) True, the output reverses sign. (B) False, linearity holds only in the linear range. (C) True. (D) True.</li>
+      <li><strong>Check.</strong> Statement (B) uses the word "whole", which is the clue that it is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>LVDT output on the far side of null</h3>
+    <div class="statement"><p>An LVDT has sensitivity K = 0.2 V/mm in its linear range. The core is at x = −1.5 mm, which is on the opposite side of null from the positive direction. Find V<sub>out</sub> in volts, including its sign.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> V<sub>out</sub> with sign.</li>
+      <li><strong>Which idea applies.</strong> V<sub>out</sub> = K x, with x negative on this side.</li>
+      <li><strong>Work it out.</strong> V<sub>out</sub> = 0.2 × (−1.5) = −0.3 V.</li>
+      <li><strong>Check.</strong> The magnitude 0.3 V matches the positive side, and the sign shows the opposite phase.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>K = 0.2
+x = -1.5
+print("Vout =", round(K * x, 2), "V")</code></pre>
+    <pre class="output">Vout = -0.3 V</pre>
+    <p class="cx">Answer: V<sub>out</sub> = −0.3 V.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Resolution of a 12-bit reading</h3>
+    <div class="statement"><p>A 12-bit converter reads a sensor whose full span is 360°. Find the smallest step in degrees, to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The resolution in degrees.</li>
+      <li><strong>Which idea applies.</strong> Resolution = span / 2<sup>n</sup>.</li>
+      <li><strong>Work it out.</strong> 2<sup>12</sup> = 4096. 360 / 4096 = 0.087890625, which rounds to 0.0879°.</li>
+      <li><strong>Check.</strong> 4096 × 0.0879 is about 360, which confirms the division.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>bits = 12
+steps = 2**bits
+print("steps =", steps)
+print("resolution =", round(360 / steps, 4), "degrees")</code></pre>
+    <pre class="output">steps = 4096
+resolution = 0.0879 degrees</pre>
+    <p class="cx">Answer: 0.0879 degrees.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Recovering the angle from a resolver</h3>
+    <div class="statement"><p>A resolver with excitation amplitude V = 10 V has sine output V<sub>s</sub> = 5 V and cosine output V<sub>c</sub> = 8.66 V (with K = 1). Find the shaft angle in degrees, to one decimal place.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The shaft angle θ.</li>
+      <li><strong>Which idea applies.</strong> tan θ = V<sub>s</sub> / V<sub>c</sub>, and the two-argument arctangent gives the right quadrant.</li>
+      <li><strong>Work it out.</strong> θ = atan2(5, 8.66) = 30.0°. The amplitude 10 V cancels in the ratio.</li>
+      <li><strong>Check.</strong> sin 30° = 0.5, so 10 × 0.5 = 5 V, which matches V<sub>s</sub>.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+Vs = 5.0
+Vc = 8.66
+theta = math.degrees(math.atan2(Vs, Vc))
+print("recovered angle =", round(theta, 1), "degrees")</code></pre>
+    <pre class="output">recovered angle = 30.0 degrees</pre>
+    <p class="cx">Answer: 30.0 degrees.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Largest error from an accuracy specification</h3>
+    <div class="statement"><p>A linear displacement sensor has a full-scale span of 10 mm and an accuracy of ±0.5% of full scale. The reading shows 1.0 mm. What is the largest possible true position, in millimetres? Give the answer to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The upper limit of the true position, given the reading.</li>
+      <li><strong>Which idea applies.</strong> The error is a fixed amount: 0.5% of the full span, not of the reading.</li>
+      <li><strong>Work it out.</strong> Error = 0.005 × 10 mm = 0.05 mm. The true position is at most 1.0 + 0.05 = 1.05 mm.</li>
+      <li><strong>Check.</strong> The lower limit is 0.95 mm, so the true value lies between 0.95 and 1.05 mm.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>span = 10.0
+accuracy = 0.5 / 100
+error = span * accuracy
+reading = 1.0
+print("error =", round(error, 3), "mm")
+print("largest true position =", round(reading + error, 2), "mm")</code></pre>
+    <pre class="output">error = 0.05 mm
+largest true position = 1.05 mm</pre>
+    <p class="cx">Answer: 1.05 mm.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Is the sensor fine enough for a joint?</h3>
+    <div class="statement"><p>A robot joint has a 270° rotary potentiometer read by a 10-bit converter. The task needs the joint placed to within 0.3°. Is the resolution good enough? Find the resolution in degrees to four decimal places, and answer yes or no.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The resolution, and whether it meets 0.3°.</li>
+      <li><strong>Which idea applies.</strong> Resolution = span / 2<sup>n</sup>.</li>
+      <li><strong>Work it out.</strong> 270 / 1024 = 0.2637°. This is smaller than 0.3°, so yes, the step size is fine enough. The sensor accuracy must also be checked separately.</li>
+      <li><strong>Check.</strong> If the requirement were 0.1°, the answer would be no, because 0.2637 is bigger than 0.1.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>span_deg = 270.0
+bits = 10
+res = span_deg / 2**bits
+print("resolution =", round(res, 4), "degrees")
+print("meets 0.3 degrees:", res &lt;= 0.3)</code></pre>
+    <pre class="output">resolution = 0.2637 degrees
+meets 0.3 degrees: True</pre>
+    <p class="cx">Answer: 0.2637°. Yes, the resolution is fine enough for 0.3°.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about angular sensors</h3>
+    <div class="statement"><p>Select all that apply.<br>(A) At θ = 0, a resolver sine output is zero and its cosine output is at its maximum.<br>(B) A 270° rotary potentiometer cannot by itself read a full 360° turn.<br>(C) A potentiometer needs no supply voltage to give an output.<br>(D) An LVDT output is ideally zero at the null position.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims are true.</li>
+      <li><strong>Which idea applies.</strong> The resolver outputs, the potentiometer range, and the principles of each sensor.</li>
+      <li><strong>Work it out.</strong> (A) True, sin 0° = 0 and cos 0° = 1. (B) True, the track ends at 270°. (C) False, a potentiometer needs its supply to produce a voltage. (D) True, the two secondaries cancel at null.</li>
+      <li><strong>Check.</strong> Any statement that says "needs no supply" should be treated with care, because most transducers need excitation.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Option (C) is false.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: LVDT output (NAT, 2 marks)</h3>
+    <div class="statement"><p>An LVDT has sensitivity 40 mV/mm and a linear range of ±10 mm. Its output is 260 mV. Find the core displacement.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Displacement from output.</li>
+      <li><strong>Which idea applies.</strong> Output = sensitivity × displacement within the linear range.</li>
+      <li><strong>Work it out.</strong> 260/40 = 6.5 mm.</li>
+      <li><strong>Check.</strong> 6.5 mm is inside the ±10 mm range.</li>
+    </ol>
+    <p class="cx">Answer: 6.5 mm.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Optical encoder resolution (NAT, 2 marks)</h3>
+    <div class="statement"><p>An absolute encoder has 12 tracks (12 bit). Find its angular resolution in degrees, correct to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest measurable angle.</li>
+      <li><strong>Which idea applies.</strong> 360°/2<sup>n</sup>.</li>
+      <li><strong>Work it out.</strong> 360/4096 = 0.0879°.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print("%.4f" % (360 / 2 ** 12))
+</code></pre>
+    <pre class="output">0.0879</pre>
+    <p class="cx">Answer: about 0.0879°.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Potentiometer loading (NAT, 2 marks)</h3>
+    <div class="statement"><p>A 10 kΩ linear potentiometer with 10 V supply has its wiper at mid travel and drives a 10 kΩ meter. Find the meter reading.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The loaded output voltage.</li>
+      <li><strong>Which idea applies.</strong> The lower half (5 kΩ) is in parallel with the 10 kΩ meter.</li>
+      <li><strong>Work it out.</strong> 5 ∥ 10 = 3.333 kΩ. Output = 10 · 3.333/(5 + 3.333) = 4 V.</li>
+      <li><strong>Check.</strong> Unloaded output would be 5 V, so loading gives a 20% error.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>Rl = 5 * 10 / 15
+print("%.3f V" % (10 * Rl / (5 + Rl)))
+</code></pre>
+    <pre class="output">4.000 V</pre>
+    <p class="cx">Answer: 4 V.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Displacement transducer</dt><dd>Turns a linear or angular movement into an electrical signal.</dd></div>
+    <div><dt>LVDT</dt><dd>Output V<sub>out</sub> = K x in its linear range, with phase reversing at null.</dd></div>
+    <div><dt>Null position</dt><dd>The centre of an LVDT, where the output is ideally zero.</dd></div>
+    <div><dt>Linear potentiometer</dt><dd>V<sub>out</sub> = V<sub>s</sub> x / L when unloaded.</dd></div>
+    <div><dt>Rotary potentiometer</dt><dd>V<sub>out</sub> = V<sub>s</sub> θ / θ<sub>max</sub>. Use the electrical range.</dd></div>
+    <div><dt>Resolver</dt><dd>Gives sine and cosine outputs of the shaft angle.</dd></div>
+    <div><dt>Angle from a resolver</dt><dd>θ = atan2(V<sub>s</sub>, V<sub>c</sub>). The amplitude cancels.</dd></div>
+    <div><dt>Synchro</dt><dd>A transmitter and receiver pair that carries a shaft angle electrically.</dd></div>
+    <div><dt>Range</dt><dd>The span of values the sensor can measure.</dd></div>
+    <div><dt>Resolution</dt><dd>Span / 2<sup>n</sup> for an n-bit reading.</dd></div>
+    <div><dt>Accuracy</dt><dd>How close the reading is to the true value, often in percent of full scale.</dd></div>
+    <div><dt>Full scale</dt><dd>The full span, used as the base for the accuracy percentage.</dd></div>
+    <div><dt>Closed-loop control</dt><dd>The controller uses the sensor reading to correct the joint position.</dd></div>
+    <div><dt>Joint position sensing</dt><dd>The sensor sets the limit on how accurately a joint can be placed.</dd></div>
+    <div><dt>No-wear sensors</dt><dd>LVDT and resolver, which avoid a sliding electrical contact.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>An LVDT output reverses sign when the core passes null.</li>
+    <li>A rotary potentiometer uses its electrical range, such as 270, in the formula.</li>
+    <li>A resolver gives sine and cosine, so the angle is found from their ratio.</li>
+    <li>Resolution is the full span divided by 2<sup>n</sup>.</li>
+    <li>Accuracy stated in percent of full scale is a fixed error across the range.</li>
+    <li>The sensor resolution limits how accurately a joint can be positioned.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 134?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 134 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-133.html"><small>Previous, topic 133</small>Resistive, capacitive, inductive sensors</a><a class="next" href="gate-135.html"><small>Next, topic 135</small>Piezoelectric &amp; Hall effect sensors + signal conditioning</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

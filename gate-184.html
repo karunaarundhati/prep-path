@@ -1,0 +1,470 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 184: Design for dynamic loading</title><meta name="description" content="Many machine parts never feel a steady load. A shaft turns, a spring is compressed again and again, and a robot joint reverses its torque many times a second. Under these fluctuating loads, a part can break at a stress far below its static strength. This page explains fatigue from zero, then builds the endurance limit, stress concentration, the Goodman and Soderberg criteria, and the sizing of parts with GATE-style numbers."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g184" data-key="g184" data-noun="topic" data-num="184" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Design for dynamic loading</h1>
+<p class="lede">Many machine parts never feel a steady load. A shaft turns, a spring is compressed again and again, and a robot joint reverses its torque many times a second. Under these fluctuating loads, a part can break at a stress far below its static strength. This page explains fatigue from zero, then builds the endurance limit, stress concentration, the Goodman and Soderberg criteria, and the sizing of parts with GATE-style numbers.</p>
+<div class="station"><b>184</b><span>Unit 18 · Machine design and CIM · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Fluctuating stress: mean and alternating components</li><li>Endurance limit and corrected endurance limit</li><li>Stress concentration and the fatigue factor Kf</li><li>Goodman and Soderberg criteria for combined mean and alternating stress</li><li>Sizing a component under fluctuating load</li><li>Cumulative fatigue damage (Miner&#x27;s rule)</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Bend a paper clip back and forth. Each bend is small, and the clip looks fine at first. After enough bends, it snaps. Each bend did a little damage, and the damage added up. This is <strong>fatigue</strong>: failure caused by repeated loading, even when no single load is large enough to break the part.</p>
+  <p>Static design, from the previous page, asks whether a steady load is too big. Dynamic design asks a harder question: what happens when the load goes up and down many times? A shaft carrying a gear, a connecting rod in an engine and a robot joint all see such loads. Their designs must allow for fatigue, or the part may fail after months of safe-looking service.</p>
+  <p>The key idea is that the strength we need is no longer the yield strength. It is the <strong>endurance limit</strong>, the stress amplitude a part can take for a very large number of cycles. In GATE, this topic appears in the <strong>Robotics and Automation (RA)</strong> paper through shafts and joints, and in the machine design material.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Each term gives its plain meaning first, then the precise definition.</p>
+  <dl>
+    <div><dt>Fatigue</dt><dd>Progressive damage and fracture caused by repeated or fluctuating stress. Plain meaning: wear from many small loads.</dd></div>
+    <div><dt>Fluctuating stress</dt><dd>A stress that changes with time, such as a sine wave between two values.</dd></div>
+    <div><dt>Maximum stress (σ<sub>max</sub>) and minimum stress (σ<sub>min</sub>)</dt><dd>The largest and smallest values of the stress in one cycle, in MPa.</dd></div>
+    <div><dt>Mean stress (σ<sub>m</sub>)</dt><dd>The average of the maximum and minimum stresses: σ<sub>m</sub> = (σ<sub>max</sub> + σ<sub>min</sub>)/2.</dd></div>
+    <div><dt>Alternating stress (σ<sub>a</sub>)</dt><dd>Half the range of the stress: σ<sub>a</sub> = (σ<sub>max</sub> - σ<sub>min</sub>)/2. Plain meaning: how far the stress swings either side of the mean.</dd></div>
+    <div><dt>Stress ratio (R)</dt><dd>The minimum stress divided by the maximum stress, R = σ<sub>min</sub>/σ<sub>max</sub>.</dd></div>
+    <div><dt>Endurance limit (S<sub>e</sub>)</dt><dd>The alternating stress below which a steel part can survive an effectively unlimited number of cycles. Also written S<sub>e</sub> for the corrected value.</dd></div>
+    <div><dt>Uncorrected endurance limit (S<sub>e</sub>')</dt><dd>The endurance limit of a standard polished test specimen, before the correction factors are applied.</dd></div>
+    <div><dt>Marin factors (k<sub>a</sub>, k<sub>b</sub>, k<sub>c</sub>, k<sub>d</sub>, k<sub>e</sub>)</dt><dd>Correction factors for surface finish, size, load type, temperature and reliability. Each is less than or equal to about 1 in ordinary parts.</dd></div>
+    <div><dt>Ultimate strength (S<sub>ut</sub>) and yield strength (S<sub>y</sub>)</dt><dd>The static strengths of the material, in MPa.</dd></div>
+    <div><dt>Stress concentration factor (K<sub>t</sub>)</dt><dd>The ratio of the peak stress at a notch or hole to the nominal stress.</dd></div>
+    <div><dt>Fatigue stress concentration factor (K<sub>f</sub>)</dt><dd>The reduced stress concentration effect that applies to fatigue, K<sub>f</sub> = 1 + q(K<sub>t</sub> - 1).</dd></div>
+    <div><dt>Notch sensitivity (q)</dt><dd>A number from 0 to 1 that says how much a material is affected by a notch. Zero means no effect, one means the full effect.</dd></div>
+    <div><dt>Goodman criterion</dt><dd>A straight line from the endurance limit on the alternating axis to the ultimate strength on the mean axis.</dd></div>
+    <div><dt>Soderberg criterion</dt><dd>A straight line from the endurance limit to the yield strength. It is more conservative than Goodman.</dd></div>
+    <div><dt>Factor of safety in fatigue (n)</dt><dd>The factor by which both stress components can grow before the criterion is reached.</dd></div>
+    <div><dt>S-N diagram</dt><dd>A plot of alternating stress against the number of cycles to failure, on logarithmic scales.</dd></div>
+    <div><dt>Infinite life</dt><dd>Survival for a very large number of cycles, usually taken as 10<sup>6</sup> or more for steels, when the alternating stress is below S<sub>e</sub>.</dd></div>
+    <div><dt>Miner's rule</dt><dd>A rule that adds the fractions of life used by each stress block. Failure occurs when the sum reaches 1.</dd></div>
+  </dl>
+  <div class="note trap"><p><span class="t">Trap</span>The mean stress does not cause fatigue damage on its own in the same way as the alternating stress. But it changes how much alternating stress a part can take, which is why the Goodman and Soderberg lines include it.</p></div>
+</section>
+
+<section class="unit" id="c1" data-title="Fluctuating stress">
+  <h2>Fluctuating stress: mean and alternating components</h2>
+  <h3>Why we split the stress into two parts</h3>
+  <p>A stress that goes up and down can be described by two numbers: where it sits on average, and how far it swings. The average is the mean stress, and the swing is the alternating stress. Once we have these two numbers, we can compare any cycle with the strength of the material.</p>
+  <pre class="code" data-lang="text"><code>   stress
+     ^
+     |  sigma_max  ..............................
+     |            /\        /\        /\
+     |  sigma_m  ----/--\----/--\----/--\---------  (mean line)
+     |          /      \  /      \  /      \
+     |  sigma_min ......\/........\/........\/....
+     +-----------------------------------------------&gt; time
+              one cycle: sigma_a is half the distance from max to min</code></pre>
+  <h3>The formulas</h3>
+  <div class="formula">σ<sub>m</sub> = (σ<sub>max</sub> + σ<sub>min</sub>)/2 and σ<sub>a</sub> = (σ<sub>max</sub> - σ<sub>min</sub>)/2</div>
+  <p>Read each symbol. σ<sub>max</sub> is the largest stress in the cycle, σ<sub>min</sub> is the smallest, σ<sub>m</sub> is the mean, and σ<sub>a</sub> is the alternating part. Adding the two gives back the maximum, and subtracting gives back the minimum:</p>
+  <div class="formula">σ<sub>max</sub> = σ<sub>m</sub> + σ<sub>a</sub>, σ<sub>min</sub> = σ<sub>m</sub> - σ<sub>a</sub></div>
+  <h3>Worked example</h3>
+  <p>A shaft sees a bending stress that varies between +120 MPa and -40 MPa. Find the mean stress, the alternating stress and the stress ratio.</p>
+  <p>Step 1. Mean stress: σ<sub>m</sub> = (120 + (-40))/2 = 80/2 = 40 MPa.</p>
+  <p>Step 2. Alternating stress: σ<sub>a</sub> = (120 - (-40))/2 = 160/2 = 80 MPa.</p>
+  <p>Step 3. Stress ratio: R = -40/120 = -1/3.</p>
+  <p>Step 4. Check: σ<sub>m</sub> + σ<sub>a</sub> = 40 + 80 = 120 = σ<sub>max</sub>, and σ<sub>m</sub> - σ<sub>a</sub> = -40 = σ<sub>min</sub>. Both checks pass.</p>
+  <pre class="code" data-lang="python"><code>smax, smin = 120.0, -40.0
+sm = (smax + smin) / 2
+sa = (smax - smin) / 2
+R = smin / smax
+print(f"mean = {sm:.1f} MPa, alternating = {sa:.1f} MPa")
+print(f"R = {R:.4f}")
+print("check:", sm + sa == smax and sm - sa == smin)</code></pre>
+  <pre class="output">mean = 40.0 MPa, alternating = 80.0 MPa
+R = -0.3333
+check: True</pre>
+  <div class="note key"><p><span class="t">Key idea</span>Every fluctuating stress is a mean plus an alternating part. Fatigue design compares these two parts with the material's strength.</p></div>
+  <details class="check"><summary>Self-check: a stress goes from 0 to 100 MPa. What are σ<sub>m</sub> and σ<sub>a</sub>?</summary><div class="ans"><p>σ<sub>m</sub> = 50 MPa and σ<sub>a</sub> = 50 MPa. The stress ratio R is 0, which is called repeated loading.</p></div></details>
+  <details class="check"><summary>Self-check: a stress goes from -60 to +60 MPa. What is R?</summary><div class="ans"><p>R = -1, and the mean is zero. This is called fully reversed loading, which is the simplest fatigue case.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Endurance limit">
+  <h2>Endurance limit and the corrected endurance limit</h2>
+  <h3>What the endurance limit is</h3>
+  <p>Take a polished steel test bar and bend it back and forth with a fixed alternating stress. Count the cycles until it breaks. A large stress breaks it after a few thousand cycles. A smaller stress takes millions of cycles. For many steels, there is a stress below which the bar does not break at all, however many cycles are applied. This stress is the endurance limit.</p>
+  <p>The results are often plotted as an <strong>S-N diagram</strong>, with alternating stress on the vertical axis and cycles to failure on the horizontal axis (both on logarithmic scales). For steel, the curve levels off at high cycle counts, and the level it reaches is the endurance limit.</p>
+  <h3>The uncorrected endurance limit</h3>
+  <p>For a standard test specimen, the textbook estimate for steel is</p>
+  <div class="formula">S<sub>e</sub>' ≈ 0.5 S<sub>ut</sub>, for steel with S<sub>ut</sub> up to about 1400 MPa</div>
+  <p>This is a useful rule of thumb. GATE questions usually give S<sub>e</sub>' directly, or give it through this rule.</p>
+  <h3>The corrected endurance limit</h3>
+  <p>A real part differs from the test specimen. Its surface may be rougher, it may be larger, it may carry a different type of load, or it may run hot. Each difference is corrected with a Marin factor:</p>
+  <div class="formula">S<sub>e</sub> = k<sub>a</sub> × k<sub>b</sub> × k<sub>c</sub> × k<sub>d</sub> × k<sub>e</sub> × S<sub>e</sub>'</div>
+  <p>Each factor is a number that is usually below 1. The surface factor k<sub>a</sub> accounts for finish, the size factor k<sub>b</sub> for diameter, the load factor k<sub>c</sub> for bending, axial or torsional loading, the temperature factor k<sub>d</sub> for heat, and the reliability factor k<sub>e</sub> for the chance of failure.</p>
+  <div class="note tip"><p><span class="t">Tip</span>In GATE questions, the Marin factors are usually given. Multiply them all together with S<sub>e</sub>' and do not try to recalculate them from formulas unless the question asks you to.</p></div>
+  <h3>Worked example</h3>
+  <p>A steel part has S<sub>ut</sub> = 800 MPa. Use S<sub>e</sub>' = 0.5 S<sub>ut</sub>. The surface factor is k<sub>a</sub> = 0.8, the size factor k<sub>b</sub> = 0.9, the load factor k<sub>c</sub> = 1, the temperature factor k<sub>d</sub> = 1 and the reliability factor k<sub>e</sub> = 0.87. Find S<sub>e</sub>.</p>
+  <p>Step 1. Uncorrected: S<sub>e</sub>' = 0.5 × 800 = 400 MPa.</p>
+  <p>Step 2. Product of factors: 0.8 × 0.9 × 1 × 1 × 0.87 = 0.6264.</p>
+  <p>Step 3. Corrected: S<sub>e</sub> = 0.6264 × 400 = 250.56 MPa.</p>
+  <p>Step 4. Check: the corrected value is smaller than the test value, which is expected, since every factor is at most 1.</p>
+  <pre class="code" data-lang="python"><code>Sut = 800.0
+Se_prime = 0.5 * Sut
+factors = [0.8, 0.9, 1.0, 1.0, 0.87]
+Se = Se_prime
+for f in factors:
+    Se *= f
+print(f"S_e' = {Se_prime:.0f} MPa")
+print(f"S_e = {Se:.2f} MPa")</code></pre>
+  <pre class="output">S_e' = 400 MPa
+S_e = 250.56 MPa</pre>
+  <details class="check"><summary>Self-check: why is the corrected endurance limit always smaller than the test value in this kind of problem?</summary><div class="ans"><p>Each Marin factor is at most 1, so their product reduces the test value. Real parts are rougher, larger or more variable than the test bar.</p></div></details>
+  <details class="check"><summary>Self-check: does a higher ultimate strength always give a higher endurance limit?</summary><div class="ans"><p>For steel, yes, through the rule S<sub>e</sub>' = 0.5 S<sub>ut</sub>. The Marin factors may still reduce it, so the final value depends on the part's condition.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Stress concentration">
+  <h2>Stress concentration and the fatigue factor K<sub>f</sub></h2>
+  <h3>Why holes and notches matter</h3>
+  <p>A hole, groove or sharp corner in a part makes the stress flow around it, and the stress at the edge of the notch can be much larger than the average stress. This peak is the source of most fatigue cracks. The ratio of the peak stress to the nominal stress is the theoretical stress concentration factor K<sub>t</sub>.</p>
+  <pre class="code" data-lang="text"><code>     nominal stress (average over the section)
+     -----&gt;  -----&gt;  -----&gt;
+     ____________________________
+    |____________   ____________|     a notch or hole in a bar
+                 \_/                   stress at the notch edge
+                                       is K<sub>t</sub> times the nominal stress</code></pre>
+  <h3>Fatigue stress concentration</h3>
+  <p>Ductile materials can yield a little at the notch, which relieves the peak. Fatigue is less sensitive to the peak than the theoretical factor suggests. We use a reduced factor, the fatigue stress concentration factor K<sub>f</sub>, given by</p>
+  <div class="formula">K<sub>f</sub> = 1 + q(K<sub>t</sub> - 1), where 0 ≤ q ≤ 1</div>
+  <p>Here q is the notch sensitivity. When q = 0, K<sub>f</sub> = 1 and the notch has no effect. When q = 1, K<sub>f</sub> = K<sub>t</sub>, the full effect. For steels, q is often between 0.5 and 0.9, and the value is usually given in the question.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Multiply the alternating stress by K<sub>f</sub>. In most textbook fatigue designs, the mean stress is also multiplied by K<sub>f</sub> as a conservative step.</p></div>
+  <h3>Worked example</h3>
+  <p>A shaft has a shoulder with K<sub>t</sub> = 2.5 and notch sensitivity q = 0.8. Find K<sub>f</sub>. If the nominal alternating stress is 60 MPa, find the design alternating stress.</p>
+  <p>Step 1. K<sub>f</sub> = 1 + 0.8 × (2.5 - 1) = 1 + 0.8 × 1.5 = 1 + 1.2 = 2.2.</p>
+  <p>Step 2. Design alternating stress: σ<sub>a</sub> = K<sub>f</sub> × 60 = 2.2 × 60 = 132 MPa.</p>
+  <p>Step 3. Check: K<sub>f</sub> is between 1 and K<sub>t</sub>, here 2.2 lies between 1 and 2.5, as required.</p>
+  <pre class="code" data-lang="python"><code>Kt, q, sa_nom = 2.5, 0.8, 60.0
+Kf = 1 + q * (Kt - 1)
+print(f"Kf = {Kf:.2f}")
+print(f"design alternating stress = {Kf * sa_nom:.1f} MPa")</code></pre>
+  <pre class="output">Kf = 2.20
+design alternating stress = 132.0 MPa</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Do not use K<sub>t</sub> in the fatigue check when q is given. Use K<sub>f</sub>. Also do not apply K<sub>f</sub> to the static yield check of a ductile part, where the notch is relieved by yielding.</p></div>
+  <details class="check"><summary>Self-check: q = 0 for a material. What is K<sub>f</sub> for a notch with K<sub>t</sub> = 3?</summary><div class="ans"><p>K<sub>f</sub> = 1. The material does not feel the notch.</p></div></details>
+  <details class="check"><summary>Self-check: is K<sub>f</sub> ever larger than K<sub>t</sub>?</summary><div class="ans"><p>No. With q between 0 and 1, K<sub>f</sub> lies between 1 and K<sub>t</sub>.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Goodman and Soderberg">
+  <h2>Goodman and Soderberg criteria for combined mean and alternating stress</h2>
+  <h3>The problem of a mean stress</h3>
+  <p>An alternating stress is safe on its own if it is below S<sub>e</sub>. But a part that already carries a large mean stress fails earlier. Engineers handle this with a failure line on a diagram that has mean stress on one axis and alternating stress on the other.</p>
+  <pre class="code" data-lang="text"><code>   alternating stress sigma_a
+     |
+  S_e +--.
+     |    '--.
+     |        '--.      Goodman line: from (0, S_e) to (S_ut, 0)
+     |            '--.
+     |                '--.
+     |                    '--.   Soderberg line: from (0, S_e) to (S_y, 0),
+     |                        '--+   lies below Goodman
+     +-------------------+----------+-------&gt;  mean stress sigma_m
+                       S_y        S_ut</code></pre>
+  <p>The safe region lies under each line. A design point (σ<sub>m</sub>, σ<sub>a</sub>) is safe if it falls below the line.</p>
+  <h3>The Goodman criterion</h3>
+  <p>The Goodman line joins the endurance limit on the alternating axis with the ultimate strength on the mean axis. The factor of safety is</p>
+  <div class="formula">1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub>, so n = 1/(σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub>)</div>
+  <p>Read the symbols: S<sub>e</sub> is the corrected endurance limit, S<sub>ut</sub> is the ultimate strength, and n is the factor of safety. The idea is that the stresses can be multiplied by n before they reach the line.</p>
+  <h3>The Soderberg criterion</h3>
+  <p>The Soderberg line joins the endurance limit with the yield strength. It is more conservative, because yield is always lower than ultimate strength:</p>
+  <div class="formula">1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>y</sub></div>
+  <div class="note key"><p><span class="t">Key idea</span>Goodman uses ultimate strength and Soderberg uses yield strength for the mean stress. Since S<sub>y</sub> is less than S<sub>ut</sub>, Soderberg always gives a smaller factor of safety for the same stresses.</p></div>
+  <h3>Worked example</h3>
+  <p>A part has σ<sub>a</sub> = 80 MPa, σ<sub>m</sub> = 40 MPa, S<sub>e</sub> = 200 MPa, S<sub>ut</sub> = 500 MPa and S<sub>y</sub> = 350 MPa. Find the factor of safety by both criteria.</p>
+  <p>Step 1. Goodman: σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub> = 80/200 + 40/500 = 0.40 + 0.08 = 0.48. So n = 1/0.48 = 2.08.</p>
+  <p>Step 2. Soderberg: σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>y</sub> = 0.40 + 40/350 = 0.40 + 0.1143 = 0.5143. So n = 1/0.5143 = 1.94.</p>
+  <p>Step 3. Check: Soderberg gives the smaller factor, 1.94 compared with 2.08. This matches the rule that Soderberg is more conservative.</p>
+  <pre class="code" data-lang="python"><code>sa, sm = 80.0, 40.0
+Se, Sut, Sy = 200.0, 500.0, 350.0
+n_goodman = 1 / (sa / Se + sm / Sut)
+n_soderberg = 1 / (sa / Se + sm / Sy)
+print(f"Goodman n = {n_goodman:.2f}")
+print(f"Soderberg n = {n_soderberg:.2f}")</code></pre>
+  <pre class="output">Goodman n = 2.08
+Soderberg n = 1.94</pre>
+  <details class="check"><summary>Self-check: a part has σ<sub>m</sub> = 0. Which criterion gives n = S<sub>e</sub>/σ<sub>a</sub>?</summary><div class="ans"><p>Both do. With σ<sub>m</sub> = 0 the mean term vanishes, so 1/n = σ<sub>a</sub>/S<sub>e</sub> in either criterion.</p></div></details>
+  <details class="check"><summary>Self-check: a point lies exactly on the Goodman line. What is n?</summary><div class="ans"><p>n = 1. The part is on the edge of failure by this criterion.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Sizing under fluctuating load">
+  <h2>Sizing a component under fluctuating load</h2>
+  <h3>From stresses to a size</h3>
+  <p>Most GATE questions ask for a size, not a factor of safety. The procedure is to write the stresses in terms of the unknown size, then put them into the criterion. For a rod of area A carrying an axial load that fluctuates between F<sub>min</sub> and F<sub>max</sub>, the forces are F<sub>a</sub> = (F<sub>max</sub> - F<sub>min</sub>)/2 and F<sub>m</sub> = (F<sub>max</sub> + F<sub>min</sub>)/2. With stress concentration applied:</p>
+  <div class="formula">σ<sub>a</sub> = K<sub>f</sub> F<sub>a</sub>/A and σ<sub>m</sub> = K<sub>f</sub> F<sub>m</sub>/A</div>
+  <p>Substitute into the Goodman criterion with 1/n on the left. Then solve for A:</p>
+  <div class="formula">A = n K<sub>f</sub> (F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>ut</sub>) (Goodman)</div>
+  <div class="formula">A = n K<sub>f</sub> (F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>y</sub>) (Soderberg)</div>
+  <p>The area is then converted to a diameter with d = √(4A/π) for a round rod.</p>
+  <h3>Worked example</h3>
+  <p>A round rod carries an axial load that varies from 10 kN to 30 kN. The corrected endurance limit is S<sub>e</sub> = 300 MPa, the ultimate strength is S<sub>ut</sub> = 600 MPa, and the yield strength is S<sub>y</sub> = 400 MPa. Use K<sub>f</sub> = 1.5 and n = 2 with the Goodman criterion. Find the required area and diameter.</p>
+  <p>Step 1. Forces: F<sub>a</sub> = (30 - 10)/2 = 10 kN and F<sub>m</sub> = (30 + 10)/2 = 20 kN.</p>
+  <p>Step 2. Bracket term: F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>ut</sub> = 10 000/300 + 20 000/600 = 33.33 + 33.33 = 66.67 mm².</p>
+  <p>Step 3. Area: A = n K<sub>f</sub> × 66.67 = 2 × 1.5 × 66.67 = 200 mm².</p>
+  <p>Step 4. Diameter: d = √(4 × 200/π) = √254.6 = 15.96 mm, so use 16 mm.</p>
+  <p>Step 5. Check: at A = 200 mm² and K<sub>f</sub> = 1.5, σ<sub>a</sub> = 1.5 × 10 000/200 = 75 MPa, and σ<sub>m</sub> = 1.5 × 20 000/200 = 150 MPa. Goodman: 75/300 + 150/600 = 0.25 + 0.25 = 0.5 = 1/n with n = 2. Correct.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+Fa, Fm = 10000.0, 20000.0       # N
+Se, Sut = 300.0, 600.0          # MPa
+n, Kf = 2.0, 1.5
+
+A = n * Kf * (Fa / Se + Fm / Sut)
+d = math.sqrt(4 * A / math.pi)
+print(f"area = {A:.0f} mm^2")
+print(f"diameter = {d:.2f} mm")
+sa, sm = Kf * Fa / A, Kf * Fm / A
+print(f"check: 1/n = {sa / Se + sm / Sut:.3f}")</code></pre>
+  <pre class="output">area = 200 mm^2
+diameter = 15.96 mm
+check: 1/n = 0.500</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Use the mean and alternating forces, not the maximum force, in the sizing formula. Using F<sub>max</sub> in place of F<sub>a</sub> gives a far too large part.</p></div>
+  <details class="check"><summary>Self-check: the mean force is zero (fully reversed). Which term disappears from the sizing formula?</summary><div class="ans"><p>The mean term F<sub>m</sub>/S<sub>ut</sub> is zero, so A = n K<sub>f</sub> F<sub>a</sub>/S<sub>e</sub>. The strength criterion then depends only on the endurance limit.</p></div></details>
+  <details class="check"><summary>Self-check: why do we multiply the forces by K<sub>f</sub> when sizing?</summary><div class="ans"><p>Because the notch raises the local stress. The sizing equation must make the local stress, not the nominal stress, safe against fatigue.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Cumulative damage">
+  <h2>Cumulative fatigue damage (Miner's rule)</h2>
+  <h3>Life is used up in pieces</h3>
+  <p>A machine rarely sees one stress level for its whole life. A crane lifts heavy loads on some days and light loads on others. Miner's rule adds up the damage from each block of cycles. For a block of n<sub>i</sub> cycles at a stress that would cause failure after N<sub>i</sub> cycles, the fraction of life used is n<sub>i</sub>/N<sub>i</sub>. The total damage is</p>
+  <div class="formula">D = Σ n<sub>i</sub>/N<sub>i</sub></div>
+  <p>Failure is predicted when D = 1. Here n<sub>i</sub> is the number of cycles applied at stress level i, and N<sub>i</sub> is the number of cycles that stress level alone would cause to fail. The rule is simple and useful, though it is only an approximation because it ignores the order of the loads.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Each block uses up the fraction n/N of the life. When the fractions add to 1, the part fails.</p></div>
+  <h3>Worked example</h3>
+  <p>A part is loaded in two blocks. Block 1 has 10 000 cycles at a stress that gives N<sub>1</sub> = 100 000 cycles to failure. Block 2 has 20 000 cycles at a higher stress that gives N<sub>2</sub> = 40 000 cycles to failure. Find the damage and the remaining life.</p>
+  <p>Step 1. Damage from block 1: 10 000/100 000 = 0.1.</p>
+  <p>Step 2. Damage from block 2: 20 000/40 000 = 0.5.</p>
+  <p>Step 3. Total damage: D = 0.1 + 0.5 = 0.6, so 60 per cent of the life is used.</p>
+  <p>Step 4. Remaining life fraction: 1 - 0.6 = 0.4. If block 2 continues at the same stress, the part fails after 0.4 × 40 000 = 16 000 more cycles of block 2.</p>
+  <pre class="code" data-lang="python"><code>blocks = [(10000, 100000), (20000, 40000)]   # (n_i, N_i)
+D = sum(n / N for n, N in blocks)
+print(f"damage D = {D:.2f}")
+print(f"remaining life fraction = {1 - D:.2f}")
+print(f"more block-2 cycles = {(1 - D) * 40000:.0f}")</code></pre>
+  <pre class="output">damage D = 0.60
+remaining life fraction = 0.40
+more block-2 cycles = 16000</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Miner's rule uses the fraction n/N, not the number of cycles. Adding 10 000 and 20 000 cycles to get 30 000 and comparing with N gives the wrong answer.</p></div>
+  <details class="check"><summary>Self-check: a part has D = 0.85 after a loading history. Is it safe to continue?</summary><div class="ans"><p>The rule predicts survival because D is below 1, but 85 per cent of the life is used. A designer would check the reserve and inspect the part before continuing.</p></div></details>
+  <details class="check"><summary>Self-check: what is the damage if 1000 cycles are applied at a stress with N = 1000?</summary><div class="ans"><p>D = 1000/1000 = 1, so the part fails at that stress.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>σ<sub>m</sub> = (σ<sub>max</sub> + σ<sub>min</sub>)/2</td><td>Mean stress</td><td>Any fluctuating stress</td></tr>
+      <tr><td>σ<sub>a</sub> = (σ<sub>max</sub> - σ<sub>min</sub>)/2</td><td>Alternating stress</td><td>Any fluctuating stress</td></tr>
+      <tr><td>S<sub>e</sub>' ≈ 0.5 S<sub>ut</sub></td><td>Uncorrected endurance limit for steel</td><td>When not given</td></tr>
+      <tr><td>S<sub>e</sub> = k<sub>a</sub>k<sub>b</sub>k<sub>c</sub>k<sub>d</sub>k<sub>e</sub> S<sub>e</sub>'</td><td>Corrected endurance limit</td><td>Real part</td></tr>
+      <tr><td>K<sub>f</sub> = 1 + q(K<sub>t</sub> - 1)</td><td>Fatigue stress concentration factor</td><td>Notches and holes</td></tr>
+      <tr><td>1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub></td><td>Goodman criterion</td><td>Fatigue check</td></tr>
+      <tr><td>1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>y</sub></td><td>Soderberg criterion</td><td>Conservative fatigue check</td></tr>
+      <tr><td>A = n K<sub>f</sub>(F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>ut</sub>)</td><td>Area of a rod, Goodman</td><td>Sizing</td></tr>
+      <tr><td>D = Σ n<sub>i</sub>/N<sub>i</sub></td><td>Miner's cumulative damage</td><td>Variable load history</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style problems for practice, not real past paper questions. Work each one on paper before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Mean and alternating stress</h3>
+    <div class="statement"><p>A component is cycled between a maximum stress of 100 MPa and a minimum stress of 20 MPa. Find the mean stress and the alternating stress in MPa.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> σ<sub>m</sub> and σ<sub>a</sub> in MPa.</li>
+      <li><strong>Which idea applies.</strong> σ<sub>m</sub> is the average of the extremes, and σ<sub>a</sub> is half the range.</li>
+      <li><strong>Work it out.</strong> σ<sub>m</sub> = (100 + 20)/2 = 60 MPa. σ<sub>a</sub> = (100 - 20)/2 = 40 MPa.</li>
+      <li><strong>Check.</strong> 60 + 40 = 100 and 60 - 40 = 20, which give back the maximum and minimum.</li>
+    </ol>
+    <p class="cx">Answer: mean 60 MPa, alternating 40 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Corrected endurance limit</h3>
+    <div class="statement"><p>A steel part has S<sub>ut</sub> = 600 MPa. Use S<sub>e</sub>' = 0.5 S<sub>ut</sub>. The factors are k<sub>a</sub> = 0.8, k<sub>b</sub> = 0.9, k<sub>c</sub> = 1.0, k<sub>d</sub> = 1.0 and k<sub>e</sub> = 0.9. Find S<sub>e</sub> in MPa (numerical answer, one decimal place).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The corrected endurance limit S<sub>e</sub>.</li>
+      <li><strong>Which idea applies.</strong> S<sub>e</sub> = (product of Marin factors) × S<sub>e</sub>'.</li>
+      <li><strong>Work it out.</strong> S<sub>e</sub>' = 300 MPa. Product = 0.8 × 0.9 × 1 × 1 × 0.9 = 0.648. S<sub>e</sub> = 0.648 × 300 = 194.4 MPa.</li>
+      <li><strong>Check.</strong> The answer is below S<sub>e</sub>', as it must be when all factors are at most 1.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>factors = [0.8, 0.9, 1.0, 1.0, 0.9]
+Se = 0.5 * 600.0
+for f in factors:
+    Se *= f
+print(f"S_e = {Se:.1f} MPa")</code></pre>
+    <pre class="output">S_e = 194.4 MPa</pre>
+    <p class="cx">Answer: 194.4 MPa.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements are true?</h3>
+    <div class="statement"><p>Consider these statements about fatigue design.</p>
+    <p>(A) Stress concentration increases only the mean stress, not the alternating stress.<br>(B) The Goodman line joins the endurance limit on the alternating axis with the ultimate strength on the mean axis.<br>(C) The Soderberg criterion gives a smaller factor of safety than Goodman for the same stresses and strengths.<br>(D) In Miner's rule, failure is predicted when the sum of n<sub>i</sub>/N<sub>i</sub> reaches 1.</p>
+    <p>Select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true (multiple selection).</li>
+      <li><strong>Which idea applies.</strong> K<sub>f</sub> multiplies the alternating stress, the Goodman and Soderberg lines, and Miner's rule.</li>
+      <li><strong>Work it out.</strong> (A) is false, because K<sub>f</sub> is applied to the alternating stress. (B) is true. (C) is true, because S<sub>y</sub> is less than S<sub>ut</sub>, which makes the mean term larger. (D) is true.</li>
+      <li><strong>Check.</strong> The worked example gave 2.08 for Goodman and 1.94 for Soderberg, which confirms (C).</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Factor of safety for a mean-loaded part</h3>
+    <div class="statement"><p>A part has σ<sub>a</sub> = 60 MPa and σ<sub>m</sub> = 50 MPa. Its S<sub>e</sub> = 200 MPa and S<sub>ut</sub> = 500 MPa. Using the Goodman criterion, find the factor of safety (numerical answer, one decimal place).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> n by Goodman.</li>
+      <li><strong>Which idea applies.</strong> 1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub>.</li>
+      <li><strong>Work it out.</strong> 60/200 = 0.30 and 50/500 = 0.10. Sum = 0.40. n = 2.5.</li>
+      <li><strong>Check.</strong> The stresses are a fifth of the strengths in sum, so n = 2.5 is a sensible margin.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>sa, sm, Se, Sut = 60.0, 50.0, 200.0, 500.0
+print(f"n = {1 / (sa / Se + sm / Sut):.1f}")</code></pre>
+    <pre class="output">n = 2.5</pre>
+    <p class="cx">Answer: 2.5.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Remaining cycles after two blocks</h3>
+    <div class="statement"><p>A component first sees 5000 cycles at a stress that would fail it after 50 000 cycles. It then sees 2000 cycles at a higher stress that would fail it after 10 000 cycles. Using Miner's rule, how many more cycles at the first stress can it take before failure (numerical answer)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Extra cycles at the first stress.</li>
+      <li><strong>Which idea applies.</strong> D = Σ n/N. The remaining fraction 1 - D is spent on the first stress.</li>
+      <li><strong>Work it out.</strong> D = 5000/50 000 + 2000/10 000 = 0.1 + 0.2 = 0.3. Remaining fraction = 0.7. Extra cycles = 0.7 × 50 000 = 35 000.</li>
+      <li><strong>Check.</strong> Using all 35 000 cycles at the first stress adds 35 000/50 000 = 0.7, which makes the total exactly 1.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>blocks = [(5000, 50000), (2000, 10000)]
+D = sum(n / N for n, N in blocks)
+print(f"extra cycles at first stress = {(1 - D) * 50000:.0f}")</code></pre>
+    <pre class="output">extra cycles at first stress = 35000</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Diameter of a rod under a fluctuating load</h3>
+    <div class="statement"><p>A round rod carries an axial load that varies from 5 kN to 25 kN. The corrected endurance limit is S<sub>e</sub> = 300 MPa, the ultimate strength is S<sub>ut</sub> = 600 MPa, and K<sub>f</sub> = 1.5. Use the Goodman criterion with n = 2. Find the diameter of the rod in mm (numerical answer, two decimal places).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rod diameter in mm.</li>
+      <li><strong>Which idea applies.</strong> F<sub>a</sub> = (F<sub>max</sub> - F<sub>min</sub>)/2 and F<sub>m</sub> = (F<sub>max</sub> + F<sub>min</sub>)/2. Then A = nK<sub>f</sub>(F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>ut</sub>).</li>
+      <li><strong>Work it out.</strong> F<sub>a</sub> = 10 kN and F<sub>m</sub> = 15 kN. The bracket is 10 000/300 + 15 000/600 = 33.33 + 25 = 58.33 mm². A = 2 × 1.5 × 58.33 = 175 mm². d = √(4 × 175/π) = 14.93 mm.</li>
+      <li><strong>Check.</strong> At A = 175 mm², σ<sub>a</sub> = 1.5 × 10 000/175 = 85.7 MPa and σ<sub>m</sub> = 1.5 × 15 000/175 = 128.6 MPa. Goodman: 85.7/300 + 128.6/600 = 0.286 + 0.214 = 0.5, so n = 2.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+Fa, Fm = 10000.0, 15000.0
+Se, Sut, n, Kf = 300.0, 600.0, 2.0, 1.5
+A = n * Kf * (Fa / Se + Fm / Sut)
+print(f"area = {A:.1f} mm^2")
+print(f"diameter = {math.sqrt(4 * A / math.pi):.2f} mm")</code></pre>
+    <pre class="output">area = 175.0 mm^2
+diameter = 14.93 mm</pre>
+    <p class="cx">Answer: 14.93 mm.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Soderberg check of the same rod</h3>
+    <div class="statement"><p>Repeat the previous problem with the Soderberg criterion instead of Goodman. The yield strength is S<sub>y</sub> = 400 MPa, and all other data are the same (loads 5 kN to 25 kN, S<sub>e</sub> = 300 MPa, K<sub>f</sub> = 1.5, n = 2). Find the diameter in mm (numerical answer, two decimal places) and say whether it is larger or smaller than with Goodman.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Soderberg diameter and a comparison.</li>
+      <li><strong>Which idea applies.</strong> A = nK<sub>f</sub>(F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>y</sub>).</li>
+      <li><strong>Work it out.</strong> The bracket is 10 000/300 + 15 000/400 = 33.33 + 37.5 = 70.83 mm². A = 3 × 70.83 = 212.5 mm². d = √(4 × 212.5/π) = 16.45 mm.</li>
+      <li><strong>Check.</strong> 16.45 mm is larger than 14.93 mm. Soderberg uses the smaller yield strength for the mean stress, so it needs more material, which fits its conservative nature.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+Fa, Fm = 10000.0, 15000.0
+Se, Sy, n, Kf = 300.0, 400.0, 2.0, 1.5
+A = n * Kf * (Fa / Se + Fm / Sy)
+print(f"area = {A:.1f} mm^2")
+print(f"diameter = {math.sqrt(4 * A / math.pi):.2f} mm")</code></pre>
+    <pre class="output">area = 212.5 mm^2
+diameter = 16.45 mm</pre>
+    <p class="cx">Answer: 16.45 mm, which is larger than the Goodman value of 14.93 mm.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Goodman line (NAT, 2 marks)</h3>
+    <div class="statement"><p>σ<sub>a</sub> = 100 MPa and σ<sub>m</sub> = 150 MPa. S<sub>e</sub> = 250 MPa and S<sub>ut</sub> = 600 MPa. Find the factor of safety by the Goodman criterion.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> n from σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub> = 1/n.</li>
+      <li><strong>Which idea applies.</strong> Modified Goodman line.</li>
+      <li><strong>Work it out.</strong> 0.4 + 0.25 = 0.65. n = 1.54.</li>
+      <li><strong>Check.</strong> Soderberg would give a lower value.</li>
+    </ol>
+    <p class="cx">Answer: about 1.54.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Soderberg (NAT, 2 marks)</h3>
+    <div class="statement"><p>Same stresses, with S<sub>y</sub> = 400 MPa. Find the Soderberg factor of safety, correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> 1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>y</sub>.</li>
+      <li><strong>Which idea applies.</strong> Soderberg uses yield instead of ultimate.</li>
+      <li><strong>Work it out.</strong> 0.4 + 0.375 = 0.775. n = 1.29.</li>
+      <li><strong>Check.</strong> Lower than Goodman, as expected.</li>
+    </ol>
+    <p class="cx">Answer: about 1.29.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Endurance limit modifiers (NAT, 2 marks)</h3>
+    <div class="statement"><p>S<sub>e</sub>′ = 300 MPa. Surface factor 0.8, size factor 0.85, reliability factor 0.9. Find S<sub>e</sub>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The corrected endurance limit.</li>
+      <li><strong>Which idea applies.</strong> Multiply the factors.</li>
+      <li><strong>Work it out.</strong> 300 · 0.8 · 0.85 · 0.9 = 183.6 MPa.</li>
+      <li><strong>Check.</strong> Real parts are much weaker in fatigue than polished test bars.</li>
+    </ol>
+    <p class="cx">Answer: 183.6 MPa.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Fatigue</dt><dd>Failure caused by repeated loading, often below the static strength.</dd></div>
+    <div><dt>Mean stress</dt><dd>σ<sub>m</sub> = (σ<sub>max</sub> + σ<sub>min</sub>)/2, the average of the cycle.</dd></div>
+    <div><dt>Alternating stress</dt><dd>σ<sub>a</sub> = (σ<sub>max</sub> - σ<sub>min</sub>)/2, half the swing of the cycle.</dd></div>
+    <div><dt>Stress ratio</dt><dd>R = σ<sub>min</sub>/σ<sub>max</sub>, which classifies the type of loading.</dd></div>
+    <div><dt>Endurance limit</dt><dd>The alternating stress below which steel survives indefinitely, S<sub>e</sub>' = 0.5 S<sub>ut</sub> as a rule.</dd></div>
+    <div><dt>Marin factors</dt><dd>k<sub>a</sub>, k<sub>b</sub>, k<sub>c</sub>, k<sub>d</sub>, k<sub>e</sub> correct the test value for a real part.</dd></div>
+    <div><dt>Corrected endurance limit</dt><dd>S<sub>e</sub> = (product of Marin factors) × S<sub>e</sub>'.</dd></div>
+    <div><dt>Stress concentration</dt><dd>K<sub>t</sub> is the peak-to-nominal stress ratio at a notch.</dd></div>
+    <div><dt>Fatigue stress concentration</dt><dd>K<sub>f</sub> = 1 + q(K<sub>t</sub> - 1), with q the notch sensitivity.</dd></div>
+    <div><dt>Goodman criterion</dt><dd>1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>ut</sub>.</dd></div>
+    <div><dt>Soderberg criterion</dt><dd>1/n = σ<sub>a</sub>/S<sub>e</sub> + σ<sub>m</sub>/S<sub>y</sub>, more conservative.</dd></div>
+    <div><dt>Goodman sizing</dt><dd>A = nK<sub>f</sub>(F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>ut</sub>) for a rod.</dd></div>
+    <div><dt>Soderberg sizing</dt><dd>A = nK<sub>f</sub>(F<sub>a</sub>/S<sub>e</sub> + F<sub>m</sub>/S<sub>y</sub>) for a rod.</dd></div>
+    <div><dt>S-N diagram</dt><dd>A plot of alternating stress against cycles to failure.</dd></div>
+    <div><dt>Infinite life</dt><dd>Survival at very many cycles when the alternating stress is below S<sub>e</sub>.</dd></div>
+    <div><dt>Miner's rule</dt><dd>D = Σ n<sub>i</sub>/N<sub>i</sub>, and failure is predicted at D = 1.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>Split every fluctuating stress into a mean part and an alternating part.</li>
+    <li>Fatigue design uses the endurance limit, not the yield strength.</li>
+    <li>Multiply the alternating stress by K<sub>f</sub> for notches, and keep K<sub>f</sub> between 1 and K<sub>t</sub>.</li>
+    <li>Goodman uses S<sub>ut</sub> for the mean stress, and Soderberg uses S<sub>y</sub>, so Soderberg is the safer line.</li>
+    <li>When sizing, use the alternating and mean forces, not the maximum force.</li>
+    <li>Miner's rule adds fractions of life, and failure is at a total of 1.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 184?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 184 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-183.html"><small>Previous, topic 183</small>Design for static loading</a><a class="next" href="gate-185.html"><small>Next, topic 185</small>Failure theories</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

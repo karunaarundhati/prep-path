@@ -1,0 +1,370 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 113: Adversarial search: Minimax & Alpha-Beta pruning</title><meta name="description" content="Minimax is a rule for choosing the best move when two players compete over a game tree, and alpha-beta pruning reaches the same answer while skipping work that cannot change it."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g113" data-key="g113" data-noun="topic" data-num="113" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Adversarial search: <em>Minimax &amp; Alpha-Beta pruning</em></h1>
+<p class="lede">Minimax is a rule for choosing the best move when two players compete over a game tree, and alpha-beta pruning reaches the same answer while skipping work that cannot change it.</p>
+<div class="station"><b>113</b><span>Unit 9 · Artificial intelligence · Paper DA · Quick Recap</span></div>
+<ul class="topics"><li>Game trees and the two players</li><li>Backing up values with minimax</li><li>Alpha-beta pruning</li><li>Counting the work saved</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you are playing a board game against a friend. Before you move, you think ahead: "If I make this move, what will my friend do? And then what can I do?" A computer does the same thing. It writes the possible futures down as a tree. Each position is a box, and each legal move is a line to the next box.</p>
+  <p>The computer then uses one simple rule: <strong>assume both players always play the best move they can</strong>. This rule is called <strong>minimax</strong>. The tree grows very fast, so looking at every branch is slow. <strong>Alpha-beta pruning</strong> is a shortcut. It notices when a branch cannot change the final decision and skips it. The answer is exactly the same as minimax, but the work is much smaller.</p>
+  <p>Everyday analogy: you want the cheapest laptop in five shops. In shop one you find a price of 500. In shop two, the first laptop already costs 900. You stop comparing shop two, because nothing there can beat 500. Alpha-beta pruning works the same way.</p>
+  <p><strong>Why it matters for GATE.</strong> In the Data Science and AI (DA) paper, you may get a small game tree drawn as a diagram. You may be asked for the minimax value at the root, or which branches are pruned when alpha-beta runs from left to right.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Game tree</dt><dd>Plain: all the possible futures, drawn as a tree. Precise: nodes are game positions and edges are legal moves.</dd></div>
+    <div><dt>Root</dt><dd>Plain: the top of the tree, where the decision is made now. Precise: the node for the current position.</dd></div>
+    <div><dt>Leaf</dt><dd>Plain: an end of the game. Precise: a node with no children, which has a utility (score) attached.</dd></div>
+    <div><dt>MAX node</dt><dd>Plain: a position where the computer chooses. Precise: a node where the player to move wants the largest utility.</dd></div>
+    <div><dt>MIN node</dt><dd>Plain: a position where the opponent chooses. Precise: a node where the other player wants the smallest utility.</dd></div>
+    <div><dt>Minimax value</dt><dd>Plain: what the game is worth if both play perfectly. Precise: the value obtained by backing up leaf utilities with max at MAX nodes and min at MIN nodes.</dd></div>
+    <div><dt>Alpha (α)</dt><dd>Plain: the best score MAX is already sure to get. Precise: a lower bound for MAX, starting at minus infinity.</dd></div>
+    <div><dt>Beta (β)</dt><dd>Plain: the best score MIN is already sure to hold MAX to. Precise: an upper bound for MIN, starting at plus infinity.</dd></div>
+    <div><dt>Pruning</dt><dd>Plain: cutting off a branch that cannot matter. Precise: stopping the search of a node's remaining children because they cannot change the root decision.</dd></div>
+    <div><dt>Branching factor (b)</dt><dd>The average number of children of a node.</dd></div>
+    <div><dt>Depth (d)</dt><dd>The number of moves on the longest path from the root to a leaf.</dd></div>
+    <div><dt>Move ordering</dt><dd>The order in which children are examined. Trying good moves first allows more pruning.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Game trees and the two players">
+  <h2>Concept 1: Game trees and the two players</h2>
+  <p>Take the simplest game. Two players take turns. The first player is <strong>MAX</strong>, who wants a big score. The second player is <strong>MIN</strong>, who wants a small score. The score at each leaf is its utility.</p>
+  <p>The root is the position where MAX must choose now. Its children are the positions after each MAX move. Those positions are MIN nodes, because MIN moves next. The levels alternate: MAX, MIN, MAX, and so on, down to the leaves.</p>
+  <pre class="code" data-lang="text"><code>                 MAX (root)
+             /          |          \
+         MIN A        MIN B        MIN C
+         /   \        /   \        /   \
+        3     5      6     9      1     2</code></pre>
+  <p>MAX picks one of the three MIN nodes. Then MIN picks one leaf. MIN wants the smaller number, so MAX has to think about what MIN will do.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Write MAX or MIN next to each level before you start. Count from the root: root is MAX, next level MIN, then MAX, and so on.</p></div>
+  <p>If every node has <em>b</em> children and the depth is <em>d</em>, the number of leaves is b<sup>d</sup>. Each level multiplies the count by b. With b = 3 and d = 2, there are 3<sup>2</sup> = 9 leaves.</p>
+  <details class="check"><summary>Question: A tree has branching factor 2 and depth 3. How many leaves does it have?</summary><div class="ans"><p>2 x 2 x 2 = 8 leaves. Each level doubles the count.</p></div></details>
+  <details class="check"><summary>Question: The root is a MAX node. Is the level below it MAX or MIN?</summary><div class="ans"><p>MIN. The players alternate.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Backing up values with minimax">
+  <h2>Concept 2: Backing up values with minimax</h2>
+  <p>To find the root value, start at the leaves, where values are known. Move one level up at a time. This is called <strong>backing up</strong> the values.</p>
+  <ul>
+    <li>At a <strong>MAX</strong> node, the value is the <strong>largest</strong> child value.</li>
+    <li>At a <strong>MIN</strong> node, the value is the <strong>smallest</strong> child value.</li>
+  </ul>
+  <div class="formula">V(n) = max(V(c<sub>1</sub>), ..., V(c<sub>k</sub>)) if n is a MAX node</div>
+  <div class="formula">V(n) = min(V(c<sub>1</sub>), ..., V(c<sub>k</sub>)) if n is a MIN node</div>
+  <p>Here V(n) is the minimax value of node n, and c<sub>1</sub> to c<sub>k</sub> are its children. Read max as "the largest of" and min as "the smallest of".</p>
+  <h3>Worked example on the tree from Concept 1</h3>
+  <ol>
+    <li><strong>MIN A</strong> has leaves 3 and 5. The smaller is 3. So V(MIN A) = 3.</li>
+    <li><strong>MIN B</strong> has leaves 6 and 9. The smaller is 6. So V(MIN B) = 6.</li>
+    <li><strong>MIN C</strong> has leaves 1 and 2. The smaller is 1. So V(MIN C) = 1.</li>
+    <li><strong>Root</strong> is MAX with children 3, 6 and 1. The largest is 6. So V(root) = 6.</li>
+  </ol>
+  <p>The game is worth 6 to MAX, and MAX should move to MIN B.</p>
+  <pre class="code" data-lang="python"><code>def minimax(node, maximizing):
+    if isinstance(node, int):          # a leaf: its value is the number itself
+        return node
+    values = [minimax(child, not maximizing) for child in node]
+    if maximizing:
+        return max(values)             # MAX node: take the largest child value
+    return min(values)                 # MIN node: take the smallest child value
+
+tree = [[3, 5], [6, 9], [1, 2]]        # root (MAX) with three MIN children
+print("Minimax value of the root:", minimax(tree, True))</code></pre>
+  <pre class="output">Minimax value of the root: 6</pre>
+  <div class="note trap"><p><span class="t">Trap</span>The most common slip is taking the max at a MIN level, or the min at a MAX level. At each node ask "who is choosing here?"</p></div>
+  <details class="check"><summary>Question: A MIN node has leaves 4 and 8. What is its value?</summary><div class="ans"><p>MIN takes the smaller leaf, so the value is 4.</p></div></details>
+  <details class="check"><summary>Question: A MAX root has children with values 2 and 7. What is the root value?</summary><div class="ans"><p>MAX takes the larger value, so the root value is 7.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Alpha-beta pruning">
+  <h2>Concept 3: Alpha-beta pruning</h2>
+  <p>Alpha-beta looks at the same tree but skips leaves that cannot change the answer. It keeps two numbers while it walks from left to right.</p>
+  <ul>
+    <li><strong>Alpha (α)</strong> is the best value MAX is sure of so far. It starts at minus infinity and can only go up.</li>
+    <li><strong>Beta (β)</strong> is the best value MIN is sure to hold MAX to. It starts at plus infinity and can only go down.</li>
+  </ul>
+  <div class="formula">Stop at a MIN node when alpha is at least beta.</div>
+  <div class="formula">Stop at a MAX node when alpha is at least beta.</div>
+  <p>Why is this safe? If a MIN node already has a value no bigger than something MAX can already get elsewhere, MAX will never choose that MIN node. So its remaining children do not matter.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Alpha-beta always returns the same root value as minimax, so the chosen move stays the same. It only saves work.</p></div>
+  <h3>Trace on the same tree</h3>
+  <ol>
+    <li><strong>MIN A</strong> (alpha = minus infinity, beta = plus infinity). Leaf 3 makes beta = 3. Leaf 5 does not change it. MIN A = 3. At the root, alpha becomes 3.</li>
+    <li><strong>MIN B</strong> (alpha = 3). Leaf 6 makes beta = 6. Is alpha at least beta? 3 is not at least 6, so continue. Leaf 9 does not change it. MIN B = 6. At the root, alpha becomes 6.</li>
+    <li><strong>MIN C</strong> (alpha = 6). Leaf 1 makes beta = 1. Is alpha at least beta? 6 is at least 1, yes. Stop. Leaf 2 is pruned. MIN C returns 1.</li>
+    <li><strong>Root.</strong> The best child value is 6, the same as minimax.</li>
+  </ol>
+  <p>Minimax looks at six leaves. Alpha-beta looks at five.</p>
+  <pre class="code" data-lang="python"><code>def alphabeta(node, maximizing, alpha, beta, seen):
+    if isinstance(node, int):
+        seen.append(node)              # record every leaf we actually look at
+        return node
+    if maximizing:
+        value = -10**9
+        for child in node:
+            value = max(value, alphabeta(child, False, alpha, beta, seen))
+            alpha = max(alpha, value)
+            if alpha &gt;= beta:           # MAX cut: the rest cannot matter
+                break
+        return value
+    value = 10**9
+    for child in node:
+        value = min(value, alphabeta(child, True, alpha, beta, seen))
+        beta = min(beta, value)
+        if alpha &gt;= beta:               # MIN cut: the rest cannot matter
+            break
+    return value
+
+tree = [[3, 5], [6, 9], [1, 2]]
+leaves = [3, 5, 6, 9, 1, 2]
+seen = []
+value = alphabeta(tree, True, -10**9, 10**9, seen)
+print("Alpha-beta value of the root:", value)
+print("Leaves evaluated, left to right:", seen)
+print("Leaves skipped:", [x for x in leaves if x not in seen])</code></pre>
+  <pre class="output">Alpha-beta value of the root: 6
+Leaves evaluated, left to right: [3, 5, 6, 9, 1]
+Leaves skipped: [2]</pre>
+  <div class="note trap"><p><span class="t">Trap</span>A pruned node's value is only a bound. MIN C returned 1, but its exact value does not matter for the root. Do not write a pruned value down as if it were exact.</p></div>
+  <details class="check"><summary>Question: At a MIN node, alpha is 5 and the first leaf is 4. Do we look at the other leaves?</summary><div class="ans"><p>No. Beta becomes 4, alpha (5) is at least beta (4), so we stop.</p></div></details>
+  <details class="check"><summary>Question: Which bound starts at plus infinity and only goes down?</summary><div class="ans"><p>Beta.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Counting the work saved">
+  <h2>Concept 4: Counting the work saved</h2>
+  <p>GATE questions often ask how many leaves are examined. Plain minimax examines every leaf: b<sup>d</sup> of them. Alpha-beta with the best move ordering, where the best move is always examined first, examines the fewest leaves it can. The exact best-case count is:</p>
+  <div class="formula">best-case leaves = b<sup>⌈d/2⌉</sup> + b<sup>⌊d/2⌋</sup> - 1</div>
+  <p>Here ⌈d/2⌉ means d divided by 2, rounded up, and ⌊d/2⌋ means d divided by 2, rounded down.</p>
+  <pre class="code" data-lang="python"><code>def best_case_leaves(b, d):
+    up = (d + 1) // 2                  # ceiling of d / 2
+    down = d // 2                      # floor of d / 2
+    return b ** up + b ** down - 1
+
+print("b = 3, d = 2:", best_case_leaves(3, 2))
+print("b = 2, d = 4:", best_case_leaves(2, 4))
+print("b = 3, d = 4:", best_case_leaves(3, 4))
+print("Plain minimax for b = 3, d = 4:", 3 ** 4)</code></pre>
+  <pre class="output">b = 3, d = 2: 5
+b = 2, d = 4: 7
+b = 3, d = 4: 17
+Plain minimax for b = 3, d = 4: 81</pre>
+  <p>Check the first line by hand. With b = 3 and d = 2, the first MIN node needs all 3 of its leaves. Each of the other two MIN nodes needs only 1 leaf before it is cut. The total is 3 + 1 + 1 = 5.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a given tree, work left to right. Write alpha and beta at each step, mark each leaf "evaluated" or "pruned", then count.</p></div>
+  <details class="check"><summary>Question: Branching factor 2, depth 4. What is the best-case number of leaves for alpha-beta?</summary><div class="ans"><p>2<sup>2</sup> + 2<sup>2</sup> - 1 = 4 + 4 - 1 = 7. Plain minimax would examine 16.</p></div></details>
+  <details class="check"><summary>Question: Can alpha-beta give a different root value from minimax?</summary><div class="ans"><p>No. It only skips branches that cannot change the root value.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>V(n) = max of children</td><td>MAX node value is the largest child value</td><td>Backing up at MAX levels</td></tr>
+      <tr><td>V(n) = min of children</td><td>MIN node value is the smallest child value</td><td>Backing up at MIN levels</td></tr>
+      <tr><td>Leaves = b<sup>d</sup></td><td>b = children per node, d = depth</td><td>Work for plain minimax</td></tr>
+      <tr><td>b<sup>⌈d/2⌉</sup> + b<sup>⌊d/2⌋</sup> - 1</td><td>Fewest leaves for alpha-beta with best ordering</td><td>Work for alpha-beta, best case</td></tr>
+      <tr><td>Cut when alpha is at least beta</td><td>Remaining children cannot change the root</td><td>Deciding where to prune</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE. They are not past exam questions. Try each one on paper before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Minimax of a small tree</h3>
+    <div class="statement"><p>A MAX root has two MIN children, A and B. Node A has leaves 4 and 7. Node B has leaves 2 and 9. What is the minimax value of the root?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimax value of the MAX root.</li>
+      <li><strong>Which idea applies.</strong> MIN takes the smallest leaf, MAX takes the largest child.</li>
+      <li><strong>Work it out.</strong> A = min(4, 7) = 4. B = min(2, 9) = 2. Root = max(4, 2) = 4.</li>
+      <li><strong>Check.</strong> The root value must equal one of the child values. It equals A's value, 4.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about alpha-beta (select all that apply)</h3>
+    <div class="statement"><p>Which statements about alpha-beta pruning are true? Select all that apply.</p>
+    <p>(A) It returns the same root value as plain minimax.<br>(B) It always examines more leaves than plain minimax.<br>(C) It can skip subtrees that cannot change the root decision.<br>(D) It changes the minimax value of the root.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Alpha-beta is safe. It only prunes what cannot matter.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is false, alpha-beta never examines more leaves. (C) is true, which is the purpose of pruning. (D) is false.</li>
+      <li><strong>Check.</strong> In the trace above, leaf 2 was skipped, yet the root value 6 matched minimax.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Alpha-beta trace on three MIN children</h3>
+    <div class="statement"><p>A MAX root has three MIN children, visited left to right. The leaves are: first child [5, 6], second child [7, 4, 5], third child [3]. Using alpha-beta, which leaf is not evaluated? What is the root value?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The skipped leaf and the root value.</li>
+      <li><strong>Which idea applies.</strong> Alpha-beta trace with the cut rules.</li>
+      <li><strong>Work it out.</strong> First child: visit 5 and 6, value 5, so alpha = 5 at the root. Second child (alpha = 5): visit 7, beta = 7. Visit 4, beta = 4. Now alpha = 5 is at least beta = 4, so stop. The last leaf, 5, is skipped. The child returns 4. Third child: visit 3. Root = max(5, 4, 3) = 5.</li>
+      <li><strong>Check.</strong> Minimax gives 5, 4 and 3 for the three MIN nodes, and the largest is 5.</li>
+    </ol>
+    <p class="cx">Answer: The skipped leaf is the last leaf (value 5) of the second child. The root value is 5.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Best-case leaves for a bigger tree</h3>
+    <div class="statement"><p>A uniform game tree has branching factor 3 and depth 4. With the best move ordering, how many leaves does alpha-beta examine? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The best-case leaf count, as a whole number.</li>
+      <li><strong>Which idea applies.</strong> b<sup>⌈d/2⌉</sup> + b<sup>⌊d/2⌋</sup> - 1.</li>
+      <li><strong>Work it out.</strong> b = 3, d = 4, so ⌈4/2⌉ = 2 and ⌊4/2⌋ = 2. The count is 3<sup>2</sup> + 3<sup>2</sup> - 1 = 9 + 9 - 1 = 17.</li>
+      <li><strong>Check.</strong> Plain minimax examines 81 leaves, and 17 is much smaller. The Python check above also printed 17.</li>
+    </ol>
+    <p class="cx">Answer: 17.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Inherited alpha causes an early cut</h3>
+    <div class="statement"><p>Inside a MIN node B, alpha = 5 has been passed down from the root, because the root already has 5 from another branch. Node B has leaves 4, 9 and 1, visited left to right. How many of B's leaves are evaluated, and what does B return?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of evaluated leaves and the value returned.</li>
+      <li><strong>Which idea applies.</strong> The MIN cut rule.</li>
+      <li><strong>Work it out.</strong> Visit leaf 4. Beta becomes 4. Alpha = 5 is at least beta = 4, so stop. Leaves 9 and 1 are skipped. B returns at most 4.</li>
+      <li><strong>Check.</strong> The root already has 5, and B can give at most 4, so B cannot change the root decision.</li>
+    </ol>
+    <p class="cx">Answer: One leaf is evaluated (the leaf 4). B returns a value of at most 4.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Full trace on a three-level tree</h3>
+    <div class="statement"><p>A MAX root has two MIN children, X and Y. Each MIN node has two MAX children. The leaves, drawn below, are visited left to right with alpha-beta. Find the root value and the leaves that are not evaluated.</p>
+    <pre class="code" data-lang="text"><code>                 MAX (root)
+                /           \
+           MIN X             MIN Y
+           /     \           /     \
+        MAX      MAX      MAX      MAX
+       /   \    /   \    /   \    /   \
+      3     5  6     9  1     2  0     7</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The root value and the skipped leaves.</li>
+      <li><strong>Which idea applies.</strong> Alpha-beta carried through three levels.</li>
+      <li><strong>Work it out.</strong> Start with alpha = minus infinity, beta = plus infinity. MIN X: its first MAX child [3, 5] gives 5, so beta = 5. Its second MAX child [6, 9]: visit 6, which is at least beta = 5, so cut. Leaf 9 is skipped. MIN X = 5, so root alpha = 5. MIN Y (alpha = 5): its first MAX child [1, 2] gives 2, so beta = 2. Alpha = 5 is at least beta = 2, so cut. The second MAX child [0, 7] is never visited. Root = max(5, 2) = 5.</li>
+      <li><strong>Check.</strong> Minimax also gives 5: X = min(5, 9) = 5 and Y = min(2, 7) = 2.</li>
+    </ol>
+    <p class="cx">Answer: The root value is 5. The leaves not evaluated are 9, 0 and 7.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Statements about the last tree (select all that apply)</h3>
+    <div class="statement"><p>Use the tree from the previous problem, with alpha-beta visiting leaves left to right. Which statements are true? Select all that apply.</p>
+    <p>(A) The root value is 5.<br>(B) The leaf 9 is evaluated.<br>(C) The leaf 7 is evaluated.<br>(D) Exactly three leaves are not evaluated.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The trace from the previous problem.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is false, 9 was skipped. (C) is false, 7 was skipped. (D) is true: 9, 0 and 7 are skipped.</li>
+      <li><strong>Check.</strong> There are eight leaves. Five were evaluated (3, 5, 6, 1, 2), and 8 - 5 = 3 were skipped.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Minimax value (NAT, 2 marks)</h3>
+    <div class="statement"><p>A depth-2 game tree: MAX root with three MIN children. Leaves (left to right): [3, 12, 8], [2, 4, 6], [14, 5, 2]. Find the minimax value at the root.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value MAX can guarantee.</li>
+      <li><strong>Which idea applies.</strong> Each MIN node takes the smallest leaf. MAX takes the largest of those.</li>
+      <li><strong>Work it out.</strong> MIN values: 3, 2, 2. Root = 3.</li>
+      <li><strong>Check.</strong> The code evaluates it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>T = [[3, 12, 8], [2, 4, 6], [14, 5, 2]]
+print(max(min(c) for c in T))
+</code></pre>
+    <pre class="output">3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Leaves pruned (NAT, 2 marks)</h3>
+    <div class="statement"><p>In the same tree, with alpha-beta pruning and left to right order, how many leaves are evaluated?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Leaves that alpha-beta actually visits.</li>
+      <li><strong>Which idea applies.</strong> Once a MIN node's value falls to or below α, its remaining children are pruned.</li>
+      <li><strong>Work it out.</strong> First child: all 3 leaves, α = 3. Second: leaf 2 ≤ 3, prune the other two. Third: 14, then 5, then 2 (still above 3 until the last leaf). Total 3 + 1 + 3 = 7.</li>
+      <li><strong>Check.</strong> The code counts visited leaves.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>T = [[3, 12, 8], [2, 4, 6], [14, 5, 2]]
+seen = 0; alpha = -1e9
+for c in T:
+    v = 1e9
+    for x in c:
+        seen += 1; v = min(v, x)
+        if v &lt;= alpha: break
+    alpha = max(alpha, v)
+print("root", alpha, "leaves visited", seen)
+</code></pre>
+    <pre class="output">root 3 leaves visited 7</pre>
+    <p class="cx">Answer: 7.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Alpha-beta facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Alpha-beta returns the same root value as minimax. (B) With perfect ordering it examines about b<sup>d/2</sup> leaves. (C) Pruning depends on move ordering. (D) Alpha-beta can be used in games of chance without change.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Facts about alpha-beta.</li>
+      <li><strong>Which idea applies.</strong> Pruning removes only branches that cannot change the decision.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) Chance nodes need expectiminimax and different bounds. False.</li>
+      <li><strong>Check.</strong> Perfect ordering doubles the searchable depth for the same effort.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Game tree</dt><dd>All possible futures drawn as a tree of positions and moves.</dd></div>
+    <div><dt>MAX node</dt><dd>A position where the player who wants the largest utility chooses.</dd></div>
+    <div><dt>MIN node</dt><dd>A position where the player who wants the smallest utility chooses.</dd></div>
+    <div><dt>Leaf</dt><dd>An end position with a utility value.</dd></div>
+    <div><dt>Minimax value</dt><dd>The value of a position when both players play perfectly.</dd></div>
+    <div><dt>Backing up</dt><dd>Passing values from the leaves up to the root.</dd></div>
+    <div><dt>Alpha</dt><dd>Best value MAX is sure of. Starts at minus infinity, only goes up.</dd></div>
+    <div><dt>Beta</dt><dd>Best value MIN is sure to hold MAX to. Starts at plus infinity, only goes down.</dd></div>
+    <div><dt>Pruning</dt><dd>Skipping branches that cannot change the root decision.</dd></div>
+    <div><dt>Cut rule</dt><dd>Stop at any node when alpha is at least beta.</dd></div>
+    <div><dt>Branching factor</dt><dd>The number of children of a typical node, written b.</dd></div>
+    <div><dt>Depth</dt><dd>The number of moves from the root to the deepest leaf, written d.</dd></div>
+    <div><dt>Move ordering</dt><dd>Trying good moves first so more branches can be pruned.</dd></div>
+    <div><dt>Best-case alpha-beta</dt><dd>b<sup>⌈d/2⌉</sup> + b<sup>⌊d/2⌋</sup> - 1 leaves with perfect ordering.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>MAX takes the largest child. MIN takes the smallest child.</li>
+    <li>Work from the leaves up to the root.</li>
+    <li>Alpha only goes up. Beta only goes down.</li>
+    <li>Cut when alpha is at least beta.</li>
+    <li>Alpha-beta always gives the same root value as minimax.</li>
+    <li>A pruned node's value is only a bound.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 113?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 113 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-112.html"><small>Previous, topic 112</small>Informed search: A*, Greedy Best-First</a><a class="next" href="gate-114.html"><small>Next, topic 114</small>Propositional logic</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>
