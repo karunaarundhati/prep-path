@@ -1,0 +1,943 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 31: Low-level design deep dive</title><meta name="description" content="Today is low-level design (LLD): turning a vague prompt such as &#x27;design a parking lot&#x27; into clear classes, relationships and working Python code, and explaining the design with UML diagrams. You will build a parking lot and a Splitwise-style expense splitter in full, outline BookMyShow seat locking, an elevator and a vending machine (State pattern), and write an LRU cache and a rate limiter. The DSA set is dynamic programming 3: edit distance, partition equal subset sum and Russian doll envelopes."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="31" data-key="31" data-noun="day" data-num="31" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Low-level design deep dive</h1>
+<p class="lede">Today is low-level design (LLD): turning a vague prompt such as &#x27;design a parking lot&#x27; into clear classes, relationships and working Python code, and explaining the design with UML diagrams. You will build a parking lot and a Splitwise-style expense splitter in full, outline BookMyShow seat locking, an elevator and a vending machine (State pattern), and write an LRU cache and a rate limiter. The DSA set is dynamic programming 3: edit distance, partition equal subset sum and Russian doll envelopes.</p>
+<div class="station"><b>31</b><span>Wed 2 Dec 2026 · Systems · DSA: Dynamic programming 3 (LIS, edit distance, partition)</span></div>
+<ul class="topics"><li>LLD approach</li><li>UML class and sequence diagrams</li><li>Parking lot and Splitwise</li><li>State pattern: vending machine</li><li>LRU cache and rate limiter</li><li>DP: LIS, edit distance, partition</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="LLD approach">
+  <h2>Low-level design: how to approach it</h2>
+  <p>Low-level design (LLD), also called object-oriented design or machine coding, asks you to design the classes, their relationships and their behaviour for one system, such as a parking lot, a card game or an expense splitter. System design (days 27 to 30) zooms out and draws servers, caches and databases. LLD zooms in: it asks how the objects inside one program should be organised so that the code is easy to read, easy to change and correct. Interviewers want to see clean boundaries between classes, sensible method names, and code that actually runs.</p>
+
+  <h3>A repeatable sequence of steps</h3>
+  <p>Most strong answers follow the same order. A fixed order keeps you from writing code before you understand the problem, which is the most common reason candidates run out of time.</p>
+  <ol>
+    <li><strong>Clarify requirements.</strong> Ask what is in scope. For a parking lot: how many levels, which vehicle types, do we take payment, do we need a display board? Write down three to five functional requirements (what the system must do) and say out loud what you will leave out.</li>
+    <li><strong>Find the entities.</strong> Nouns in the requirements usually become classes: Vehicle, ParkingSpot, Level, Ticket.</li>
+    <li><strong>Find the behaviour.</strong> Verbs usually become methods: enter, exit, find_spot, pay.</li>
+    <li><strong>Assign responsibilities.</strong> Each class owns the data it needs to do its job. A good rule is the Single Responsibility Principle (SRP): a class should have one main reason to change. A Ticket stores facts about one visit. The ParkingLot coordinates the visit. Neither should print receipts or talk to a database.</li>
+    <li><strong>Define relationships.</strong> Decide which classes have which others (has-a), which inherit from which (is-a), and which only use each other for one call. The UML section below gives the notation.</li>
+    <li><strong>Write the public API first.</strong> Decide the method signatures that callers will use, then fill in the bodies.</li>
+    <li><strong>Pick a design pattern only when it removes a real problem.</strong> A State pattern is right for a vending machine whose behaviour changes with its state. It is wrong for a class that only stores three numbers.</li>
+    <li><strong>Discuss edge cases, concurrency and extension.</strong> What if two people try to take the last spot at the same moment? How would you add electric-car charging spots? Mention these even if you do not have time to code them.</li>
+  </ol>
+  <p>A typical 45 minute round spends about 5 to 10 minutes on requirements and entities, about 25 minutes on code, and the rest on testing and questions. If you spend 30 minutes on requirements, you will not finish the code.</p>
+
+  <h3>Worked example: turning a sentence into classes</h3>
+  <p>Take the sentence: <em>a user can book one or more seats for a show, and each seat can be held by only one user at a time.</em> The nouns are user, seat, show and booking. The verb is book. A first class list is User, Show, Seat and Booking. The rule 'only one user at a time' is a constraint, and it belongs to the seat (or to a lock object owned by the show). You now know where the locking logic must live before you write any code.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>In LLD, the classes come from the requirements, not from the technology. Name each class after a real thing in the problem, and put each rule in the class that can enforce it.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Typing class definitions in the first minute. Ten minutes of questions save thirty minutes of rewriting, and the interviewer often gives you the missing requirement during those ten minutes.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What do you do first in an LLD round? Answer: clarify the requirements and state your assumptions, then list the entities and operations, then write the public API, and only then the code.</p></div>
+
+  <details class="check"><summary>Why should the classes come from the requirements rather than from a favourite pattern?</summary><div class="ans"><p>The requirements describe what the system must do, so classes that match real things in the problem stay stable as the requirements change. A design that starts from a pattern often invents classes nobody asked for, and those classes have no clear job. Start from the nouns and verbs, then add a pattern only where a real problem appears, for example many behaviours that switch on a state.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="UML diagrams">
+  <h2>UML class and sequence diagrams</h2>
+  <p>UML (Unified Modeling Language) is a shared notation for drawing software designs. You do not need a drawing tool in an interview. A whiteboard sketch or a plain text diagram is enough, as long as the boxes, arrows and multiplicities mean what you say they mean. Two diagrams matter most in LLD. A <strong>class diagram</strong> shows the static structure: which classes exist, what they hold and what they can do. A <strong>sequence diagram</strong> shows behaviour over time: which object calls which, and in what order.</p>
+
+  <h3>Class boxes</h3>
+  <p>A class is drawn as a box with three compartments: the class name on top, the attributes (data) in the middle, and the operations (methods) at the bottom. Each line starts with a visibility symbol. A plus sign means public, a minus sign means private, and a hash sign means protected. The box below describes the Ticket class from the parking lot example later on this page.</p>
+  <pre class="code" data-lang="text"><code>+-----------------------------+
+| Ticket                      |
++-----------------------------+
+| + ticket_id: int            |
+| + entry_hour: int           |
+| - vehicle: Vehicle          |
+| - spot: ParkingSpot         |
++-----------------------------+
+| + close(exit_hour): int     |
++-----------------------------+</code></pre>
+
+  <h3>Relationships between classes</h3>
+  <p>The line between two classes says how they are connected. The most important relationships are in the table. Learn the difference between aggregation and composition, because interviewers test it often.</p>
+  <div class="tablewrap"><table><thead><tr><th>Relationship</th><th>Meaning</th><th>Drawn as</th><th>Example</th></tr></thead><tbody>
+    <tr><td>Association</td><td>One object knows about another</td><td>A plain line</td><td>Driver to Ticket</td></tr>
+    <tr><td>Dependency</td><td>Uses the other briefly, usually as a parameter or local variable</td><td>A dashed arrow</td><td>ParkingLot depends on Vehicle in enter()</td></tr>
+    <tr><td>Aggregation</td><td>Has-a, but the part can exist without the whole</td><td>Line with a hollow diamond at the whole</td><td>Team has Players; a player still exists if the team is deleted</td></tr>
+    <tr><td>Composition</td><td>Has-a, and the part's life depends on the whole</td><td>Line with a filled diamond at the whole</td><td>ParkingLot owns Levels; a level has no meaning outside its lot</td></tr>
+    <tr><td>Inheritance</td><td>Is-a</td><td>Solid line with a hollow triangle at the parent</td><td>Car is a Vehicle</td></tr>
+    <tr><td>Realization</td><td>Implements an interface</td><td>Dashed line with a hollow triangle</td><td>CardPricing implements PricingStrategy</td></tr>
+  </tbody></table></div>
+  <p>Multiplicity is written at the ends of a line. The symbol <code>1</code> means exactly one, <code>0..1</code> means zero or one, <code>*</code> means zero or many, and <code>1..*</code> means one or many. A lot has <code>1 to *</code> levels, and a level has <code>1 to *</code> spots.</p>
+
+  <h3>Aggregation or composition: the ownership test</h3>
+  <p>Ask: if I delete the whole, must the part disappear too? If yes, it is composition. A parking level without its lot has no reason to exist, so the lot owns its levels (composition). A team can be disbanded while its players go on existing, so the team only aggregates them. In Python, composition usually shows up as an object creating its parts in its constructor, while aggregation shows up as an object receiving existing objects as arguments.</p>
+
+  <h3>Sequence diagrams</h3>
+  <p>A sequence diagram lists the participants across the top, draws each one's lifeline as a dashed vertical line, and shows messages as arrows in time order from top to bottom. A thin box on a lifeline marks the period when that object is busy. On a whiteboard a numbered list is often clearer than a drawn diagram. Here is the sequence for a car entering the parking lot built later on this page.</p>
+  <pre class="code" data-lang="text"><code>Participants: Driver, ParkingLot, Level, ParkingSpot
+
+1. Driver       to ParkingLot : enter(car, hour=9)
+2. ParkingLot   to Level      : find_spot(CAR)     (repeat for each level)
+3. Level        to ParkingLot : spot 1B, or None
+4. ParkingLot   to ParkingSpot: vehicle = car      (occupy the spot)
+5. ParkingLot   to Driver     : Ticket 2           (return value)</code></pre>
+  <p>A value returned by a call can be drawn as a dashed arrow, but naming the return in a numbered list is enough in an interview. Use an alt or opt box when a branch depends on a condition, for example "alt: no spot found, raise ParkingFullError".</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Draw the class diagram first to agree on the structure, then draw one sequence diagram for the most important operation. Two diagrams are enough to show that you understand both the shape and the behaviour.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Putting the diamond on the wrong end. The diamond sits on the whole (the container), not on the part. Drawing it on the part reverses the meaning.</p></div>
+
+  <details class="check"><summary>What is the difference between composition and aggregation, with an example of each?</summary><div class="ans"><p>Both mean has-a. In composition the part cannot outlive the whole, so the whole creates and destroys it: a ParkingLot creates its Levels. In aggregation the part is independent and is only referenced by the whole: a Team references Player objects that exist before and after the team. The test is ownership and lifetime. The notation uses a filled diamond for composition and a hollow diamond for aggregation.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Parking lot">
+  <h2>Design a parking lot (full Python)</h2>
+  <p>The parking lot is the classic first LLD question. It is small enough to finish in one round and rich enough to show abstraction, enums, a search rule and state changes.</p>
+
+  <h3>Requirements we will implement</h3>
+  <ul>
+    <li>The lot has several levels. Each level has spots of three sizes: small, medium and large.</li>
+    <li>Three vehicle types exist: motorcycle, car and truck. A vehicle needs a spot of at least its size. A motorcycle fits anywhere, a car needs a medium or large spot, and a truck needs a large spot.</li>
+    <li>On entry the lot gives a ticket. On exit the lot computes a fee from the hours parked, with a one hour minimum, and frees the spot.</li>
+    <li>If no spot fits, entry fails with a clear error.</li>
+  </ul>
+
+  <h3>The classes and why they exist</h3>
+  <div class="tablewrap"><table><thead><tr><th>Class</th><th>Responsibility</th></tr></thead><tbody>
+    <tr><td>VehicleType, SpotSize</td><td>Enums: a fixed list of allowed values, so a typo such as 'car' cannot slip through.</td></tr>
+    <tr><td>Vehicle</td><td>Plate number and type. Pure data.</td></tr>
+    <tr><td>ParkingSpot</td><td>Its size and the vehicle currently in it (None when free). It knows nothing about tickets.</td></tr>
+    <tr><td>Level</td><td>Finds the best-fitting free spot for a vehicle on that level.</td></tr>
+    <tr><td>Ticket</td><td>A record of one visit: vehicle, spot and entry hour.</td></tr>
+    <tr><td>ParkingLot</td><td>Coordinates entry and exit, keeps the active tickets, and computes the fee.</td></tr>
+  </tbody></table></div>
+
+  <h3>Why best fit?</h3>
+  <p>When a motorcycle arrives and both a small and a large spot are free, parking it in the large spot wastes space and may block a truck later. Best fit means: among the free spots that are big enough, choose the smallest. That is a one-line rule, and it is easy to explain in an interview.</p>
+
+  <h3>The code</h3>
+  <p>Read the code from top to bottom. The enums and the two lookup tables at the top hold all the business rules. The classes below them only use those rules, so changing a price means changing one number. The Python block runs on its own, and the output block is what it prints.</p>
+  <pre class="code" data-lang="python"><code>from dataclasses import dataclass
+from enum import Enum
+from itertools import count
+
+
+class VehicleType(Enum):
+    MOTORCYCLE = 1
+    CAR = 2
+    TRUCK = 3
+
+
+class SpotSize(Enum):
+    SMALL = 1
+    MEDIUM = 2
+    LARGE = 3
+
+
+# The smallest spot each vehicle type can use.
+MIN_SPOT = {
+    VehicleType.MOTORCYCLE: SpotSize.SMALL,
+    VehicleType.CAR: SpotSize.MEDIUM,
+    VehicleType.TRUCK: SpotSize.LARGE,
+}
+
+# Dollars per started hour.
+HOURLY_RATE = {
+    VehicleType.MOTORCYCLE: 1,
+    VehicleType.CAR: 2,
+    VehicleType.TRUCK: 5,
+}
+
+
+class ParkingFullError(Exception):
+    pass
+
+
+@dataclass
+class Vehicle:
+    plate: str
+    kind: VehicleType
+
+
+@dataclass
+class Ticket:
+    ticket_id: int
+    vehicle: Vehicle
+    spot: "ParkingSpot"
+    entry_hour: int
+
+
+class ParkingSpot:
+    def __init__(self, spot_id, size):
+        self.spot_id = spot_id
+        self.size = size
+        self.vehicle = None          # None means the spot is free
+
+    def is_free(self):
+        return self.vehicle is None
+
+
+class Level:
+    def __init__(self, number, spots):
+        self.number = number
+        self.spots = spots
+
+    def find_spot(self, kind):
+        """Best fit: the free spot with the smallest size that is big enough."""
+        needed = MIN_SPOT[kind].value
+        fits = [s for s in self.spots if s.is_free() and s.size.value &gt;= needed]
+        if not fits:
+            return None
+        return min(fits, key=lambda s: s.size.value)
+
+    def free_count(self):
+        return sum(1 for s in self.spots if s.is_free())
+
+
+class ParkingLot:
+    def __init__(self, levels):
+        self.levels = levels
+        self.active = {}             # ticket_id to Ticket
+        self._ids = count(1)         # 1, 2, 3, ...
+
+    def enter(self, vehicle, hour):
+        for level in self.levels:            # try the levels in order
+            spot = level.find_spot(vehicle.kind)
+            if spot is not None:
+                spot.vehicle = vehicle
+                ticket = Ticket(next(self._ids), vehicle, spot, hour)
+                self.active[ticket.ticket_id] = ticket
+                return ticket
+        raise ParkingFullError(f"no spot for {vehicle.kind.name} {vehicle.plate}")
+
+    def exit(self, ticket_id, hour):
+        ticket = self.active.pop(ticket_id)  # KeyError for an unknown ticket
+        ticket.spot.vehicle = None           # free the spot
+        hours = max(1, hour - ticket.entry_hour)   # minimum charge is one hour
+        return hours * HOURLY_RATE[ticket.vehicle.kind]
+
+
+def build_lot():
+    level1 = Level(1, [
+        ParkingSpot("1A", SpotSize.SMALL),
+        ParkingSpot("1B", SpotSize.MEDIUM),
+        ParkingSpot("1C", SpotSize.MEDIUM),
+        ParkingSpot("1D", SpotSize.LARGE),
+    ])
+    level2 = Level(2, [
+        ParkingSpot("2A", SpotSize.MEDIUM),
+        ParkingSpot("2B", SpotSize.LARGE),
+    ])
+    return ParkingLot([level1, level2])
+
+
+lot = build_lot()
+bike = Vehicle("BIKE-1", VehicleType.MOTORCYCLE)
+car1 = Vehicle("CAR-1", VehicleType.CAR)
+car2 = Vehicle("CAR-2", VehicleType.CAR)
+truck1 = Vehicle("TRUCK-1", VehicleType.TRUCK)
+
+tickets = [
+    lot.enter(bike, hour=9),
+    lot.enter(car1, hour=9),
+    lot.enter(car2, hour=10),
+    lot.enter(truck1, hour=10),
+]
+for t in tickets:
+    print(f"ticket {t.ticket_id}: {t.vehicle.plate} in spot {t.spot.spot_id}")
+for level in lot.levels:
+    print(f"level {level.number}: {level.free_count()} free")
+
+truck2 = Vehicle("TRUCK-2", VehicleType.TRUCK)
+t5 = lot.enter(truck2, hour=11)
+print(f"ticket {t5.ticket_id}: {truck2.plate} in spot {t5.spot.spot_id}")
+try:
+    lot.enter(Vehicle("TRUCK-3", VehicleType.TRUCK), hour=11)
+except ParkingFullError as error:
+    print("error:", error)
+
+fee = lot.exit(tickets[1].ticket_id, hour=12)
+print(f"{car1.plate} pays {fee} dollars")
+t6 = lot.enter(Vehicle("CAR-3", VehicleType.CAR), hour=12)
+print(f"ticket {t6.ticket_id}: CAR-3 in spot {t6.spot.spot_id}")</code></pre>
+  <pre class="output">ticket 1: BIKE-1 in spot 1A
+ticket 2: CAR-1 in spot 1B
+ticket 3: CAR-2 in spot 1C
+ticket 4: TRUCK-1 in spot 1D
+level 1: 0 free
+level 2: 2 free
+ticket 5: TRUCK-2 in spot 2B
+error: no spot for TRUCK TRUCK-3
+CAR-1 pays 6 dollars
+ticket 6: CAR-3 in spot 1B</pre>
+  <p>Walk through the trace once by hand. Ticket 1 goes to 1A because a motorcycle needs at least a small spot and 1A is the smallest free one. Ticket 2 goes to 1B, not 1D, because 1B is the smallest medium-or-larger spot that is free. When the truck tries to enter after the lot is full, the level search finds nothing and the lot raises an error instead of returning None, so a caller cannot forget to check. When car 1 leaves at hour 12, the spot is freed and the next car can use 1B.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Each class protects one fact. The spot knows whether it is occupied, the lot knows which tickets are open, and the fee rule lives in one table. Keeping those facts in one place each is what makes the design easy to test.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Letting the ParkingSpot or the Level create tickets or compute fees. Then the rules are spread over three classes, and a change to the fee means editing several files. Keep the coordination in one class.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How would you add a new vehicle type, such as an electric car that needs a charging spot? Answer: add an enum value, add one entry to MIN_SPOT and one to HOURLY_RATE, and add a new spot kind if the physical rule differs. No existing class needs its logic rewritten, which follows the Open/Closed Principle (open to extension, closed to modification).</p></div>
+
+  <details class="check"><summary>Why does the parking lot use best fit instead of the first free spot?</summary><div class="ans"><p>Best fit keeps the large spots free for vehicles that need them. If a motorcycle takes a large spot because it is the first free one, a later truck may find no space even though a small spot was free. Best fit is a simple, explainable rule that avoids that waste. A different business rule, such as "nearest to the exit", would replace only the find_spot method.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Splitwise">
+  <h2>Design Splitwise (full Python)</h2>
+  <p>Splitwise is an app that tracks who paid for what in a group and tells people how much to pay each other. The LLD question tests money handling, debt bookkeeping and a clever simplification step. It is a favourite because the naive design is easy and the correct design needs care.</p>
+
+  <h3>Requirements we will implement</h3>
+  <ul>
+    <li>A payer pays an amount for a group of people. The amount is split equally, or split with exact shares that must add up to the amount.</li>
+    <li>The system keeps a running record of who owes whom.</li>
+    <li>A person can settle (pay back) part or all of a debt.</li>
+    <li>Optionally, the system suggests a short list of payments that settles everyone.</li>
+  </ul>
+
+  <h3>Design decisions</h3>
+  <p><strong>Store debts, not expenses.</strong> Each expense could be stored as a list entry, but then the balance is recomputed from the full history every time. Instead, keep one number per pair of people: how many cents the first owes the second. Each new expense only changes those numbers.</p>
+  <p><strong>Net the debts.</strong> If Ben owes Asha 30 dollars and then Asha owes Ben 10 dollars, the honest state is that Ben owes Asha 20 dollars. We never store both directions at once. When a new debt goes the opposite way of an existing one, the two cancel out as far as they can.</p>
+  <p><strong>Use integer cents.</strong> Floats cannot represent most decimal values exactly. The classic example is 0.1 + 0.2, which is not exactly 0.3 in binary floating point. Money in whole cents avoids that completely, and formatting turns cents into dollars only when printing.</p>
+  <p><strong>Share leftovers deterministically.</strong> 100 cents split three ways is 33 cents each with 1 cent left over. The leftover goes to the first people in the list, so the result is always the same and the total is always exact.</p>
+
+  <h3>The code</h3>
+  <p>The class stores the debts, and a separate function turns the net balances into a short payment plan. Read <code>_add_debt</code> carefully: it is the heart of the netting rule.</p>
+  <pre class="code" data-lang="python"><code>from collections import defaultdict
+
+
+def dollars(cents):
+    """Format whole cents as dollars: 1967 becomes 19.67."""
+    return f"{cents // 100}.{cents % 100:02d}"
+
+
+class Splitwise:
+    def __init__(self):
+        # (debtor, creditor) to cents that debtor owes creditor.
+        # Only one direction is ever stored for a pair of people.
+        self.owes = defaultdict(int)
+
+    def _add_debt(self, debtor, creditor, cents):
+        """Record that debtor owes creditor, netting against the reverse debt."""
+        if debtor == creditor or cents == 0:
+            return
+        reverse = self.owes.get((creditor, debtor), 0)
+        if reverse &gt; cents:
+            # creditor still owes debtor something: shrink the old debt
+            self.owes[(creditor, debtor)] = reverse - cents
+        elif reverse == cents:
+            # the two debts cancel out exactly
+            del self.owes[(creditor, debtor)]
+        else:
+            # the old debt is gone, and the rest is a new debt the other way
+            self.owes.pop((creditor, debtor), None)
+            self.owes[(debtor, creditor)] += cents - reverse
+
+    def _record(self, payer, amount, shares):
+        if sum(shares.values()) != amount:
+            raise ValueError("shares must add up to the amount")
+        for person, share in shares.items():
+            self._add_debt(person, payer, share)   # the payer's own share is not a debt
+        return shares
+
+    def add_equal(self, payer, amount, people):
+        base, extra = divmod(amount, len(people))
+        shares = {}
+        for i, person in enumerate(people):
+            shares[person] = base + (1 if i &lt; extra else 0)
+        return self._record(payer, amount, shares)
+
+    def add_exact(self, payer, amount, shares):
+        return self._record(payer, amount, shares)
+
+    def settle(self, payer, receiver, cents):
+        # Paying receiver is the same as receiver owing payer, which cancels debt.
+        self._add_debt(receiver, payer, cents)
+
+    def net_balances(self):
+        net = defaultdict(int)       # positive means the person is owed money
+        for (debtor, creditor), cents in self.owes.items():
+            net[creditor] += cents
+            net[debtor] -= cents
+        return net
+
+    def report(self):
+        if not self.owes:
+            return ["all settled up"]
+        return [f"{d} owes {c} ${dollars(v)}" for (d, c), v in sorted(self.owes.items())]
+
+
+def simplify(net):
+    """Greedy settle-up plan: the biggest debtor pays the biggest creditor first."""
+    creditors = sorted(([v, p] for p, v in net.items() if v &gt; 0), reverse=True)
+    debtors = sorted(([-v, p] for p, v in net.items() if v &lt; 0), reverse=True)
+    plan = []
+    i = j = 0
+    while i &lt; len(creditors) and j &lt; len(debtors):
+        amount = min(creditors[i][0], debtors[j][0])
+        plan.append(f"{debtors[j][1]} pays {creditors[i][1]} ${dollars(amount)}")
+        creditors[i][0] -= amount
+        debtors[j][0] -= amount
+        if creditors[i][0] == 0:
+            i += 1
+        if debtors[j][0] == 0:
+            j += 1
+    return plan
+
+
+app = Splitwise()
+app.add_equal("Asha", 9000, ["Asha", "Ben", "Chen"])        # dinner, 30.00 each
+app.add_equal("Ben", 4000, ["Ben", "Dev"])                  # taxi, 20.00 each
+app.add_exact("Chen", 1000, {"Chen": 200, "Asha": 800})     # snacks
+shares = app.add_equal("Dev", 100, ["Asha", "Ben", "Dev"])  # coffee, 1 cent left over
+print("coffee shares:", shares)
+for line in app.report():
+    print(line)
+
+try:
+    app.add_exact("Asha", 500, {"Asha": 100})
+except ValueError as error:
+    print("rejected:", error)
+
+app.settle("Ben", "Asha", 1000)
+print("after Ben pays Asha $10.00:")
+for line in app.report():
+    print(line)
+
+print("settle-up plan:")
+for line in simplify(app.net_balances()):
+    print(line)</code></pre>
+  <pre class="output">coffee shares: {'Asha': 34, 'Ben': 33, 'Dev': 33}
+Asha owes Dev $0.34
+Ben owes Asha $30.00
+Chen owes Asha $22.00
+Dev owes Ben $19.67
+rejected: shares must add up to the amount
+after Ben pays Asha $10.00:
+Asha owes Dev $0.34
+Ben owes Asha $20.00
+Chen owes Asha $22.00
+Dev owes Ben $19.67
+settle-up plan:
+Chen pays Asha $22.00
+Dev pays Asha $19.33
+Ben pays Asha $0.33</pre>
+
+  <h3>Walking through the example</h3>
+  <p>The dinner costs 90.00 and is split three ways, so Ben and Chen each owe Asha 30.00. The taxi (40.00) is shared by Ben and Dev, so Dev owes Ben 20.00. For the snacks, Chen paid 10.00 but Asha's share is 8.00, so Asha owes Chen 8.00. That debt points against the 30.00 Chen already owes Asha, so the two cancel to a single debt: Chen owes Asha 22.00. The coffee shows the leftover cent: Asha gets 34 cents, Ben and Dev get 33 each. Asha owes Dev 0.34, and Ben's 0.33 share cancels 33 cents of the 20.00 Dev owed Ben, which leaves Dev owing Ben 19.67.</p>
+  <p>The settle-up plan then works from the net balances after Ben's 10.00 payment. Asha is owed 41.66 in total (her incoming debts minus her 0.34 debt to Dev), Chen owes 22.00, Dev owes 19.33 net, and Ben owes 0.33 net. Three payments close all the gaps, and their sum equals the amount owed: 22.00 plus 19.33 plus 0.33 is 41.66.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Store one net number per pair of people and net debts as they arrive. The state stays small, the report is easy to read, and every balance is always exact because it is integer arithmetic.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Using floats for money, or forgetting that the payer's own share is not a debt. The first gives values such as 19.670000000000002 when summed, and the second makes the payer owe themselves.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Is the greedy plan the minimum number of payments? It gives at most n minus 1 payments for n people, which is good in practice. Finding the true minimum number of transfers is NP-hard (it is equivalent to a partition problem), so an interview answer should mention the greedy plan and say that the minimum is hard.</p></div>
+
+  <details class="check"><summary>Why store net debts between pairs of people instead of every expense?</summary><div class="ans"><p>Storing every expense makes each balance query walk the whole history, which gets slower as the group grows. Storing one number per ordered pair keeps every query and update cheap, and netting keeps the stored state minimal: a pair never owes money in both directions at once. The history can still be kept in a separate log if an audit is needed.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Patterns in practice">
+  <h2>Patterns in practice: vending machine, BookMyShow, elevator</h2>
+  <p>Some systems are easier to explain as a state machine or as a set of rules around shared resources. These three examples cover the State pattern, concurrency-safe seat holding, and the scheduling idea behind an elevator. For the two outlines you do not need full code, but you should be able to explain the design in a sentence or two.</p>
+
+  <h3>The State pattern: vending machine</h3>
+  <p>The State pattern is a design where an object's behaviour depends on its current state, and each state is its own class. The alternative is a long chain of if statements that check flags such as "has money" and "item selected". Each new feature then touches every branch, and bugs hide in the combinations. With the State pattern, each class handles only what it means to be in that state, and the machine delegates each request to the current state object.</p>
+  <p>In the code below, the machine has two states. In the idle state, a coin moves the machine to the has-money state. In the has-money state, a selection either vends the item (and returns to idle, giving change) or fails with a clear message, and cancel refunds the money and returns to idle. The machine itself only stores data and forwards calls.</p>
+  <pre class="code" data-lang="python"><code>class VendingState:
+    name = "base"
+
+    def insert_coin(self, machine, cents):
+        raise NotImplementedError
+
+    def select(self, machine, code):
+        raise NotImplementedError
+
+    def cancel(self, machine):
+        raise NotImplementedError
+
+
+class IdleState(VendingState):
+    name = "idle"
+
+    def insert_coin(self, machine, cents):
+        machine.balance += cents
+        machine.state = machine.has_money_state
+        return f"accepted {cents} cents, balance {machine.balance}"
+
+    def select(self, machine, code):
+        return "insert money first"
+
+    def cancel(self, machine):
+        return "nothing to refund"
+
+
+class HasMoneyState(VendingState):
+    name = "has money"
+
+    def insert_coin(self, machine, cents):
+        machine.balance += cents
+        return f"accepted {cents} cents, balance {machine.balance}"
+
+    def select(self, machine, code):
+        if code not in machine.products:
+            return f"unknown code {code}"
+        price, stock = machine.products[code]
+        if stock == 0:
+            return f"{code} is sold out"
+        if machine.balance &lt; price:
+            return f"{code} costs {price}, add {price - machine.balance} more"
+        machine.products[code] = (price, stock - 1)
+        change = machine.balance - price
+        machine.balance = 0
+        machine.state = machine.idle_state
+        return f"vended {code}, change {change} cents"
+
+    def cancel(self, machine):
+        refund = machine.balance
+        machine.balance = 0
+        machine.state = machine.idle_state
+        return f"refunded {refund} cents"
+
+
+class VendingMachine:
+    def __init__(self, products):
+        self.products = dict(products)   # code to (price in cents, stock)
+        self.balance = 0
+        self.idle_state = IdleState()
+        self.has_money_state = HasMoneyState()
+        self.state = self.idle_state
+
+    def insert_coin(self, cents):
+        return self.state.insert_coin(self, cents)
+
+    def select(self, code):
+        return self.state.select(self, code)
+
+    def cancel(self):
+        return self.state.cancel(self)
+
+
+m = VendingMachine({"A1": (125, 2), "B2": (150, 0)})
+script = [("select", "A1"), ("insert", 100), ("select", "A1"), ("insert", 25),
+          ("select", "A1"), ("select", "B2"), ("insert", 200), ("select", "B2"),
+          ("cancel", "all"), ("cancel", "again")]
+for action, arg in script:
+    if action == "insert":
+        result = m.insert_coin(arg)
+    elif action == "select":
+        result = m.select(arg)
+    else:
+        result = m.cancel()
+    print(f"{action} {arg}: {result} (state: {m.state.name})")
+print(m.products)</code></pre>
+  <pre class="output">select A1: insert money first (state: idle)
+insert 100: accepted 100 cents, balance 100 (state: has money)
+select A1: A1 costs 125, add 25 more (state: has money)
+insert 25: accepted 25 cents, balance 125 (state: has money)
+select A1: vended A1, change 0 cents (state: idle)
+select B2: insert money first (state: idle)
+insert 200: accepted 200 cents, balance 200 (state: has money)
+select B2: B2 is sold out (state: has money)
+cancel all: refunded 200 cents (state: idle)
+cancel again: nothing to refund (state: idle)
+{'A1': (125, 1), 'B2': (150, 0)}</pre>
+  <p>The machine never checks flags. Its job is to forward each request, and the current state decides what happens. Adding an "out of service" state means adding one class and setting the machine's state, with no changes to the existing states beyond their transitions.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Use the State pattern when the same operation (insert, select, cancel) must act differently depending on a mode, and the modes change over time. The states, not the machine, decide the transitions.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Confusing State with Strategy. Both delegate to an object, but in State the object changes itself as the state changes, and the client does not choose the state. In Strategy, the client picks an algorithm once, for example a pricing rule, and it normally does not change during use.</p></div>
+
+  <h3>BookMyShow: seat locking (outline with a small runnable core)</h3>
+  <p>BookMyShow sells seats for a show. The hard part is the race: two users click the same seat at the same moment. The design needs three ideas. Each seat has a status: available, held (by one user, until an expiry time) or sold. A hold is a short reservation that is released automatically if the user does not pay in time. Each change to a seat must be atomic, meaning the check "is it free?" and the write "hold it" happen as one step, so two users cannot both win.</p>
+  <p>In a real system the atomic step is a database operation: a row lock such as SELECT ... FOR UPDATE, or a unique constraint on (show, seat) in the bookings table, so the second insert fails. The Python below shows the same logic in memory. It uses a simulated clock, passed in as <code>now</code>, so that the output is the same every time.</p>
+  <pre class="code" data-lang="python"><code>class SeatLocks:
+    """Seats are held for hold_seconds. A hold that expires frees the seat again."""
+
+    def __init__(self, seats, hold_seconds):
+        self.hold_seconds = hold_seconds
+        self.holder = {seat: None for seat in seats}   # seat to (user, expires_at)
+        self.sold = set()
+
+    def _free(self, seat, now):
+        if seat in self.sold:
+            return False
+        held = self.holder[seat]
+        return held is None or now &gt;= held[1]
+
+    def hold(self, user, seats, now):
+        if not all(self._free(seat, now) for seat in seats):
+            return False
+        for seat in seats:
+            self.holder[seat] = (user, now + self.hold_seconds)
+        return True
+
+    def pay(self, user, seats, now):
+        for seat in seats:
+            held = self.holder[seat]
+            if held is None or held[0] != user or now &gt;= held[1]:
+                return False
+        self.sold.update(seats)
+        return True
+
+
+locks = SeatLocks(["A1", "A2"], hold_seconds=60)
+print("ann holds A1, A2 at t=0:", locks.hold("ann", ["A1", "A2"], now=0))
+print("ben holds A2 at t=30:", locks.hold("ben", ["A2"], now=30))
+print("ben holds A2 at t=61:", locks.hold("ben", ["A2"], now=61))
+print("ann pays A1 at t=62:", locks.pay("ann", ["A1"], now=62))
+print("ben pays A2 at t=70:", locks.pay("ben", ["A2"], now=70))
+print("sold:", sorted(locks.sold))</code></pre>
+  <pre class="output">ann holds A1, A2 at t=0: True
+ben holds A2 at t=30: False
+ben holds A2 at t=61: True
+ann pays A1 at t=62: False
+ben pays A2 at t=70: True
+sold: ['A2']</pre>
+  <p>Read the output as a story. Ann holds two seats at time 0. Ben is refused while the hold is live. At time 61 Ann's hold has expired, so Ben can take A2. Ann then tries to pay for A1 at time 62, but her hold on A1 expired at 60, so the payment is refused and the seat is not sold. Ben pays for A2 in time and the seat is sold. Notice that <code>hold</code> checks every seat before it changes any seat, so a request for two seats is all-or-nothing.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Checking availability in one step and marking the seat in a later step. Between the two steps another request can get in, and the seat is sold twice. The check and the write must be one atomic operation, which a database lock or a unique constraint provides.</p></div>
+
+  <h3>Elevator (outline)</h3>
+  <p>An elevator system has an elevator with a current floor, a direction (up, down or idle), a set of stops it must visit, and door state. Floors create requests: a hall call says "I am on floor 5 and want to go up", and a car call says "I am inside and want floor 9". A controller (dispatcher) receives each request and assigns it to one elevator, usually the one with the lowest cost, such as the nearest one already moving in the same direction.</p>
+  <div class="tablewrap"><table><thead><tr><th>Class</th><th>Responsibility</th></tr></thead><tbody>
+    <tr><td>Direction (enum)</td><td>UP, DOWN, IDLE</td></tr>
+    <tr><td>Request</td><td>Floor and the direction the passenger wants</td></tr>
+    <tr><td>Elevator</td><td>Current floor, direction, sorted set of stops, door state, and one step of movement</td></tr>
+    <tr><td>Controller</td><td>Receives requests and chooses an elevator with a cost function</td></tr>
+  </tbody></table></div>
+  <p>Movement follows the SCAN algorithm, also called the elevator algorithm: keep moving in the current direction and stop at every requested floor on the way, then reverse when there are no more stops ahead. SCAN prevents starvation, because every request is served within one full sweep. The state pattern fits here too: the elevator's behaviour in the idle, moving up and moving down states differs.</p>
+
+  <details class="check"><summary>How do you prevent two users from booking the same seat in a BookMyShow design?</summary><div class="ans"><p>Make the check and the write one atomic step. In the database, lock the seat rows with SELECT ... FOR UPDATE inside a transaction, or add a unique constraint on (show_id, seat_id) in the bookings table so the second insert fails. Holds should carry an expiry time, and expired holds must be treated as free. The in-memory SeatLocks class shows the same rule: a seat is free only if it is not sold and its hold has expired.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="LRU and rate limiter">
+  <h2>LRU cache and rate limiter classes</h2>
+  <p>Two small classes appear again and again in LLD rounds. An LRU (least recently used) cache keeps a fixed number of items and evicts the item that has gone unused the longest. A rate limiter decides whether a request may proceed, given how many requests were recently allowed. Both are good practice for writing clear classes with simple invariants.</p>
+
+  <h3>LRU cache with OrderedDict</h3>
+  <p>An <code>OrderedDict</code> remembers insertion order and can move any key to the end in constant time. If we always treat the front as the least recently used and the back as the most recently used, eviction is one call to <code>popitem(last=False)</code>. Every get or put of an existing key moves it to the back. The DSA version of this problem on day 33 builds the same structure by hand, using a hash map and a doubly linked list.</p>
+  <pre class="code" data-lang="python"><code>from collections import OrderedDict
+
+
+class LRUCache:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.data = OrderedDict()        # oldest first, newest last
+
+    def get(self, key):
+        if key not in self.data:
+            return None
+        self.data.move_to_end(key)       # this key is now the most recent
+        return self.data[key]
+
+    def put(self, key, value):
+        if key in self.data:
+            self.data.move_to_end(key)
+        self.data[key] = value
+        if len(self.data) &gt; self.capacity:
+            evicted, _ = self.data.popitem(last=False)   # remove the oldest
+            return evicted
+        return None
+
+
+cache = LRUCache(2)
+cache.put("a", 1)
+cache.put("b", 2)
+print("get a:", cache.get("a"))
+print("put c evicts:", cache.put("c", 3))
+print("get b:", cache.get("b"))
+print("put d evicts:", cache.put("d", 4))
+print("keys oldest first:", list(cache.data))</code></pre>
+  <pre class="output">get a: 1
+put c evicts: b
+get b: None
+put d evicts: a
+keys oldest first: ['c', 'd']</pre>
+  <p>Trace the example. After <code>put a</code> and <code>put b</code>, the order is a, b. Reading a moves it to the back, so the order is b, a. Adding c makes three items in a cache of size two, so the oldest, b, is evicted. Reading b now misses. Adding d evicts a, which was older than c.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Forgetting to move a key on update. If put on an existing key only changes the value, the key keeps its old position and can be evicted while it is still hot. The class above moves the key first.</p></div>
+
+  <h3>Rate limiter: token bucket</h3>
+  <p>A token bucket holds up to <code>capacity</code> tokens. Each allowed request spends one token. Tokens are added back at a steady <code>refill_rate</code> per second, but never beyond the capacity. This allows short bursts (up to the capacity) while keeping the long-run rate at the refill rate. The class below takes the current time as an argument, which makes it easy to test and makes the output repeatable.</p>
+  <pre class="code" data-lang="python"><code>class TokenBucket:
+    """Allow bursts up to capacity; refill refill_rate tokens per second."""
+
+    def __init__(self, capacity, refill_rate):
+        self.capacity = capacity
+        self.refill_rate = refill_rate
+        self.tokens = capacity
+        self.last = 0
+
+    def allow(self, now):
+        elapsed = now - self.last
+        self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_rate)
+        self.last = now
+        if self.tokens &gt;= 1:
+            self.tokens -= 1
+            return True
+        return False
+
+
+bucket = TokenBucket(capacity=3, refill_rate=0.5)     # one token every 2 seconds
+times = [0, 0, 0, 0, 1, 2, 2, 4, 4, 6]
+print([bucket.allow(t) for t in times])</code></pre>
+  <pre class="output">[True, True, True, False, False, True, False, True, False, True]</pre>
+  <p>The first three requests at time 0 use the initial burst of three tokens. The fourth finds an empty bucket. At time 2 one token has been refilled, so a request is allowed and the bucket empties again. The pattern True, False, True, False, True matches a steady rate of one request every two seconds after the burst.</p>
+  <p>Other algorithms make different trade-offs. A fixed window counter (for example, 100 requests per clock minute) is simple, but a client can send 100 requests at the end of one window and 100 at the start of the next, which is twice the limit in a short span. A sliding window log stores a timestamp per request and is exact, but it uses memory in proportion to the traffic. The token bucket is a common middle ground.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why pass the time into allow() instead of reading the clock inside it? Answer: the caller controls time, so unit tests can simulate minutes in microseconds and get the same result every run. In production the caller passes time.monotonic().</p></div>
+
+  <details class="check"><summary>What does a token bucket allow that a fixed window counter does not?</summary><div class="ans"><p>A token bucket allows a burst of up to its capacity at once, then limits the long-run rate to the refill rate. A fixed window counter also limits the count per window, but it has a boundary problem: a client can spend the full quota at the end of one window and again at the start of the next, which doubles the effective rate for a moment. The token bucket has no hard window edges, so that spike cannot happen.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before opening the model answer. Aim for three to five sentences, and name a concrete class or rule from this page.</p>
+
+  <details class="check"><summary>How do you decide what the classes are in an LLD problem?</summary><div class="ans"><p>I list the requirements, underline the nouns and the verbs, and turn nouns into classes and verbs into methods. Then I check each class has one clear responsibility (SRP) and that each rule sits in the class that can enforce it. For a parking lot, Vehicle, ParkingSpot, Level, Ticket and ParkingLot come straight from the sentences about the lot.</p></div></details>
+
+  <details class="check"><summary>What is the difference between composition and aggregation?</summary><div class="ans"><p>Both are has-a relationships. In composition the whole owns the part and the part's life depends on the whole, drawn with a filled diamond, such as a ParkingLot owning its Levels. In aggregation the part can exist independently and is only referenced, drawn with a hollow diamond, such as a Team referencing Players.</p></div></details>
+
+  <details class="check"><summary>Why does the Splitwise design store money as integer cents?</summary><div class="ans"><p>Binary floats cannot represent most decimal fractions exactly, so sums drift, for example 0.1 plus 0.2 is not exactly 0.3. Integer cents are exact, comparisons are reliable, and the leftover cents of an even split can be assigned explicitly. Formatting to dollars happens only in the output.</p></div></details>
+
+  <details class="check"><summary>What problem does the State pattern solve in the vending machine?</summary><div class="ans"><p>Insert, select and cancel behave differently depending on whether money is present, and the machine moves between modes over time. Without the pattern, every method checks flags in nested if statements, and adding a mode touches every method. With the State pattern, each state is a class that owns its transitions, and the machine just forwards each call to the current state.</p></div></details>
+
+  <details class="check"><summary>How would you stop two users from booking the same seat at once?</summary><div class="ans"><p>The check that a seat is free and the write that holds it must be one atomic operation. In a database that means a row lock (SELECT ... FOR UPDATE) inside a transaction or a unique constraint on (show, seat). Holds need an expiry so that abandoned reservations free the seat, and an expired hold counts as free.</p></div></details>
+
+  <details class="check"><summary>What is the difference between a token bucket and a fixed window counter?</summary><div class="ans"><p>A token bucket allows bursts up to its capacity and then enforces the refill rate, with no hard window edges. A fixed window counter resets at fixed boundaries, so a client can send the full quota at the end of one window and again at the start of the next. The bucket avoids that double-rate spike.</p></div></details>
+
+  <details class="check"><summary>Why does the LRU cache need O(1) get and put, and what structures give it?</summary><div class="ans"><p>A cache sits in front of a slow store, so each lookup must be cheap. A hash map gives O(1) lookup by key, and a doubly linked list gives O(1) move-to-front and removal when the node is known. Python's OrderedDict combines both: move_to_end and popitem(last=False) are O(1).</p></div></details>
+
+  <details class="check"><summary>What is the Single Responsibility Principle, and what is a violation?</summary><div class="ans"><p>SRP says a class should have one main reason to change. A violation would be a ParkingLot that also formats receipts, sends emails and writes to a database: a change to the email format would force a change to the lot. The fix is to move formatting and persistence into their own classes that the lot calls.</p></div></details>
+
+  <details class="check"><summary>How would you add a new vehicle type without rewriting existing classes?</summary><div class="ans"><p>Add a new value to the VehicleType enum, add an entry to MIN_SPOT and to HOURLY_RATE, and add a new spot size only if the physical rule needs one. If pricing becomes complicated, move it behind a Strategy interface so that a new pricing rule is a new class. Existing classes stay closed to modification, which is the Open/Closed Principle.</p></div></details>
+
+  <details class="check"><summary>How would you test the parking lot?</summary><div class="ans"><p>Write unit tests for each class and then for the lot's behaviour. Useful cases: a motorcycle gets the smallest free spot, a truck is refused when only medium spots are free, a full lot raises ParkingFullError, a one-hour stay costs one hour of rate, a stay of zero hours is charged one hour, exiting an unknown ticket raises KeyError, and a freed spot can be reused. Because time is passed in as an integer hour, the tests are deterministic.</p></div></details>
+
+  <details class="check"><summary>Why do the Splitwise shares of an uneven split add up exactly?</summary><div class="ans"><p>The base share is the integer quotient, and the first remainder cents each receive one extra cent. Because the remainder is smaller than the number of people, every person gets either the base or the base plus one, and the total equals the amount exactly. The code also checks exact shares against the amount before recording anything.</p></div></details>
+
+  <details class="check"><summary>When would you choose the State pattern over a plain enum and if statements?</summary><div class="ans"><p>A plain enum is enough when the set of modes is small and the behaviour under each mode is a few lines. The State pattern pays off when each mode has several behaviours, the modes change often, and new modes are expected. Each new mode then becomes one class, and existing modes need no edits.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: dynamic programming 3 (LIS, edit distance, partition)</h2>
+  <p>Dynamic programming (DP) solves a problem by splitting it into smaller subproblems, solving each once, and storing the answers in a table. The table is what makes the work reusable. The three problems today share the same discipline: define what one table cell means, write the recurrence (how a cell depends on earlier cells), set the base cases, and read the answer from the right cell.</p>
+
+  <h3>The pattern: define the state first</h3>
+  <p>Before writing any loop, write one sentence that finishes with "the best value for ..." and fill in the blanks. For edit distance: "the minimum number of operations to turn the first i characters of word1 into the first j characters of word2". For subset sum: "whether some subset of the first i numbers adds up to s". For LIS: "the length of the longest increasing run that ends at index i". If you can state the cell's meaning, the recurrence is usually obvious.</p>
+  <ul>
+    <li><strong>Two strings</strong>: a table indexed by the prefix length of each string (edit distance). Base cases are the empty prefix.</li>
+    <li><strong>A set of numbers and a target</strong>: a table of reachable sums (partition). Process one number at a time, and update sums in reverse so that a number is used only once (0/1 knapsack).</li>
+    <li><strong>A sequence</strong>: the best value that ends at each position (LIS). When the cells can be summarised by a sorted list, binary search can make the update faster.</li>
+  </ul>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/edit-distance/">
+    <h3>Edit Distance (LeetCode 72)</h3>
+    <div class="statement"><p>You are given two strings, word1 and word2. Return the minimum number of single-character operations needed to turn word1 into word2. The allowed operations are insert a character, delete a character, and replace a character. For example, "horse" becomes "ros" in three operations: replace h with r, delete r, and delete e. The answer is 3, so no route with two operations exists.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Both strings may be empty. The answer is a count of operations, and an empty string needs as many inserts (or deletes) as the length of the other string.</li>
+      <li><strong>Brute force.</strong> Compare the first characters. If they match, move both pointers forward. If not, try all three operations (insert, delete, replace), recurse on each, and take the smallest. Each level branches three ways, so the cost is exponential in the string lengths.</li>
+      <li><strong>Find the waste.</strong> The same pair of suffixes (the rest of word1 and the rest of word2) is solved again and again along different paths. There are only m times n such pairs, so storing answers for them removes almost all the work.</li>
+      <li><strong>Optimise.</strong> Let dp[i][j] be the minimum operations to turn the first i characters of word1 into the first j characters of word2. Base cases: dp[i][0] is i (delete everything) and dp[0][j] is j (insert everything). If word1[i-1] equals word2[j-1], no operation is needed, so dp[i][j] equals dp[i-1][j-1]. Otherwise dp[i][j] is 1 plus the minimum of three options: dp[i-1][j] (delete word1's last character), dp[i][j-1] (insert word2's last character), and dp[i-1][j-1] (replace one character with the other).</li>
+      <li><strong>Dry run.</strong> The table below fills in for "horse" to "ros". Each row is a prefix of word1, each column a prefix of word2. The bottom-right cell is the answer, 3.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th></th><th>(empty)</th><th>r</th><th>o</th><th>s</th></tr></thead><tbody>
+      <tr><td>(empty)</td><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+      <tr><td>h</td><td>1</td><td>1</td><td>2</td><td>3</td></tr>
+      <tr><td>o</td><td>2</td><td>2</td><td>1</td><td>2</td></tr>
+      <tr><td>r</td><td>3</td><td>2</td><td>2</td><td>2</td></tr>
+      <tr><td>s</td><td>4</td><td>3</td><td>3</td><td>2</td></tr>
+      <tr><td>e</td><td>5</td><td>4</td><td>4</td><td>3</td></tr>
+    </tbody></table></div>
+    <p>Read one cell by hand. The cell in row o, column o is 1, because "ho" becomes "ro" by replacing h with r, and the o matches. The cell in row r, column s is 2: "hor" becomes "ros" by replacing h with r and then replacing r with s.</p>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def min_distance(word1, word2):
+    m, n = len(word1), len(word2)
+    prev = list(range(n + 1))             # row for an empty prefix of word1
+    for i in range(1, m + 1):
+        cur = [i] + [0] * n               # column 0: delete i characters
+        for j in range(1, n + 1):
+            if word1[i - 1] == word2[j - 1]:
+                cur[j] = prev[j - 1]      # characters match: no operation
+            else:
+                cur[j] = 1 + min(prev[j],        # delete from word1
+                                 cur[j - 1],     # insert into word1
+                                 prev[j - 1])    # replace
+        prev = cur                        # keep only the previous row
+    return prev[n]
+
+
+print(min_distance("horse", "ros"))
+print(min_distance("intention", "execution"))
+print(min_distance("", "abc"))</code></pre>
+    <pre class="output">3
+5
+3</pre>
+    <p class="cx">Time O(m n) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you see two strings and "minimum edits", think a 2D table over prefix lengths with three moves: delete, insert, replace. Keep only the previous row when a cell depends only on the row above and the cell to its left.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/partition-equal-subset-sum/">
+    <h3>Partition Equal Subset Sum (LeetCode 416)</h3>
+    <div class="statement"><p>Given an array of positive integers nums, return True if you can split it into two subsets whose sums are equal, and False otherwise. Every number must go into exactly one of the two subsets. For example, [1, 5, 11, 5] splits into [1, 5, 5] and [11], both summing to 11, so the answer is True.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each element goes to subset A or subset B. Equal sums means each side must equal half the total. If the total is odd, the answer is False immediately.</li>
+      <li><strong>Brute force.</strong> Try all 2^n ways to assign the numbers to A or B and compare the sums. That is exponential.</li>
+      <li><strong>Find the waste.</strong> We never need to know which numbers form a sum, only whether a sum is reachable. Many different choices reach the same running total, and each total needs to be tracked only once.</li>
+      <li><strong>Optimise.</strong> Let reachable[s] be True if some subset of the numbers processed so far adds up to s. Start with reachable[0] True. For each number x, set reachable[s] to True for every s from target down to x where reachable[s - x] is True. Going downward is the key: each number then contributes at most once. Going upward would let the same number be used many times, which solves a different problem.</li>
+      <li><strong>Dry run.</strong> For [1, 5, 11, 5] the total is 22, so the target is 11. The table lists the reachable sums up to 11 after each number. The 11 becomes reachable when the third number is processed, so the answer is True.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>After processing</th><th>Reachable sums up to 11</th></tr></thead><tbody>
+      <tr><td>nothing</td><td>0</td></tr>
+      <tr><td>1</td><td>0, 1</td></tr>
+      <tr><td>5</td><td>0, 1, 5, 6</td></tr>
+      <tr><td>11</td><td>0, 1, 5, 6, 11</td></tr>
+      <tr><td>5 (second)</td><td>0, 1, 5, 6, 10, 11</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def can_partition(nums):
+    total = sum(nums)
+    if total % 2:
+        return False                      # an odd total cannot split evenly
+    target = total // 2
+    reachable = [False] * (target + 1)
+    reachable[0] = True                   # the empty subset sums to 0
+    for x in nums:
+        # go downward so that x is used at most once
+        for s in range(target, x - 1, -1):
+            if reachable[s - x]:
+                reachable[s] = True
+    return reachable[target]
+
+
+print(can_partition([1, 5, 11, 5]))
+print(can_partition([1, 2, 3, 5]))
+print(can_partition([2, 2, 1, 1]))</code></pre>
+    <pre class="output">True
+False
+True</pre>
+    <p class="cx">Time O(n · S) where S is the total sum · Space O(S)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Looping upward over the sums. For [2, 2, 1, 1] an upward loop would reuse the first 2 and report sums that need the same element twice. Always iterate the sum from high to low when each item can be used once.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you must pick a subset that hits an exact target and each item is used at most once, think 0/1 knapsack: a boolean table over sums, updated from the top down.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/russian-doll-envelopes/">
+    <h3>Russian Doll Envelopes (LeetCode 354)</h3>
+    <div class="statement"><p>You are given envelopes as pairs [w, h] for width and height. One envelope can be put inside another only if both its width and its height are strictly smaller. Return the maximum number of envelopes that can be nested, like Russian dolls. For example, [[5,4],[6,4],[6,7],[2,3]] gives 3: the chain [2,3], then [5,4], then [6,7] works, because each envelope is strictly wider and strictly taller than the one before it.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> We need a chain of envelopes where both width and height strictly increase. The order of the chain is decided by us, so the input order does not matter.</li>
+      <li><strong>Brute force.</strong> Try every subset and every order, and check each chain. That is exponential in the number of envelopes.</li>
+      <li><strong>Find the waste.</strong> Once the envelopes are sorted by width, the question becomes: find the longest strictly increasing subsequence of heights. Two steps are needed. Sorting by width makes the width condition automatic. The longest strictly increasing subsequence (LIS) of heights then handles the height condition.</li>
+      <li><strong>Optimise.</strong> The sort needs one twist. Two envelopes with the same width can never be in one chain, but a strictly increasing height list would accept them if their heights differ. So sort by width ascending, and for equal widths by height descending. Then equal widths come out in decreasing height, and an increasing run of heights can never take two of them. For the LIS, keep an array tails, where tails[k] is the smallest last height of an increasing run of length k plus one. For each height h, binary search (bisect_left) for the first tails value that is at least h. Replace that value with h, or append h if none is found. The length of tails is the LIS length. The O(n^2) version of the LIS is also shown as a brute force, to show the same idea without the binary search.</li>
+      <li><strong>Dry run.</strong> Use [[4,5],[4,6],[6,7],[2,3],[1,1]]. After sorting, the widths are 1, 2, 4, 4, 6, and the heights are 1, 3, 6, 5, 7. The table tracks tails.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Envelope after sort</th><th>Height</th><th>tails after this step</th></tr></thead><tbody>
+      <tr><td>[1, 1]</td><td>1</td><td>[1]</td></tr>
+      <tr><td>[2, 3]</td><td>3</td><td>[1, 3]</td></tr>
+      <tr><td>[4, 6]</td><td>6</td><td>[1, 3, 6]</td></tr>
+      <tr><td>[4, 5]</td><td>5</td><td>[1, 3, 5] (5 replaces 6)</td></tr>
+      <tr><td>[6, 7]</td><td>7</td><td>[1, 3, 5, 7]</td></tr>
+    </tbody></table></div>
+    <p>The final length of tails is 4, which is the answer. Note the step for [4, 5]: the envelopes [4, 6] and [4, 5] have the same width, so only one of them can be in a chain. Sorting them with height descending puts [4, 6] first, and the height 5 then replaces 6 in tails, which keeps the smaller ending value available for future envelopes.</p>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from bisect import bisect_left
+
+
+def max_envelopes(envelopes):
+    # width ascending; for equal widths, height descending
+    ordered = sorted(envelopes, key=lambda e: (e[0], -e[1]))
+    tails = []        # tails[k]: smallest last height of an increasing run of length k + 1
+    for _, h in ordered:
+        k = bisect_left(tails, h)     # first position where h can go
+        if k == len(tails):
+            tails.append(h)           # h extends the longest run
+        else:
+            tails[k] = h              # h gives a smaller ending for runs of length k + 1
+    return len(tails)
+
+
+def max_envelopes_slow(envelopes):
+    # O(n^2) LIS on the same sorted order, to check the fast version
+    ordered = sorted(envelopes, key=lambda e: (e[0], -e[1]))
+    n = len(ordered)
+    best = [1] * n                    # best[i]: longest chain ending at envelope i
+    for i in range(n):
+        for j in range(i):
+            if ordered[j][1] &lt; ordered[i][1]:
+                best[i] = max(best[i], best[j] + 1)
+    return max(best) if best else 0
+
+
+tests = [
+    [[5, 4], [6, 4], [6, 7], [2, 3]],
+    [[1, 1], [1, 1], [1, 1]],
+    [[4, 5], [4, 6], [6, 7], [2, 3], [1, 1]],
+]
+for envelopes in tests:
+    print(max_envelopes(envelopes), max_envelopes_slow(envelopes))</code></pre>
+    <pre class="output">3 3
+1 1
+4 4</pre>
+    <p class="cx">Time O(n log n) · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Sorting by width only. For [[3,4],[3,5]] the heights 4 then 5 form an increasing run, so a plain LIS would answer 2. But both envelopes have width 3, so neither fits in the other and the answer is 1. Sorting equal widths by height descending fixes this, because 5 then comes before 4 and cannot be followed by a larger height.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Two-dimensional nesting or chaining problems often reduce to one dimension: sort by one key so that the other key becomes an LIS. Break ties in the direction that stops equal values from chaining.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>LLD</dt><dd>Low-level design: designing the classes, relationships and behaviour inside one program.</dd></div>
+    <div><dt>SRP</dt><dd>Single Responsibility Principle: a class should have one main reason to change.</dd></div>
+    <div><dt>Entity</dt><dd>A noun in the requirements that usually becomes a class.</dd></div>
+    <div><dt>UML</dt><dd>Unified Modeling Language: a shared notation for class and sequence diagrams.</dd></div>
+    <div><dt>Association</dt><dd>One object knows about another, drawn as a plain line.</dd></div>
+    <div><dt>Dependency</dt><dd>One object uses another briefly, usually as a parameter, drawn as a dashed arrow.</dd></div>
+    <div><dt>Aggregation</dt><dd>A has-a relationship where the part can exist without the whole (hollow diamond).</dd></div>
+    <div><dt>Composition</dt><dd>A has-a relationship where the whole owns the part (filled diamond).</dd></div>
+    <div><dt>Inheritance</dt><dd>An is-a relationship between a subclass and its parent.</dd></div>
+    <div><dt>Multiplicity</dt><dd>How many objects take part in a relationship, such as 1, 0..1, * or 1..*.</dd></div>
+    <div><dt>Enum</dt><dd>A fixed set of named constants that prevents invalid values.</dd></div>
+    <div><dt>Best fit</dt><dd>Choose the smallest free spot that is still big enough.</dd></div>
+    <div><dt>Integer cents</dt><dd>Storing money as whole cents so that arithmetic is exact.</dd></div>
+    <div><dt>Netting</dt><dd>Cancelling debts that point in opposite directions so only the difference remains.</dd></div>
+    <div><dt>Greedy</dt><dd>At each step take the locally best choice, such as matching the largest debtor and creditor.</dd></div>
+    <div><dt>State pattern</dt><dd>An object delegates each request to a current state object, and states decide the transitions.</dd></div>
+    <div><dt>Strategy pattern</dt><dd>Hide a swappable algorithm, such as a pricing rule, behind a common interface.</dd></div>
+    <div><dt>Seat hold</dt><dd>A short reservation that expires and frees the seat if the user does not pay.</dd></div>
+    <div><dt>Atomic</dt><dd>A check and its write happen as one indivisible step, so no other request can interleave.</dd></div>
+    <div><dt>LRU cache</dt><dd>A cache that evicts the least recently used item when it is full.</dd></div>
+    <div><dt>Token bucket</dt><dd>A rate limiter that holds up to capacity tokens and refills them at a fixed rate.</dd></div>
+    <div><dt>Dependency injection of time</dt><dd>Passing the current time as an argument so the code is testable and repeatable.</dd></div>
+    <div><dt>Dynamic programming</dt><dd>Solving a problem by storing answers to subproblems in a table so each is solved once.</dd></div>
+    <div><dt>LIS</dt><dd>Longest increasing subsequence: the longest run of values that increase strictly, in order.</dd></div>
+    <div><dt>Edit distance</dt><dd>The minimum insert, delete and replace operations that turn one string into another.</dd></div>
+    <div><dt>Subset sum</dt><dd>Whether some subset of numbers adds up exactly to a target.</dd></div>
+    <div><dt>0/1 knapsack</dt><dd>A subset problem where each item is used at most once, solved by updating sums from high to low.</dd></div>
+    <div><dt>bisect_left</dt><dd>Binary search for the first position where a value can be inserted in a sorted list.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td>@dataclass</td><td>Generates __init__, __repr__ and __eq__ from annotated fields</td><td><code>@dataclass class Vehicle: plate: str</code></td></tr>
+    <tr><td>enum.Enum</td><td>Defines named constants</td><td><code>class Size(Enum): SMALL = 1</code></td></tr>
+    <tr><td>itertools.count(start)</td><td>Infinite counter</td><td><code>next(count(1))</code> gives 1</td></tr>
+    <tr><td>defaultdict(int)</td><td>Missing keys start at 0</td><td><code>d = defaultdict(int); d["a"] += 1</code></td></tr>
+    <tr><td>divmod(a, b)</td><td>Quotient and remainder together</td><td><code>divmod(100, 3)</code> gives (33, 1)</td></tr>
+    <tr><td>f"{x:02d}"</td><td>Zero-padded integer</td><td><code>f"{5:02d}"</code> gives 05</td></tr>
+    <tr><td>sorted(..., key=, reverse=)</td><td>Sorts by a key, optionally descending</td><td><code>sorted([3, 1], reverse=True)</code> gives [3, 1]</td></tr>
+    <tr><td>min(..., key=)</td><td>Smallest item by a key</td><td><code>min([3, 1], key=lambda x: x)</code> gives 1</td></tr>
+    <tr><td>dict.pop(key, default)</td><td>Removes a key and returns its value, or the default</td><td><code>d.pop("x", None)</code></td></tr>
+    <tr><td>OrderedDict.move_to_end(key)</td><td>Moves a key to the newest end</td><td><code>od.move_to_end("a")</code></td></tr>
+    <tr><td>OrderedDict.popitem(last=False)</td><td>Removes the oldest item</td><td><code>od.popitem(last=False)</code></td></tr>
+    <tr><td>bisect.bisect_left(a, x)</td><td>First index where x fits in sorted list a</td><td><code>bisect_left([1, 3, 5], 3)</code> gives 1</td></tr>
+    <tr><td>raise ValueError(msg)</td><td>Signals bad input and stops the operation</td><td><code>raise ValueError("bad")</code></td></tr>
+    <tr><td>try / except ... as e</td><td>Catches an error and keeps the variable</td><td><code>except ParkingFullError as error:</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 31?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 31 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-30.html"><small>Previous, day 30</small>System design 2: HLD case studies</a><a class="next" href="day-32.html"><small>Next, day 32</small>Web fundamentals: HTML, CSS, browser</a></nav>
+</main><script src="assets/app.js"></script></body></html>

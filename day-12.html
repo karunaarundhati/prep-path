@@ -1,0 +1,540 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 12: OS 3: Memory, virtual memory, storage, Linux</title><meta name="description" content="Today finishes the operating systems block with memory, storage and the tools you use to inspect them. You will learn how paging and segmentation translate addresses, why the TLB matters for speed, how virtual memory lets a program use more memory than is installed, how page replacement policies are compared by counting faults, why a system can thrash, how file systems and RAID store data, how disk scheduling orders head movement, and which Linux commands show it all. The DSA part is binary search, a pattern that interviewers expect you to write without a bug."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="12" data-key="12" data-noun="day" data-num="12" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>OS 3: <em>Memory, virtual memory, storage, Linux</em></h1>
+<p class="lede">Today finishes the operating systems block with memory, storage and the tools you use to inspect them. You will learn how paging and segmentation translate addresses, why the TLB matters for speed, how virtual memory lets a program use more memory than is installed, how page replacement policies are compared by counting faults, why a system can thrash, how file systems and RAID store data, how disk scheduling orders head movement, and which Linux commands show it all. The DSA part is binary search, a pattern that interviewers expect you to write without a bug.</p>
+<div class="station"><b>12</b><span>Fri 13 Nov 2026 · Systems · DSA: Binary search</span></div>
+<ul class="topics"><li>Paging and the TLB</li><li>Segmentation and fragmentation</li><li>Virtual memory and demand paging</li><li>Page replacement: FIFO, LRU, Optimal</li><li>Thrashing and the working set</li><li>File systems and RAID</li><li>Disk scheduling: FCFS, SSTF, SCAN, C-SCAN</li><li>Linux memory and storage commands</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Paging and the TLB">
+  <h2>Paging, the page table and the TLB</h2>
+  <p>Every program believes it owns a clean, private range of memory, usually starting at address 0. The physical RAM is shared by every running process and is not laid out that way. The operating system and the hardware bridge the gap by translating each <strong>logical address</strong> (the address the program uses) into a <strong>physical address</strong> (the real location in RAM). Paging is the most common way to do this translation.</p>
+  <p>With <strong>paging</strong>, the logical address space is cut into equal fixed-size blocks called <strong>pages</strong>, and physical memory is cut into blocks of the same size called <strong>frames</strong>. Typical sizes are 4 KB (4096 bytes). Any page can sit in any free frame, so the pages of one process do not need to be next to each other in RAM.</p>
+  <p>A logical address is split into two parts. The high part is the <strong>page number</strong> and the low part is the <strong>offset</strong> within the page. The offset is the same in the logical and physical address, because a page and its frame are the same size. Only the page number changes. The <strong>page table</strong> is a per-process table that maps each page number to a frame number.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Translation keeps the offset and swaps the page number for a frame number. physical = frame times page size, plus offset.</p></div>
+
+  <h3>A worked example</h3>
+  <p>Take a page size of 4096 bytes and a page table that says page 0 is in frame 5, page 1 is in frame 9, page 2 is in frame 3, and page 3 is in frame 7. To translate the logical address 8200, first find the page number and the offset. 8200 divided by 4096 is 2 with a remainder of 8, so the page is 2 and the offset is 8. Page 2 is in frame 3, so the physical address is 3 times 4096 plus 8, which is 12296. The program below does the same calculation, and it also shows what happens when the page is not in the table.</p>
+  <pre class="code" data-lang="python"><code>PAGE_SIZE = 4096
+page_table = {0: 5, 1: 9, 2: 3, 3: 7}      # page number -&gt; frame number
+
+def translate(logical):
+    page = logical // PAGE_SIZE            # which page
+    offset = logical % PAGE_SIZE           # where inside the page
+    if page not in page_table:
+        return f"page fault: page {page} is not in memory"
+    frame = page_table[page]
+    physical = frame * PAGE_SIZE + offset  # frame base plus the same offset
+    return f"logical {logical}: page {page}, offset {offset}, frame {frame}, physical {physical}"
+
+print(translate(8200))
+print(translate(4100))
+print(translate(20000))</code></pre>
+  <pre class="output">logical 8200: page 2, offset 8, frame 3, physical 12296
+logical 4100: page 1, offset 4, frame 9, physical 36868
+page fault: page 4 is not in memory</pre>
+  <p>The third call uses address 20000. Its page is 4, because 4 times 4096 is 16384 and 20000 lies between 16384 and 20480. The page table has no entry for page 4, so the hardware raises a <strong>page fault</strong>, a trap to the operating system. The next unit explains what the OS does next.</p>
+
+  <h3>Internal fragmentation</h3>
+  <p><strong>Fragmentation</strong> is memory that is allocated but cannot be used. With paging, the only waste is inside the last page of each process. Suppose a process needs 10,000 bytes. It needs three pages of 4096 bytes, which is 12,288 bytes. The last frame has 2,288 bytes that nobody can use. This waste is called <strong>internal fragmentation</strong>, because it is inside an allocated unit. On average each process wastes about half a page, which is the price paid for fixed-size frames.</p>
+
+  <h3>The TLB: making translation fast</h3>
+  <p>Paging has a cost. The page table itself lives in memory, so every translation would need one extra memory access before the real access. That would double the time for every read and write. The fix is the <strong>TLB</strong>, the translation lookaside buffer. It is a small, very fast cache of recent page-to-frame entries, built into the CPU. A <strong>TLB hit</strong> gives the frame at once. A <strong>TLB miss</strong> makes the hardware or OS walk the page table in memory, and then the new entry is loaded into the TLB, usually replacing an old one.</p>
+  <p>Programs tend to reuse the same pages for a while (this is called locality), so the hit ratio is usually high. We can measure the benefit with the <strong>effective access time</strong> (EAT), the average time per memory access. Assume a TLB lookup takes 20 ns, a memory access takes 100 ns, and the hit ratio is 0.80. A hit costs the TLB check plus one memory access, which is 20 plus 100, or 120 ns. A miss costs the TLB check, one access to read the page table, and one access for the data, which is 20 plus 100 plus 100, or 220 ns. The average is 0.80 times 120 plus 0.20 times 220, which is 96 plus 44, or 140 ns. Without the TLB every access would cost at least 200 ns.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the TLB, and why does it matter? It is a small hardware cache of page translations. Without it, every memory access would pay for a page table lookup in RAM. With a high hit ratio, the average translation cost stays close to the cost of one TLB check.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The TLB is per CPU and is flushed or tagged when the process changes. Address space switches therefore have a cost, which is one reason context switches are not free.</p></div>
+
+  <details class="check"><summary>A page size is 4 KB and a process uses 9,000 bytes. How many bytes are wasted by internal fragmentation?</summary><div class="ans"><p>9,000 bytes need three pages, because two pages give only 8,192 bytes. Three pages hold 12,288 bytes, so 3,288 bytes are wasted in the last page. The waste is always less than one page per allocation.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Segmentation">
+  <h2>Segmentation and external fragmentation</h2>
+  <p><strong>Segmentation</strong> divides a process's address space into logical pieces called <strong>segments</strong>: the code, the global data, the stack, the heap, and so on. Each segment has its own length, which may differ from the others. A logical address is a pair: a segment number and an offset within that segment.</p>
+  <p>The <strong>segment table</strong> holds, for each segment, a <strong>base</strong> (the physical start address) and a <strong>limit</strong> (the length). Translation has two steps. First, check that the offset is less than the limit. If it is not, the hardware traps, because the program has referred outside its segment. Second, add the offset to the base. Segment protection is a major benefit: each segment can be marked read-only or executable, and the hardware enforces it.</p>
+  <p>The program below uses a small segment table in the style of the textbook examples. Segment 2 starts at physical address 4300 and has length 400, so offset 53 maps to 4353. Segment 1 has length 400, so offset 500 is out of range.</p>
+  <pre class="code" data-lang="python"><code>SEGMENT_TABLE = {0: (1400, 1000), 1: (6300, 400), 2: (4300, 400), 3: (3200, 1100)}   # segment -&gt; (base, limit)
+
+def translate(segment, offset):
+    base, limit = SEGMENT_TABLE[segment]
+    if offset &gt;= limit:                     # outside the segment: the hardware traps
+        return f"trap: offset {offset} is beyond the limit {limit}"
+    return base + offset                   # physical address
+
+print(translate(2, 53))
+print(translate(1, 500))</code></pre>
+  <pre class="output">4353
+trap: offset 500 is beyond the limit 400</pre>
+
+  <h3>External fragmentation</h3>
+  <p>Segments have different lengths, so they must be placed in free memory of matching size. Over time, allocating and freeing segments leaves many small gaps between live segments. The total free memory may be large, yet no single gap is big enough for a new segment. This is <strong>external fragmentation</strong>, because the waste lies outside every allocated unit.</p>
+  <p>Allocators choose gaps with a policy. <strong>First fit</strong> takes the first gap that is big enough, and it is fast. <strong>Best fit</strong> takes the smallest gap that is big enough, which leaves small remnants that are hard to use. <strong>Worst fit</strong> takes the largest gap, which leaves larger remnants. None of them eliminates the problem. The classic cure is <strong>compaction</strong>, which slides live segments together to merge the gaps, but it costs time and needs relocation support.</p>
+
+  <h3>Paging vs segmentation</h3>
+  <div class="tablewrap"><table><thead><tr><th>Property</th><th>Paging</th><th>Segmentation</th></tr></thead><tbody>
+    <tr><td>Unit size</td><td>Fixed (for example 4 KB)</td><td>Variable, set by the program's logic</td></tr>
+    <tr><td>Address form</td><td>Page number and offset</td><td>Segment number and offset</td></tr>
+    <tr><td>Fragmentation</td><td>Internal, inside the last page</td><td>External, between segments</td></tr>
+    <tr><td>Visible to the programmer</td><td>No</td><td>Yes, segments match program parts</td></tr>
+    <tr><td>Main benefit</td><td>No external fragmentation, simple allocation</td><td>Protection and sharing by logical part</td></tr>
+  </tbody></table></div>
+  <p>Modern systems usually combine the two ideas, or use paging alone with protection bits per page. Mention this in an interview, because it shows you know the trade-off is about where the waste lands.</p>
+
+  <details class="check"><summary>Why does paging avoid external fragmentation, while segmentation does not?</summary><div class="ans"><p>Every frame is the same size, so any free frame fits any page. The free frames never need to be contiguous for one allocation. Segments have variable sizes, so the free gaps may be too small for a new segment even when the total free memory is large.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Virtual memory">
+  <h2>Virtual memory and demand paging</h2>
+  <p><strong>Virtual memory</strong> lets a process use more address space than the physical RAM installed, and lets the OS keep only the pages that are actively used in memory. The rest live on disk, in a swap area or in the program's own file. The program does not know; it just uses addresses.</p>
+  <p>The usual technique is <strong>demand paging</strong>: a page is loaded only when a program first touches it. Each page-table entry has a <strong>valid bit</strong>. If the bit says the page is in memory, the translation proceeds normally. If not, the access causes a page fault. The hardware raises a trap, and the OS handles it with these steps:</p>
+  <ol>
+    <li>The trap enters the kernel and the OS checks whether the address is legal. An address outside the process's regions is a real error, and the process gets a segmentation fault.</li>
+    <li>If the address is legal, the OS finds a free frame. If none is free, it picks a <strong>victim</strong> page using a page replacement algorithm. If the victim was modified, it is written to disk first. A <strong>dirty bit</strong> records whether a page has changed since it was loaded, so clean pages can be dropped without writing.</li>
+    <li>The OS schedules a disk read to bring the needed page into the frame. The process sleeps during the read, and the CPU runs other processes.</li>
+    <li>When the read completes, the OS updates the page table and sets the valid bit.</li>
+    <li>The faulting instruction is restarted, and this time the translation succeeds.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>A page fault is not an error in the normal case. It is how the OS loads a page on demand, and it is expensive only because the disk is slow.</p></div>
+
+  <h3>How much do faults cost?</h3>
+  <p>Let p be the probability that an access causes a fault. The effective access time is the normal access time times (1 minus p), plus the fault service time times p. Suppose a normal memory access takes 200 ns and a page fault takes 8 ms, which is 8,000,000 ns. If one access in a thousand faults, p is 0.001, and the average is 0.999 times 200 plus 0.001 times 8,000,000, which is 199.8 plus 8000, about 8200 ns. One fault in a thousand accesses makes memory about 41 times slower. That is why the OS works hard to keep the fault rate tiny.</p>
+
+  <h3>Copy-on-write</h3>
+  <p>Creating a process with <code>fork</code> in Unix-like systems would be slow if every page were copied at once. Modern systems use <strong>copy-on-write</strong>: parent and child share the same frames, marked read-only. Only when one of them writes does the OS copy that single page. Most forked processes call <code>exec</code> soon after, so most copies never happen.</p>
+
+  <details class="check"><summary>Why is a page fault for a page that is stored on disk much more costly than a TLB miss?</summary><div class="ans"><p>A TLB miss reads the page table in RAM, which takes about one memory access, around 100 ns in the example. A page fault waits for a disk read, which takes milliseconds, roughly tens of thousands of times longer. The disk is the bottleneck.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Page replacement and thrashing">
+  <h2>Page replacement, fault counts and thrashing</h2>
+  <p>When a page fault occurs and no frame is free, the OS must evict a page. The choice is made by a <strong>page replacement algorithm</strong>, and good choices reduce faults. Three algorithms are the standard reference:</p>
+  <ul>
+    <li><strong>FIFO.</strong> Evict the page that was loaded earliest. It is simple, but it ignores how often a page is used, so it may evict a busy page.</li>
+    <li><strong>LRU (least recently used).</strong> Evict the page that has gone unused for the longest time. It matches the locality of real programs well, but exact LRU needs bookkeeping on every access, which is expensive, so real systems approximate it.</li>
+    <li><strong>Optimal (OPT).</strong> Evict the page whose next use is farthest in the future. It gives the fewest possible faults, but it needs knowledge of the future, so it cannot be built into a real OS. It serves as a benchmark: no algorithm can beat it.</li>
+  </ul>
+  <p>To compare the algorithms, we use a <strong>reference string</strong>, the sequence of page numbers a program touches, and count the faults for a given number of frames. Consider this string with 3 frames: 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5. The table traces FIFO. A fault happens when the page is not in memory, and the page list shows the frames in the order they were loaded.</p>
+  <div class="tablewrap"><table><thead><tr><th>Reference</th><th>Frames after the reference (oldest first)</th><th>Result</th></tr></thead><tbody>
+    <tr><td>1</td><td>1</td><td>fault</td></tr>
+    <tr><td>2</td><td>1 2</td><td>fault</td></tr>
+    <tr><td>3</td><td>1 2 3</td><td>fault</td></tr>
+    <tr><td>4</td><td>2 3 4 (1 evicted)</td><td>fault</td></tr>
+    <tr><td>1</td><td>3 4 1 (2 evicted)</td><td>fault</td></tr>
+    <tr><td>2</td><td>4 1 2 (3 evicted)</td><td>fault</td></tr>
+    <tr><td>5</td><td>1 2 5 (4 evicted)</td><td>fault</td></tr>
+    <tr><td>1</td><td>1 2 5</td><td>hit</td></tr>
+    <tr><td>2</td><td>1 2 5</td><td>hit</td></tr>
+    <tr><td>3</td><td>2 5 3 (1 evicted)</td><td>fault</td></tr>
+    <tr><td>4</td><td>5 3 4 (2 evicted)</td><td>fault</td></tr>
+    <tr><td>5</td><td>5 3 4</td><td>hit</td></tr>
+  </tbody></table></div>
+  <p>Count the faults in the table: there are 9 faults, and 3 hits. The program below computes the fault counts for all three algorithms on this string, with 3 frames and with 4 frames, which exposes a surprising effect.</p>
+  <pre class="code" data-lang="python"><code>def fifo(refs, frames):
+    memory, faults = [], 0
+    for page in refs:
+        if page in memory:
+            continue                        # a hit changes nothing for FIFO
+        faults += 1
+        if len(memory) == frames:
+            memory.pop(0)                   # evict the page that arrived first
+        memory.append(page)
+    return faults
+
+def lru(refs, frames):
+    memory, faults = [], 0                  # front of the list = least recently used
+    for page in refs:
+        if page in memory:
+            memory.remove(page)             # a hit makes this page the most recent
+            memory.append(page)
+            continue
+        faults += 1
+        if len(memory) == frames:
+            memory.pop(0)                   # evict the least recently used page
+        memory.append(page)
+    return faults
+
+def optimal(refs, frames):
+    memory, faults = [], 0
+    for i, page in enumerate(refs):
+        if page in memory:
+            continue
+        faults += 1
+        if len(memory) == frames:
+            future = refs[i + 1:]
+            def next_use(p):
+                # distance to the next use of p, or infinity if it is never used again
+                return future.index(p) if p in future else float("inf")
+            memory.remove(max(memory, key=next_use))   # evict the farthest next use
+        memory.append(page)
+    return faults
+
+belady = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]
+for frames in (3, 4):
+    print(frames, "frames: FIFO", fifo(belady, frames), "LRU", lru(belady, frames), "OPT", optimal(belady, frames))</code></pre>
+  <pre class="output">3 frames: FIFO 9 LRU 10 OPT 7
+4 frames: FIFO 10 LRU 8 OPT 6</pre>
+  <p>Read the results carefully. With 3 frames, the order of quality is OPT (7 faults), then FIFO (9), then LRU (10). OPT is the best, as expected. Here FIFO beats LRU, which shows that "LRU is always best" is false. Both numbers depend on this particular string.</p>
+  <p>With 4 frames, FIFO gets worse: 10 faults instead of 9. Adding memory made FIFO slower on this string. This is <strong>Belady's anomaly</strong>, named after the researcher who found it. LRU and OPT never suffer from it, because they keep a stack property: the pages held with n frames are always a subset of the pages held with n plus 1 frames. FIFO does not have this property.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Counting faults by eye is error-prone. Count the misses for each algorithm separately, and remember that a hit does not change FIFO's queue, but it does change LRU's recency order.</p></div>
+
+  <h3>Thrashing and the working set</h3>
+  <p><strong>Thrashing</strong> is the collapse that happens when a system spends most of its time moving pages in and out of memory and very little time running the program. It starts when the processes together need more frames than memory holds. Each process faults, waits for the disk, and the OS responds by swapping more processes out and in. The CPU sits idle, the load average climbs, and throughput falls sharply.</p>
+  <p>The <strong>working set</strong> of a process is the set of pages it has referenced in a recent window of time. If each process keeps its working set in memory, faults are rare. The OS can estimate working sets, or watch the <strong>page-fault frequency</strong>: give a process more frames when its fault rate is high, and take frames away when it is low. When the total demand is too high, the OS lowers the <strong>degree of multiprogramming</strong>, meaning fewer processes run, so the rest can work efficiently.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you fix thrashing? Reduce the number of active processes, add memory, or make each process use fewer pages at a time. Explain that adding CPU does not help, because the CPU is already waiting on the disk.</p></div>
+
+  <details class="check"><summary>With 3 frames and the reference string 7, 0, 1, 2, 0, 3, 0, 4, which page does LRU evict when page 3 is requested?</summary><div class="ans"><p>Trace the frames: after 7, 0, 1 the memory holds 7, 0, 1. Page 2 evicts 7 (least recently used), so memory is 0, 1, 2. Page 0 is a hit and becomes most recent, so the order is 1, 2, 0. Page 3 is a fault, and LRU evicts 1, the least recently used page.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="File systems and RAID">
+  <h2>File systems and RAID</h2>
+  <p>A <strong>file system</strong> turns a raw disk, which is just numbered blocks, into named files and directories. Each file has metadata (size, owner, permissions and timestamps) and a list of the disk blocks that hold its data. In Unix-like systems the metadata lives in an <strong>inode</strong>, identified by an inode number. A <strong>directory</strong> is a special file that maps names to inode numbers. Two names that point to the same inode are <strong>hard links</strong>, and deleting one name does not delete the file until the last link goes.</p>
+  <h3>How the blocks are allocated</h3>
+  <ul>
+    <li><strong>Contiguous.</strong> The file occupies consecutive blocks. Reading is fast, but the file is hard to grow, and free space fragments just as memory does.</li>
+    <li><strong>Linked.</strong> Each block holds a pointer to the next. Growing is easy, but random access requires walking the chain, and losing one pointer can lose the rest of the file.</li>
+    <li><strong>Indexed.</strong> An index block lists the data blocks. Unix inodes use direct pointers for the first blocks, and indirect pointers that point to blocks of pointers for large files. Modern systems such as ext4 use extents, which describe runs of contiguous blocks compactly.</li>
+  </ul>
+  <p>The FAT family keeps a table of links in one place, so the chain can be followed without reading the data blocks. This is simple and was widely used on removable media.</p>
+  <p>Crashes are a central concern. A write can be interrupted halfway, leaving a directory that points to a half-written inode. <strong>Journaling</strong> solves this by writing the intended changes to a journal first, then applying them. After a crash, the file system replays or discards the journal entries, so it returns to a consistent state. Tools such as <code>fsck</code> check and repair file systems.</p>
+
+  <h3>RAID</h3>
+  <p><strong>RAID</strong> (originally Redundant Array of Inexpensive Disks, now often called Independent) combines several disks into one logical device. It serves two goals: speed, by spreading data across disks so they work in parallel, and reliability, by storing redundant information so a failed disk does not lose data. RAID is not a backup. It protects against hardware failure, not against deleted files, bugs, or ransomware.</p>
+  <div class="tablewrap"><table><thead><tr><th>Level</th><th>How it works</th><th>Usable capacity (N disks)</th><th>Survives one disk failure</th></tr></thead><tbody>
+    <tr><td>RAID 0</td><td>Striping: data split across disks, no redundancy</td><td>N disks</td><td>No</td></tr>
+    <tr><td>RAID 1</td><td>Mirroring: each block written to two disks</td><td>N divided by 2 (for a mirror pair)</td><td>Yes</td></tr>
+    <tr><td>RAID 5</td><td>Striping with one distributed parity block per stripe</td><td>N minus 1</td><td>Yes (needs at least 3 disks)</td></tr>
+    <tr><td>RAID 6</td><td>Striping with two parity blocks per stripe</td><td>N minus 2</td><td>Yes, and two failures too (needs at least 4 disks)</td></tr>
+    <tr><td>RAID 10</td><td>Mirrored pairs, then striped across the pairs</td><td>N divided by 2</td><td>Yes, one per mirror pair</td></tr>
+  </tbody></table></div>
+  <p>Parity works with the XOR operation. The parity block is the XOR of the data blocks in its stripe. If one disk is lost, its block equals the XOR of all the surviving blocks in that stripe. RAID 5 and RAID 6 spread the parity across all disks so no single disk is a bottleneck for writes. Writes are slower than reads in these levels because parity must be updated.</p>
+
+  <details class="check"><summary>Five disks are arranged as RAID 5. How many disks' worth of capacity is usable, and how many can fail?</summary><div class="ans"><p>RAID 5 uses one disk's worth of space for parity, so 4 disks of 5 are usable. One disk can fail, and the data is rebuilt from the surviving disks. A second failure before the rebuild finishes loses data.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Disk scheduling">
+  <h2>Disk scheduling: FCFS, SSTF, SCAN and C-SCAN</h2>
+  <p>A hard disk has a spinning platter and a moving arm with a head. To read a block, the head must first move to the right track, called a <strong>cylinder</strong>. This movement, the <strong>seek time</strong>, is usually the largest part of the delay. After the seek, the disk must wait for the sector to rotate under the head (<strong>rotational latency</strong>), and then transfer the data. The disk scheduler chooses the order in which pending requests are served to reduce seek time.</p>
+  <p>Assume a disk with cylinders numbered 0 to 199. The head starts at cylinder 53, and the queue of pending requests, in arrival order, is 98, 183, 37, 122, 14, 124, 65, 67. The measure of quality is the <strong>total head movement</strong>: the number of cylinders the head crosses in total.</p>
+  <ul>
+    <li><strong>FCFS (first come, first served).</strong> Serve requests in arrival order. It is fair and simple, but the head jumps back and forth across the disk.</li>
+    <li><strong>SSTF (shortest seek time first).</strong> Always serve the pending request nearest to the current head position. It moves the head much less, but a request far from the current area can be postponed indefinitely (starvation).</li>
+    <li><strong>SCAN (the elevator algorithm).</strong> The head sweeps in one direction to the end of the disk, serving requests on the way, then reverses. Requests at the edges wait a long time after a sweep passes, but no request waits forever.</li>
+    <li><strong>C-SCAN (circular SCAN).</strong> The head sweeps in one direction only. At the end it jumps back to the start without serving requests, then sweeps again. Waiting times are more uniform than with SCAN.</li>
+  </ul>
+  <p>The program below computes the order and total movement for each policy on this queue. It makes one convention explicit. SCAN is assumed to sweep up to cylinder 199 before reversing, even though there is no request there. C-SCAN counts its return jump from 199 to 0 as head movement, so the total includes that jump. Many textbooks use the same convention, and you should always state yours in an interview.</p>
+  <pre class="code" data-lang="python"><code>HEAD = 53
+REQUESTS = [98, 183, 37, 122, 14, 124, 65, 67]
+END = 199                                     # the last cylinder; cylinders run 0 to 199
+
+def fcfs(head, reqs):
+    order, cur, moved = [], head, 0
+    for r in reqs:
+        moved += abs(r - cur)                 # distance crossed for this request
+        cur = r
+        order.append(r)
+    return order, moved
+
+def sstf(head, reqs):
+    pending, order, cur, moved = list(reqs), [], head, 0
+    while pending:
+        nxt = min(pending, key=lambda r: abs(r - cur))   # nearest request first
+        moved += abs(nxt - cur)
+        cur = nxt
+        order.append(nxt)
+        pending.remove(nxt)
+    return order, moved
+
+def scan(head, reqs):
+    up = sorted(r for r in reqs if r &gt;= head)                     # served on the way up
+    down = sorted((r for r in reqs if r &lt; head), reverse=True)    # served on the way back
+    lowest = down[-1] if down else head
+    moved = (END - head) + (END - lowest)     # up to the end, then back down to the lowest
+    return up + down, moved
+
+def c_scan(head, reqs):
+    up = sorted(r for r in reqs if r &gt;= head)
+    low = sorted(r for r in reqs if r &lt; head)                     # served after the jump
+    moved = (END - head) + END + (low[-1] if low else 0)    # up, jump 199 to 0, then up again
+    return up + low, moved
+
+for name, (order, moved) in [("FCFS", fcfs(HEAD, REQUESTS)),
+                             ("SSTF", sstf(HEAD, REQUESTS)),
+                             ("SCAN", scan(HEAD, REQUESTS)),
+                             ("C-SCAN", c_scan(HEAD, REQUESTS))]:
+    print(name, "order", order, "movement", moved)</code></pre>
+  <pre class="output">FCFS order [98, 183, 37, 122, 14, 124, 65, 67] movement 640
+SSTF order [65, 67, 37, 14, 98, 122, 124, 183] movement 236
+SCAN order [65, 67, 98, 122, 124, 183, 37, 14] movement 331
+C-SCAN order [65, 67, 98, 122, 124, 183, 14, 37] movement 382</pre>
+  <p>Trace FCFS by hand to be sure you understand it. The head goes 53 to 98 (45 cylinders), then to 183 (85), then back to 37 (146), then to 122 (85), to 14 (108), to 124 (110), to 65 (59), and finally to 67 (2). Add them: 45 plus 85 plus 146 plus 85 plus 108 plus 110 plus 59 plus 2 is 640.</p>
+  <p>SSTF is much shorter. From 53 the nearest request is 65 (12 away), then 67 (2), then 37 (30), then 14 (23), then 98 (84), then 122 (24), then 124 (2), then 183 (59). The total is 236. The price is that the far requests at 183 are served last, after the head has been in the middle of the disk for a long time.</p>
+  <p>SCAN moves up from 53 to the end at 199, which is 146 cylinders. It serves 65, 67, 98, 122, 124 and 183 on the way up, then reverses and travels from 199 down to 14, which is 185 cylinders, and serves 37 and 14 on the way back. The total is 146 plus 185, or 331. C-SCAN also travels up to 199 (146), jumps back to 0 (199), and then climbs from 0 to 37 (37), serving 14 and 37 on that final climb. The total is 146 plus 199 plus 37, or 382. C-SCAN costs more movement than SCAN here, but it makes the wait for each request more even, because the head never reverses across the middle of the disk.</p>
+  <div class="note key"><p><span class="t">Key idea</span>SSTF minimizes movement at the risk of starvation. SCAN and C-SCAN trade some movement for fairness. FCFS is fair but wasteful.</p></div>
+
+  <details class="check"><summary>Why can SSTF starve a request, and how does SCAN avoid that?</summary><div class="ans"><p>SSTF always picks the nearest request. If new requests keep arriving near the head, a request far away is never the nearest, so it waits forever. SCAN sweeps across the whole disk, so every request is reached within one sweep, which bounds the wait.</p></div></details>
+</section>
+
+<section class="unit" id="c7" data-title="Linux commands">
+  <h2>Linux commands for memory and storage</h2>
+  <p>Interviewers like to ask what you would run to investigate a slow machine. The commands below read the kernel's counters. None of them change the system, so they are safe to run. Commands that print samples over time, such as <code>vmstat 1 5</code>, stop after the count you give.</p>
+  <pre class="code" data-lang="bash"><code>free -h                      # memory and swap in human units (see "available")
+cat /proc/meminfo            # every memory counter the kernel tracks
+vmstat 1 5                   # five samples, one per second; si and so are swap in and out
+swapon --show               # swap devices and how full each one is
+sysctl vm.swappiness         # how eagerly the kernel swaps; the usual default is 60
+lsblk                        # block devices and partitions as a tree
+findmnt                      # mounted file systems as a tree
+df -h                        # free space on each file system
+du -sh /var/log              # total size of one directory
+ls -li notes.txt             # -i adds the inode number of each file
+stat notes.txt               # inode, size, blocks and timestamps of one file
+ps -eo pid,stat,comm         # process ID, state (D = waiting on I/O, Z = zombie), name
+pmap -x 1234                 # memory map of process 1234 (replace 1234 with a real PID)
+iostat -x 1 3                # per-disk utilization and wait times (needs the sysstat package)
+ulimit -a                    # per-process resource limits for this shell</code></pre>
+  <p>Read the output of <code>free</code> with care. The Linux kernel uses spare RAM as a page cache, so "free" memory is often small even on a healthy machine. The useful number is <strong>available</strong>, which estimates how much memory could be given to new programs without swapping. <code>MemAvailable</code> in <code>/proc/meminfo</code> is the same estimate.</p>
+  <p>In <code>vmstat</code>, the <code>si</code> and <code>so</code> columns show pages swapped in and out per second. Sustained nonzero values with a high <code>wa</code> (CPU time waiting on I/O) suggest memory pressure or thrashing. In <code>ps</code>, a state of D means a process is in uninterruptible sleep, usually waiting on disk, and a state of Z means a zombie: a finished process whose parent has not yet collected its exit status.</p>
+  <div class="note tip"><p><span class="t">Tip</span>When someone reports that a server is slow, check in this order: memory (free, vmstat), disk (iostat, df), then the busiest processes (ps). This order narrows the problem quickly.</p></div>
+
+  <details class="check"><summary>Why does <code>free</code> often show little free memory on a healthy Linux machine?</summary><div class="ans"><p>The kernel uses otherwise unused RAM as a page cache for files, so that disk reads are fast. That memory is reclaimable when a program needs it. The "available" column counts this reclaimable cache, so it shows how much new programs could get without swapping.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before opening the answer. Strong answers name the trade-off and one concrete number.</p>
+  <details class="check"><summary>What is the difference between internal and external fragmentation?</summary><div class="ans"><p>Internal fragmentation is waste inside an allocated unit, such as the unused part of the last page. External fragmentation is free memory split into gaps too small to be used, between allocated units. Paging causes internal fragmentation, and variable-size segments cause external fragmentation.</p></div></details>
+  <details class="check"><summary>What does the TLB do, and what happens on a miss?</summary><div class="ans"><p>The TLB caches recent page-to-frame translations in fast hardware. On a hit, the frame is known immediately. On a miss, the page table in memory is read, and the entry is loaded into the TLB for future use.</p></div></details>
+  <details class="check"><summary>List the steps of handling a page fault.</summary><div class="ans"><p>Trap to the kernel, check the address is legal, find a free frame or evict a victim (writing it out if dirty), read the needed page from disk, update the page table and valid bit, and restart the faulting instruction.</p></div></details>
+  <details class="check"><summary>Which page replacement algorithm gives the fewest faults, and can a real OS use it?</summary><div class="ans"><p>Optimal replacement gives the fewest faults, because it evicts the page whose next use is farthest away. A real OS cannot use it, since it needs to know future accesses. It is used as a benchmark for other algorithms.</p></div></details>
+  <details class="check"><summary>What is Belady's anomaly?</summary><div class="ans"><p>It is the effect where adding frames increases the number of page faults. FIFO can show it, as the 3-frame and 4-frame results for the string 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 show (9 faults versus 10). LRU and OPT do not suffer from it.</p></div></details>
+  <details class="check"><summary>What is thrashing, and how is it fixed?</summary><div class="ans"><p>Thrashing is when processes together need more frames than memory holds, so the system spends most of its time paging and little time computing. It is fixed by reducing the number of active processes, giving each one its working set, or adding memory.</p></div></details>
+  <details class="check"><summary>What is the difference between a hard link and a symbolic link, at a high level?</summary><div class="ans"><p>A hard link is another directory entry pointing to the same inode, so both names are equal and the data is freed only after the last link is removed. A symbolic link is a small file that stores a path to another name, and it can dangle if the target is removed.</p></div></details>
+  <details class="check"><summary>Why does RAID 5 need at least three disks, and what does its parity let it do?</summary><div class="ans"><p>A RAID 5 stripe needs at least two data blocks plus one parity block, and the parity must sit on a different disk from its data, so the array needs three disks to be a real distributed-parity layout. With parity, any single lost block equals the XOR of the others in its stripe, so one disk can fail without losing data.</p></div></details>
+  <details class="check"><summary>Which disk scheduling policy minimizes total head movement, and what is its drawback?</summary><div class="ans"><p>SSTF minimizes movement in simple cases by always serving the nearest request. Its drawback is starvation: requests far from the head can wait indefinitely while nearby requests keep arriving.</p></div></details>
+  <details class="check"><summary>Why does SCAN have a more uniform wait time than SSTF?</summary><div class="ans"><p>SCAN sweeps the whole disk in each pass, so every pending request is reached within one sweep. SSTF can keep serving one busy area and postpone far requests indefinitely, which gives a much wider spread of waits.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: binary search</h2>
+  <p><strong>Binary search</strong> finds a value in a sorted array in O(log n) time by discarding half of the remaining range at every step. For an array of one million items, about 20 comparisons are enough, because 2 to the power 20 is about one million.</p>
+  <p>The pattern is wider than sorted arrays. Binary search works on any <strong>monotonic</strong> question: a yes-or-no test whose answer changes only once as the input grows, such as "is speed k fast enough?" The key is to keep an invariant that the answer always lies inside a range [left, right], and to shrink that range each step.</p>
+  <p>Most bugs come from the loop boundaries. The version used below is the most reliable template. Use <code>while left &lt;= right</code> when you search for an exact value. Compute the middle with <code>left + (right - left) // 2</code>, which avoids overflow in languages with fixed-size integers. After comparing, move the boundary past the middle (<code>mid + 1</code> or <code>mid - 1</code>), so the range always shrinks and the loop always ends. A common bug is setting <code>left = mid</code>, which can loop forever when the range has two items.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Each step must shrink the range, and the boundary must move past mid. If you cannot say what the invariant is, your loop boundaries are probably wrong.</p></div>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/binary-search/">
+    <h3>Binary Search (LeetCode 704)</h3>
+    <div class="statement"><p>Given a sorted array of distinct integers nums and a target, return the index of target, or -1 if it is not present. You must run in O(log n) time. For example, nums = [-1, 0, 3, 5, 9, 12] and target = 9 gives 4, and target = 2 gives -1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The array is sorted and has distinct values, so there is at most one answer. The time bound rules out a linear scan.</li>
+      <li><strong>Brute force.</strong> Loop through the array and compare each value with the target. That is O(n).</li>
+      <li><strong>Find the waste.</strong> Comparing with the middle tells us which half can contain the target, so the other half can be discarded without looking at it.</li>
+      <li><strong>Optimise.</strong> Keep left and right bounds. Look at the middle. If it equals the target, return its index. If the middle is smaller, the target must be to the right. If larger, it must be to the left. Stop when the bounds cross.</li>
+      <li><strong>Dry run for target 9.</strong> left = 0, right = 5, mid = 2, value 3, which is smaller than 9, so left becomes 3. Now mid = (3 + 5) // 2 = 4, value 9, which matches. Return 4.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def search(nums, target):
+    left, right = 0, len(nums) - 1
+    while left &lt;= right:
+        mid = left + (right - left) // 2     # safe form of (left + right) // 2
+        if nums[mid] == target:
+            return mid
+        if nums[mid] &lt; target:
+            left = mid + 1                   # the target can only be to the right
+        else:
+            right = mid - 1                  # the target can only be to the left
+    return -1
+
+print(search([-1, 0, 3, 5, 9, 12], 9))
+print(search([-1, 0, 3, 5, 9, 12], 2))</code></pre>
+    <pre class="output">4
+-1</pre>
+    <p class="cx">Time O(log n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>In a sorted array, compare with the middle and discard the half that cannot contain the answer. Always move the boundary past mid.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/search-in-rotated-sorted-array/">
+    <h3>Search in Rotated Sorted Array (LeetCode 33)</h3>
+    <div class="statement"><p>An ascending array of distinct integers has been rotated at an unknown pivot, so [0, 1, 2, 4, 5, 6, 7] might become [4, 5, 6, 7, 0, 1, 2]. Given such an array and a target, return its index or -1, in O(log n) time. For example, [4, 5, 6, 7, 0, 1, 2] with target 0 gives 4, and with target 3 gives -1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The array is no longer fully sorted, but it is made of two sorted pieces. At any split point, at least one of the two halves is sorted.</li>
+      <li><strong>Brute force.</strong> Scan the array for the target, which is O(n).</li>
+      <li><strong>Find the waste.</strong> If we know which half is sorted, we can check whether the target lies inside that sorted half by comparing with its ends. If it does, search there. If not, it must be in the other half.</li>
+      <li><strong>Optimise.</strong> At each middle, test whether the left half is sorted by comparing nums[left] with nums[mid]. If it is sorted and the target is within its range, move right to mid minus 1. If it is sorted and the target is not in range, move to mid plus 1. If the right half is sorted, do the mirror-image test.</li>
+      <li><strong>Dry run for target 0.</strong> left = 0, right = 6, mid = 3 (value 7). The left half [4, 5, 6, 7] is sorted, and 0 is not in [4, 7], so left becomes 4. Now mid = 5 (value 1). The left half [0, 1] is sorted, and 0 lies in [0, 1), so right becomes 4. Now mid = 4 holds 0, so return 4.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def search_rotated(nums, target):
+    left, right = 0, len(nums) - 1
+    while left &lt;= right:
+        mid = (left + right) // 2
+        if nums[mid] == target:
+            return mid
+        if nums[left] &lt;= nums[mid]:                       # the left half is sorted
+            if nums[left] &lt;= target &lt; nums[mid]:           # target lies in that sorted half
+                right = mid - 1
+            else:
+                left = mid + 1
+        else:                                             # the right half is sorted
+            if nums[mid] &lt; target &lt;= nums[right]:          # target lies in that sorted half
+                left = mid + 1
+            else:
+                right = mid - 1
+    return -1
+
+print(search_rotated([4, 5, 6, 7, 0, 1, 2], 0))
+print(search_rotated([4, 5, 6, 7, 0, 1, 2], 3))
+print(search_rotated([1], 0))</code></pre>
+    <pre class="output">4
+-1
+-1</pre>
+    <p class="cx">Time O(log n) · Space O(1)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Using nums[left] &lt; nums[mid] instead of &lt;= fails when left equals mid, which happens when the range has one or two items. The equality matters.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When the array is sorted in pieces, first find which half is sorted, then test whether the target falls inside that sorted half.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/koko-eating-bananas/">
+    <h3>Koko Eating Bananas (LeetCode 875)</h3>
+    <div class="statement"><p>Koko has piles of bananas and h hours. She eats at a speed of k bananas per hour, and in each hour she eats from one pile only. If a pile has fewer than k bananas, she finishes it in that hour and does not eat more. Return the minimum integer k that lets her finish within h hours. For example, piles = [3, 6, 7, 11] and h = 8 give 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The answer is a speed, not an index in an array. Speeds are integers from 1 up to the largest pile.</li>
+      <li><strong>Brute force.</strong> Try k = 1, 2, 3 and so on, and stop at the first speed that works. That can take up to the size of the largest pile steps, each costing a pass over the piles.</li>
+      <li><strong>Find the structure.</strong> If speed k finishes in time, any faster speed also does. So the set of working speeds is a range that starts at some minimum and goes to infinity. We need the first value in that range, which is a monotonic yes-or-no question.</li>
+      <li><strong>Optimise.</strong> Binary search on the speed. For a candidate k, compute the hours needed: each pile of p bananas takes ceil(p / k) hours. If the total is at most h, k works, and we look for something smaller. If not, we need something faster.</li>
+      <li><strong>Dry run for piles [3, 6, 7, 11] and h = 8.</strong> The search range is 1 to 11. Try mid = 6: hours are 1 + 1 + 2 + 2 = 6, which fits, so right = 6. Try mid = 3: hours are 1 + 2 + 3 + 4 = 10, too many, so left = 4. Try mid = 5: hours are 1 + 2 + 2 + 3 = 8, which fits, so right = 5. Try mid = 4: hours are 8, which fits, so right = 4. Now left equals right, and the answer is 4.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import math
+
+def min_eating_speed(piles, h):
+    def can_finish(k):
+        hours = 0
+        for p in piles:
+            hours += math.ceil(p / k)     # a partial hour still counts as a full hour
+        return hours &lt;= h
+
+    left, right = 1, max(piles)           # the answer is between 1 and the largest pile
+    while left &lt; right:
+        mid = (left + right) // 2
+        if can_finish(mid):
+            right = mid                   # mid works, so look for something smaller
+        else:
+            left = mid + 1                # mid is too slow, so go faster
+    return left
+
+print(min_eating_speed([3, 6, 7, 11], 8))
+print(min_eating_speed([30, 11, 23, 4, 20], 5))
+print(min_eating_speed([30, 11, 23, 4, 20], 6))</code></pre>
+    <pre class="output">4
+30
+23</pre>
+    <p class="cx">Time O(n log m), where m is the largest pile · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need the smallest value that satisfies a monotonic test, binary search on the answer itself. The search range is the set of possible answers, not an array.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/median-of-two-sorted-arrays/">
+    <h3>Median of Two Sorted Arrays (LeetCode 4)</h3>
+    <div class="statement"><p>Given two sorted arrays a and b of sizes m and n, return the median of the combined elements. The overall run time must be O(log(m + n)). For example, a = [1, 3] and b = [2] give 2.0, and a = [1, 2] and b = [3, 4] give 2.5.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The median splits the combined data into two halves of equal size (or differing by one). Everything in the left half is at most everything in the right half. We never need to merge the arrays.</li>
+      <li><strong>Brute force.</strong> Merge the two sorted arrays and pick the middle. That is O(m + n), which is too slow for the required bound.</li>
+      <li><strong>Find the waste.</strong> We only need to find the split point. If we take i elements from a for the left half, the number of elements taken from b is fixed, because the left half has a known size. So the whole problem is to find one number i.</li>
+      <li><strong>Optimise.</strong> Binary search on i, which ranges from 0 to m. For each i, the left half holds a[0 to i-1] and b[0 to j-1], where j is the leftover needed. The split is correct when the largest value on the left is at most the smallest value on the right, for both arrays. If a's left boundary is too big, move i left. If it is too small, move i right. Use plus and minus infinity to handle empty sides.</li>
+      <li><strong>Dry run for a = [1, 3] and b = [2].</strong> Swap so that a is the shorter array: a = [2], b = [1, 3]. The total is 3, so the left half has 2 elements. Try i = 0: the left side of a is empty, and the right side of b starts at 3, but b's left value 3 is larger than a's right value 2, so i must increase. Try i = 1: a's left value is 2, and b takes j = 1 element, value 1. Both left values are at most both right values, and the total is odd, so the answer is the largest left value, max(2, 1), which is 2.0.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def find_median_sorted_arrays(a, b):
+    if len(a) &gt; len(b):
+        a, b = b, a                              # binary search the shorter array
+    m, n = len(a), len(b)
+    left_size = (m + n + 1) // 2                 # how many elements belong to the left half
+    lo, hi = 0, m
+    while lo &lt;= hi:
+        i = (lo + hi) // 2                       # elements taken from a for the left half
+        j = left_size - i                        # elements taken from b for the left half
+        a_left = a[i - 1] if i &gt; 0 else float("-inf")
+        a_right = a[i] if i &lt; m else float("inf")
+        b_left = b[j - 1] if j &gt; 0 else float("-inf")
+        b_right = b[j] if j &lt; n else float("inf")
+        if a_left &lt;= b_right and b_left &lt;= a_right:    # a valid split was found
+            if (m + n) % 2 == 1:
+                return float(max(a_left, b_left))
+            return (max(a_left, b_left) + min(a_right, b_right)) / 2
+        if a_left &gt; b_right:
+            hi = i - 1                           # too many from a, move left
+        else:
+            lo = i + 1                           # too few from a, move right
+
+print(find_median_sorted_arrays([1, 3], [2]))
+print(find_median_sorted_arrays([1, 2], [3, 4]))</code></pre>
+    <pre class="output">2.0
+2.5</pre>
+    <p class="cx">Time O(log(min(m, n))) · Space O(1)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Searching the longer array, or merging the arrays first, loses the required time bound. Also forget the sentinel values (infinity) at the edges, and the code indexes out of range on empty halves.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To split two sorted arrays into equal halves, binary search for the cut in the shorter array. The other cut follows from the total size.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this as a quick reference before the interview. Each line should be something you can say in one breath.</p>
+  <dl>
+    <div><dt>Logical address</dt><dd>The address a program uses, translated by the hardware to a physical address.</dd></div>
+    <div><dt>Page and frame</dt><dd>Equal-sized blocks of the logical address space (pages) and of physical RAM (frames).</dd></div>
+    <div><dt>Page table</dt><dd>A per-process table that maps each page number to a frame number.</dd></div>
+    <div><dt>Offset</dt><dd>The position inside a page or segment, which stays the same after translation.</dd></div>
+    <div><dt>Internal fragmentation</dt><dd>Waste inside an allocated unit, such as the unused end of the last page.</dd></div>
+    <div><dt>External fragmentation</dt><dd>Free memory split into gaps too small to use, between allocated units.</dd></div>
+    <div><dt>Segment table</dt><dd>A table of base and limit pairs, one per segment, used to check offsets and translate them.</dd></div>
+    <div><dt>TLB</dt><dd>A small hardware cache of recent page translations that avoids most page table lookups.</dd></div>
+    <div><dt>Effective access time</dt><dd>The average memory access time, weighted by hit and miss ratios or fault probability.</dd></div>
+    <div><dt>Virtual memory</dt><dd>Address space larger than RAM, with pages loaded from disk on demand.</dd></div>
+    <div><dt>Demand paging</dt><dd>Loading a page only when a program first touches it.</dd></div>
+    <div><dt>Valid bit and dirty bit</dt><dd>The valid bit says a page is in memory. The dirty bit says it was modified and must be written before eviction.</dd></div>
+    <div><dt>Page fault</dt><dd>A trap raised when a referenced page is not in memory, handled by the OS.</dd></div>
+    <div><dt>Copy-on-write</dt><dd>Sharing pages after fork until one process writes, then copying only that page.</dd></div>
+    <div><dt>FIFO, LRU, Optimal</dt><dd>Replacement policies that evict the oldest, least recently used, or farthest-needed page.</dd></div>
+    <div><dt>Belady's anomaly</dt><dd>More frames causing more faults, which FIFO can show but LRU and OPT never do.</dd></div>
+    <div><dt>Thrashing</dt><dd>A state where processes need more frames than memory holds, so the system mostly pages.</dd></div>
+    <div><dt>Working set</dt><dd>The pages a process has used recently, which should stay in memory.</dd></div>
+    <div><dt>Inode</dt><dd>The Unix structure holding a file's metadata and the locations of its data blocks.</dd></div>
+    <div><dt>Journaling</dt><dd>Recording intended changes before applying them, so a crash can be recovered cleanly.</dd></div>
+    <div><dt>RAID 0, 1, 5, 6, 10</dt><dd>Striping, mirroring, striping with parity, double parity, and mirrored stripes.</dd></div>
+    <div><dt>Parity</dt><dd>The XOR of the data blocks in a stripe, which rebuilds one lost block.</dd></div>
+    <div><dt>Seek time and rotational latency</dt><dd>Time to move the head to a cylinder, and time to wait for the sector to rotate under it.</dd></div>
+    <div><dt>FCFS, SSTF, SCAN, C-SCAN</dt><dd>Disk policies: arrival order, nearest request, elevator sweep, and one-way sweep with a jump back.</dd></div>
+    <div><dt>Binary search</dt><dd>Repeatedly halving a range that is known to contain the answer, in O(log n) steps.</dd></div>
+    <div><dt>Binary search on the answer</dt><dd>Searching a range of possible answers using a monotonic yes-or-no test.</dd></div>
+  </dl>
+  <h3>Functions and commands at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td><code>free -h</code></td><td>Shows memory and swap in human units</td><td><code>free -h</code></td></tr>
+      <tr><td><code>cat /proc/meminfo</code></td><td>Lists every memory counter the kernel tracks</td><td><code>grep MemAvailable /proc/meminfo</code></td></tr>
+      <tr><td><code>vmstat 1 5</code></td><td>Five one-second samples of memory, swap and CPU</td><td><code>vmstat 1 5</code></td></tr>
+      <tr><td><code>swapon --show</code></td><td>Lists active swap devices</td><td><code>swapon --show</code></td></tr>
+      <tr><td><code>sysctl vm.swappiness</code></td><td>Reads the swap tendency setting</td><td><code>sysctl vm.swappiness</code></td></tr>
+      <tr><td><code>lsblk</code></td><td>Shows block devices and partitions as a tree</td><td><code>lsblk</code></td></tr>
+      <tr><td><code>df -h</code></td><td>Shows free space per file system</td><td><code>df -h /</code></td></tr>
+      <tr><td><code>du -sh DIR</code></td><td>Shows total size of a directory</td><td><code>du -sh ~/Downloads</code></td></tr>
+      <tr><td><code>ls -li</code></td><td>Lists files with their inode numbers</td><td><code>ls -li notes.txt</code></td></tr>
+      <tr><td><code>stat FILE</code></td><td>Shows inode, size, blocks and timestamps</td><td><code>stat notes.txt</code></td></tr>
+      <tr><td><code>ps -eo pid,stat,comm</code></td><td>Shows process IDs, states and names</td><td><code>ps -eo pid,stat,comm</code></td></tr>
+      <tr><td><code>iostat -x 1 3</code></td><td>Shows per-disk utilization and wait times</td><td><code>iostat -x 1 3</code></td></tr>
+      <tr><td><code>bisect.bisect_left(a, x)</code></td><td>Python: index where x would be inserted in sorted list a</td><td><code>bisect.bisect_left([1, 3, 5, 7], 5)</code> gives 2</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 12?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 12 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-11.html"><small>Previous, day 11</small>Concurrency and multithreading in practice</a><a class="next" href="day-13.html"><small>Next, day 13</small>Virtualization, Docker, Kubernetes</a></nav>
+</main><script src="assets/app.js"></script></body></html>

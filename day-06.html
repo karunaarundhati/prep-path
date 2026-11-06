@@ -1,0 +1,838 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 6: Java essentials</title><meta name="description" content="Today covers the Java essentials that interviewers test most often. You will learn what the JDK, JRE and JVM are and how the JVM uses memory, why String is immutable and how the string pool works, how equals, hashCode and == differ, how interfaces compare with abstract classes, how the main collections work inside (including HashMap internals), how checked and unchecked exceptions and generics behave, how lambdas and streams simplify loops, and how threads run. The DSA topic is prefix sums and difference arrays, which answer range questions in constant time."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="6" data-key="6" data-noun="day" data-num="6" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Java essentials</h1>
+<p class="lede">Today covers the Java essentials that interviewers test most often. You will learn what the JDK, JRE and JVM are and how the JVM uses memory, why String is immutable and how the string pool works, how equals, hashCode and == differ, how interfaces compare with abstract classes, how the main collections work inside (including HashMap internals), how checked and unchecked exceptions and generics behave, how lambdas and streams simplify loops, and how threads run. The DSA topic is prefix sums and difference arrays, which answer range questions in constant time.</p>
+<div class="station"><b>6</b><span>Sat 7 Nov 2026 · Programming · DSA: Prefix sums and difference arrays</span></div>
+<ul class="topics"><li>JDK, JRE, JVM</li><li>String, pool, StringBuilder</li><li>equals, hashCode, ==</li><li>Interfaces vs abstract classes</li><li>Collections and HashMap</li><li>Exceptions and generics</li><li>Lambdas and streams</li><li>Threads basics</li><li>Prefix sums DSA</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="JDK, JRE and JVM">
+  <h2>JDK, JRE, JVM and JVM memory</h2>
+  <p>Java programs do not run directly on the hardware. The Java compiler, <code>javac</code>, turns source files into <em>bytecode</em>, a compact instruction set stored in <code>.class</code> files. Bytecode runs on the <strong>Java Virtual Machine (JVM)</strong>, a program that loads classes, checks them, runs them, and manages memory. The same bytecode runs on any operating system that has a JVM, which is the origin of the phrase "write once, run anywhere".</p>
+
+  <p>Three names appear constantly, and they nest like boxes. The <strong>JVM</strong> executes bytecode. The <strong>JRE</strong> (Java Runtime Environment) is the JVM plus the standard libraries needed to run programs. The <strong>JDK</strong> (Java Development Kit) is the JRE plus development tools, such as <code>javac</code>, the debugger and the documentation generator. If you install the JDK, you have everything. Modern releases ship only the JDK, because the separate JRE download was dropped.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>JDK contains JRE, JRE contains JVM. Write code with the JDK, run it on the JVM.</p></div>
+
+  <h3>How the JVM uses memory</h3>
+  <p>Interviewers often ask where objects live. The JVM divides its memory into areas. Each thread has its own <strong>stack</strong>, which holds method call frames and local variables of primitive types, plus references to objects. All objects live in the shared <strong>heap</strong>, which the garbage collector cleans up when objects are no longer reachable. The <strong>method area</strong> (called Metaspace in modern HotSpot JVMs) holds class metadata, such as the structure of each class and its static fields. String literals live in a special part of the heap called the string pool, covered in the next section.</p>
+
+  <p>A small example shows how the parts cooperate. When <code>main</code> calls <code>makeGreeting</code>, a new frame goes on the current thread's stack. The local variable <code>name</code> holds a reference, which is the address of a String object on the heap. When <code>makeGreeting</code> returns, its frame is removed, and the String object becomes garbage once nothing else refers to it.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Java has no stack-allocated objects. A variable of a class type is a reference, and the object it names always lives on the heap. Passing an object to a method passes a copy of the reference, not a copy of the object.</p></div>
+
+  <details class="check"><summary>What is the difference between the JDK, the JRE and the JVM?</summary><div class="ans"><p>The JVM runs bytecode. The JRE is the JVM plus the standard libraries needed to run a program. The JDK is the JRE plus the development tools, such as the compiler javac. A developer installs the JDK, and a machine that only runs programs needs the JRE, or in modern releases the JVM and libraries.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Strings">
+  <h2>String immutability, the string pool and StringBuilder</h2>
+  <p>A <code>String</code> in Java is <strong>immutable</strong>: once created, its characters never change. Methods such as <code>toUpperCase</code> do not change the string they are called on. They return a new string. Immutability makes strings safe to share between threads and safe to use as keys in a hash map, because their value cannot change under you.</p>
+
+  <p>Because many strings are the same text, the JVM keeps a <strong>string pool</strong>. When your code writes a literal such as <code>"hello"</code>, the JVM reuses one pooled object for every occurrence of that literal. A string created with <code>new String("hello")</code> is a separate object on the heap, even though its text is the same. The <code>==</code> operator compares object identity, which is the question "are these the same object?", so the two cases behave differently.</p>
+
+<pre class="code" data-lang="java"><code>public class Strings {
+    public static void main(String[] args) {
+        String a = "hello";
+        String b = "hello";                 // the same pooled object as a
+        String c = new String("hello");     // a new object on the heap
+        System.out.println(a == b);
+        System.out.println(a == c);
+        System.out.println(a.equals(c));    // equals compares the text
+        System.out.println(a == c.intern()); // intern returns the pooled instance
+
+        String s = "java";
+        s.toUpperCase();                    // returns a new string, s is unchanged
+        System.out.println(s);
+        s = s.toUpperCase();                // assign the new string to s
+        System.out.println(s);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i &lt; 3; i++) {
+            sb.append(i).append(',');
+        }
+        sb.setLength(sb.length() - 1);      // remove the trailing comma
+        System.out.println(sb);
+        System.out.println(sb.reverse());   // reverse changes sb in place
+    }
+}</code></pre>
+<pre class="output">true
+false
+true
+true
+java
+JAVA
+0,1,2
+2,1,0</pre>
+
+  <p>Read the output with two rules in mind. For <code>a == b</code>, both names refer to the same pooled object, so the answer is true. For <code>a == c</code>, the names refer to different objects, so the answer is false, even though the text matches. <code>equals</code> asks the question people usually mean, "same text?", and returns true. <code>intern</code> looks the text up in the pool and returns the pooled instance, which is why the last comparison is true.</p>
+
+  <p>The <code>toUpperCase</code> lines show immutability. Calling it on <code>s</code> and ignoring the result leaves <code>s</code> as "java". Only assigning the result changes what <code>s</code> refers to. Forgetting this is a common beginner mistake.</p>
+
+  <p>Building a string in a loop with <code>+</code> creates a new string each time, so it costs time proportional to the total length on every step. <code>StringBuilder</code> is a mutable buffer. Its <code>append</code> adds to the existing buffer, and <code>toString</code> makes a final string at the end. The example uses <code>setLength</code> to drop the last comma, and <code>reverse</code> to flip the characters in place.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Never compare strings with <code>==</code> to check their text. Strings from user input, from <code>new String</code> or from concatenation at run time are usually different objects. Use <code>equals</code>.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Use <code>StringBuilder</code> when you combine strings inside a loop. A single <code>+</code> outside a loop is fine, and the compiler optimizes simple cases.</p></div>
+
+  <details class="check"><summary>Why does a == c print false when both hold the text hello?</summary><div class="ans"><p>The literal "hello" is one pooled object, and a is a reference to it. new String("hello") creates a new object on the heap. The == operator compares references, so the two references differ. equals compares the characters, so it returns true.</p></div></details>
+</section>
+<section class="unit" id="c3" data-title="equals and hashCode">
+  <h2>equals, hashCode and the == operator</h2>
+  <p>In Java, <code>==</code> compares references for objects and values for primitives. The <code>equals</code> method is what a class uses to define when two different objects count as the same value. The class <code>Object</code> provides a default <code>equals</code> that behaves like <code>==</code>, so a class that wants value equality must override it.</p>
+
+  <p><code>hashCode</code> returns an int summary of an object's value. Hash-based collections such as <code>HashSet</code> and <code>HashMap</code> use it to decide which bucket to search. The two methods must agree through a rule called the <strong>equals and hashCode contract</strong>: if <code>a.equals(b)</code> is true, then <code>a.hashCode()</code> must equal <code>b.hashCode()</code>. Equal objects must produce equal hashes. The reverse is not required, because two unequal objects may share a hash.</p>
+
+<pre class="code" data-lang="java"><code>import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+
+class Point {
+    private final int x;
+    private final int y;
+
+    Point(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Point)) return false;
+        Point p = (Point) o;
+        return x == p.x &amp;&amp; y == p.y;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y);
+    }
+
+    @Override
+    public String toString() {
+        return "(" + x + ", " + y + ")";
+    }
+}
+
+public class EqualsDemo {
+    public static void main(String[] args) {
+        Point a = new Point(1, 2);
+        Point b = new Point(1, 2);
+        System.out.println(a == b);
+        System.out.println(a.equals(b));
+        System.out.println(a.hashCode());
+        System.out.println(a.hashCode() == b.hashCode());
+
+        Set&lt;Point&gt; set = new HashSet&lt;&gt;();
+        set.add(a);
+        System.out.println(set.contains(b));
+        System.out.println(set.add(b));
+        System.out.println(set.size());
+    }
+}</code></pre>
+<pre class="output">false
+true
+994
+true
+true
+false
+1</pre>
+
+  <p>Walk through the output. <code>a == b</code> is false because they are two objects. <code>a.equals(b)</code> is true because the coordinates match. <code>hashCode</code> is 994 here. <code>Objects.hash(1, 2)</code> computes a hash from the array of values with the formula 31 times (31 plus the hash of the first value) plus the hash of the second value, which is 31 times 32 plus 2, or 994. You do not need to memorize the formula, but knowing that equal inputs give equal hashes is essential.</p>
+
+  <p>The <code>HashSet</code> check shows why both methods matter. <code>set.contains(b)</code> is true because <code>b</code> has the same hash as <code>a</code> and equals <code>a</code>. <code>set.add(b)</code> returns false, because the set already holds an equal element, and so the size stays 1.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Overriding equals without hashCode breaks hash collections. Two equal objects then land in different buckets, and <code>contains</code> returns false even though an equal object is stored. Always override both together.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why must equal objects have equal hash codes? Answer: hash collections find an object by first looking in the bucket for its hash, so an equal object with a different hash would be looked for in the wrong place.</p></div>
+
+  <details class="check"><summary>If two objects are not equal, must their hash codes differ?</summary><div class="ans"><p>No. Unequal objects may share a hash code, which is called a collision. Hash collections handle collisions by comparing with equals inside the bucket. The contract only requires that equal objects share a hash.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Interfaces and abstract classes">
+  <h2>Interfaces versus abstract classes</h2>
+  <p>Java has two ways to declare a shared contract. An <strong>interface</strong> lists methods that a class promises to provide, and a class can implement any number of interfaces. An <strong>abstract class</strong> can hold fields and constructors and can provide code, but a class can extend only one of them. Since Java 8, an interface may also contain <em>default methods</em> with a body, and <em>static methods</em>. Interfaces still hold no instance state, because their fields are always public, static and final constants.</p>
+
+  <p>Use an interface to describe a capability that unrelated classes can share, such as "can be drawn" or "can be compared". Use an abstract class when several related classes share state and common code, such as a shape with a name field and a shared <code>toString</code>. The program below uses both. The interface <code>Drawable</code> is a capability, and the abstract class <code>Shape</code> is the shared base of a family.</p>
+
+<pre class="code" data-lang="java"><code>interface Drawable {
+    String draw();                          // abstract by default
+
+    default String describe() {             // default method, Java 8 and later
+        return "I am drawable: " + draw();
+    }
+}
+
+abstract class Shape implements Drawable {
+    protected final String name;            // shared state
+
+    Shape(String name) {
+        this.name = name;
+    }
+
+    abstract double area();                 // each subclass must provide this
+
+    @Override
+    public String draw() {
+        return "shape " + name;
+    }
+
+    @Override
+    public String toString() {
+        return name + " area=" + area();
+    }
+}
+
+class Circle extends Shape {
+    private final double r;
+
+    Circle(double r) {
+        super("circle");
+        this.r = r;
+    }
+
+    @Override
+    double area() {
+        return Math.PI * r * r;
+    }
+}
+
+class Rect extends Shape {
+    private final double w;
+    private final double h;
+
+    Rect(double w, double h) {
+        super("rect");
+        this.w = w;
+        this.h = h;
+    }
+
+    @Override
+    double area() {
+        return w * h;
+    }
+}
+
+public class Hierarchy {
+    public static void main(String[] args) {
+        Shape[] shapes = { new Circle(1), new Rect(3, 4) };
+        for (Shape s : shapes) {
+            System.out.println(s);
+            System.out.println(s.describe());
+        }
+        Drawable d = shapes[1];             // a Rect is a Shape, and a Shape is a Drawable
+        System.out.println(d instanceof Shape);
+    }
+}</code></pre>
+<pre class="output">circle area=3.141592653589793
+I am drawable: shape circle
+rect area=12.0
+I am drawable: shape rect
+true</pre>
+
+  <p>Look at the chain of types. <code>Circle</code> extends <code>Shape</code>, and <code>Shape</code> implements <code>Drawable</code>, so a <code>Circle</code> is a <code>Shape</code> and also a <code>Drawable</code>. The method <code>describe</code> comes from the interface default, and it calls <code>draw</code>, which <code>Shape</code> implements. Dispatch works the same way as in C++: the call goes to the object's actual class at run time. The last line prints true because the object in <code>d</code> is a <code>Rect</code>, and <code>instanceof</code> checks the actual class and its supertypes.</p>
+
+  <p>Note that the area is printed as <code>3.141592653589793</code>, the full precision of a Java double. Formatting for display is a separate topic, and <code>String.format</code> is the usual tool for it.</p>
+
+  <div class="tablewrap"><table><thead><tr><th>Feature</th><th>Interface</th><th>Abstract class</th></tr></thead><tbody>
+    <tr><td>How many can a class use?</td><td>Any number</td><td>Only one (single inheritance)</td></tr>
+    <tr><td>Instance fields with state</td><td>No</td><td>Yes</td></tr>
+    <tr><td>Constructors</td><td>No</td><td>Yes</td></tr>
+    <tr><td>Method bodies</td><td>Default and static methods only</td><td>Any method</td></tr>
+    <tr><td>Best for</td><td>Capabilities shared by unrelated classes</td><td>Related classes that share state and code</td></tr>
+  </tbody></table></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>Choose an interface when you want to describe what an object can do. Choose an abstract class when you want to share how it does it.</p></div>
+
+  <details class="check"><summary>Why can a class implement several interfaces but extend only one class?</summary><div class="ans"><p>Java avoids the ambiguity of multiple inheritance of state and code, the diamond problem. Interfaces carry no instance state, so a class can take many contracts without inheriting conflicting fields. Default methods were added with rules that resolve conflicts between interfaces.</p></div></details>
+</section>
+<section class="unit" id="c5" data-title="Collections">
+  <h2>Collections: lists, maps, queues and ordering</h2>
+  <p>The <code>java.util</code> package holds collections, which are containers for groups of objects. Most collections are described by an interface (<code>List</code>, <code>Map</code>, <code>Queue</code>), and you choose a class that implements it. The choice decides speed. Interviewers want you to know the costs, not just the names.</p>
+
+  <h3>Lists: ArrayList versus LinkedList</h3>
+  <p><code>ArrayList</code> stores its elements in an array. Reading element i is fast, O(1), because the position is computed directly. Inserting at the end is usually O(1), but inserting in the middle shifts later elements, which is O(n). <code>LinkedList</code> stores each element in a node that points to the next and previous nodes. Adding or removing at either end is O(1), but reading element i means walking the nodes, which is O(n). In practice <code>ArrayList</code> is faster for most work because of memory layout, so use <code>LinkedList</code> only when you add and remove at the ends constantly.</p>
+
+  <h3>Maps: HashMap, TreeMap and how HashMap works inside</h3>
+  <p>A <code>HashMap</code> stores key and value pairs. Internally it is an array of <em>buckets</em>. To store a key, Java computes its <code>hashCode</code>, spreads the high bits into the low bits to reduce clustering, and uses the result to pick a bucket. If the bucket is empty, the entry goes there. If the bucket already has entries (a collision), the entries are compared with <code>equals</code> and either replaced or added to the bucket's chain. When a bucket reaches eight entries and the table has at least 64 buckets, the chain is converted to a balanced tree, so lookups stay fast in the worst case. The table starts with 16 buckets and doubles when it is more than 75 percent full, which is the default load factor of 0.75.</p>
+
+  <p>The result is O(1) average time for <code>get</code>, <code>put</code> and <code>containsKey</code>, assuming a good hash function. The order of entries is not defined, and it can change when the table resizes. Never rely on the iteration order of a <code>HashMap</code>.</p>
+
+  <p><code>TreeMap</code> keeps keys in sorted order, using their natural order or a comparator. Each operation takes O(log n) time, because the map is a balanced tree. Use it when you need the keys in order, or the smallest or largest key quickly. It has methods such as <code>firstKey</code> and <code>headMap</code> that <code>HashMap</code> does not have.</p>
+
+  <h3>Queues: PriorityQueue</h3>
+  <p><code>PriorityQueue</code> is a heap. <code>poll</code> always removes the smallest element, by natural order by default, and <code>offer</code> adds an element in O(log n). The iteration order of a priority queue is not sorted, only the head is guaranteed to be the minimum. Repeated <code>poll</code> calls return the elements in sorted order, which is how the example below prints them.</p>
+
+  <h3>Ordering: Comparable versus Comparator</h3>
+  <p>To sort objects, Java needs a way to compare them. <code>Comparable</code> is an interface a class implements to give its natural order, through one method, <code>compareTo</code>. <code>Comparator</code> is a separate object that compares two values, and you pass it to a sort. A class can have only one natural order, but many comparators, so comparators are the way to sort the same objects in different ways.</p>
+
+<pre class="code" data-lang="java"><code>import java.util.*;
+
+class Student implements Comparable&lt;Student&gt; {
+    final String name;
+    final int score;
+
+    Student(String name, int score) {
+        this.name = name;
+        this.score = score;
+    }
+
+    @Override
+    public int compareTo(Student other) {
+        return Integer.compare(score, other.score);   // natural order: by score
+    }
+
+    @Override
+    public String toString() {
+        return name + ":" + score;
+    }
+}
+
+public class CollectionsTour {
+    public static void main(String[] args) {
+        List&lt;Integer&gt; arrayList = new ArrayList&lt;&gt;(List.of(10, 20, 30));
+        arrayList.add(1, 15);
+        System.out.println(arrayList);
+
+        LinkedList&lt;Integer&gt; linked = new LinkedList&lt;&gt;(List.of(10, 20, 30));
+        linked.addFirst(5);
+        System.out.println(linked);
+        System.out.println(linked.getFirst());
+
+        Map&lt;String, Integer&gt; hash = new HashMap&lt;&gt;();
+        hash.put("pear", 3);
+        hash.put("apple", 5);
+        hash.put("fig", 1);
+        TreeMap&lt;String, Integer&gt; sorted = new TreeMap&lt;&gt;(hash);
+        System.out.println(sorted);
+        System.out.println(sorted.firstKey());
+        System.out.println(sorted.headMap("g"));
+        System.out.println(hash.get("kiwi"));
+
+        PriorityQueue&lt;Integer&gt; pq = new PriorityQueue&lt;&gt;();
+        for (int x : new int[]{5, 1, 4, 2}) {
+            pq.offer(x);
+        }
+        StringBuilder order = new StringBuilder();
+        while (!pq.isEmpty()) {
+            order.append(pq.poll()).append(' ');
+        }
+        System.out.println(order.toString().trim());
+
+        List&lt;Student&gt; students = new ArrayList&lt;&gt;(List.of(
+                new Student("Ravi", 82), new Student("Mei", 95), new Student("Ola", 70)));
+        Collections.sort(students);                      // uses compareTo (Comparable)
+        System.out.println(students);
+        students.sort(Comparator.comparing((Student s) -&gt; s.name));  // a comparator: by name
+        System.out.println(students);
+    }
+}</code></pre>
+<pre class="output">[10, 15, 20, 30]
+[5, 10, 20, 30]
+5
+{apple=5, fig=1, pear=3}
+apple
+{apple=5, fig=1}
+null
+1 2 4 5
+[Ola:70, Ravi:82, Mei:95]
+[Mei:95, Ola:70, Ravi:82]</pre>
+
+  <p>Look at the three sorted results. <code>TreeMap</code> prints its keys in alphabetical order no matter how they were inserted. <code>headMap("g")</code> returns the entries whose keys come before "g", which is apple and fig. <code>hash.get("kiwi")</code> returns null because the key is absent, which is how a map reports a missing key. The two student lists show the difference between the two orderings: <code>Collections.sort</code> uses the natural order by score, and the comparator sorts by name, so the same objects appear in a different order.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A <code>HashMap</code> key must have a good <code>hashCode</code>, and it must not change while it is in the map. If a mutable key changes, its hash no longer matches its bucket, and the entry becomes hard to find.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How does HashMap find a key? Answer: it computes the key's hash, uses it to pick a bucket, and compares keys with equals inside that bucket. Average O(1), worst case slower when many keys collide.</p></div>
+
+  <details class="check"><summary>When would you choose TreeMap over HashMap?</summary><div class="ans"><p>When you need the keys in sorted order, or operations based on order such as the smallest key, the largest key, or a range of keys. The price is O(log n) per operation instead of O(1) on average.</p></div></details>
+</section>
+<section class="unit" id="c6" data-title="Exceptions and generics">
+  <h2>Checked and unchecked exceptions, and generics</h2>
+  <p>An <strong>exception</strong> is an object that describes an error, and Java's <code>throw</code> statement starts unwinding the call stack until a matching <code>catch</code> handles it. All exceptions extend <code>Throwable</code>. Two families matter for interviews. A <strong>checked exception</strong> extends <code>Exception</code> but not <code>RuntimeException</code>. The compiler forces the caller to catch it or declare it with <code>throws</code>, because the failure is expected, such as a missing file. An <strong>unchecked exception</strong> extends <code>RuntimeException</code>, such as <code>NullPointerException</code> or <code>NumberFormatException</code>. It signals a bug or a bad argument, and the compiler does not require handling it.</p>
+
+  <p>A <code>finally</code> block runs whether or not an exception happened, which makes it the place for cleanup. It runs even when the <code>try</code> block returns a value, and it runs after the return value is computed but before the method returns to its caller. The example below shows the order.</p>
+
+  <h3>Generics: one class for many types</h3>
+  <p><strong>Generics</strong> let a class or method work with a type chosen by the caller, such as <code>List&lt;String&gt;</code>. The type is checked at compile time, so you avoid casts and the errors they hide. A <em>bounded</em> type parameter, written <code>T extends Comparable&lt;T&gt;</code>, restricts the types allowed, here to types that can be compared with themselves.</p>
+
+  <p>Java generics use <em>type erasure</em>. The compiler checks the types, then removes them from the compiled code, so at run time <code>List&lt;String&gt;</code> and <code>List&lt;Integer&gt;</code> are the same class. That is why <code>new ArrayList&lt;String&gt;().getClass()</code> and <code>new ArrayList&lt;Integer&gt;().getClass()</code> return the same object, and it is a common interview question.</p>
+
+<pre class="code" data-lang="java"><code>import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+class Box&lt;T extends Comparable&lt;T&gt;&gt; {
+    private final T value;
+
+    Box(T value) {
+        this.value = value;
+    }
+
+    T get() {
+        return value;
+    }
+
+    boolean isBigger(Box&lt;T&gt; other) {
+        return value.compareTo(other.value) &gt; 0;
+    }
+}
+
+public class ErrorsAndGenerics {
+    static int parse(String s) {
+        try {
+            return Integer.parseInt(s);         // throws an unchecked NumberFormatException on bad input
+        } catch (NumberFormatException e) {
+            return -1;
+        } finally {
+            System.out.println("parsed " + s);  // runs on every path
+        }
+    }
+
+    static void readFile() throws IOException {  // a checked exception must be declared
+        throw new IOException("disk gone");
+    }
+
+    public static void main(String[] args) {
+        Box&lt;Integer&gt; a = new Box&lt;&gt;(5);
+        Box&lt;Integer&gt; b = new Box&lt;&gt;(3);
+        System.out.println(a.isBigger(b));
+        System.out.println(parse("42"));
+        System.out.println(parse("x"));
+
+        try {
+            readFile();
+        } catch (IOException e) {
+            System.out.println("caught: " + e.getMessage());
+        }
+
+        List&lt;String&gt; names = new ArrayList&lt;&gt;();
+        List&lt;Integer&gt; numbers = new ArrayList&lt;&gt;();
+        System.out.println(names.getClass() == numbers.getClass());   // erasure: same runtime class
+    }
+}</code></pre>
+<pre class="output">true
+parsed 42
+42
+parsed x
+-1
+caught: disk gone
+true</pre>
+
+  <p>Follow the order of the output. <code>parse("42")</code> runs its <code>finally</code> block, which prints "parsed 42", before the value 42 is printed by the caller. <code>parse("x")</code> throws, is caught, returns -1, and still runs the <code>finally</code> block first. The checked <code>IOException</code> is handled in <code>main</code> because <code>readFile</code> declares it. The last line is true because erasure leaves no trace of the type arguments at run time.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Catching an exception and doing nothing hides the error. Catch only what you can handle, and never write an empty <code>catch</code> block, because the program then continues in an unknown state.</p></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>Checked exceptions are for failures a caller can reasonably recover from. Unchecked exceptions usually mean the code has a bug, so fix the code rather than catching them everywhere.</p></div>
+
+  <details class="check"><summary>What is the difference between a checked and an unchecked exception?</summary><div class="ans"><p>A checked exception extends Exception and must be caught or declared with throws, because the failure is expected. An unchecked exception extends RuntimeException and does not need to be declared. It usually signals a programming error, such as a null reference or a bad argument.</p></div></details>
+
+  <h2>Lambdas and streams</h2>
+  <p>A <strong>lambda</strong> is a short anonymous function, written with an arrow: <code>(x, y) -&gt; x + y</code>. Lambdas implement <em>functional interfaces</em>, which are interfaces with exactly one abstract method, such as <code>Runnable</code>, <code>Comparator</code> and <code>Function</code>. A lambda is shorter than an anonymous class and captures the surrounding variables, which must be effectively final, meaning they are never reassigned after they get their value.</p>
+
+  <p>A <strong>stream</strong> is a pipeline of operations on a sequence of values. The pipeline has three parts: a source (here a list), zero or more intermediate operations that return a new stream (such as <code>filter</code>, <code>map</code> and <code>sorted</code>), and one terminal operation that produces a result (such as <code>collect</code>, <code>sum</code> or <code>findFirst</code>). Nothing runs until the terminal operation is called, which is called lazy evaluation.</p>
+
+<pre class="code" data-lang="java"><code>import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+public class StreamsDemo {
+    public static void main(String[] args) {
+        List&lt;String&gt; words = List.of("java", "is", "fun", "and", "fast");
+
+        List&lt;String&gt; result = words.stream()
+                .filter(w -&gt; w.length() &gt; 2)          // keep words longer than 2 letters
+                .map(String::toUpperCase)            // change each word to uppercase
+                .sorted()                            // sort alphabetically
+                .collect(Collectors.toList());       // terminal operation: gather into a list
+        System.out.println(result);
+
+        int total = IntStream.rangeClosed(1, 5).map(x -&gt; x * x).sum();
+        System.out.println(total);
+
+        Optional&lt;String&gt; first = words.stream().filter(w -&gt; w.startsWith("f")).findFirst();
+        System.out.println(first.orElse("none"));
+
+        Runnable r = () -&gt; System.out.println("lambda run");
+        r.run();
+
+        Map&lt;Integer, Long&gt; byLength = words.stream()
+                .collect(Collectors.groupingBy(String::length, TreeMap::new, Collectors.counting()));
+        System.out.println(byLength);
+    }
+}</code></pre>
+<pre class="output">[AND, FAST, FUN, JAVA]
+55
+fun
+lambda run
+{2=1, 3=2, 4=2}</pre>
+
+  <p>The first pipeline keeps "java", "fun", "and" and "fast", uppercases them, sorts them and collects the result. <code>IntStream.rangeClosed(1, 5)</code> produces 1 to 5, squares each value, and sums them: 1 + 4 + 9 + 16 + 25 = 55. <code>findFirst</code> returns an <code>Optional</code>, a container that may or may not hold a value, and <code>orElse</code> supplies a default. The last collector counts words by length into a <code>TreeMap</code>, so the keys print in order.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Use <code>map</code> to transform each element, <code>filter</code> to keep some, and <code>collect</code> or a reduction such as <code>sum</code> to finish. If a loop only builds a new list, a stream is usually clearer.</p></div>
+
+  <details class="check"><summary>Why must a variable captured by a lambda be effectively final?</summary><div class="ans"><p>The lambda copies the value of the variable when it is created. If the variable could change afterward, the lambda and the surrounding code would see different values, which Java forbids. Requiring the variable to be effectively final keeps the copy and the original in agreement.</p></div></details>
+</section>
+<section class="unit" id="c7" data-title="Threads">
+  <h2>Threads basics</h2>
+  <p>A <strong>thread</strong> is an independent path of execution inside one program. Several threads can run at the same time on a multi-core machine, or take turns on one core. In Java you create a thread from an object that implements <code>Runnable</code>, a functional interface with one method, <code>run</code>. Calling <code>start</code> creates the new thread and runs <code>run</code> on it. Calling <code>run</code> directly does not create a thread, which is a common mistake. <code>join</code> makes the current thread wait until another thread finishes.</p>
+
+  <p>The danger of threads is the <strong>race condition</strong>. Two threads that update the same variable can interleave their steps, so one update is lost. <code>counter++</code> looks like one step, but it reads, adds and writes. The fix is to make the update exclusive, with the <code>synchronized</code> keyword. Only one thread at a time can enter a block synchronized on the same lock object.</p>
+
+<pre class="code" data-lang="java"><code>public class ThreadsDemo {
+    private static int counter = 0;
+    private static final Object lock = new Object();
+
+    static void increment() {
+        for (int i = 0; i &lt; 1000; i++) {
+            synchronized (lock) {        // only one thread at a time runs this block
+                counter++;
+            }
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        Thread t1 = new Thread(ThreadsDemo::increment);
+        Thread t2 = new Thread(() -&gt; increment());
+        t1.start();
+        t2.start();
+        t1.join();                       // wait for t1 to finish
+        t2.join();                       // wait for t2 to finish
+        System.out.println("counter = " + counter);
+    }
+}</code></pre>
+<pre class="output">counter = 2000</pre>
+
+  <p>Each thread adds 1000 to the counter, so the total is 2000 only because every increment is protected by the lock. Without <code>synchronized</code>, the two threads could read the same old value and write back the same new value, and the final count could be less than 2000. The result is unpredictable, which is what makes race conditions hard to test for.</p>
+
+  <p>The <code>join</code> calls matter too. Without them, <code>main</code> could print the counter before the threads finished. Always wait for threads before reading their results, or use higher-level tools such as <code>ExecutorService</code>, which manages a pool of threads for you.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Calling <code>run()</code> instead of <code>start()</code> runs the code on the current thread, so no concurrency happens. Use <code>start()</code> to create a new thread.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What does synchronized do? Answer: it gives mutual exclusion on a lock object, so only one thread runs the block at a time, and it makes changes made inside the block visible to the next thread that takes the same lock.</p></div>
+
+  <details class="check"><summary>Why does counter++ need protection when two threads run it?</summary><div class="ans"><p>The increment is not a single indivisible action. It reads the value, adds one, and writes the result back. Two threads can read the same value before either writes, and one increment is then lost. A synchronized block makes the whole read-add-write sequence happen without interference.</p></div></details>
+</section>
+
+<section class="unit" id="c8" data-title="Word count program">
+  <h2>Putting it together: a HashMap word count</h2>
+  <p>A word count is the classic exercise that combines strings, a map and sorting. The program below splits a text into words, counts each word with a <code>HashMap</code>, and then prints the counts in alphabetical order and the top three words. Two details deserve attention. <code>merge</code> is a single call that inserts 1 for a new word or adds 1 to the existing count. Because <code>HashMap</code> order is undefined, the program sorts the keys before printing.</p>
+
+<pre class="code" data-lang="java"><code>import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class WordCount {
+    public static void main(String[] args) {
+        String text = "the quick brown fox jumps over the lazy dog. The dog sleeps; the fox runs!";
+
+        Map&lt;String, Integer&gt; counts = new HashMap&lt;&gt;();
+        for (String raw : text.toLowerCase().split("[^a-z]+")) {   // split on anything that is not a letter
+            if (raw.isEmpty()) {
+                continue;
+            }
+            counts.merge(raw, 1, Integer::sum);   // new word: 1, existing word: old value plus 1
+        }
+
+        // HashMap order is undefined, so sort the keys before printing.
+        List&lt;String&gt; keys = new ArrayList&lt;&gt;(counts.keySet());
+        Collections.sort(keys);
+        for (String k : keys) {
+            System.out.println(k + " " + counts.get(k));
+        }
+
+        System.out.println("top three:");
+        counts.entrySet().stream()
+                .sorted(Map.Entry.&lt;String, Integer&gt;comparingByValue().reversed()
+                        .thenComparing(Map.Entry.&lt;String, Integer&gt;comparingByKey()))
+                .limit(3)
+                .forEach(e -&gt; System.out.println(e.getKey() + " " + e.getValue()));
+    }
+}</code></pre>
+<pre class="output">brown 1
+dog 2
+fox 2
+jumps 1
+lazy 1
+over 1
+quick 1
+runs 1
+sleeps 1
+the 4
+top three:
+the 4
+dog 2
+fox 2</pre>
+
+  <p>Trace the split first. Lowercasing the text makes "The" and "the" the same key. The regular expression <code>[^a-z]+</code> means one or more characters that are not lowercase letters, so punctuation and spaces separate the words. The word "the" appears four times: twice in the first sentence, and once as "The" and once as "the" in the second sentence. The word "dog" and "fox" appear twice each, and the rest appear once.</p>
+
+  <p>The ranking uses a comparator built from two steps. <code>comparingByValue</code> sorts by count, and <code>reversed</code> turns that into largest first. <code>thenComparing</code> breaks ties by the key in alphabetical order, so "dog" comes before "fox". The <code>limit(3)</code> call keeps the first three entries of the sorted stream.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Rebuilding a list of keys and sorting it is the simplest way to print a <code>HashMap</code> in order. Use a <code>TreeMap</code> instead when the sorted order is needed all the time.</p></div>
+
+  <details class="check"><summary>Why does the program call merge rather than get followed by put?</summary><div class="ans"><p>merge does both steps in one call: if the key is absent, it stores the value 1, and if the key is present, it combines the old value with 1 using Integer::sum. Writing get and put separately works too, but merge is shorter and avoids a second lookup.</p></div></details>
+</section>
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Say each answer aloud in two or three sentences before you open it. The model answers give the reason as well as the fact, because interviewers ask why.</p>
+
+  <details class="check"><summary>What are the JDK, the JRE and the JVM?</summary><div class="ans"><p>The JVM executes Java bytecode and manages memory. The JRE is the JVM plus the standard libraries needed to run programs. The JDK is the JRE plus development tools such as the compiler javac.</p></div></details>
+
+  <details class="check"><summary>Why are Java strings immutable, and what does that buy you?</summary><div class="ans"><p>Once created, a String never changes, so methods return new strings. This makes strings safe to share between threads, safe as hash keys, and lets the JVM keep one pooled copy of each literal.</p></div></details>
+
+  <details class="check"><summary>What is the difference between == and equals?</summary><div class="ans"><p>== compares references for objects, so it asks whether two names refer to the same object. equals compares values, and a class defines it. For strings, equals is what you usually want, because two equal strings can be different objects.</p></div></details>
+
+  <details class="check"><summary>What is the equals and hashCode contract?</summary><div class="ans"><p>If two objects are equal under equals, they must return the same hashCode. Hash collections rely on this, because they look for an object in the bucket of its hash. Override both methods together, using the same fields.</p></div></details>
+
+  <details class="check"><summary>What is the difference between an interface and an abstract class?</summary><div class="ans"><p>A class can implement many interfaces but extend only one class. An interface describes a capability and holds no instance state. An abstract class can hold state, constructors and shared code for related classes.</p></div></details>
+
+  <details class="check"><summary>How does HashMap store and find a key?</summary><div class="ans"><p>It computes the key's hashCode, spreads the bits, and uses the result to choose a bucket in an array. Within the bucket, it compares keys with equals. Average time is O(1), and buckets with many entries become trees, so the worst case is O(log n).</p></div></details>
+
+  <details class="check"><summary>When would you use TreeMap, and what does it cost?</summary><div class="ans"><p>Use TreeMap when keys must stay sorted or you need the smallest or largest key, or a range of keys. Each operation takes O(log n), because the keys are kept in a balanced tree.</p></div></details>
+
+  <details class="check"><summary>What is the difference between Comparable and Comparator?</summary><div class="ans"><p>Comparable is implemented by the class itself and defines its natural order through compareTo. A Comparator is a separate object that defines an order, and you pass it to a sort. A class has one natural order but can have many comparators.</p></div></details>
+
+  <details class="check"><summary>What is the difference between a checked and an unchecked exception?</summary><div class="ans"><p>A checked exception extends Exception and must be caught or declared, because the failure is expected and recoverable. An unchecked exception extends RuntimeException and is not required to be declared. It usually signals a programming error.</p></div></details>
+
+  <details class="check"><summary>What is type erasure?</summary><div class="ans"><p>The compiler checks generic types and then removes them from the compiled code. At run time, List of String and List of Integer are the same class. This is why generics cannot be used with primitive types directly, and why new ArrayList of String and new ArrayList of Integer have the same getClass result.</p></div></details>
+
+  <details class="check"><summary>What does a lambda capture, and what is required of captured variables?</summary><div class="ans"><p>A lambda captures the variables it uses from the enclosing scope. Those variables must be effectively final, so the captured value cannot change after the lambda is created.</p></div></details>
+
+  <details class="check"><summary>Why does a stream pipeline do nothing until a terminal operation runs?</summary><div class="ans"><p>Intermediate operations such as filter and map are lazy: they only describe the work. The terminal operation, such as collect or sum, pulls elements through the pipeline. This lets Java process one element at a time and stop early, for example with findFirst.</p></div></details>
+
+  <details class="check"><summary>What happens if two threads increment the same counter without synchronization?</summary><div class="ans"><p>Updates can be lost, because the read, add and write steps interleave. The final count can be less than expected and can change from run to run. A synchronized block or an atomic type makes each update exclusive.</p></div></details>
+</section>
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: prefix sums and difference arrays</h2>
+  <p>A <strong>prefix sum array</strong> stores running totals. If nums is [3, 1, 4], the prefix array p has one more entry than nums, starts at 0, and p[i] is the sum of the first i numbers: p = [0, 3, 4, 8]. Building it takes one pass. Then the sum of any range nums[left..right] (both ends included) is p[right + 1] minus p[left], which takes O(1). The idea is to pay O(n) once to answer many range queries quickly.</p>
+
+  <p>A <strong>difference array</strong> works in the other direction. To add a value to a whole range of positions, you change only two entries of an array d, one at the start and one just after the end. A final running sum of d gives the added amounts. Many range updates then cost O(1) each, plus one O(n) pass at the end. Prefix sums and difference arrays are inverses of each other, and interviewers like to test both.</p>
+
+  <div class="note key"><p><span class="t">Pattern to remember</span>Many range queries on a fixed array: build a prefix sum. Many range updates followed by one read of all values: use a difference array and take a running sum at the end.</p></div>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/range-sum-query-immutable/">
+    <h3>Range Sum Query - Immutable (LeetCode 303)</h3>
+    <div class="statement"><p>Given an integer array that never changes, answer many queries of the form "what is the sum of the elements from index left to index right, both included?" For [-2, 0, 3, -5, 2, -1], the sum from index 0 to 2 is 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The array is fixed, and there can be many queries. Left and right are valid indexes with left at most right.</li>
+      <li><strong>Brute force.</strong> Loop from left to right and add each value. Each query costs O(n), so q queries cost O(n * q).</li>
+      <li><strong>Find the waste.</strong> Each query repeats the additions of the earlier queries. The sum of the first k values is reused by every query that needs it.</li>
+      <li><strong>Optimise.</strong> Build a prefix array once, where prefix[i] holds the sum of the first i values and prefix[0] is 0. The sum from left to right is prefix[right + 1] minus prefix[left], which is the sum of the values between them. Each query becomes O(1).</li>
+      <li><strong>Dry run.</strong> nums = [-2, 0, 3, -5, 2, -1] gives prefix = [0, -2, -2, 1, -4, -2, -3]. The query (0, 2) is prefix[3] minus prefix[0], which is 1 minus 0, so 1. The query (2, 5) is prefix[6] minus prefix[2], which is -3 minus -2, so -1.</li>
+    </ol>
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>class NumArray:
+    def __init__(self, nums):
+        self.prefix = [0]                     # prefix[i] is the sum of the first i values
+        for x in nums:
+            self.prefix.append(self.prefix[-1] + x)
+
+    def sumRange(self, left, right):
+        return self.prefix[right + 1] - self.prefix[left]
+
+na = NumArray([-2, 0, 3, -5, 2, -1])
+print(na.sumRange(0, 2))
+print(na.sumRange(2, 5))
+print(na.sumRange(0, 5))</code></pre>
+<pre class="output">1
+-1
+-3</pre>
+    <p class="cx">Build O(n) · Each query O(1) · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Off-by-one errors are the main risk. The prefix array has length n + 1, so the right end is prefix[right + 1], not prefix[right]. Test a range that starts at index 0, because that is where the leading zero matters.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/continuous-subarray-sum/">
+    <h3>Continuous Subarray Sum (LeetCode 523)</h3>
+    <div class="statement"><p>Given a list of non-negative integers and an integer k, return True if the list has a subarray of length at least 2 whose sum is a multiple of k. Zero counts as a multiple of every k. For [23, 2, 4, 6, 7] and k = 6, the subarray [2, 4] sums to 6, so the answer is True.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The subarray must be contiguous and have at least two elements. Only the remainder of the sum matters, so the question is about multiples of k.</li>
+      <li><strong>Brute force.</strong> Try every start and end pair, add the values, and check the remainder. That is O(n^2) pairs, each summed in O(n) without extra work, or O(n^2) with a running sum.</li>
+      <li><strong>Find the waste.</strong> Subarray sums are differences of prefix sums. The sum from index i to j-1 equals prefix[j] minus prefix[i]. That difference is a multiple of k exactly when prefix[j] and prefix[i] have the same remainder when divided by k.</li>
+      <li><strong>Optimise.</strong> Walk through the prefix sums and store, for each remainder, the first index where it appeared. When a remainder appears again at index j, check that the earlier index is at least two positions before j. That gives a subarray of length at least 2 whose sum is a multiple of k. Start with remainder 0 at index 0, which handles subarrays that begin at the first element. This is O(n) time.</li>
+      <li><strong>Dry run.</strong> nums = [23, 2, 4, 6, 7], k = 6. Remainders of the prefix sums (0, 23, 25, 29, 35, 42) are 0, 5, 1, 5, 5, 0. Remainder 0 is first seen at index 0. Remainder 5 is first seen at index 1, then appears at index 3. Index 3 minus index 1 is 2, so the subarray nums[1:3] = [2, 4] qualifies, and the answer is True.</li>
+    </ol>
+<pre class="code" data-lang="python"><code>def check_subarray_sum(nums, k):
+    first_seen = {0: 0}                       # remainder -&gt; first prefix index with it
+    prefix = 0
+    for j in range(1, len(nums) + 1):
+        prefix += nums[j - 1]
+        r = prefix if k == 0 else prefix % k  # with k = 0, equal prefix sums mean a zero-sum subarray
+        if r not in first_seen:
+            first_seen[r] = j
+        elif j - first_seen[r] &gt;= 2:           # the subarray nums[first:j] has length at least 2
+            return True
+    return False
+
+print(check_subarray_sum([23, 2, 4, 6, 7], 6))
+print(check_subarray_sum([23, 2, 6, 4, 7], 13))
+print(check_subarray_sum([1, 0], 2))</code></pre>
+<pre class="output">True
+False
+False</pre>
+    <p class="cx">Time O(n) · Space O(n) for the remainder table</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a question asks whether some range has a sum that is a multiple of k, look at prefix sums modulo k. Equal remainders mark ranges whose sums are multiples of k.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/corporate-flight-bookings/">
+    <h3>Corporate Flight Bookings (LeetCode 1109)</h3>
+    <div class="statement"><p>There are n flights numbered 1 to n. You are given bookings, where each booking [first, last, seats] reserves that many seats on every flight from first to last, both included. Return the total number of seats reserved on each flight. For n = 5 and the bookings [[1, 2, 10], [2, 3, 20], [2, 5, 25]], the answer is [10, 55, 45, 25, 25].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each booking adds seats to a whole range of flights. There can be many bookings, and the output is one total per flight.</li>
+      <li><strong>Brute force.</strong> For each booking, loop from first to last and add the seats. That costs O(length of range) per booking, which can be O(n) each, so O(n * bookings) in the worst case.</li>
+      <li><strong>Find the waste.</strong> Each booking touches a whole range, but the only places where the added amount changes are the start and the position after the end. Everything in between gets the same change.</li>
+      <li><strong>Optimise.</strong> Use a difference array d of length n + 1. For a booking [first, last, seats], add seats at index first - 1 and subtract seats at index last. After all bookings, take the running sum of d for positions 0 to n - 1. The running sum carries the added seats across the range and removes them just after its end. This is O(n + bookings) time.</li>
+      <li><strong>Dry run.</strong> n = 5, bookings [1, 2, 10] and [2, 3, 20]. The first booking gives d[0] += 10 and d[2] -= 10. The second gives d[1] += 20 and d[3] -= 20. The array is now [10, 20, -10, -20, 0]. Running sums: 10, 30, 20, 0, 0. These are the totals from these two bookings alone, and the third booking adds 25 to positions 1 to 4, which gives 10, 55, 45, 25, 25.</li>
+    </ol>
+<pre class="code" data-lang="python"><code>def corp_flight_bookings(bookings, n):
+    diff = [0] * (n + 1)                      # one extra slot for the position after the last flight
+    for first, last, seats in bookings:
+        diff[first - 1] += seats              # the seats start at flight first (index first - 1)
+        diff[last] -= seats                   # and stop after flight last (index last)
+    answer = []
+    running = 0
+    for i in range(n):
+        running += diff[i]                    # the running sum is the seats on flight i + 1
+        answer.append(running)
+    return answer
+
+print(corp_flight_bookings([[1, 2, 10], [2, 3, 20], [2, 5, 25]], 5))
+print(corp_flight_bookings([[1, 2, 10], [2, 2, 15]], 2))</code></pre>
+<pre class="output">[10, 55, 45, 25, 25]
+[10, 25]</pre>
+    <p class="cx">Time O(n + bookings) · Space O(n)</p>
+    <div class="note tip"><p><span class="t">Tip</span>Use 1-based booking numbers carefully. Flight 1 is index 0, so the start of a booking is shifted by one, and the subtraction at index last already points to the flight after the end.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To add a value to a whole range, change two entries of a difference array and take a running sum at the end.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/maximum-sum-of-3-non-overlapping-subarrays/">
+    <h3>Maximum Sum of 3 Non-Overlapping Subarrays (LeetCode 689)</h3>
+    <div class="statement"><p>Given an array nums and an integer k, find three non-overlapping subarrays, each of length k, whose total sum is as large as possible. Return the starting indexes of the three subarrays as a list. If several answers have the same total, return the one that is smallest in lexicographic order, which means the first index is as small as possible, then the second, and so on. For nums = [1, 2, 1, 2, 6, 7, 5, 1] and k = 2, the answer is [0, 3, 5], with total 3 + 8 + 12 = 23.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each subarray has exactly k elements, and the three must not share an element. The output is three start indexes, and ties must be broken toward the smallest indexes.</li>
+      <li><strong>Brute force.</strong> Try every triple of start indexes a, b and c with b at least a + k and c at least b + k. Compute each sum from prefix sums. That is O(n^3) triples, which is too slow for large inputs.</li>
+      <li><strong>Find the waste.</strong> Compute the sum of every window of length k once, into an array W. Then the problem is to choose three indexes in W that are at least k apart and have the largest total. For a middle window starting at j, the best choice on its left is the best window that ends before j, and the best on its right is the best window that starts after j + k - 1.</li>
+      <li><strong>Optimise.</strong> Build two helper arrays. left[i] is the index of the best window in W from 0 to i. right[i] is the index of the best window in W from i to the end. Keep the leftmost index on ties. Then try each middle start j from k to len(W) - 1 - k. The candidate is left[j - k], j and right[j + k]. Keep the candidate with the largest total, and change only on a strictly larger total so the earliest candidate wins. This is O(n) time.</li>
+      <li><strong>Dry run.</strong> nums = [1, 2, 1, 2, 6, 7, 5, 1], k = 2. The window sums W are [3, 3, 3, 8, 13, 12, 6]. The left helper becomes [0, 0, 0, 3, 4, 4, 4], because index 3 (sum 8) is the best window so far from index 3 on and index 4 (sum 13) takes over from there. The right helper becomes [4, 4, 4, 4, 4, 5, 6]. For middle start j = 2, the candidate is left[0] = 0, j = 2 and right[4] = 4, total 3 + 3 + 13 = 19. For j = 3, the candidate is left[1] = 0, 3 and right[5] = 5, total 3 + 8 + 12 = 23, which is larger, so it wins. For j = 4, the candidate is left[2] = 0, 4 and right[6] = 6, total 3 + 13 + 6 = 22, which is smaller. The answer is [0, 3, 5].</li>
+    </ol>
+<pre class="code" data-lang="python"><code>def max_sum_of_three(nums, k):
+    n = len(nums)
+    prefix = [0]
+    for x in nums:
+        prefix.append(prefix[-1] + x)
+    # W[i] is the sum of the window nums[i : i + k], for every valid start i
+    W = [prefix[i + k] - prefix[i] for i in range(n - k + 1)]
+    m = len(W)
+
+    left = [0] * m                            # left[i]: leftmost best window start in W[0..i]
+    best = 0
+    for i in range(m):
+        if W[i] &gt; W[best]:
+            best = i
+        left[i] = best
+
+    right = [0] * m                           # right[i]: leftmost best window start in W[i..m-1]
+    best = m - 1
+    for i in range(m - 1, -1, -1):
+        if W[i] &gt;= W[best]:
+            best = i
+        right[i] = best
+
+    answer = None
+    best_total = -1
+    for j in range(k, m - k):                 # the middle window starts at j
+        a = left[j - k]                       # best window that ends before j starts
+        b = right[j + k]                      # best window that starts after j + k - 1
+        total = W[a] + W[j] + W[b]
+        if total &gt; best_total:                 # strictly greater keeps the earliest answer
+            best_total = total
+            answer = [a, j, b]
+    return answer
+
+print(max_sum_of_three([1, 2, 1, 2, 6, 7, 5, 1], 2))
+print(max_sum_of_three([1, 2, 1, 2, 1, 2, 1, 2, 1], 2))</code></pre>
+<pre class="output">[0, 3, 5]
+[0, 2, 4]</pre>
+
+    <p class="cx">Time O(n) · Space O(n) for the prefix sums and helper arrays</p>
+    <div class="note trap"><p><span class="t">Trap</span>The tie rules decide which of several correct answers is returned. Using greater-or-equal in the wrong direction returns a later index on ties, which fails the lexicographic requirement. Test a case where all windows are equal, as in the second example, where the answer is [0, 2, 4].</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Pick a middle block, then choose the best block on each side using two helper arrays built in one pass each. This turns a three-way search into a single loop over the middle.</p></div>
+  </article>
+
+  <p>For interviews, state the three approaches in order: brute force, prefix sums for each query, and the difference array or the helper arrays for each update or three-way choice. Explain that prefix sums turn a range sum into a subtraction, and a difference array turns a range update into two point updates.</p>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this list to check your memory. Each entry is one idea from today, stated briefly.</p>
+  <dl>
+    <div><dt>JVM</dt><dd>The Java Virtual Machine, which loads, checks and runs bytecode.</dd></div>
+    <div><dt>JRE</dt><dd>The JVM plus the standard libraries needed to run a Java program.</dd></div>
+    <div><dt>JDK</dt><dd>The JRE plus development tools such as the compiler javac.</dd></div>
+    <div><dt>Bytecode</dt><dd>The compact instructions in .class files that the JVM executes.</dd></div>
+    <div><dt>Heap and stack</dt><dd>Objects live on the shared heap; each thread's method frames and local references live on its stack.</dd></div>
+    <div><dt>Garbage collection</dt><dd>The JVM frees objects that no reference can reach.</dd></div>
+    <div><dt>Immutable String</dt><dd>A String whose characters never change, so methods return new strings.</dd></div>
+    <div><dt>String pool</dt><dd>The shared store of literal strings, reused for every identical literal.</dd></div>
+    <div><dt>StringBuilder</dt><dd>A mutable buffer for building strings efficiently in loops.</dd></div>
+    <div><dt>==</dt><dd>Compares references for objects, and values for primitives.</dd></div>
+    <div><dt>equals</dt><dd>Compares the values an object represents, and must be overridden for value equality.</dd></div>
+    <div><dt>hashCode</dt><dd>An int summary of a value, used by hash collections to pick a bucket.</dd></div>
+    <div><dt>equals and hashCode contract</dt><dd>Equal objects must have equal hash codes.</dd></div>
+    <div><dt>Interface</dt><dd>A contract of methods a class can implement, with no instance state.</dd></div>
+    <div><dt>Default method</dt><dd>An interface method with a body, added in Java 8.</dd></div>
+    <div><dt>Abstract class</dt><dd>A class that cannot be instantiated, can hold state, and can be extended by one subclass.</dd></div>
+    <div><dt>ArrayList</dt><dd>A list backed by an array, with fast indexed reads and slower middle inserts.</dd></div>
+    <div><dt>LinkedList</dt><dd>A list of linked nodes, with fast inserts at the ends and slow indexed reads.</dd></div>
+    <div><dt>HashMap</dt><dd>A key-value map using a hash table, with average O(1) get and put and no defined order.</dd></div>
+    <div><dt>TreeMap</dt><dd>A map that keeps keys sorted in a balanced tree, with O(log n) operations.</dd></div>
+    <div><dt>PriorityQueue</dt><dd>A heap that always gives the smallest element first.</dd></div>
+    <div><dt>Comparable</dt><dd>An interface a class implements to define its natural order through compareTo.</dd></div>
+    <div><dt>Comparator</dt><dd>A separate object that defines an order, passed to sorts and collections.</dd></div>
+    <div><dt>Checked exception</dt><dd>An exception that must be caught or declared, for expected failures.</dd></div>
+    <div><dt>Unchecked exception</dt><dd>A RuntimeException subclass that need not be declared, usually a programming error.</dd></div>
+    <div><dt>finally</dt><dd>A block that runs on every path out of a try, for cleanup.</dd></div>
+    <div><dt>Generics</dt><dd>Types chosen by the caller, checked at compile time, such as List of String.</dd></div>
+    <div><dt>Type erasure</dt><dd>Removal of generic type information in the compiled code, so List of String and List of Integer share one class at run time.</dd></div>
+    <div><dt>Lambda</dt><dd>A short anonymous function that implements a functional interface.</dd></div>
+    <div><dt>Stream</dt><dd>A lazy pipeline of operations on a sequence, finished by a terminal operation.</dd></div>
+    <div><dt>Optional</dt><dd>A container that may or may not hold a value, which avoids null checks.</dd></div>
+    <div><dt>Thread</dt><dd>An independent path of execution that starts with start and runs run.</dd></div>
+    <div><dt>Race condition</dt><dd>A bug where interleaved steps on shared data lose updates.</dd></div>
+    <div><dt>synchronized</dt><dd>Gives one thread at a time exclusive access to a lock.</dd></div>
+    <div><dt>Prefix sum</dt><dd>An array of running totals that answers any range sum in O(1).</dd></div>
+    <div><dt>Difference array</dt><dd>An array that records range changes at two ends, and becomes the values after a running sum.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>List.of</code></td><td>Creates an immutable list.</td><td><code>List.of(1, 2, 3)</code></td></tr>
+    <tr><td><code>Map.merge</code></td><td>Inserts a value or combines it with the existing one.</td><td><code>counts.merge(w, 1, Integer::sum)</code></td></tr>
+    <tr><td><code>TreeMap.headMap</code></td><td>Returns the entries whose keys are less than a bound.</td><td><code>sorted.headMap("g")</code></td></tr>
+    <tr><td><code>PriorityQueue.offer and poll</code></td><td>Adds an element and removes the smallest.</td><td><code>pq.offer(4); pq.poll();</code></td></tr>
+    <tr><td><code>Collections.sort</code></td><td>Sorts a list by its natural order.</td><td><code>Collections.sort(list);</code></td></tr>
+    <tr><td><code>Comparator.comparing</code></td><td>Builds a comparator from a key extractor.</td><td><code>Comparator.comparing(s -&gt; s.name)</code></td></tr>
+    <tr><td><code>instanceof</code></td><td>Tests whether an object is an instance of a type.</td><td><code>d instanceof Shape</code></td></tr>
+    <tr><td><code>Objects.hash</code></td><td>Combines values into one hash code.</td><td><code>Objects.hash(x, y)</code></td></tr>
+    <tr><td><code>stream().filter().map()</code></td><td>Keeps and transforms elements in a pipeline.</td><td><code>words.stream().filter(w -&gt; w.length() &gt; 2)</code></td></tr>
+    <tr><td><code>IntStream.rangeClosed</code></td><td>Produces integers from a start to an end, both included.</td><td><code>IntStream.rangeClosed(1, 5).sum()</code></td></tr>
+    <tr><td><code>Thread.join</code></td><td>Waits for a thread to finish.</td><td><code>t1.join();</code></td></tr>
+    <tr><td><code>split</code></td><td>Splits a string around a regular expression.</td><td><code>text.split("[^a-z]+")</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 6?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 6 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-05.html"><small>Previous, day 5</small>OOP: principles, C++ OOP, SOLID, design patterns</a><a class="next" href="day-07.html"><small>Next, day 7</small>Sunday: Aptitude, review, Mock 1, resume and HR</a></nav>
+</main><script src="assets/app.js"></script></body></html>

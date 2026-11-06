@@ -1,0 +1,527 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 26: Cloud and AWS 2 + DevOps and MLOps</title><meta name="description" content="Today covers the managed AWS services that most backend and machine learning systems rely on: databases and caches, load balancing and DNS, content delivery, messaging, monitoring, and the ML platform services. It also covers infrastructure as code, CI/CD, and the MLOps ideas (experiment tracking, model serving and drift) that keep ML systems reliable. The DSA part teaches bit manipulation, the tricks interviewers use to test low-level thinking."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="26" data-key="26" data-noun="day" data-num="26" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Cloud and AWS 2 + DevOps and MLOps</h1>
+<p class="lede">Today covers the managed AWS services that most backend and machine learning systems rely on: databases and caches, load balancing and DNS, content delivery, messaging, monitoring, and the ML platform services. It also covers infrastructure as code, CI/CD, and the MLOps ideas (experiment tracking, model serving and drift) that keep ML systems reliable. The DSA part teaches bit manipulation, the tricks interviewers use to test low-level thinking.</p>
+<div class="station"><b>26</b><span>Fri 27 Nov 2026 · Cloud &amp; DevOps · DSA: Bit manipulation</span></div>
+<ul class="topics"><li>RDS, DynamoDB and ElastiCache</li><li>ELB, Route 53 and CloudFront</li><li>API Gateway, SQS and SNS</li><li>CloudWatch, SageMaker and Bedrock</li><li>Infrastructure as code and CI/CD</li><li>MLOps: MLflow, model serving and drift</li><li>Bit manipulation (DSA)</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Data services">
+  <h2>Databases and caches: RDS, DynamoDB and ElastiCache</h2>
+  <p>Most applications need to store data and read it back quickly. On AWS you can run your own database on EC2, but managed services remove most of the operational work: the provider installs the software, applies patches, takes backups and handles hardware failure. The price is less control over the internals. Interviewers want you to pick the right managed service for the access pattern, so start with the question "what shape is my data, and how do I read it?"</p>
+
+  <h3>Amazon RDS (Relational Database Service)</h3>
+  <p><strong>RDS</strong> runs a managed relational database. The supported engines include PostgreSQL, MySQL, MariaDB, Oracle, SQL Server, and Amazon Aurora, which is AWS's own engine compatible with MySQL and PostgreSQL. RDS handles the operating system, engine patching on a maintenance schedule you control, automated backups, and point-in-time recovery, which restores the database to any second inside the backup retention period.</p>
+  <p>RDS offers two different ways to add copies, and the difference is a common interview question. A <strong>Multi-AZ deployment</strong> creates a standby copy in another availability zone. The primary sends every change to the standby synchronously, so the standby is always up to date. If the primary fails, RDS switches the database name to the standby automatically. The standby exists for <em>availability</em>, not for extra read capacity. A <strong>read replica</strong> is a copy that receives changes asynchronously, so it can lag behind the primary by a short time. You send read-heavy traffic to replicas to scale reads, and you can promote a replica if the primary is lost. Replication is asynchronous, so promoting a replica can lose the last few changes.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Multi-AZ is for failover, and read replicas are for read scaling. Candidates often say that a Multi-AZ standby can serve reads, which is not true for the standby in a standard Multi-AZ instance deployment.</p></div>
+
+  <h3>Amazon DynamoDB</h3>
+  <p><strong>DynamoDB</strong> is a fully managed NoSQL database for key-value and document data. You do not create servers, and the service spreads your data over many partitions automatically. You still have to design your keys carefully, because the key decides where data lives and how fast it can be read.</p>
+  <p>Every item in a table is identified by a <strong>partition key</strong>, and optionally a <strong>sort key</strong>. DynamoDB hashes the partition key to choose the physical partition that stores the item. Items with the same partition key are stored together and can be read in sorted order by the sort key, so a query such as "all orders of user 42 from last month" is a fast range read on one partition. A query that does not give the partition key forces a slow scan of the whole table, which is the main thing to avoid. A <strong>global secondary index</strong> (GSI) lets you query by a different partition key later, at the cost of extra storage and writes.</p>
+  <p>DynamoDB has two capacity modes. <strong>On-demand</strong> charges per request and suits unpredictable traffic. <strong>Provisioned</strong> capacity lets you set read and write units ahead of time and suits steady traffic that you can forecast. Reads are eventually consistent by default, and you can request a strongly consistent read when you need the latest value.</p>
+  <pre class="code" data-lang="json"><code>{
+  "pk": {"S": "USER#42"},
+  "sk": {"S": "ORDER#2026-10-01#1001"},
+  "total": {"N": "59.90"},
+  "status": {"S": "SHIPPED"}
+}</code></pre>
+  <p>The item above uses a common single-table pattern. The partition key groups everything about one user, and the sort key embeds the entity type and a date, so a query with <code>begins_with(sk, "ORDER#")</code> returns only that user's orders in date order. The letters in the JSON (S for string, N for number) are DynamoDB's type markers.</p>
+  <pre class="code" data-lang="bash"><code># Write one item (the attribute values carry their type markers)
+aws dynamodb put-item \
+  --table-name Orders \
+  --item '{"pk": {"S": "USER#42"}, "sk": {"S": "ORDER#1001"}, "status": {"S": "NEW"}}'
+
+# Read it back with a strongly consistent read
+aws dynamodb get-item \
+  --table-name Orders \
+  --key '{"pk": {"S": "USER#42"}, "sk": {"S": "ORDER#1001"}}' \
+  --consistent-read</code></pre>
+
+  <h3>Amazon ElastiCache</h3>
+  <p><strong>ElastiCache</strong> is a managed in-memory cache that supports Redis and Memcached. A cache sits between the application and the database. Reading from memory takes well under a millisecond, while a database query may take several. The usual pattern is <strong>cache-aside</strong>: the application checks the cache first, and on a miss it reads the database and writes the result into the cache with an expiry time (a time to live). Day 27 explains the other caching strategies in more depth.</p>
+  <p>Redis offers rich data types such as lists, sets, sorted sets and hashes, plus persistence and replication. Memcached is a simpler multi-threaded cache for plain key-value strings. Choose Redis when you need data structures or durability, and Memcached when you only need a simple, horizontally scaled cache.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Service</th><th>Data model</th><th>Strength</th><th>Typical use</th></tr></thead>
+    <tbody>
+      <tr><td>RDS (PostgreSQL, MySQL and others)</td><td>Tables with joins and transactions</td><td>Complex queries and strong consistency</td><td>Orders, accounts, anything relational</td></tr>
+      <tr><td>DynamoDB</td><td>Items with partition and sort keys</td><td>Predictable low latency at any scale</td><td>Sessions, user profiles, event logs, high-traffic lookups</td></tr>
+      <tr><td>ElastiCache (Redis)</td><td>In-memory data structures</td><td>Very fast reads and writes</td><td>Caching, leaderboards, rate-limit counters</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>In DynamoDB, the key is the design. Choose the partition key from the questions you ask, not from the entities you store.</p></div>
+  <details class="check"><summary>What is the difference between a Multi-AZ deployment and a read replica in RDS?</summary><div class="ans"><p>A Multi-AZ standby receives changes synchronously and takes over automatically when the primary fails, so it exists for availability. A read replica receives changes asynchronously and serves read traffic, so it exists for read scaling. Replicas can lag, and promoting one can lose the last changes.</p></div></details>
+  <details class="check"><summary>Why does a DynamoDB query that omits the partition key become slow?</summary><div class="ans"><p>DynamoDB uses the partition key to find the one partition that holds the data. Without it, the service cannot narrow the search and must scan every item in the table, which costs time and read capacity as the table grows.</p></div></details>
+  <details class="check"><summary>When would you add ElastiCache in front of an RDS database?</summary><div class="ans"><p>When the same data is read many times and changes rarely, such as product pages or user settings. The cache-aside pattern serves most reads from memory, which reduces latency and load on the database. You still need to handle expiry and stale values.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Traffic">
+  <h2>Traffic: load balancers, DNS and the CDN</h2>
+  <p>A user request travels through several managed services before it reaches your code. DNS turns a name into an address, a CDN may answer the request close to the user, a load balancer chooses a healthy server, and the server finally runs the code. Each layer has its own AWS service, and interviews often ask you to walk through that path.</p>
+
+  <h3>Elastic Load Balancing (ELB)</h3>
+  <p>A <strong>load balancer</strong> spreads incoming requests over a set of targets, and it stops sending traffic to targets that fail their health checks. AWS offers several load balancer types, and the difference lies in which layer of the network stack they understand. Layer 4 means the transport layer (TCP and UDP), where the balancer sees only addresses and ports. Layer 7 means the application layer (HTTP), where it can read the path, the host name and the headers.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Type</th><th>Layer</th><th>Protocols</th><th>What it is good at</th></tr></thead>
+    <tbody>
+      <tr><td>Application Load Balancer (ALB)</td><td>7</td><td>HTTP, HTTPS, gRPC</td><td>Routing by host name or path (for example <code>/api/*</code> to one target group), targets that are instances, IP addresses or Lambda functions</td></tr>
+      <tr><td>Network Load Balancer (NLB)</td><td>4</td><td>TCP, UDP, TLS</td><td>Very high throughput and low latency, one static IP address per zone, non-HTTP traffic</td></tr>
+      <tr><td>Gateway Load Balancer (GWLB)</td><td>3 and 4</td><td>IP packets (GENEVE encapsulation)</td><td>Placing third-party security appliances, such as firewalls, in the traffic path</td></tr>
+      <tr><td>Classic Load Balancer</td><td>4 and 7 (basic)</td><td>HTTP, HTTPS, TCP</td><td>Legacy applications, not recommended for new designs</td></tr>
+    </tbody>
+  </table></div>
+  <p>Load balancers work across availability zones, and they usually sit in public subnets in front of private targets. Health checks decide which targets receive traffic, and connection draining lets in-flight requests finish when a target is removed.</p>
+
+  <h3>Amazon Route 53</h3>
+  <p><strong>Route 53</strong> is AWS's DNS service. DNS (Domain Name System) maps names such as <code>api.example.com</code> to records, and a resolver caches each answer for the record's time to live (TTL). Route 53 answers queries for the zones you host and can also check the health of endpoints. The name comes from TCP/UDP port 53, the port DNS uses.</p>
+  <p>The common record types are <code>A</code> (a name to an IPv4 address), <code>AAAA</code> (a name to an IPv6 address), <code>CNAME</code> (a name that points to another name), <code>MX</code> (mail servers) and <code>TXT</code> (free text used for verification). AWS adds an <strong>alias record</strong>, which points a name at an AWS resource such as a load balancer or a CloudFront distribution. An alias can sit at the root of a zone, where a CNAME is not allowed.</p>
+  <p>Route 53 <strong>routing policies</strong> decide which answer a query gets. A simple policy returns one record. A weighted policy splits traffic, for example 90 percent to the old version and 10 percent to the new one. A latency policy answers with the region that responds fastest for that user. A failover policy returns the primary record while its health check passes and the secondary record otherwise. Geolocation and geoproximity policies pick answers by where the user is.</p>
+
+  <h3>Amazon CloudFront</h3>
+  <p><strong>CloudFront</strong> is a content delivery network (CDN). It keeps copies of your content in edge locations around the world. When a user asks for a file, the nearest edge serves it from its cache if the file is there (a cache hit). Otherwise the edge fetches the file from the <strong>origin</strong> (an S3 bucket, a load balancer or any HTTP server), stores it for the TTL, and returns it (a cache miss). CloudFront also terminates TLS close to the user, which reduces the handshake delay, and it can require signed URLs or signed cookies for private content.</p>
+  <p>Caching only helps when the content can be shared. Personal pages are usually not cached, and a change to a cached file is not visible until its TTL expires or you request an invalidation. A common secure design keeps an S3 bucket private and lets only the CloudFront distribution read it, using Origin Access Control.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A CDN does not make a slow database fast. It only helps requests that can be answered from cache. For personal data, the request still reaches your origin.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>The path of a request is DNS (which address), CDN (answer from the edge if cached), load balancer (which healthy server), then the application.</p></div>
+  <details class="check"><summary>What is the difference between an ALB and an NLB?</summary><div class="ans"><p>An ALB works at layer 7, understands HTTP, and can route by host name, path and headers, with targets such as instances, IPs and Lambda functions. An NLB works at layer 4, handles TCP, UDP and TLS with very low latency and a static IP per zone, and does not read HTTP content.</p></div></details>
+  <details class="check"><summary>How would you move 10 percent of traffic to a new version of a service using DNS?</summary><div class="ans"><p>Use a Route 53 weighted routing policy with two records for the same name: the old endpoint with weight 90 and the new endpoint with weight 10. Adjust the weights as confidence grows. DNS caching means the change is gradual, so this is a coarse split.</p></div></details>
+  <details class="check"><summary>Why is an S3 bucket behind CloudFront usually kept private?</summary><div class="ans"><p>If the bucket is public, users can skip CloudFront and fetch objects directly, which bypasses caching, signed URLs and logging. Keeping the bucket private and granting access only to the distribution forces every request through the CDN.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Messaging">
+  <h2>The API front door and messaging: API Gateway, SQS and SNS</h2>
+  <p>Systems that talk to each other need two things: a controlled entry point for requests, and a way to pass work between components without making them wait for each other. API Gateway provides the first. SQS and SNS provide the second. Together they let you decouple producers from consumers, so a slow or failing service does not stop the rest of the system.</p>
+
+  <h3>API Gateway</h3>
+  <p><strong>API Gateway</strong> is a managed front door for HTTP and WebSocket APIs. It receives requests, checks who is calling, applies throttling, and forwards the request to a backend such as a Lambda function, an HTTP service or another AWS service. There are three API types. A <strong>REST API</strong> has the richest feature set, including usage plans, API keys and response caching. An <strong>HTTP API</strong> is simpler and cheaper, and suits most new Lambda-backed APIs. A <strong>WebSocket API</strong> keeps a two-way connection open for chat and live updates.</p>
+  <p>Important features are <strong>authorizers</strong> (IAM, Amazon Cognito user pools, or a custom Lambda authorizer that checks a token), <strong>throttling</strong> (a rate limit and a burst limit per account, stage or method, so one client cannot starve the others), and <strong>request validation</strong>. Throttling is a form of rate limiting, which day 27 covers in detail.</p>
+
+  <h3>Amazon SQS (Simple Queue Service)</h3>
+  <p>An <strong>SQS queue</strong> holds messages until a consumer processes them. The producer sends a message and does not wait for the work to finish. The consumer pulls messages, processes them, and deletes each one when it succeeds. Two types exist. A <strong>standard queue</strong> offers nearly unlimited throughput with <em>at-least-once</em> delivery, which means a message can occasionally arrive twice, and ordering is best effort. A <strong>FIFO queue</strong> keeps messages in order within a message group and removes duplicates within a deduplication window, at a lower maximum throughput.</p>
+  <p>Three mechanisms make SQS reliable. The <strong>visibility timeout</strong> (30 seconds by default) hides a message while one consumer is processing it. If the consumer does not delete the message before the timeout ends, the message becomes visible again and another consumer may take it. <strong>Long polling</strong> lets a consumer wait up to 20 seconds for a message, which reduces empty responses and cost. A <strong>dead-letter queue</strong> receives messages that failed too many times, so a poison message does not block the queue forever.</p>
+  <p>The Python program below simulates the visibility timeout with a logical clock, so the output is the same every time. It shows why a consumer must delete a message only after finishing the work.</p>
+  <pre class="code" data-lang="python"><code>class SimpleQueue:
+    def __init__(self):
+        self.messages = []        # each message: id, body, and the time it becomes visible
+        self.next_id = 1
+
+    def send(self, body):
+        self.messages.append({"id": self.next_id, "body": body, "visible_at": 0})
+        self.next_id += 1
+
+    def receive(self, now, timeout):
+        # Return the first visible message and hide it for timeout seconds
+        for m in self.messages:
+            if m["visible_at"] &lt;= now:
+                m["visible_at"] = now + timeout
+                return m
+        return None
+
+    def delete(self, msg_id):
+        self.messages = [m for m in self.messages if m["id"] != msg_id]
+
+def body(m):
+    return m["body"] if m else None
+
+q = SimpleQueue()
+q.send("order-1")
+q.send("order-2")
+m1 = q.receive(now=0, timeout=30)
+print("t=0 got", body(m1))
+m2 = q.receive(now=5, timeout=30)
+print("t=5 got", body(m2))
+print("t=10 got", body(q.receive(now=10, timeout=30)))   # both are hidden now
+q.delete(m2["id"])                                      # order-2 finished, so delete it
+print("t=12 deleted order-2")
+print("t=31 got", body(q.receive(now=31, timeout=30)))  # order-1 was never deleted, so it returns</code></pre>
+  <pre class="output">t=0 got order-1
+t=5 got order-2
+t=10 got None
+t=12 deleted order-2
+t=31 got order-1</pre>
+  <p>Step by step: the first receive at time 0 returns <code>order-1</code> and hides it until time 30. The receive at time 5 skips the hidden message and returns <code>order-2</code>. At time 10 both are hidden, so nothing is returned. The consumer of <code>order-2</code> deletes it, which removes it for good. The consumer of <code>order-1</code> never deletes it, perhaps because it crashed, so when the timeout ends at time 30, the message is visible again and the receive at time 31 returns it. This is at-least-once delivery in miniature: a message is redelivered until someone confirms that it was processed.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Deleting a message before the work is done loses it if the worker crashes. Delete after success, and make the handler idempotent, so a redelivered message does no harm the second time.</p></div>
+
+  <h3>Amazon SNS (Simple Notification Service)</h3>
+  <p><strong>SNS</strong> is a publish and subscribe service. A producer publishes a message to a <strong>topic</strong>, and SNS pushes a copy to every subscriber: SQS queues, Lambda functions, HTTP endpoints, email addresses, or mobile push. The producer does not know who is listening. A common pattern is <strong>fan-out</strong>: one SNS topic feeds several SQS queues, and each queue serves a different consumer, such as billing, shipping and analytics. Each consumer gets its own copy and can fail or slow down without affecting the others.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Question</th><th>SQS</th><th>SNS</th></tr></thead>
+    <tbody>
+      <tr><td>Model</td><td>A queue: each message is handled by one consumer</td><td>A topic: each message goes to every subscriber</td></tr>
+      <tr><td>Consumers pull or receive</td><td>Consumers poll (pull)</td><td>SNS pushes to subscribers</td></tr>
+      <tr><td>Stores messages</td><td>Yes, until they are deleted or expire</td><td>No, delivery is attempted and retried for a limited time</td></tr>
+      <tr><td>Typical use</td><td>Buffering background work</td><td>Notifying several systems about one event</td></tr>
+    </tbody>
+  </table></div>
+  <p>The two services are often combined: SNS fans an event out to several SQS queues, which buffer the work for each consumer. That combination gives you both broadcast and buffering.</p>
+  <details class="check"><summary>What is a visibility timeout, and what happens if a consumer crashes before deleting its message?</summary><div class="ans"><p>The visibility timeout hides a received message from other consumers for a set time. If the consumer crashes and does not delete the message before the timeout ends, the message becomes visible again, and another consumer receives it. This is how SQS avoids losing work.</p></div></details>
+  <details class="check"><summary>What is the difference between a standard and a FIFO SQS queue?</summary><div class="ans"><p>A standard queue has nearly unlimited throughput, at-least-once delivery, and best-effort ordering. A FIFO queue keeps order within a message group and removes duplicates within a deduplication window, with a lower maximum throughput.</p></div></details>
+  <details class="check"><summary>Why combine SNS with SQS?</summary><div class="ans"><p>SNS delivers one event to many subscribers, but it does not store messages. Putting an SQS queue behind each subscriber gives each consumer its own buffer, so a slow consumer falls behind on its own queue without holding up the others.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Observability and ML">
+  <h2>Observability and ML services: CloudWatch, SageMaker and Bedrock</h2>
+  <p>A production system needs to tell you when something is wrong, and an ML system needs a managed place to train and serve models. CloudWatch covers the first need. SageMaker and Bedrock cover the second, with SageMaker for building your own models and Bedrock for calling ready-made foundation models through an API.</p>
+
+  <h3>Amazon CloudWatch</h3>
+  <p><strong>CloudWatch</strong> collects three kinds of telemetry. <strong>Metrics</strong> are numbers over time, such as CPU utilization, request count or latency, and many AWS services publish them automatically. <strong>Logs</strong> are text lines grouped into log groups and log streams, which applications and AWS services write to. <strong>Traces</strong> follow one request across services, which is covered by AWS X-Ray. On top of these, <strong>alarms</strong> watch a metric and change state when it crosses a threshold: OK, ALARM, or INSUFFICIENT_DATA when there are not enough points. Alarms can trigger an Auto Scaling policy, send a notification through SNS, or run an action. <strong>Dashboards</strong> show graphs side by side.</p>
+  <p>A good alarm watches a symptom that users feel, such as error rate or latency at the 99th percentile, rather than a cause that may not matter, such as CPU at 60 percent. The percentile matters because an average can hide a slow tail of requests.</p>
+  <pre class="code" data-lang="bash"><code># Create an alarm when the average CPU of an instance stays above 80 percent for two periods of 5 minutes
+aws cloudwatch put-metric-alarm \
+  --alarm-name high-cpu-web-1 \
+  --namespace AWS/EC2 \
+  --metric-name CPUUtilization \
+  --dimensions Name=InstanceId,Value=i-0123456789abcdef0 \
+  --statistic Average \
+  --period 300 \
+  --evaluation-periods 2 \
+  --threshold 80 \
+  --comparison-operator GreaterThanThreshold</code></pre>
+
+  <h3>Amazon SageMaker</h3>
+  <p><strong>SageMaker</strong> is AWS's managed platform for the machine learning lifecycle. You can use a hosted notebook environment (SageMaker Studio) for exploration. A <strong>training job</strong> runs your training script on managed instances, reads data from S3, writes the model artifact back to S3, and then shuts the instances down, so you pay only while training runs. The resulting model can be deployed to a <strong>real-time endpoint</strong> that answers requests with low latency, to a <strong>batch transform</strong> job that scores a large file offline, or to a serverless endpoint for spiky traffic. <strong>SageMaker Pipelines</strong> chains the steps together, and the <strong>model registry</strong> stores versions of each model with their approval status.</p>
+  <p>SageMaker also includes a feature store for reusing features between training and serving, and model monitoring for detecting drift in production. Those ideas return in the MLOps section.</p>
+
+  <h3>Amazon Bedrock</h3>
+  <p><strong>Bedrock</strong> gives you API access to foundation models from several providers, including Amazon's own models, without managing any model servers. You send a prompt and receive a response, and you pay per token. Bedrock also offers <strong>Knowledge Bases</strong>, which connect a model to your documents for retrieval-augmented generation (RAG), <strong>Agents</strong>, which let a model call your APIs in steps, and <strong>Guardrails</strong>, which filter unsafe content and sensitive data. Day 39 explains RAG, and day 40 explains agents, so here it is enough to know that Bedrock is the managed route for using a model, while SageMaker is the managed route for building or hosting your own.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>When would you choose Bedrock over SageMaker? Choose Bedrock when a ready-made foundation model meets the need and you want an API without model hosting. Choose SageMaker when you train or fine-tune your own model, need control over the serving stack, or need a custom model that no API offers.</p></div>
+  <details class="check"><summary>What do the three alarm states mean in CloudWatch?</summary><div class="ans"><p>OK means the metric is inside the threshold. ALARM means it has breached the threshold for the required number of periods. INSUFFICIENT_DATA means there are not enough data points yet to decide, for example because the instance just started.</p></div></details>
+  <details class="check"><summary>Why does a SageMaker training job shut its instances down afterwards?</summary><div class="ans"><p>Training instances are provisioned for the job only. When the job finishes, the instances are released, so you pay for training time and not for idle machines. The model artifact is saved to S3 first, so nothing is lost.</p></div></details>
+  <details class="check"><summary>Why might an average latency alarm hide a real problem?</summary><div class="ans"><p>An average can look healthy while a small share of requests is very slow. Percentile statistics such as p99 show the slow tail that real users experience, so alarms on p99 catch problems an average misses.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="IaC and CI/CD">
+  <h2>Infrastructure as code and CI/CD</h2>
+  <p><strong>Infrastructure as code</strong> (IaC) means describing your cloud resources in text files that a tool applies. Instead of clicking through the console, you write the buckets, networks and databases in a file, commit it to Git, and let a tool create or change them. The benefits are repeatable environments, a history of every change in version control, and reviews before anything changes. A second environment, such as staging, can then be built from the same files.</p>
+
+  <h3>Terraform and CloudFormation</h3>
+  <p><strong>Terraform</strong>, from HashiCorp, is a tool that works across many providers, including AWS, Azure and Google Cloud. You describe the desired state in HCL (HashiCorp Configuration Language). Terraform keeps a <strong>state file</strong> that maps your configuration to the real resource IDs. The workflow has three commands: <code>terraform plan</code> shows what would change without changing anything, <code>terraform apply</code> makes the changes, and <code>terraform destroy</code> removes the resources.</p>
+  <pre class="code" data-lang="text"><code>resource "aws_s3_bucket" "reports" {
+  bucket = "my-reports-bucket-example"
+}
+
+resource "aws_s3_bucket_versioning" "reports" {
+  bucket = aws_s3_bucket.reports.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}</code></pre>
+  <p>The second block refers to the first through <code>aws_s3_bucket.reports.id</code>. Terraform reads that reference and creates the bucket first, so you never list the order of creation yourself. Those references form a dependency graph, which is what makes plans accurate.</p>
+  <p><strong>CloudFormation</strong> is AWS's own IaC service. You write a template in YAML or JSON, and CloudFormation creates a <strong>stack</strong> of resources from it. Stacks update through <strong>change sets</strong>, which show the planned changes before you apply them. If an update fails, CloudFormation rolls the stack back to its previous state. Drift detection reports resources that someone changed by hand outside the template.</p>
+  <pre class="code" data-lang="yaml"><code>Resources:
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: my-reports-bucket-example
+      VersioningConfiguration:
+        Status: Enabled</code></pre>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Question</th><th>Terraform</th><th>CloudFormation</th></tr></thead>
+    <tbody>
+      <tr><td>Maker</td><td>HashiCorp</td><td>AWS</td></tr>
+      <tr><td>Clouds</td><td>Many providers</td><td>AWS only</td></tr>
+      <tr><td>Language</td><td>HCL</td><td>YAML or JSON</td></tr>
+      <tr><td>Record of what exists</td><td>A state file you must store safely</td><td>Managed by the stack</td></tr>
+      <tr><td>Preview of changes</td><td><code>terraform plan</code></td><td>Change sets</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>CI/CD</h3>
+  <p><strong>CI</strong> (continuous integration) means every change is merged often and built and tested automatically, so problems show up within minutes. <strong>Continuous delivery</strong> extends that: every change that passes the tests produces a release candidate that could go to production at any time, with a human approving the final step. <strong>Continuous deployment</strong> goes one step further and releases each passing change to production automatically. A typical pipeline runs linting, unit tests, a build, an image scan, a deployment to staging, integration tests, and then production. Tools include GitHub Actions, AWS CodePipeline and Jenkins.</p>
+  <p>For ML, the same pipeline also trains the model, evaluates it against a baseline, and registers it only when it beats the current version. A model that fails the quality gate never reaches users.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A Terraform state file can contain secrets in plain text. Store it in an encrypted remote backend with restricted access, and never commit it to Git.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Infrastructure as code makes changes reviewable and repeatable, and CI/CD makes every change pass the same automatic checks before it reaches users.</p></div>
+  <details class="check"><summary>What does terraform plan do, and why is it useful before apply?</summary><div class="ans"><p>Terraform plan compares the configuration with the state and the real resources, then shows what it would create, change or destroy, without changing anything. Reviewing the plan first prevents surprises such as an accidental deletion of a database.</p></div></details>
+  <details class="check"><summary>What is the difference between continuous delivery and continuous deployment?</summary><div class="ans"><p>Continuous delivery keeps every passing change ready for production, but a person decides when to release it. Continuous deployment releases every passing change to production automatically.</p></div></details>
+  <details class="check"><summary>What does CloudFormation do when a stack update fails?</summary><div class="ans"><p>CloudFormation rolls the stack back to its last working state by default, so the environment is not left half changed. Change sets let you preview the changes before applying them.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="MLOps">
+  <h2>MLOps: experiment tracking, serving and drift</h2>
+  <p><strong>MLOps</strong> applies the discipline of DevOps to machine learning. A model is more than code: it depends on the data it was trained on, the settings used during training, and the environment that runs it. MLOps keeps all of these traceable, deploys models safely, and notices when a model stops working.</p>
+
+  <h3>Experiment tracking with MLflow</h3>
+  <p><strong>MLflow</strong> is an open-source platform for the ML lifecycle. Its <strong>tracking</strong> component records each training run with its <em>parameters</em> (such as the learning rate), its <em>metrics</em> (such as validation accuracy, logged over steps), and its <em>artifacts</em> (the model file, plots, and the data sample). Its <strong>model registry</strong> stores named models with numbered versions, so you can see which version runs in production. Recording runs makes results reproducible: you can answer "which settings produced this model?" months later.</p>
+  <p>Experiment tracking matters because ML work is trial and error. Without a record, a team cannot tell whether a result came from a better model, a lucky random seed, or a changed dataset.</p>
+
+  <h3>Serving patterns</h3>
+  <p>Serving a model means making its predictions available to an application. Three patterns cover most cases. In <strong>online (real-time) serving</strong>, an endpoint answers each request as it arrives, so latency matters, and the endpoint must scale with traffic. In <strong>batch serving</strong>, a job scores a large set of records on a schedule, and throughput matters more than latency. In <strong>streaming serving</strong>, predictions are made on events as they flow through a stream such as Kafka.</p>
+  <p>Releasing a new model carries risk, so teams use staged rollouts. A <strong>canary</strong> sends a small share of traffic, such as 5 percent, to the new model and watches its metrics before increasing the share. A <strong>shadow deployment</strong> runs the new model on live traffic but does not use its answers, which lets you compare outputs safely. Both need a way to roll back quickly to the previous model version.</p>
+
+  <h3>Drift: when the world changes</h3>
+  <p>A model learns a relationship from historical data. Over time the data and the relationship can change, and the model's accuracy drops even though its code is unchanged. There are two main kinds of drift. <strong>Data drift</strong> (also called covariate shift) means the distribution of the inputs changes, for example customers start buying from new regions. <strong>Concept drift</strong> means the relationship between inputs and the target changes, for example fraud patterns change after a new scam appears, so the same input now means something different.</p>
+  <p>Detecting drift often starts with comparing histograms. The population stability index (PSI) compares the share of records in each bin of a feature between the training data (the expected distribution) and production data (the actual distribution). A common rule of thumb reads a PSI below 0.1 as little change, 0.1 to 0.25 as a moderate change worth watching, and above 0.25 as a significant change that calls for investigation. The program below computes PSI for two histograms with five bins.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def psi(expected_counts, actual_counts):
+    e_total = sum(expected_counts)
+    a_total = sum(actual_counts)
+    total = 0.0
+    for e, a in zip(expected_counts, actual_counts):
+        e_pct = e / e_total          # share of training records in this bin
+        a_pct = a / a_total          # share of production records in this bin
+        total += (a_pct - e_pct) * math.log(a_pct / e_pct)
+    return total
+
+baseline = [100, 200, 400, 200, 100]   # training data histogram over five bins
+production_same = [100, 200, 400, 200, 100]
+production_shifted = [40, 120, 300, 300, 240]
+
+print(round(psi(baseline, production_same), 3))
+print(round(psi(baseline, production_shifted), 3))</code></pre>
+  <pre class="output">0.0
+0.288</pre>
+  <p>Step by step: each bin contributes the difference between the two shares, multiplied by the logarithm of their ratio. If the shares are equal, the ratio is 1, the logarithm is 0, and the bin adds nothing, so the identical histograms give 0.0. In the shifted case, the last bin holds 24 percent of production records instead of 10 percent, and the first bin holds 4 percent instead of 10 percent. Those bins add the most to the total, and the sum of 0.288 falls in the "significant" band of the rule of thumb. The number is a signal to investigate, not a verdict, because the choice of bins affects it.</p>
+  <p>Concept drift is harder to see, because the inputs can look normal while the answers become wrong. The reliable signal is the outcome: once true labels arrive, track accuracy or error by week. Labels often arrive late, for example when a loan defaults months later, so teams also monitor proxy signals such as prediction distributions.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Drift tests on inputs alone can raise alarms for harmless changes and miss concept drift. Monitor input drift, prediction drift and real outcome metrics together.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Data drift changes the inputs, concept drift changes what the inputs mean. Track both, and retrain or roll back when measured quality falls.</p></div>
+  <details class="check"><summary>What is the difference between data drift and concept drift?</summary><div class="ans"><p>Data drift means the distribution of inputs changes while the input-to-output relationship stays the same. Concept drift means the relationship itself changes, so the same inputs now lead to different correct outputs.</p></div></details>
+  <details class="check"><summary>How does a canary release protect users?</summary><div class="ans"><p>The new model receives only a small share of traffic. Its metrics are compared with the current model, and the share grows only while the new model performs well. If it performs badly, only a small group was affected, and traffic returns to the old version.</p></div></details>
+  <details class="check"><summary>Why does the PSI of two identical histograms equal zero?</summary><div class="ans"><p>Each bin's contribution is the difference of the two shares multiplied by the logarithm of their ratio. When the shares are equal, the ratio is 1, its logarithm is 0, and every bin adds zero.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: bit manipulation</h2>
+  <h3>The pattern: the computer's own language</h3>
+  <p>A <strong>bit</strong> is a single binary digit, 0 or 1. An integer is stored as a fixed row of bits, and bitwise operators work on each position at once. Bit manipulation is useful when a problem asks for constant extra space, when numbers are paired or counted in binary, or when a set of up to about 20 items can be represented by one integer with one bit per item (a bitmask).</p>
+  <p>The operators are <code>&amp;</code> (AND, 1 only where both bits are 1), <code>|</code> (OR, 1 where either bit is 1), <code>^</code> (XOR, 1 where the bits differ), <code>&lt;&lt;</code> (shift left, which multiplies by 2), <code>&gt;&gt;</code> (shift right, which divides by 2 and drops the lowest bit), and <code>~</code> (NOT, which flips every bit). The program below prints the results on the numbers 5 and 3, and on shifts of 1 and 16.</p>
+  <pre class="code" data-lang="python"><code>print(5 &amp; 3, 5 | 3, 5 ^ 3, 1 &lt;&lt; 4, 16 &gt;&gt; 2)</code></pre>
+  <pre class="output">1 7 6 16 4</pre>
+  <p>Work it out in binary. 5 is <code>101</code> and 3 is <code>011</code>. AND keeps only the bit where both are 1, which gives <code>001</code>, or 1. OR gives <code>111</code>, or 7. XOR gives <code>110</code>, or 6, because the bits differ in the first two places. Shifting 1 left by 4 gives <code>10000</code>, or 16, and shifting 16 right by 2 gives <code>100</code>, or 4.</p>
+  <p>Five tricks cover most interview problems. <code>x &amp; 1</code> reads the lowest bit. <code>x &amp; (1 &lt;&lt; k)</code> tests bit k. <code>x | (1 &lt;&lt; k)</code> sets bit k. <code>x &amp; ~(1 &lt;&lt; k)</code> clears bit k. <code>x ^ x</code> is 0, and <code>x ^ 0</code> is x, so XOR cancels pairs. The expression <code>x &amp; (x - 1)</code> clears the lowest set bit, and it is the key to counting bits.</p>
+  <div class="note key"><p><span class="t">Pattern to remember</span>XOR cancels equal pairs, and <code>x &amp; (x - 1)</code> removes the lowest 1 bit. Most bit problems reduce to one of these two facts.</p></div>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/number-of-1-bits/">
+    <h3>Number of 1 Bits (LeetCode 191)</h3>
+    <div class="statement"><p>Given an unsigned 32-bit integer, return how many bits in its binary form are set to 1. This count is called the Hamming weight. Example: the number 11 is <code>1011</code> in binary, so the answer is 3. The number 128 is a single bit, so the answer is 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The input is a 32-bit pattern, and we count its set bits. Zero has no set bits, so the answer is 0.</li>
+      <li><strong>Brute force.</strong> Convert the number to a string with <code>bin</code> and count the character "1". This works, and it costs time proportional to the 32 bits in the string.</li>
+      <li><strong>Find the waste.</strong> Looking at every bit is more work than needed when a number has only a few 1s. Checking all 32 positions even when most are zero is the waste.</li>
+      <li><strong>Optimise.</strong> The expression <code>n &amp; (n - 1)</code> clears the lowest set bit. Repeat it until n is 0, and count the steps. Each step removes exactly one 1, so the loop runs once per set bit.</li>
+      <li><strong>Dry run.</strong> Take n = 11, which is <code>1011</code>. <code>n - 1</code> is <code>1010</code>, and <code>1011 &amp; 1010</code> is <code>1010</code>. Next, <code>1010 &amp; 1001</code> is <code>1000</code>. Next, <code>1000 &amp; 0111</code> is 0. Three steps, three set bits.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def hamming_weight(n):
+    count = 0
+    while n:
+        n &amp;= n - 1        # clears the lowest set bit
+        count += 1
+    return count
+
+print(hamming_weight(11))          # 1011 has three 1s
+print(hamming_weight(128))         # 10000000 has one 1
+print(hamming_weight(4294967293))  # 0xFFFFFFFD has 31 1s</code></pre>
+    <pre class="output">3
+1
+31</pre>
+    <p>Step by step: <code>while n</code> continues while n is not zero. Each pass subtracts 1 from n, which flips the lowest set bit to 0 and the zeros below it to 1, then the AND keeps only the bits that are above that position. The third test uses 4294967293, the unsigned value of <code>0xFFFFFFFD</code>. Its binary form has 32 bits with only one 0 in the second position, so it has 31 ones. The loop takes 31 passes.</p>
+    <p class="cx">Time O(k), where k is the number of set bits (at most 32) · Space O(1)</p>
+    <div class="note trap"><p><span class="t">Trap</span>In languages with signed integers, the loop must treat the input as unsigned. In Python, the integer is not limited to 32 bits, so the test value is written as its unsigned form.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/single-number-ii/">
+    <h3>Single Number II (LeetCode 137)</h3>
+    <div class="statement"><p>Given a list of integers in which every value appears three times except one value that appears exactly once, return the value that appears once. Example: <code>[2, 2, 3, 2]</code> returns 3. The solution must use linear time and constant extra space.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Numbers can be negative, and each value except one appears a multiple of three times. Constant extra space means no dictionary of counts.</li>
+      <li><strong>Brute force.</strong> Count each value with a dictionary, then return the one with count 1. This is linear time, but it uses extra memory proportional to the number of distinct values.</li>
+      <li><strong>Find the waste.</strong> The dictionary stores full counts when we only need the count modulo 3, because the repeated values contribute multiples of 3. The memory is the waste.</li>
+      <li><strong>Optimise.</strong> Handle one bit position at a time. For each of the 32 positions, add up the bits in that position across all numbers. Every value that appears three times adds a multiple of 3 to the sum. The total modulo 3 is therefore the bit of the lone number in that position.</li>
+      <li><strong>Dry run.</strong> Take <code>[2, 2, 3, 2]</code>. In binary, 2 is <code>10</code> and 3 is <code>11</code>. In position 0, the bits are 0, 0, 1, 0, so the total is 1, and 1 mod 3 is 1. In position 1, the bits are 1, 1, 1, 1, so the total is 4, and 4 mod 3 is 1. The lone number has bits 0 and 1 set, which is 3.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def single_number(nums):
+    result = 0
+    for bit in range(32):
+        total = 0
+        for num in nums:
+            total += (num &gt;&gt; bit) &amp; 1      # the bit of this number at this position
+        if total % 3:                     # the lone number contributes 1 here
+            result |= 1 &lt;&lt; bit
+    if result &gt;= 2 ** 31:                 # convert the 32-bit pattern back to a negative number
+        result -= 2 ** 32
+    return result
+
+print(single_number([2, 2, 3, 2]))
+print(single_number([0, 1, 0, 1, 0, 1, 99]))
+print(single_number([-2, -2, 1, -2]))</code></pre>
+    <pre class="output">3
+99
+1</pre>
+    <p>Step by step: the outer loop visits the 32 bit positions. For each position, the inner loop shifts each number right by <code>bit</code> places and keeps the lowest bit with <code>&amp; 1</code>. Python shifts negative numbers as if they had infinitely many leading 1s, so the bit values for positions below 32 are still the two's complement bits. The total modulo 3 is 1 only for positions where the lone number has a 1, and <code>result |= 1 &lt;&lt; bit</code> sets that bit. The final conversion matters only for negative answers. In the third test, <code>-2</code> appears three times and <code>1</code> once, so the answer is 1.</p>
+    <p class="cx">Time O(32 × n) = O(n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Counting bits position by position and taking the sum modulo k removes every value that repeats k times. This is the bitwise version of a counter.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/sum-of-two-integers/">
+    <h3>Sum of Two Integers (LeetCode 371)</h3>
+    <div class="statement"><p>Given two integers <code>a</code> and <code>b</code>, return their sum without using the <code>+</code> or <code>-</code> operators. Example: <code>get_sum(1, 2)</code> returns 3, and <code>get_sum(-2, 3)</code> returns 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Negative numbers are allowed. The result must match 32-bit signed arithmetic, so the answer stays within the signed 32-bit range.</li>
+      <li><strong>Brute force.</strong> There is no simple brute force, because the operators are banned. Counting up from a to b with <code>+1</code> steps is also forbidden in spirit, and it would be slow for large values.</li>
+      <li><strong>Find the waste.</strong> Addition works column by column. In each column the sum bit is the XOR of the two bits, and a carry appears when both bits are 1, which is the AND of the two bits, shifted one place left.</li>
+      <li><strong>Optimise.</strong> Repeat the column rule: <code>sum = a ^ b</code> holds the sum without carries, and <code>carry = (a &amp; b) &lt;&lt; 1</code> holds the carries. Replace a with the sum and b with the carry, and repeat until there is no carry left. The carry moves one column per round, so the loop ends in at most about 32 rounds.</li>
+      <li><strong>Dry run.</strong> Take a = 2 and b = 3. Binary 10 and 11. XOR gives 01 and AND gives 10, so the carry shifted left is 100. Now a = 1 and b = 4, which is 001 and 100. XOR gives 101, and AND gives 000, so there is no carry. The answer is 5.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def get_sum(a, b):
+    mask = 0xFFFFFFFF                     # keep only 32 bits, as a 32-bit machine would
+    while b != 0:
+        carry = ((a &amp; b) &lt;&lt; 1) &amp; mask
+        a = (a ^ b) &amp; mask
+        b = carry
+    # if the top bit is set, the 32-bit pattern is a negative number
+    if a &lt;= 0x7FFFFFFF:
+        return a
+    return ~(a ^ mask)
+
+print(get_sum(1, 2))
+print(get_sum(-2, 3))
+print(get_sum(-5, -7))
+print(get_sum(12, 5))</code></pre>
+    <pre class="output">3
+1
+-12
+17</pre>
+    <p>Step by step: the mask limits every value to 32 bits, which keeps the loop finite, because Python integers would otherwise grow without limit when carries move left. The loop runs while there is a carry. Each round computes the carry-free sum with XOR and the carry with AND followed by a left shift. At the end, if the top bit (bit 31) is 0, the value is a non-negative number and is returned as it is. If the top bit is 1, the value is a negative number in two's complement, and <code>~(a ^ mask)</code> converts it back to the negative integer Python expects. For <code>get_sum(-5, -7)</code> the 32-bit pattern has its top bit set, and the conversion gives -12.</p>
+    <p class="cx">Time O(32) = O(1) · Space O(1)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting to mask in Python lets the carry keep growing to the left, so the loop never ends for negative inputs. The mask also has to be undone at the end, or negative answers come out as large positive numbers.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/shortest-path-visiting-all-nodes/">
+    <h3>Shortest Path Visiting All Nodes (LeetCode 847)</h3>
+    <div class="statement"><p>You are given an undirected, connected graph with n nodes labelled 0 to n minus 1, as an adjacency list. You may start at any node and move along edges, and you may revisit nodes and edges. Return the length of the shortest walk that visits every node at least once. Example: <code>[[1, 2, 3], [0], [0], [0]]</code> is a star with node 0 in the middle. The answer is 4, for the walk 1, 0, 2, 0, 3.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A walk may repeat nodes, so the problem is not the usual shortest path between two nodes. The number of nodes n is small (at most 12 on LeetCode), which is the hint that a bitmask over the nodes is practical.</li>
+      <li><strong>Brute force.</strong> Try every possible walk by depth-first search, and keep the shortest one that covers all nodes. The number of walks grows exponentially with the walk length, so this is far too slow once walks are long.</li>
+      <li><strong>Find the waste.</strong> Many walks reach the same node having visited the same set of nodes. The brute force explores each of those again and again. The future of a walk depends only on where it is now and which nodes it has already covered, not on the exact order it took to get there.</li>
+      <li><strong>Optimise.</strong> Define a state as the pair (current node, bitmask of visited nodes). There are at most n times 2 to the power n states, which is small for n up to 12. Run breadth-first search over these states. Every move costs 1, so BFS finds the first time the mask becomes full, which is the shortest walk. Start from every node at once, with its own bit set, because the walk may begin anywhere.</li>
+      <li><strong>Dry run.</strong> The star example has four nodes, so the target mask is <code>1111</code>. The table follows one shortest walk through the BFS layers.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Distance</th><th>Current node</th><th>Visited mask</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>1</td><td>0010</td><td>Start at leaf 1</td></tr>
+        <tr><td>1</td><td>0</td><td>0011</td><td>Move to the centre, now nodes 0 and 1 are covered</td></tr>
+        <tr><td>2</td><td>2</td><td>0111</td><td>Move to leaf 2</td></tr>
+        <tr><td>3</td><td>0</td><td>0111</td><td>Return to the centre, the mask does not change</td></tr>
+        <tr><td>4</td><td>3</td><td>1111</td><td>Move to leaf 3, the mask is full, so the answer is 4</td></tr>
+      </tbody>
+    </table></div>
+    <p>BFS explores all states at distance 0, then all at distance 1, and so on, so the first full mask it meets is the shortest answer. A walk of length 3 cannot cover the star, because it can visit only two leaves, and each leaf needs its own visit through the centre.</p>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+def shortest_path_length(graph):
+    n = len(graph)
+    target = (1 &lt;&lt; n) - 1                 # the mask with every node visited
+    queue = deque()
+    seen = set()
+    for i in range(n):                    # the walk may start at any node
+        seen.add((i, 1 &lt;&lt; i))
+        queue.append((i, 1 &lt;&lt; i, 0))   # (node, visited mask, distance)
+    while queue:
+        node, mask, dist = queue.popleft()
+        if mask == target:
+            return dist
+        for nxt in graph[node]:
+            nmask = mask | (1 &lt;&lt; nxt)
+            if (nxt, nmask) not in seen:
+                seen.add((nxt, nmask))
+                queue.append((nxt, nmask, dist + 1))
+    return 0
+
+print(shortest_path_length([[1, 2, 3], [0], [0], [0]]))
+print(shortest_path_length([[1], [0, 2, 4], [1, 3, 4], [2], [1, 2]]))
+print(shortest_path_length([[]]))</code></pre>
+    <pre class="output">4
+4
+0</pre>
+    <p>Step by step: the seen set stores each (node, mask) state once, so the search never repeats a state. Each queue entry carries its distance, and the first entry with a full mask is returned. The second example is a five-node graph, and its shortest covering walk is also 4. The third example has one node, which is already fully visited at distance 0, so the answer is 0.</p>
+    <p class="cx">Time O(n × 2 to the power n × n) in the worst case, since there are n times 2 to the power n states and each has up to n neighbours · Space O(n × 2 to the power n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a walk must cover a small set of items in any order, make the state the current position plus a bitmask of what is covered, then run BFS over those states.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Starting from a single node is a common mistake. The walk may begin at any node, so the BFS must seed the queue with every node.</p></div>
+  </article>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer aloud before you open the answer. Name the service, explain the mechanism in a sentence or two, and give one example of when you would use it.</p>
+  <details class="check"><summary>Explain the difference between Multi-AZ and read replicas in RDS.</summary><div class="ans"><p>Multi-AZ keeps a synchronous standby in another zone for automatic failover, which is about availability. Read replicas receive changes asynchronously and serve reads, which is about scaling reads. Replicas can lag, so promoting one may lose recent changes.</p></div></details>
+  <details class="check"><summary>How do you choose the partition key in DynamoDB?</summary><div class="ans"><p>Start from the queries you need. The partition key should appear in most queries and spread data evenly across many values, such as a user ID, while the sort key orders items inside a partition, such as a timestamp. Avoid keys that concentrate traffic on one value, such as a single status field.</p></div></details>
+  <details class="check"><summary>What is the cache-aside pattern?</summary><div class="ans"><p>The application reads the cache first. On a miss it reads the database, stores the result in the cache with a time to live, and returns it. Writes update the database and then invalidate or refresh the cache entry.</p></div></details>
+  <details class="check"><summary>When do you choose an ALB over an NLB?</summary><div class="ans"><p>Choose an ALB for HTTP or HTTPS services that need routing by path or host, or Lambda targets. Choose an NLB for TCP or UDP traffic, extreme throughput, low latency, or a static IP address.</p></div></details>
+  <details class="check"><summary>What is the difference between a CDN cache hit and a cache miss?</summary><div class="ans"><p>On a hit, the nearby edge location already has the object and serves it immediately. On a miss, the edge fetches the object from the origin, stores it for its TTL, and then serves it, so the first user pays the extra latency.</p></div></details>
+  <details class="check"><summary>What does at-least-once delivery mean, and how do you handle it?</summary><div class="ans"><p>A message may be delivered more than once, for example after a visibility timeout expires during processing. Make the handler idempotent, so processing the same message twice gives the same result, and delete the message only after the work succeeds.</p></div></details>
+  <details class="check"><summary>What is the difference between SNS and SQS?</summary><div class="ans"><p>SNS publishes one message to a topic, and it is pushed to every subscriber. SQS holds messages in a queue until one consumer takes and deletes each message. They are often combined: SNS fans out to several SQS queues.</p></div></details>
+  <details class="check"><summary>What do you monitor for a production model?</summary><div class="ans"><p>Service metrics such as latency percentiles and error rate, input and prediction distributions to detect data drift, and true outcome metrics such as accuracy once labels arrive to detect concept drift. Alarms fire on these signals, and a rollback plan exists for each deployed version.</p></div></details>
+  <details class="check"><summary>Why use Terraform plan before apply?</summary><div class="ans"><p>The plan shows exactly which resources will be created, changed or destroyed, so a reviewer can catch a mistake such as a replaced database before it happens. Apply then makes only the approved changes.</p></div></details>
+  <details class="check"><summary>How does <code>x &amp; (x - 1)</code> help in bit problems?</summary><div class="ans"><p>Subtracting 1 flips the lowest set bit to 0 and the zeros below it to 1. The AND then clears exactly the lowest set bit. Repeating it counts set bits, and checking the result tells you whether x is a power of two.</p></div></details>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>RDS</dt><dd>A managed relational database service for engines such as PostgreSQL, MySQL and Aurora.</dd></div>
+    <div><dt>Multi-AZ</dt><dd>A synchronous standby in another zone that takes over on failure, for availability.</dd></div>
+    <div><dt>Read replica</dt><dd>An asynchronous copy of a database that serves reads and can be promoted.</dd></div>
+    <div><dt>DynamoDB partition key</dt><dd>The key whose hash chooses the partition that stores an item.</dd></div>
+    <div><dt>Sort key</dt><dd>An optional key that orders items inside one partition, enabling range queries.</dd></div>
+    <div><dt>Global secondary index</dt><dd>An alternative key set that lets DynamoDB answer queries on other attributes.</dd></div>
+    <div><dt>ElastiCache</dt><dd>A managed Redis or Memcached cache, used to serve hot reads from memory.</dd></div>
+    <div><dt>Cache-aside</dt><dd>The pattern where the application checks the cache, loads on a miss, and stores the result with a TTL.</dd></div>
+    <div><dt>Application Load Balancer</dt><dd>A layer 7 load balancer that routes HTTP by path and host.</dd></div>
+    <div><dt>Network Load Balancer</dt><dd>A layer 4 load balancer for TCP, UDP and TLS with a static IP per zone.</dd></div>
+    <div><dt>Health check</dt><dd>A periodic probe that decides whether a target should receive traffic.</dd></div>
+    <div><dt>Route 53</dt><dd>AWS's DNS service with records, alias records, routing policies and health checks.</dd></div>
+    <div><dt>Routing policy</dt><dd>The rule that picks an answer for a DNS query, such as weighted, latency or failover.</dd></div>
+    <div><dt>CloudFront</dt><dd>A CDN that caches content at edge locations and fetches misses from an origin.</dd></div>
+    <div><dt>Origin Access Control</dt><dd>A mechanism that lets only a CloudFront distribution read a private S3 bucket.</dd></div>
+    <div><dt>API Gateway</dt><dd>A managed front door for REST, HTTP and WebSocket APIs, with authorizers and throttling.</dd></div>
+    <div><dt>SQS</dt><dd>A managed message queue with visibility timeouts, long polling and dead-letter queues.</dd></div>
+    <div><dt>Visibility timeout</dt><dd>The period during which a received SQS message is hidden from other consumers.</dd></div>
+    <div><dt>SNS</dt><dd>A publish and subscribe service that pushes each message to every subscriber.</dd></div>
+    <div><dt>Fan-out</dt><dd>One event sent to several consumers, usually an SNS topic feeding several SQS queues.</dd></div>
+    <div><dt>CloudWatch alarm</dt><dd>A rule that changes state to OK, ALARM or INSUFFICIENT_DATA based on a metric.</dd></div>
+    <div><dt>SageMaker endpoint</dt><dd>A managed service that hosts a model for real-time predictions.</dd></div>
+    <div><dt>Bedrock</dt><dd>Managed API access to foundation models, with knowledge bases, agents and guardrails.</dd></div>
+    <div><dt>Infrastructure as code</dt><dd>Describing cloud resources in versioned text files that a tool creates and updates.</dd></div>
+    <div><dt>Terraform state</dt><dd>The file that maps configuration to real resource IDs, which must be stored securely.</dd></div>
+    <div><dt>CloudFormation stack</dt><dd>A set of AWS resources created and updated together from one template.</dd></div>
+    <div><dt>CI and CD</dt><dd>Automatic build and test on every change, and automatic or approved release of passing changes.</dd></div>
+    <div><dt>MLflow tracking</dt><dd>A record of each training run's parameters, metrics and artifacts.</dd></div>
+    <div><dt>Canary release</dt><dd>Sending a small share of traffic to a new model before increasing it.</dd></div>
+    <div><dt>Data drift and concept drift</dt><dd>Data drift changes the inputs, and concept drift changes the input-to-output relationship.</dd></div>
+    <div><dt>Population stability index</dt><dd>A histogram-based score that measures how far a feature's distribution has moved.</dd></div>
+    <div><dt>Bitmask</dt><dd>An integer used as a set, with one bit per item.</dd></div>
+    <div><dt>XOR cancellation</dt><dd>x ^ x is 0, so repeated values cancel out in a XOR chain.</dd></div>
+  </dl>
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td><code>aws dynamodb put-item</code></td><td>Writes one item to a DynamoDB table</td><td><code>aws dynamodb put-item --table-name Orders --item '{"pk": {"S": "U1"}}'</code></td></tr>
+      <tr><td><code>aws dynamodb get-item</code></td><td>Reads one item by its key</td><td><code>aws dynamodb get-item --table-name Orders --key '{"pk": {"S": "U1"}}' --consistent-read</code></td></tr>
+      <tr><td><code>aws cloudwatch put-metric-alarm</code></td><td>Creates or updates an alarm on a metric</td><td><code>aws cloudwatch put-metric-alarm --alarm-name a --metric-name CPUUtilization ...</code></td></tr>
+      <tr><td><code>aws sqs receive-message</code></td><td>Takes up to 10 messages, hiding them for the visibility timeout</td><td><code>aws sqs receive-message --queue-url URL --wait-time-seconds 20</code></td></tr>
+      <tr><td><code>terraform plan</code></td><td>Shows the changes Terraform would make</td><td><code>terraform plan -out tfplan</code></td></tr>
+      <tr><td><code>terraform apply</code></td><td>Applies the planned or current changes</td><td><code>terraform apply tfplan</code></td></tr>
+      <tr><td><code>int.bit_count()</code></td><td>Counts the set bits of a Python integer (Python 3.10 and later)</td><td><code>(11).bit_count()</code> gives 3</td></tr>
+      <tr><td><code>bin(n)</code></td><td>Returns the binary form of n as a string</td><td><code>bin(5)</code> gives <code>'0b101'</code></td></tr>
+      <tr><td><code>collections.deque</code></td><td>A double-ended queue with fast appends and pops at both ends</td><td><code>q = deque(); q.append(x); q.popleft()</code></td></tr>
+      <tr><td><code>math.log(x)</code></td><td>The natural logarithm of x</td><td><code>math.log(1)</code> gives 0.0</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 26?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 26 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-25.html"><small>Previous, day 25</small>Cloud and AWS 1: Core services</a><a class="next" href="day-27.html"><small>Next, day 27</small>System design 1: Fundamentals and building blocks</a></nav>
+</main><script src="assets/app.js"></script></body></html>

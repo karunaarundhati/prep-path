@@ -1,0 +1,673 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 25: Cloud and AWS 1: Core services</title><meta name="description" content="Today covers the cloud from the ground up: what the service models mean, who is responsible for what, and how AWS compute, storage, networking and security fit together. It also introduces the trie, the data structure behind fast prefix searches. Interviewers expect you to explain where code runs, how traffic reaches it, and who protects it."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="25" data-key="25" data-noun="day" data-num="25" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Cloud and AWS 1: <em>Core services</em></h1>
+<p class="lede">Today covers the cloud from the ground up: what the service models mean, who is responsible for what, and how AWS compute, storage, networking and security fit together. It also introduces the trie, the data structure behind fast prefix searches. Interviewers expect you to explain where code runs, how traffic reaches it, and who protects it.</p>
+<div class="station"><b>25</b><span>Thu 26 Nov 2026 · Cloud &amp; DevOps · DSA: Tries</span></div>
+<ul class="topics"><li>IaaS, PaaS, SaaS and the shared responsibility model</li><li>Regions and availability zones</li><li>EC2, Auto Scaling and Lambda</li><li>S3, EBS and EFS storage</li><li>VPC, subnets, route tables, internet and NAT gateways</li><li>Security groups, NACLs and IAM</li><li>Tries (prefix trees) for DSA</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Cloud models">
+  <h2>Cloud computing, service models and responsibility</h2>
+  <p>Cloud computing means renting computing resources (servers, disks, networks, databases and software) over the internet, instead of buying hardware and running it yourself. You ask for what you need, use it for as long as you need it, and pay for what you used. The US National Institute of Standards and Technology (NIST) describes cloud services with five traits: on-demand self-service (you provision resources yourself, without asking a person), broad network access (you reach them over standard networks), resource pooling (many customers share the same physical hardware, kept apart by software), rapid elasticity (capacity can grow or shrink quickly), and measured service (you are billed for what you consume).</p>
+  <p>Most cloud resources are made possible by <strong>virtualization</strong>. A piece of software called a <strong>hypervisor</strong> splits one physical server into several isolated <strong>virtual machines</strong> (VMs). Each VM looks like its own computer with its own operating system, even though many VMs share the same metal. When you rent a server in the cloud, you almost always get a VM.</p>
+
+  <h3>IaaS, PaaS and SaaS</h3>
+  <p>Cloud services are grouped by how much of the stack the provider runs for you. Picture the stack from bottom to top: physical data centers, hardware, virtualization, operating system, runtime (for example the Python interpreter), middleware (databases, message brokers), the application code, and finally the data. The further down the stack the provider takes responsibility, the less you have to manage, and the less control you have.</p>
+  <ul>
+    <li><strong>IaaS (Infrastructure as a Service)</strong> gives you raw building blocks: virtual machines, disks, networks and load balancers. You install the operating system, the runtime, your software and your data. Example: Amazon EC2.</li>
+    <li><strong>PaaS (Platform as a Service)</strong> gives you a platform on which you deploy code. The provider manages the operating system and the runtime, and usually handles patching and scaling of the platform. You manage your application and your data. Examples: AWS Elastic Beanstalk, Google App Engine, Heroku.</li>
+    <li><strong>FaaS (Function as a Service)</strong> is a special kind of PaaS, often called serverless. You upload a single function, and the platform runs it each time an event happens (an HTTP request, a file upload, a message). You never see a server. Example: AWS Lambda.</li>
+    <li><strong>SaaS (Software as a Service)</strong> gives you a finished application that you use through a browser or an app. You manage only your settings, your users and the data you type in. Examples: Gmail, Salesforce, Microsoft 365.</li>
+  </ul>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Layer</th><th>On-premises (you run it)</th><th>IaaS</th><th>PaaS</th><th>FaaS</th><th>SaaS</th></tr></thead>
+    <tbody>
+      <tr><td>Application code</td><td>You</td><td>You</td><td>You</td><td>You</td><td>Provider</td></tr>
+      <tr><td>Data</td><td>You</td><td>You</td><td>You</td><td>You</td><td>Provider (you own your entries)</td></tr>
+      <tr><td>Runtime and middleware</td><td>You</td><td>You</td><td>Provider</td><td>Provider</td><td>Provider</td></tr>
+      <tr><td>Operating system</td><td>You</td><td>You</td><td>Provider</td><td>Provider</td><td>Provider</td></tr>
+      <tr><td>Virtual machines and servers</td><td>You</td><td>Provider</td><td>Provider</td><td>Provider</td><td>Provider</td></tr>
+      <tr><td>Storage, networking, data center</td><td>You</td><td>Provider</td><td>Provider</td><td>Provider</td><td>Provider</td></tr>
+    </tbody>
+  </table></div>
+  <p>Read the table column by column. In IaaS the provider owns the bottom three rows, and you own everything above the operating system. In SaaS you own almost nothing except your own data and access. This is why a managed database (a PaaS-style service) is often preferred over running a database server yourself: the provider patches it and handles backups.</p>
+
+  <h3>The shared responsibility model</h3>
+  <p>Cloud security is always shared between the provider and the customer. AWS puts it this way: AWS is responsible for <em>security of the cloud</em>, and the customer is responsible for <em>security in the cloud</em>. Security of the cloud covers the physical data centers, the hardware, the network backbone and the virtualization layer. Security in the cloud covers everything you configure and put there: your data, who may access it, how your operating system is patched, and how your firewall rules are written.</p>
+  <p>The split moves depending on the service. For an EC2 virtual machine, you patch the operating system, because you control it. For Amazon RDS (a managed relational database), AWS patches the database engine and the underlying operating system, but you still decide who can connect and whether the data is encrypted. The rule of thumb: whoever controls a layer is responsible for securing it.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Task</th><th>Who is responsible</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Locking the data center doors and maintaining hardware</td><td>AWS</td><td>You have no physical access</td></tr>
+      <tr><td>Patching the hypervisor</td><td>AWS</td><td>The virtualization layer is part of the cloud</td></tr>
+      <tr><td>Patching the OS on an EC2 instance</td><td>Customer</td><td>You run and control that OS</td></tr>
+      <tr><td>Deciding which IP addresses may reach port 22 (SSH)</td><td>Customer</td><td>You write the firewall rules</td></tr>
+      <tr><td>Creating IAM users and policies</td><td>Customer</td><td>Access control is your configuration</td></tr>
+      <tr><td>Encrypting your S3 objects</td><td>Customer (AWS provides the tools)</td><td>You choose the settings and keys</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>Many breaches happen because customers assume the provider handles security. A public S3 bucket or an open security group is the customer's mistake, not AWS's.</p></div>
+
+  <h3>Regions and availability zones</h3>
+  <p>AWS organizes its infrastructure in three layers. A <strong>region</strong> is a separate geographic area, such as <code>us-east-1</code> (Northern Virginia). Each region is independent: data stored in one region stays there unless you copy it. Inside a region there are several <strong>availability zones</strong> (AZs). An AZ is one or more physical data centers with their own power, cooling and networking. AZs in the same region are connected by fast, low-latency links, but a failure in one AZ (a power cut, a fire, a network fault) should not take down the others. Finally, <strong>edge locations</strong> are many smaller sites around the world, used by services such as CloudFront to cache content close to users.</p>
+  <p>Zone names such as <code>us-east-1a</code> are mapped to physical data centers differently for each account, so two accounts may see "1a" as different buildings. If you need to refer to the same physical zone across accounts, AWS provides zone IDs such as <code>use1-az1</code>.</p>
+  <p>Why does this matter? There are three reasons to choose a region carefully. The first is <strong>latency</strong>: a region near your users answers faster, because light in fiber needs time to travel. The second is <strong>data residency</strong>: some laws require personal data to stay in a given country. The third is <strong>availability</strong>: you spread a system across at least two AZs so that one failing zone does not stop your application, and for disaster recovery you may copy data to a second region.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A region is a place, an availability zone is a data center inside that place, and high availability means running in at least two AZs.</p></div>
+  <details class="check"><summary>What is the difference between IaaS and PaaS?</summary><div class="ans"><p>With IaaS you rent raw infrastructure such as virtual machines, disks and networks, and you manage the operating system, the runtime and your application. With PaaS the provider also manages the operating system and runtime, and you deploy only your code and data.</p></div></details>
+  <details class="check"><summary>Who patches the operating system on an EC2 instance, and who patches the engine of an RDS database?</summary><div class="ans"><p>You patch the operating system on EC2, because you control that machine. For RDS, AWS patches the database engine and the underlying operating system, while you choose who may connect and whether the data is encrypted.</p></div></details>
+  <details class="check"><summary>Why do production systems usually run in two or more availability zones?</summary><div class="ans"><p>An availability zone is a separate data center with its own power and cooling. If one zone fails, instances in another zone in the same region keep serving traffic, so the system stays available.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Compute">
+  <h2>Compute: EC2, Auto Scaling and Lambda</h2>
+  <p><strong>Compute</strong> means the processing power that runs your code. On AWS there are three common ways to get it. You can rent virtual machines (EC2), you can run a fleet of them that grows and shrinks automatically (Auto Scaling), or you can run single functions without managing any machine (Lambda).</p>
+
+  <h3>EC2 (Elastic Compute Cloud)</h3>
+  <p>An <strong>EC2 instance</strong> is a virtual machine that you launch in a region and an availability zone. Four choices shape it. The first is the <strong>AMI</strong> (Amazon Machine Image), which is a template holding the operating system and any preinstalled software. The second is the <strong>instance type</strong>, which sets the CPU, memory and network capacity. Instance types are grouped in families named by a letter: <code>t</code> for burstable general purpose, <code>m</code> for balanced general purpose, <code>c</code> for compute-heavy work, <code>r</code> for memory-heavy work, and <code>g</code> or <code>p</code> for GPU work. The third is the <strong>storage</strong>, usually an EBS volume (covered in the storage section below). The fourth is the <strong>network placement</strong>: the subnet and security groups, which come later in this page.</p>
+  <p>There are several ways to pay for an instance. With <strong>On-Demand</strong> you pay for the time the instance runs, with no commitment. With <strong>Savings Plans</strong> or <strong>Reserved Instances</strong> you promise a level of usage for one or three years and get a lower price. With <strong>Spot Instances</strong> you use spare AWS capacity at a large discount, but AWS can reclaim the instance, and you receive a two-minute interruption notice. Spot suits batch jobs that can be stopped and restarted, not a primary database.</p>
+  <p>Every instance is created from a <strong>launch template</strong>: the AMI, the type, the key pair used for SSH login, the subnet, the security groups and the user data script. <strong>User data</strong> is a script that runs once at first boot. It is how a fresh server installs its software automatically.</p>
+  <pre class="code" data-lang="bash"><code># Launch one instance from an AMI (the IDs are placeholders)
+aws ec2 run-instances \
+  --image-id ami-0123456789abcdef0 \
+  --instance-type t3.micro \
+  --key-name my-key \
+  --subnet-id subnet-0abc1234 \
+  --security-group-ids sg-0def5678 \
+  --count 1
+
+# List the IDs of running instances
+aws ec2 describe-instances \
+  --filters "Name=instance-state-name,Values=running" \
+  --query "Reservations[].Instances[].InstanceId"</code></pre>
+  <p>The commands above are real AWS CLI syntax, but the IDs are placeholders, so they will not run unchanged on your account. The first command returns a large JSON description of the new instance. The second returns the IDs of the running instances.</p>
+
+  <h3>Auto Scaling groups</h3>
+  <p>A single server is a single point of failure, and a fixed number of servers wastes money at quiet times. An <strong>Auto Scaling group</strong> keeps a fleet of identical instances between a minimum and a maximum size. You set three numbers: <em>minimum</em> (never go below this), <em>desired</em> (the current target), and <em>maximum</em> (never go above this). The launch template describes what each new instance looks like. A <strong>scaling policy</strong> changes the desired number. The most common is <em>target tracking</em>, where you say "keep average CPU near 50 percent" and AWS adds or removes instances to hold that target. Scheduled actions are another option, for example "add capacity every weekday at 9 am".</p>
+  <p>The group also runs <strong>health checks</strong>. If an instance fails, the group terminates it and starts a replacement. When you spread the group across several AZs, the group balances instances between them, so one zone failure leaves the others running. An Elastic Load Balancer (covered on day 26) usually sits in front of the group and sends traffic only to healthy instances.</p>
+  <pre class="code" data-lang="bash"><code># Set the desired number of instances in an Auto Scaling group
+aws autoscaling set-desired-capacity \
+  --auto-scaling-group-name web-asg \
+  --desired-capacity 4</code></pre>
+
+  <h3>AWS Lambda</h3>
+  <p><strong>Lambda</strong> runs a function in response to an event, without you managing a server. You write a function, choose a runtime (Python, Node.js, Java and others), set a memory size and a timeout, and attach a trigger. Triggers include an HTTP request through API Gateway, a file upload to S3, a message in SQS, or a scheduled rule in EventBridge. Each run is an <strong>invocation</strong>. You pay per request and for the duration of each run, measured as memory multiplied by time.</p>
+  <p>Three facts matter in interviews. Lambda functions are <strong>stateless</strong>: nothing you keep in memory is guaranteed to survive to the next call, so keep state in S3, DynamoDB or a cache. A function has a maximum <strong>timeout of 15 minutes</strong>, so long jobs belong on EC2, containers or a batch service. Memory can be set from 128 MB up to 10,240 MB, and CPU power grows with the memory setting. When AWS has to create a new execution environment, the first call pays a start-up delay called a <strong>cold start</strong>. Environments that already exist are reused for later calls, which are "warm".</p>
+  <p>The handler is the function Lambda calls. Its signature is <code>handler(event, context)</code>: <code>event</code> is the input (a dictionary for JSON triggers) and <code>context</code> carries runtime information. The code below is a complete program. It defines the handler and calls it locally with fake events, which is how you test a handler before deploying it.</p>
+  <pre class="code" data-lang="python"><code>import json
+
+def handler(event, context):
+    # The event is a dictionary, here built by hand for the local test
+    name = event.get("name", "world")
+    body = {"message": "hello " + name}
+    return {"statusCode": 200, "body": json.dumps(body)}
+
+if __name__ == "__main__":
+    # Simulate invocations: context is None because we are not inside Lambda
+    print(handler({"name": "Ada"}, None))
+    print(handler({}, None))</code></pre>
+  <pre class="output">{'statusCode': 200, 'body': '{"message": "hello Ada"}'}
+{'statusCode': 200, 'body': '{"message": "hello world"}'}</pre>
+  <p>Step by step: <code>event.get("name", "world")</code> reads the key <code>name</code> and falls back to <code>"world"</code> when the key is missing, which is why the second call prints "hello world". <code>json.dumps</code> turns the Python dictionary into a JSON string, because HTTP bodies are text. The returned dictionary has the shape that API Gateway expects from a Lambda proxy integration. When Lambda runs for real, it calls <code>handler</code> with the actual event and context, and your local test block is ignored.</p>
+
+  <h3>EC2 or Lambda?</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Question</th><th>EC2</th><th>Lambda</th></tr></thead>
+    <tbody>
+      <tr><td>Unit you manage</td><td>A virtual machine</td><td>A function</td></tr>
+      <tr><td>Maximum run time</td><td>No fixed limit</td><td>15 minutes per invocation</td></tr>
+      <tr><td>Scaling</td><td>You configure Auto Scaling</td><td>Automatic, with parallel environments per concurrent request</td></tr>
+      <tr><td>Pricing</td><td>Time the instance runs</td><td>Requests plus duration</td></tr>
+      <tr><td>Good fit</td><td>Long-running services, custom software, GPU work</td><td>Event handlers, glue code, light APIs, scheduled tasks</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>When you stop an EC2 instance, its EBS root volume survives. When you terminate it, the root volume is deleted by default. Keep important data on separate volumes or in S3.</p></div>
+  <details class="check"><summary>What is a launch template and what does an Auto Scaling group do with it?</summary><div class="ans"><p>A launch template describes the configuration of each new instance: the AMI, instance type, key pair, security groups and user data. The Auto Scaling group uses it to create identical instances whenever it needs to grow, and it replaces instances that fail health checks.</p></div></details>
+  <details class="check"><summary>Why must a Lambda function not rely on data kept in a global variable?</summary><div class="ans"><p>Lambda functions are stateless. An execution environment may be reused for later calls, but AWS can discard it at any time, and parallel requests use different environments. Anything that must survive belongs in S3, DynamoDB or another external store.</p></div></details>
+  <details class="check"><summary>What is a Spot Instance, and what kind of work fits it?</summary><div class="ans"><p>A Spot Instance uses spare AWS capacity at a large discount. AWS can interrupt it with a two-minute notice, so it suits fault-tolerant batch jobs, rendering or data processing that can be checkpointed, and not a single primary database.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Storage">
+  <h2>Storage: S3, EBS and EFS</h2>
+  <p>Storage in the cloud comes in three shapes, and interviewers often ask you to choose between them. <strong>Block storage</strong> behaves like a hard disk attached to one machine: the operating system formats it and reads and writes small blocks. Amazon EBS is block storage. <strong>File storage</strong> is a shared folder tree that many machines mount at the same time over a network protocol. Amazon EFS is file storage. <strong>Object storage</strong> stores whole files, called objects, in a flat namespace and reaches them over HTTP with an API. Amazon S3 is object storage.</p>
+
+  <h3>S3 (Simple Storage Service)</h3>
+  <p>An S3 <strong>bucket</strong> is a container with a globally unique name, created in one region. Inside it you store <strong>objects</strong>. Each object has a <strong>key</strong> (its name, such as <code>reports/2026/q1.csv</code>), the data itself, and metadata. S3 has no real folders. The slashes in a key are only a naming convention that the console displays as folders, which is why the key is the right word for the name and not "path".</p>
+  <p>S3 is designed for <strong>11 nines of durability</strong> (99.999999999 percent) for its standard classes. Durability means the chance that an object is lost. Availability is a different number: it is the chance that you can read the object right now, and it is lower. A durable object can still be temporarily unreachable.</p>
+  <p>Storage classes trade cost against access speed and retrieval fees. The main classes are <strong>S3 Standard</strong> (frequent access), <strong>S3 Intelligent-Tiering</strong> (moves objects between tiers automatically when access patterns change), <strong>S3 Standard-IA</strong> and <strong>S3 One Zone-IA</strong> (cheaper storage for data you read rarely, with retrieval fees; One Zone keeps data in a single AZ), <strong>S3 Glacier Instant Retrieval</strong>, <strong>S3 Glacier Flexible Retrieval</strong> (retrieval in minutes to hours) and <strong>S3 Glacier Deep Archive</strong> (the cheapest, with retrieval in hours). A <strong>lifecycle rule</strong> moves objects to a cheaper class after a number of days, or deletes them when they expire, without anyone running a job by hand.</p>
+  <pre class="code" data-lang="json"><code>{
+  "Rules": [
+    {
+      "ID": "archive-logs",
+      "Filter": {"Prefix": "logs/"},
+      "Status": "Enabled",
+      "Transitions": [
+        {"Days": 30, "StorageClass": "STANDARD_IA"},
+        {"Days": 180, "StorageClass": "GLACIER"}
+      ],
+      "Expiration": {"Days": 365}
+    }
+  ]
+}</code></pre>
+  <p>The rule above applies to every object whose key starts with <code>logs/</code>. After 30 days the object moves to Standard-IA, after 180 days to Glacier Flexible Retrieval (<code>GLACIER</code> is its API name), and after 365 days it is deleted. Lifecycle rules are one of the simplest ways to cut storage costs.</p>
+  <p>Other S3 features you should know: <strong>versioning</strong> keeps every previous version of an object when you overwrite or delete it, which protects against mistakes. <strong>Bucket policies</strong> are resource-based access rules attached to the bucket. <strong>Presigned URLs</strong> are links that include a signature and an expiry time, so a user can download or upload one object without holding AWS credentials. <strong>Server-side encryption</strong> is applied to new objects by default.</p>
+  <pre class="code" data-lang="bash"><code># Upload a file and choose a cheaper storage class at upload time
+aws s3 cp report.csv s3://my-reports-bucket/2026/report.csv --storage-class STANDARD_IA
+
+# List the objects under a prefix (a pretend folder)
+aws s3 ls s3://my-reports-bucket/2026/</code></pre>
+
+  <h3>EBS (Elastic Block Store)</h3>
+  <p>An <strong>EBS volume</strong> is a virtual disk that you attach to one EC2 instance. The volume lives in one availability zone, so the instance must be in that same zone. Unlike the disk inside a physical server, an EBS volume survives when the instance is stopped, and you can detach it and attach it to another instance in the same zone. You take <strong>snapshots</strong> of a volume to back it up. A snapshot is incremental (after the first one, only changed blocks are stored), and it is kept in AWS-managed storage that you can copy to another region for disaster recovery.</p>
+  <p>Volume types differ by performance. <code>gp3</code> is a general-purpose SSD and the usual default. <code>io2</code> is a provisioned-performance SSD for demanding databases. <code>st1</code> is a throughput-optimized hard disk for large sequential reads, such as log processing. The rule of thumb: SSD for random access patterns, HDD for big sequential scans.</p>
+  <p>An <strong>instance store</strong> is different. It is physical disk attached directly to the host server. It is very fast, but its data is lost when the instance stops or terminates, or when the host fails. Use it for caches and scratch space, never for the only copy of anything.</p>
+
+  <h3>EFS (Elastic File System)</h3>
+  <p>An <strong>EFS file system</strong> is a managed NFS (Network File System) share. Many EC2 instances, in several availability zones, mount the same file system and see the same files at the same time. It grows and shrinks automatically, and you pay for the data you store. EFS works with Linux instances over NFS. It costs more per gigabyte than EBS, so you pay for it when many machines need shared files, such as a content directory for a fleet of web servers.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>S3 (object)</th><th>EBS (block)</th><th>EFS (file)</th></tr></thead>
+    <tbody>
+      <tr><td>What you store</td><td>Objects (whole files) with keys</td><td>Raw disk blocks, formatted by the OS</td><td>Files and directories</td></tr>
+      <tr><td>How it is reached</td><td>HTTP API, SDKs, CLI</td><td>Attached to one instance as a disk</td><td>Mounted over NFS by many instances</td></tr>
+      <tr><td>Scope</td><td>Regional bucket, globally named</td><td>One availability zone</td><td>Regional, across several AZs</td></tr>
+      <tr><td>Typical use</td><td>Backups, media, data lakes, static websites</td><td>Operating system disk, database files</td><td>Shared content, home directories, build farms</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>Saving user uploads to the local disk of an EC2 instance breaks once an Auto Scaling group adds or replaces instances, because the new instance does not have those files. Store uploads in S3 instead.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>S3 stores whole objects reached over HTTP, EBS is a disk for one instance in one zone, and EFS is a shared network folder for many instances.</p></div>
+  <details class="check"><summary>Why is S3 durability described as eleven nines, and why is that different from availability?</summary><div class="ans"><p>Durability is the probability that stored data is not lost, and S3 standard classes are designed for 99.999999999 percent. Availability is the probability that the service answers a request at a given moment, which is a smaller number. Data can be safe but temporarily unreachable.</p></div></details>
+  <details class="check"><summary>A database needs a fast disk for one server. Which storage type fits, and what is the catch?</summary><div class="ans"><p>An EBS SSD volume such as gp3 or io2 fits, because it is block storage attached to one instance with high performance. The catch is that the volume lives in one availability zone, so the server and its disk cannot move to another zone, and you need snapshots for backup.</p></div></details>
+  <details class="check"><summary>When would you choose EFS over S3?</summary><div class="ans"><p>Choose EFS when many Linux instances need to read and write the same files as a normal file system, with standard paths and file locking. Choose S3 when you store whole objects and access them through an API or a URL, such as backups, images and data files.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Networking">
+  <h2>Networking: VPC, subnets, route tables and gateways</h2>
+  <p>A <strong>VPC</strong> (Virtual Private Cloud) is your own isolated network inside AWS. Nothing reaches your resources unless your network rules allow it. When you create a VPC you give it an IPv4 address range written in CIDR notation, for example <code>10.0.0.0/16</code>. The number after the slash is the prefix length: it says how many leading bits are fixed. A <code>/16</code> fixes 16 bits and leaves 16 bits free, so it holds 2 to the power 16 addresses, which is 65,536. Each region has a default VPC that AWS creates for convenience, but production systems usually get their own.</p>
+
+  <h3>Subnets</h3>
+  <p>A <strong>subnet</strong> is a slice of the VPC's address range, for example <code>10.0.1.0/24</code>. Every subnet lives in exactly one availability zone. To be highly available, you create matching subnets in two or three zones. A subnet is called <em>public</em> or <em>private</em> depending only on its route table, not on a special setting. A public subnet has a route to the internet. A private subnet does not.</p>
+  <p>AWS reserves five addresses in every subnet: the first four and the last one. They are the network address, the VPC router, the DNS server, a reserved address for future use, and the broadcast address. A <code>/24</code> subnet therefore gives 251 usable addresses, not 256. The Python program below shows the arithmetic with the standard <code>ipaddress</code> module.</p>
+  <pre class="code" data-lang="python"><code>import ipaddress
+
+vpc = ipaddress.ip_network("10.0.0.0/16")
+print("Addresses in the VPC:", vpc.num_addresses)
+
+# Carve the VPC into /24 subnets
+subnets = list(vpc.subnets(new_prefix=24))
+print("Number of /24 subnets:", len(subnets))
+for subnet in subnets[:3]:
+    print(subnet)
+
+# AWS keeps 5 addresses per subnet, so subtract 5
+usable = subnets[0].num_addresses - 5
+print("Usable addresses in one /24 after AWS reserves 5:", usable)</code></pre>
+  <pre class="output">Addresses in the VPC: 65536
+Number of /24 subnets: 256
+10.0.0.0/24
+10.0.1.0/24
+10.0.2.0/24
+Usable addresses in one /24 after AWS reserves 5: 251</pre>
+  <p>Step by step: <code>ip_network("10.0.0.0/16")</code> builds the VPC range. <code>num_addresses</code> is 2 to the power (32 minus 16), which is 65,536. <code>subnets(new_prefix=24)</code> produces every /24 block inside it. Each /24 has 2 to the power 8 addresses, which is 256, so there are 256 subnets. Subtracting the five reserved addresses leaves 251 for your instances.</p>
+
+  <h3>Route tables</h3>
+  <p>A <strong>route table</strong> is a list of rules that decide where packets leaving a subnet should go. Each rule has a destination CIDR range and a target. Every VPC contains a <code>local</code> route for its own address range, so traffic between subnets in the same VPC works without any extra rule. Each subnet is associated with exactly one route table, and several subnets may share one.</p>
+  <p>When a packet leaves an instance, AWS compares its destination with the routes and picks the most specific match. A destination inside <code>10.0.0.0/16</code> matches the <code>local</code> route. Anything else matches <code>0.0.0.0/0</code>, the route that means "every address", if one exists. If no route matches, the packet is dropped.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Route table</th><th>Destination</th><th>Target</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td>Public subnet</td><td>10.0.0.0/16</td><td>local</td><td>Talk to other subnets in this VPC</td></tr>
+      <tr><td>Public subnet</td><td>0.0.0.0/0</td><td>igw-0abc (internet gateway)</td><td>Send all other traffic to the internet</td></tr>
+      <tr><td>Private subnet</td><td>10.0.0.0/16</td><td>local</td><td>Talk to other subnets in this VPC</td></tr>
+      <tr><td>Private subnet</td><td>0.0.0.0/0</td><td>nat-0def (NAT gateway in the public subnet)</td><td>Outbound internet only, through the NAT gateway</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Internet gateways and NAT gateways</h3>
+  <p>An <strong>internet gateway</strong> (IGW) is the connection between the VPC and the public internet. It is highly available and you attach one to each VPC. To make a subnet public, you add a route <code>0.0.0.0/0</code> pointing at the IGW. An instance in that subnet also needs a public IP address (an Elastic IP, or a public address assigned at launch) before traffic from outside can reach it. The IGW translates between that public address and the instance's private address.</p>
+  <p>Private subnets usually hold application servers and databases. These resources need to reach the internet for software updates and calls to external APIs, but they must not be reachable from it. A <strong>NAT gateway</strong> (network address translation) solves that. It sits in a public subnet, has an Elastic IP address, and the private subnet's route table sends <code>0.0.0.0/0</code> to it. An outbound connection starts in the private instance, the NAT gateway rewrites the source address, and the reply is translated back. A connection that starts from the internet has no entry in the translation table, so it is not forwarded to the private instance.</p>
+  <p>Walk through one request. A user's browser sends an HTTPS request to the public address of a load balancer in the public subnet. The internet gateway delivers it, the load balancer forwards it over the local route to a web server in a private subnet, and the web server replies along the same local route. If that web server then calls a payment API on the internet, the packet follows the private subnet's default route to the NAT gateway, which sends it out with its own Elastic IP. The payment API's reply returns to the NAT gateway and is forwarded back to the web server.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A public subnet is not "less secure" by default, and a private subnet is not "safe" by default. Security comes from the security groups and NACLs described next. Also, a NAT gateway is billed per hour and per gigabyte, so a busy private fleet can make it an expensive part of the bill.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>A subnet is public only because its route table has a route to an internet gateway. A private subnet reaches out through a NAT gateway but cannot be reached from outside.</p></div>
+  <details class="check"><summary>Why does a /24 subnet have 251 usable addresses instead of 256?</summary><div class="ans"><p>AWS reserves five addresses in every subnet: the network address, the VPC router, the DNS server, one reserved address for future use, and the broadcast address. Subtracting them from 256 leaves 251.</p></div></details>
+  <details class="check"><summary>How does a private instance download updates from the internet without being reachable from it?</summary><div class="ans"><p>The private subnet's route table sends 0.0.0.0/0 to a NAT gateway in a public subnet. The NAT gateway forwards outbound connections using its Elastic IP and returns the replies. Connections that start from the internet have no translation entry, so they cannot reach the private instance.</p></div></details>
+  <details class="check"><summary>What makes a subnet public?</summary><div class="ans"><p>Its route table has a route for 0.0.0.0/0 whose target is an internet gateway. The subnet itself has no public flag. Instances in it also need a public IP address to be reachable from outside.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Security">
+  <h2>Security: security groups, network ACLs and IAM</h2>
+  <p>AWS security works in layers. The network layer uses security groups and network ACLs. The identity layer uses IAM. The data layer uses encryption. This is called <strong>defense in depth</strong>: if one layer is misconfigured, another can still stop an attacker. Interviewers often ask how a request is allowed or blocked, so know which layer does which job.</p>
+
+  <h3>Security groups</h3>
+  <p>A <strong>security group</strong> is a virtual firewall attached to a network interface, usually of an EC2 instance, or of a managed service such as RDS. Each rule has a direction (inbound or outbound), a protocol and port range, and a source (for inbound) or destination (for outbound). The source can be a CIDR range, another security group, or a prefix list.</p>
+  <p>Three properties matter. First, security groups contain only <strong>allow</strong> rules. You cannot write a deny rule, so anything not allowed is denied. Second, they are <strong>stateful</strong>: when an inbound connection is allowed, the reply traffic is allowed automatically, even if no outbound rule mentions it. Third, a new security group allows no inbound traffic and allows all outbound traffic by default. Security groups can reference each other. A database group can allow port 5432 (the default PostgreSQL port) only from the web tier's security group, so the rule follows the role of the server rather than an IP address that may change.</p>
+  <pre class="code" data-lang="bash"><code># Allow HTTPS from anywhere, and PostgreSQL only from the web security group
+aws ec2 authorize-security-group-ingress --group-id sg-web --protocol tcp --port 443 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id sg-db --protocol tcp --port 5432 --source-group sg-web</code></pre>
+
+  <h3>Network ACLs (NACLs)</h3>
+  <p>A <strong>network ACL</strong> works at the subnet boundary. Each subnet has one NACL, and it inspects traffic entering and leaving that subnet. NACL rules have a number, an action (allow or deny), a protocol, a port range and a CIDR. Rules are checked in ascending order of rule number, and the first rule that matches decides the outcome. An implicit final rule denies anything that no rule matched. The default NACL that AWS creates for a new VPC allows all traffic, while a custom NACL you create denies everything until you add rules.</p>
+  <p>NACLs are <strong>stateless</strong>. Each packet is judged on its own, in each direction. A web request to port 443 must be allowed inbound, and the reply must be allowed outbound on the client's ephemeral port range (AWS documents 1024 to 65535 as a safe choice). Forgetting the return path is the most common NACL mistake: the request arrives, but the response is silently blocked.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>Security group</th><th>Network ACL</th></tr></thead>
+    <tbody>
+      <tr><td>Attached to</td><td>Network interface (instance or service)</td><td>Subnet</td></tr>
+      <tr><td>Rule types</td><td>Allow only</td><td>Allow and deny</td></tr>
+      <tr><td>How rules are checked</td><td>All rules together</td><td>In number order, first match wins</td></tr>
+      <tr><td>State</td><td>Stateful: replies are automatic</td><td>Stateless: both directions need rules</td></tr>
+      <tr><td>Typical use</td><td>Fine-grained access per service</td><td>Coarse blocks at the subnet edge, such as a known bad address range</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>A security group that allows SSH (port 22) from 0.0.0.0/0 lets anyone on the internet try to log in. Limit administrative ports to a known address range, or use a bastion host or Systems Manager Session Manager instead.</p></div>
+
+  <h3>IAM: identities, policies and roles</h3>
+  <p>IAM (Identity and Access Management) controls who can do what in your AWS account. An <strong>IAM user</strong> is a long-lived identity for a person or a program that needs a password or access keys. An <strong>IAM group</strong> is a collection of users that share the same policies. An <strong>IAM role</strong> is an identity with no permanent password. Someone or something assumes it and receives temporary credentials. An EC2 instance uses a role through an <strong>instance profile</strong>, so the application on the server gets temporary keys automatically, and you never store long-lived secret keys on the machine.</p>
+  <p>A <strong>policy</strong> is a JSON document that lists permissions. Each statement has an <code>Effect</code> (Allow or Deny), an <code>Action</code> (for example <code>s3:GetObject</code>), and a <code>Resource</code> (an ARN, or Amazon Resource Name, such as <code>arn:aws:s3:::reports/*</code>). An optional <code>Condition</code> narrows when the statement applies, for example only from a certain range of IP addresses.</p>
+  <pre class="code" data-lang="json"><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::reports/*",
+      "Condition": {"IpAddress": {"aws:SourceIp": "203.0.113.0/24"}}
+    }
+  ]
+}</code></pre>
+  <p>This policy lets callers read and write objects in the <code>reports</code> bucket, but only when the request comes from the documentation range 203.0.113.0/24. A <strong>trust policy</strong> is a different document. It is attached to a role and says who may assume that role, while the permissions policy says what the role can do.</p>
+  <p>IAM decides a request with three rules, applied in this order. First, everything is denied by default (an <em>implicit deny</em>). Second, an explicit Allow in any applicable policy grants the permission. Third, an explicit Deny always wins, even when another policy allows the same action. The next program is a simplified model of that logic using wildcard matching. The real IAM engine has more features, such as conditions and permission boundaries, but the priority of deny over allow is the same idea.</p>
+  <pre class="code" data-lang="python"><code>import fnmatch
+
+policy = [
+    {"Effect": "Allow", "Action": "s3:*", "Resource": "arn:aws:s3:::reports/*"},
+    {"Effect": "Deny", "Action": "s3:DeleteObject", "Resource": "arn:aws:s3:::reports/*"},
+]
+
+def evaluate(statements, action, resource):
+    decision = "implicit deny"
+    for statement in statements:
+        matches = (fnmatch.fnmatchcase(action, statement["Action"])
+                   and fnmatch.fnmatchcase(resource, statement["Resource"]))
+        if not matches:
+            continue
+        if statement["Effect"] == "Deny":
+            return "explicit deny"   # a deny ends the search at once
+        decision = "allow"           # remember the allow, keep checking for denies
+    return decision
+
+requests = [
+    ("s3:GetObject", "arn:aws:s3:::reports/2026/q1.csv"),
+    ("s3:DeleteObject", "arn:aws:s3:::reports/2026/q1.csv"),
+    ("s3:GetObject", "arn:aws:s3:::payroll/salaries.csv"),
+]
+for action, resource in requests:
+    print(action, resource, "->", evaluate(policy, action, resource))</code></pre>
+  <pre class="output">s3:GetObject arn:aws:s3:::reports/2026/q1.csv -&gt; allow
+s3:DeleteObject arn:aws:s3:::reports/2026/q1.csv -&gt; explicit deny
+s3:GetObject arn:aws:s3:::payroll/salaries.csv -&gt; implicit deny</pre>
+  <p>Walk through the three requests. The first matches the <code>s3:*</code> allow and no deny, so it is allowed. The second also matches the allow, but it matches the explicit deny for <code>s3:DeleteObject</code> too. The loop returns "explicit deny" as soon as it reaches that statement, even though the allow came first in the list. The third request matches nothing, so the function falls back to the implicit deny. The model shows the key rule: a deny ends the decision, and no allow can override it.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Hardcoding access keys in source code or in a config file that gets committed to Git is a common leak. Use an IAM role on AWS compute, or a short-lived credential from AWS SSO for your own laptop.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Security groups allow traffic per resource and are stateful, NACLs filter whole subnets and are stateless, and IAM decides which API actions an identity may perform, with an explicit deny always winning.</p></div>
+  <details class="check"><summary>Why does a security group not need an outbound rule for the reply to an allowed inbound request, while a NACL does?</summary><div class="ans"><p>A security group is stateful: it remembers allowed connections and lets their replies through automatically. A NACL is stateless: it judges each packet separately in each direction, so the reply must match an allowed outbound rule, such as one for the ephemeral port range.</p></div></details>
+  <details class="check"><summary>A policy allows s3:* on a bucket, and another policy denies s3:DeleteObject on the same bucket. Can the user delete an object?</summary><div class="ans"><p>No. An explicit Deny always overrides an Allow, wherever the allow comes from. The user can read and write but not delete.</p></div></details>
+  <details class="check"><summary>Why should an application on EC2 get its AWS permissions from an IAM role rather than from access keys in a config file?</summary><div class="ans"><p>A role gives temporary credentials that AWS rotates automatically, and nothing long-lived sits on the server to be stolen. Access keys in a file do not expire on their own, and a copy of the file is a permanent security risk.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before you open the answer. A strong answer names the service or concept, explains the mechanism in one or two sentences, and gives one concrete example.</p>
+  <details class="check"><summary>Explain IaaS, PaaS and SaaS with one example each.</summary><div class="ans"><p>IaaS gives you virtual machines and networks you configure yourself, such as EC2. PaaS gives you a platform to deploy code to, while the provider manages the operating system and runtime, such as Elastic Beanstalk. SaaS gives you a finished application, such as Gmail.</p></div></details>
+  <details class="check"><summary>What is the shared responsibility model?</summary><div class="ans"><p>The provider secures the cloud itself: data centers, hardware and the virtualization layer. The customer secures what is in the cloud: data, access policies, operating system patches on IaaS resources, and firewall rules. The split moves depending on how managed a service is.</p></div></details>
+  <details class="check"><summary>What is the difference between a region and an availability zone?</summary><div class="ans"><p>A region is a geographic area, such as Northern Virginia, containing several availability zones. An availability zone is one or more data centers with independent power and networking inside that region. You spread workloads across zones for availability and choose regions for latency, data residency and disaster recovery.</p></div></details>
+  <details class="check"><summary>When would you use EBS, EFS and S3 respectively?</summary><div class="ans"><p>EBS is a block disk for one EC2 instance in one zone, used for the operating system and databases. EFS is a shared NFS file system that many instances mount across zones. S3 is object storage reached over HTTP, used for backups, media and data lakes.</p></div></details>
+  <details class="check"><summary>Why would an Auto Scaling group use a launch template?</summary><div class="ans"><p>The launch template defines exactly how every new instance is configured, so each instance the group creates is identical and correct. The group uses it when scaling out and when replacing an instance that failed a health check.</p></div></details>
+  <details class="check"><summary>How does a private subnet reach the internet without being reachable from it?</summary><div class="ans"><p>Its route table sends 0.0.0.0/0 to a NAT gateway in a public subnet. Outbound connections are translated through the NAT gateway's Elastic IP and the replies come back. Unsolicited inbound connections have no translation entry, so they cannot reach the private instances.</p></div></details>
+  <details class="check"><summary>Compare security groups and network ACLs.</summary><div class="ans"><p>Security groups are attached to instances or network interfaces, contain only allow rules, and are stateful. Network ACLs are attached to subnets, support allow and deny rules evaluated in number order, and are stateless, so return traffic needs its own rule.</p></div></details>
+  <details class="check"><summary>How does IAM decide whether a request is allowed?</summary><div class="ans"><p>Everything starts denied. An explicit Allow in an applicable policy grants the action. An explicit Deny in any applicable policy overrides every Allow. If there is no matching Allow, the request is refused.</p></div></details>
+  <details class="check"><summary>What is a cold start in Lambda, and how can you reduce it?</summary><div class="ans"><p>A cold start is the delay when Lambda creates a new execution environment, which includes loading the runtime and your code. You can reduce it with smaller deployment packages, lighter initialization code, and provisioned concurrency, which keeps environments ready in advance.</p></div></details>
+  <details class="check"><summary>Why is a /24 subnet in a VPC not 256 usable addresses?</summary><div class="ans"><p>AWS reserves five addresses in each subnet: the network address, the VPC router, the DNS server, one reserved address, and the broadcast address. That leaves 251 addresses for instances.</p></div></details>
+  <details class="check"><summary>What is an S3 lifecycle rule, and why is it useful?</summary><div class="ans"><p>A lifecycle rule automatically moves objects to cheaper storage classes after a set number of days, or deletes them when they expire. It cuts costs for logs and backups that are rarely read, without a manual clean-up job.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: tries (prefix trees)</h2>
+  <h3>The pattern: a tree of characters</h3>
+  <p>A <strong>trie</strong> (also called a prefix tree) stores strings one character at a time. The root is an empty node. Each edge is labeled with one character, so the path from the root to any node spells a prefix. Each node has a flag that says whether a complete word ends there. The flag matters because one word can be a prefix of another: "app" sits inside "apple", and the node for "app" must be marked as the end of a word of its own.</p>
+  <p>Here is the trie for the words "apple" and "app". Nodes marked with a star end a word.</p>
+  <pre class="code" data-lang="text"><code>root
+ └─ a
+     └─ p
+         └─ p*        (end of "app")
+             └─ l
+                 └─ e*    (end of "apple")</code></pre>
+  <p>Why not use a hash set? A hash set answers "is this exact word stored?" in constant time, but it cannot answer "does any word start with app?" without checking every stored word. A trie answers both questions by walking one node per character. Each insert, search or prefix check costs O(L), where L is the length of the word, no matter how many words are stored. Shared prefixes are stored once, so the space is roughly the total number of characters inserted.</p>
+  <p>Tries appear in autocomplete, spell checking, IP routing (longest-prefix matching), and word search on a grid. Whenever a problem has many strings and asks about prefixes, or has many words to match against one input, think trie.</p>
+  <div class="note key"><p><span class="t">Pattern to remember</span>Many strings plus prefix questions means a trie. The walk follows one edge per character, so each query costs the length of the string, not the number of words.</p></div>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/implement-trie-prefix-tree/">
+    <h3>Implement Trie (Prefix Tree) (LeetCode 208)</h3>
+    <div class="statement"><p>Implement a trie with three methods. <code>insert(word)</code> adds a word. <code>search(word)</code> returns true only if that exact word was inserted. <code>startsWith(prefix)</code> returns true if at least one inserted word begins with the prefix. Example: after <code>insert("apple")</code>, <code>search("apple")</code> is true, <code>search("app")</code> is false, and <code>startsWith("app")</code> is true. After a later <code>insert("app")</code>, <code>search("app")</code> becomes true.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The words are made of lowercase English letters. The methods are called many times, so each call should be fast. An empty prefix or word is a valid input that the code handles naturally.</li>
+      <li><strong>Brute force.</strong> Keep a Python list of the inserted words. <code>search</code> loops over the list and compares each word with the query. <code>startsWith</code> loops and calls <code>startswith</code> on each word. With n words of length about L, each query costs O(n × L).</li>
+      <li><strong>Find the waste.</strong> Words that share a prefix, such as "apple" and "application", are compared letter by letter again and again. The list has no idea that they start the same way, so the shared letters are read for every word on every query.</li>
+      <li><strong>Optimise.</strong> Store each character once. Every node keeps a dictionary from a character to a child node. Walking from the root along the letters of a word follows the shared prefix for free. A query costs one step per character, O(L), no matter how many words are stored.</li>
+      <li><strong>Dry run.</strong> The table walks through the sample sequence of calls.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Step</th><th>Call</th><th>What happens in the trie</th><th>Returns</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>insert("apple")</td><td>Creates the nodes a, p, p, l, e and marks e as the end of a word</td><td>nothing</td></tr>
+        <tr><td>2</td><td>search("apple")</td><td>Walks a, p, p, l, e; the node e is marked as an end</td><td>True</td></tr>
+        <tr><td>3</td><td>search("app")</td><td>Walks a, p, p; the second p is not marked as an end</td><td>False</td></tr>
+        <tr><td>4</td><td>startsWith("app")</td><td>Walks a, p, p; the path exists, so some word has this prefix</td><td>True</td></tr>
+        <tr><td>5</td><td>insert("app")</td><td>Walks a, p, p (already there) and marks the second p as an end</td><td>nothing</td></tr>
+        <tr><td>6</td><td>search("app")</td><td>Walks a, p, p; this node is now marked</td><td>True</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class TrieNode:
+    def __init__(self):
+        self.children = {}     # character to child TrieNode
+        self.is_end = False    # True if a word ends at this node
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word):
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()   # create the missing node
+            node = node.children[ch]
+        node.is_end = True
+
+    def _walk(self, prefix):
+        # Follow the characters of prefix from the root; return the last node, or None
+        node = self.root
+        for ch in prefix:
+            node = node.children.get(ch)
+            if node is None:
+                return None
+        return node
+
+    def search(self, word):
+        node = self._walk(word)
+        return node is not None and node.is_end
+
+    def startsWith(self, prefix):
+        return self._walk(prefix) is not None
+
+t = Trie()
+t.insert("apple")
+print(t.search("apple"))     # True
+print(t.search("app"))       # False
+print(t.startsWith("app"))   # True
+t.insert("app")
+print(t.search("app"))       # True</code></pre>
+    <pre class="output">True
+False
+True
+True</pre>
+    <p>Step by step: <code>insert</code> walks the word one character at a time. When the next child is missing, it creates it, so the path grows only where needed. At the end it sets <code>is_end</code> on the last node. <code>_walk</code> is the shared helper: it follows a prefix and returns the node where the walk stops, or <code>None</code> as soon as a character has no child. <code>search</code> needs both a node and the end flag, which is why "app" is false before it is inserted, even though the path for "app" exists inside "apple". <code>startsWith</code> needs only the node, so it is true for any prefix that the trie contains.</p>
+    <p class="cx">Time O(L) per call · Space O(total characters inserted)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Do not confuse "the path exists" with "the word exists". The end flag is the only thing that separates a stored word from a mere prefix.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/design-add-and-search-words-data-structure/">
+    <h3>Design Add and Search Words Data Structure (LeetCode 211)</h3>
+    <div class="statement"><p>Design a structure that supports <code>addWord(word)</code> and <code>search(word)</code>. The search word may contain the dot character <code>.</code>, which matches any single letter. Example: after adding "bad", "dad" and "mad", <code>search("pad")</code> is false, <code>search("bad")</code> is true, <code>search(".ad")</code> is true, <code>search("b..")</code> is true, and <code>search("b.d.")</code> is false because the length differs from every stored word.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Words contain letters only. Search words contain letters and dots. A dot is a wildcard for exactly one letter, so the length of the search word must equal the length of the stored word it matches.</li>
+      <li><strong>Brute force.</strong> Keep a list. For a search, compare the query with each stored word, letter by letter, treating a dot as a match for any letter. This costs O(n × L) per search.</li>
+      <li><strong>Find the waste.</strong> The brute force re-checks the same prefix of every word for every query. Words that share the prefix "ba" are checked as separate words each time.</li>
+      <li><strong>Optimise.</strong> Use a trie from the previous problem. A letter in the query follows exactly one child, as before. A dot must try every child of the current node, so the search becomes a depth-first search that explores each branch, and stops as soon as one branch reaches a complete word of the right length.</li>
+      <li><strong>Dry run.</strong> The table follows search(".ad") on the trie for "bad", "dad" and "mad".</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Step</th><th>Node</th><th>Character of the query</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>root</td><td>. (dot)</td><td>Try the children b, d and m in turn</td></tr>
+        <tr><td>2</td><td>b</td><td>a</td><td>Follow the child a</td></tr>
+        <tr><td>3</td><td>a (under b)</td><td>d</td><td>Follow the child d</td></tr>
+        <tr><td>4</td><td>d (under b, a)</td><td>end of query</td><td>The node is marked as an end, so return True</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+class WordDictionary:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def addWord(self, word):
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]
+        node.is_end = True
+
+    def search(self, word):
+        return self._dfs(self.root, word, 0)
+
+    def _dfs(self, node, word, i):
+        # i is the index of the query character we are matching now
+        if i == len(word):
+            return node.is_end
+        ch = word[i]
+        if ch == ".":
+            # A dot matches any child, so try every branch
+            for child in node.children.values():
+                if self._dfs(child, word, i + 1):
+                    return True
+            return False
+        child = node.children.get(ch)
+        if child is None:
+            return False
+        return self._dfs(child, word, i + 1)
+
+wd = WordDictionary()
+for w in ["bad", "dad", "mad"]:
+    wd.addWord(w)
+print(wd.search("pad"))    # False
+print(wd.search("bad"))    # True
+print(wd.search(".ad"))    # True
+print(wd.search("b.."))    # True
+print(wd.search("..."))    # True
+print(wd.search("b.d."))   # False</code></pre>
+    <pre class="output">False
+True
+True
+True
+True
+False</pre>
+    <p>Step by step: <code>search</code> starts the recursion at the root with index 0. <code>_dfs</code> handles one query character per call. If the index has reached the end of the query, the answer is whether the current node is the end of a stored word, which checks the length as well. A letter has at most one matching child, so it is a single step. A dot tries every child, and the <code>for</code> loop returns True on the first branch that succeeds. The query "b.d." reaches the end of the query at depth 3 and finds no node marked as an end there, so the answer is False.</p>
+    <p class="cx">Time per addWord O(L) · Time per search O(L) for letters only, and up to the size of the trie in the worst case when every character is a dot · Space O(total characters)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>A wildcard in a trie search turns one step into a branch over all children. Recursion handles the branching naturally, and the end-of-word flag checks the length.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/word-search-ii/">
+    <h3>Word Search II (LeetCode 212)</h3>
+    <div class="statement"><p>You are given an m by n grid of letters and a list of words. Return every word that can be built by moving from cell to cell horizontally or vertically, using each cell at most once per word. Example: the grid has rows "oaan", "etae", "ihkr" and "iflv", and the words are "oath", "pea", "eat" and "rain". The answer is "eat" and "oath". "pea" is not in the grid at all, and "rain" has no path because no a is next to the r.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The grid can be large, and there can be many words. Two words can share cells, but one word cannot use the same cell twice. The output can be in any order, and this solution returns it sorted so the result is predictable.</li>
+      <li><strong>Brute force.</strong> Solve Word Search (one word) for each word. For one word, start a depth-first search from every cell, moving in four directions and marking cells already used. That costs about m × n × 4 to the power L in the worst case, for a word of length L. Repeating it for all W words costs W times that.</li>
+      <li><strong>Find the waste.</strong> The searches repeat the same work. If many words start with "oa", the grid is searched from scratch for each of them, even though the first two letters of every search are the same. The brute force never shares the common prefixes of the words.</li>
+      <li><strong>Optimise.</strong> Put all the words in a trie, then run one depth-first search over the grid that moves through the trie at the same time. Each step asks the current trie node whether it has a child for the letter of the new cell. If not, that whole branch of the grid is abandoned at once. When a path reaches a node that ends a word, record the word. Two more savings help: clear the word from the node once it is found, so it is not reported twice, and remove leaf nodes that no longer lead to any word, so later searches stop sooner.</li>
+      <li><strong>Dry run.</strong> The table follows the search from the top-left cell for "oath".</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Step</th><th>Cell</th><th>Letter</th><th>Trie node reached</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>(0, 0)</td><td>o</td><td>root to child o</td><td>o has no word yet, mark the cell as used, try the neighbours</td></tr>
+        <tr><td>2</td><td>(0, 1)</td><td>a</td><td>o to child a</td><td>a has no word yet, explore its neighbours</td></tr>
+        <tr><td>3</td><td>(1, 1)</td><td>t</td><td>a to child t</td><td>t has no word yet, explore its neighbours</td></tr>
+        <tr><td>4</td><td>(2, 1)</td><td>h</td><td>t to child h</td><td>h holds "oath": record it and clear the word</td></tr>
+        <tr><td>5</td><td>back at (2, 1)</td><td>h</td><td>h</td><td>No neighbour continues the word and h has no children, so h is removed from its parent</td></tr>
+      </tbody>
+    </table></div>
+    <p>The search from every other cell proceeds the same way. Cells whose letter has no matching child under the root, such as the r in the third row, are dismissed in a single step.</p>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
+
+# Method 1: brute force, one Word Search per word
+def find_words_bruteforce(board, words):
+    rows, cols = len(board), len(board[0])
+
+    def dfs(r, c, word, i, seen):
+        if i == len(word):
+            return True
+        if not (0 &lt;= r &lt; rows and 0 &lt;= c &lt; cols):
+            return False
+        if (r, c) in seen or board[r][c] != word[i]:
+            return False
+        seen.add((r, c))
+        found = any(dfs(r + dr, c + dc, word, i + 1, seen) for dr, dc in DIRS)
+        seen.remove((r, c))
+        return found
+
+    def exists(word):
+        for r in range(rows):
+            for c in range(cols):
+                if dfs(r, c, word, 0, set()):
+                    return True
+        return False
+
+    return sorted(w for w in words if exists(w))
+
+# Method 2: one trie of all words, one search over the grid
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.word = None          # the complete word that ends here, if any
+
+def build_trie(words):
+    root = TrieNode()
+    for w in words:
+        node = root
+        for ch in w:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]
+        node.word = w
+    return root
+
+def find_words(board, words):
+    root = build_trie(words)
+    rows, cols = len(board), len(board[0])
+    found = []
+
+    def dfs(r, c, parent):
+        ch = board[r][c]
+        node = parent.children.get(ch)
+        if node is None:              # no word starts with this path: prune
+            return
+        if node.word is not None:
+            found.append(node.word)
+            node.word = None          # report each word only once
+        board[r][c] = "#"             # mark the cell as used on this path
+        for dr, dc in DIRS:
+            nr, nc = r + dr, c + dc
+            if 0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and board[nr][nc] != "#":
+                dfs(nr, nc, node)
+        board[r][c] = ch             # unmark, so other paths can use the cell
+        if not node.children and node.word is None:
+            del parent.children[ch]   # nothing below this node is left: prune it
+
+    for r in range(rows):
+        for c in range(cols):
+            dfs(r, c, root)
+    return sorted(found)
+
+board = [
+    ["o", "a", "a", "n"],
+    ["e", "t", "a", "e"],
+    ["i", "h", "k", "r"],
+    ["i", "f", "l", "v"],
+]
+words = ["oath", "pea", "eat", "rain"]
+print(find_words_bruteforce(board, words))
+print(find_words([row[:] for row in board], words))   # copy: find_words edits the board
+
+small = [["a", "b"], ["c", "d"]]
+print(find_words_bruteforce(small, ["abcb"]))          # b cannot be reused
+print(find_words([row[:] for row in small], ["abcb"]))</code></pre>
+    <pre class="output">['eat', 'oath']
+['eat', 'oath']
+[]
+[]</pre>
+    <p>Step by step through the optimised version. <code>build_trie</code> inserts each word once, and each node stores the full word when a word ends there. <code>dfs</code> receives the grid position and the trie node of the path so far. It first asks whether the parent node has a child for the current letter. If not, the function returns at once, which is the pruning that makes the trie fast. It then records any word that ends here, marks the cell with a placeholder so the same cell is not used twice in one path, explores the four neighbours from the child node, and restores the cell before returning. The last step removes a node that has no children and no word left, so a later search does not walk into a dead end. The small example shows the "no reuse" rule: "abcb" needs two b cells, and the grid has only one, so the answer is empty.</p>
+    <p class="cx">Time: brute force O(W × m × n × 4 to the power L). Trie version O(total letters) to build, and a search that is usually far smaller than the worst case · Space O(total letters) for the trie plus the recursion stack</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting to unmark the cell after the recursion returns is the classic bug. Then the search wrongly blocks paths that should be allowed, and the answer is missing words.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Many words plus one grid means build a trie of the words and search the grid once, letting the trie prune the search at each step.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>IaaS</dt><dd>Rented building blocks such as virtual machines, disks and networks, where you manage the operating system and above.</dd></div>
+    <div><dt>PaaS</dt><dd>A platform that runs your code, where the provider also manages the operating system and runtime.</dd></div>
+    <div><dt>FaaS (serverless)</dt><dd>Single functions that run when an event happens, with no server for you to see or manage.</dd></div>
+    <div><dt>SaaS</dt><dd>A finished application that you use without managing any infrastructure.</dd></div>
+    <div><dt>Shared responsibility</dt><dd>The provider secures the cloud itself, and the customer secures what they configure and store in it.</dd></div>
+    <div><dt>Region</dt><dd>A separate geographic area of AWS infrastructure, such as us-east-1, with its own data and services.</dd></div>
+    <div><dt>Availability zone</dt><dd>One or more data centers with independent power and networking, inside a region.</dd></div>
+    <div><dt>Edge location</dt><dd>A small site around the world that caches content, used by CloudFront.</dd></div>
+    <div><dt>EC2</dt><dd>Elastic Compute Cloud, the service for renting virtual machines (instances).</dd></div>
+    <div><dt>AMI</dt><dd>An Amazon Machine Image, a template that holds the operating system and software for an instance.</dd></div>
+    <div><dt>Auto Scaling group</dt><dd>A fleet of identical instances kept between a minimum and maximum size, with health checks and scaling policies.</dd></div>
+    <div><dt>Lambda</dt><dd>A serverless function service where you pay per request and duration, with a 15-minute maximum per run.</dd></div>
+    <div><dt>Cold start</dt><dd>The start-up delay when Lambda has to create a new execution environment.</dd></div>
+    <div><dt>S3 bucket and object</dt><dd>A bucket is a globally named container, and an object is a file stored under a key inside it.</dd></div>
+    <div><dt>Storage class and lifecycle rule</dt><dd>Storage classes trade cost against access speed, and lifecycle rules move or delete objects automatically over time.</dd></div>
+    <div><dt>EBS</dt><dd>Elastic Block Store, a disk attached to one EC2 instance in one availability zone.</dd></div>
+    <div><dt>EFS</dt><dd>Elastic File System, a managed NFS share that many instances mount at the same time.</dd></div>
+    <div><dt>Snapshot</dt><dd>An incremental backup of an EBS volume, which can be copied to another region.</dd></div>
+    <div><dt>VPC</dt><dd>Virtual Private Cloud, your isolated network with an IPv4 CIDR range.</dd></div>
+    <div><dt>CIDR</dt><dd>Classless Inter-Domain Routing notation such as 10.0.0.0/16, where the number after the slash is the fixed prefix length.</dd></div>
+    <div><dt>Subnet</dt><dd>A slice of a VPC range that lives in exactly one availability zone.</dd></div>
+    <div><dt>Route table</dt><dd>A list of destination and target rules that decide where a subnet's traffic goes.</dd></div>
+    <div><dt>Internet gateway</dt><dd>The VPC's connection to the internet, used by public subnets.</dd></div>
+    <div><dt>NAT gateway</dt><dd>A gateway in a public subnet that lets private instances start outbound connections without being reachable from the internet.</dd></div>
+    <div><dt>Security group</dt><dd>A stateful, allow-only firewall attached to an instance or network interface.</dd></div>
+    <div><dt>Network ACL (NACL)</dt><dd>A stateless firewall at the subnet boundary with numbered allow and deny rules.</dd></div>
+    <div><dt>IAM user, group and role</dt><dd>A user is a long-lived identity, a group collects users, and a role is assumed for temporary credentials.</dd></div>
+    <div><dt>IAM policy</dt><dd>A JSON document of Effect, Action and Resource statements that grants or denies permissions.</dd></div>
+    <div><dt>Explicit deny</dt><dd>A Deny statement that overrides every Allow, so it always wins.</dd></div>
+    <div><dt>Trie</dt><dd>A tree that stores strings one character per edge, so a prefix is a path from the root.</dd></div>
+    <div><dt>Trie end flag</dt><dd>A mark on a node that says a complete stored word ends there, separating a word from a mere prefix.</dd></div>
+  </dl>
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td><code>ipaddress.ip_network(text)</code></td><td>Parses a CIDR block into a network object</td><td><code>ipaddress.ip_network("10.0.0.0/24").num_addresses</code> gives 256</td></tr>
+      <tr><td><code>fnmatch.fnmatchcase(name, pattern)</code></td><td>Matches a name against a wildcard pattern, case sensitive</td><td><code>fnmatch.fnmatchcase("s3:GetObject", "s3:*")</code> gives True</td></tr>
+      <tr><td><code>dict.get(key)</code></td><td>Returns the value for a key, or None when it is missing</td><td><code>{"a": 1}.get("b")</code> gives None</td></tr>
+      <tr><td><code>aws ec2 run-instances</code></td><td>Launches one or more EC2 instances from an AMI</td><td><code>aws ec2 run-instances --image-id ami-... --instance-type t3.micro --count 1</code></td></tr>
+      <tr><td><code>aws s3 cp</code></td><td>Copies a file to or from S3</td><td><code>aws s3 cp report.csv s3://my-bucket/report.csv</code></td></tr>
+      <tr><td><code>aws s3 ls</code></td><td>Lists buckets or the objects under a prefix</td><td><code>aws s3 ls s3://my-bucket/2026/</code></td></tr>
+      <tr><td><code>aws autoscaling set-desired-capacity</code></td><td>Sets the target number of instances in a group</td><td><code>aws autoscaling set-desired-capacity --auto-scaling-group-name web-asg --desired-capacity 4</code></td></tr>
+      <tr><td><code>aws ec2 authorize-security-group-ingress</code></td><td>Adds an allow rule to a security group</td><td><code>aws ec2 authorize-security-group-ingress --group-id sg-web --protocol tcp --port 443 --cidr 0.0.0.0/0</code></td></tr>
+      <tr><td><code>aws lambda invoke</code></td><td>Runs a Lambda function once and saves its output</td><td><code>aws lambda invoke --function-name my-fn out.json</code></td></tr>
+      <tr><td><code>aws sts get-caller-identity</code></td><td>Shows which account and identity the CLI is using</td><td><code>aws sts get-caller-identity</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 25?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 25 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-24.html"><small>Previous, day 24</small>Software engineering practices and testing</a><a class="next" href="day-26.html"><small>Next, day 26</small>Cloud and AWS 2 + DevOps and MLOps</a></nav>
+</main><script src="assets/app.js"></script></body></html>

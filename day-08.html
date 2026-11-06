@@ -1,0 +1,748 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 8: Computer Organization and Architecture</title><meta name="description" content="Today covers how a computer stores numbers and runs instructions: IEEE 754 floating point, the CPU&#x27;s instruction cycle, addressing modes, RISC and CISC design, pipelining and its hazards, cache memory and AMAT, interrupts versus DMA, and multicore and GPU parallelism. These ideas appear in almost every systems interview. The DSA practice is linked lists, the standard test of pointer handling."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="8" data-key="8" data-noun="day" data-num="8" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Computer Organization and Architecture</h1>
+<p class="lede">Today covers how a computer stores numbers and runs instructions: IEEE 754 floating point, the CPU&#x27;s instruction cycle, addressing modes, RISC and CISC design, pipelining and its hazards, cache memory and AMAT, interrupts versus DMA, and multicore and GPU parallelism. These ideas appear in almost every systems interview. The DSA practice is linked lists, the standard test of pointer handling.</p>
+<div class="station"><b>8</b><span>Mon 9 Nov 2026 · Systems · DSA: Linked lists</span></div>
+<ul class="topics"><li>IEEE 754 floating point</li><li>CPU and instruction cycle</li><li>Addressing modes</li><li>RISC vs CISC</li><li>Pipelining and hazards</li><li>Cache and AMAT</li><li>Interrupts vs DMA</li><li>Multicore and GPUs</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Data representation">
+  <h2>How numbers are stored: binary and IEEE 754</h2>
+  <p>A computer stores everything as bits, each 0 or 1. A group of 8 bits is a <strong>byte</strong>. Integers are stored in binary, and most processors use <strong>two's complement</strong> for negative integers. In an 8-bit two's complement number, the leftmost bit has the value -128 instead of +128. So 11111111 is -1, and 10000000 is -128. The rule for negating a number is "flip all the bits, then add 1".</p>
+  <p>Two's complement lets the same adder work for positive and negative numbers, which is why it is used everywhere. The range of an n-bit signed integer runs from -2 to the power (n-1) up to 2 to the power (n-1) minus 1. For a 32-bit int that is -2147483648 to 2147483647.</p>
+
+  <h3>Why decimal fractions are a problem</h3>
+  <p>Some decimal fractions cannot be written exactly in binary. The fraction 1/3 has the repeating binary expansion 0.010101..., and 0.1 in decimal is the repeating binary 0.0001100110011... Because the number of bits is finite, the stored value is rounded. This is why a program can print 0.30000000000000004 for 0.1 + 0.2.</p>
+  <p>The standard for storing real numbers is <strong>IEEE 754</strong>, the floating-point standard. A value is stored in three fields:</p>
+  <ul>
+    <li><strong>Sign bit</strong> (1 bit): 0 for positive, 1 for negative.</li>
+    <li><strong>Exponent</strong> (8 bits in single precision, 11 in double): the power of two, stored with a bias. Single precision uses bias 127, so a stored exponent of 127 means 2 to the power 0.</li>
+    <li><strong>Fraction or mantissa</strong> (23 bits in single precision, 52 in double): the digits after the leading 1.</li>
+  </ul>
+  <p>For a normal single-precision number, the value is (-1) to the power sign, times (1 + fraction), times 2 to the power (exponent minus 127). The leading 1 is implicit, so it is not stored. That gives one extra bit of precision for free.</p>
+
+  <h3>Worked example: 0.5 and -2.0</h3>
+  <p>Take 0.5. It equals 1.0 times 2 to the power -1. The exponent field is -1 + 127 = 126, which is 01111110 in binary. The fraction is all zeros, and the sign is 0. Putting the fields together gives 0 01111110 followed by 23 zeros, which in hexadecimal is 0x3F000000.</p>
+  <p>Take -2.0. It equals -1.0 times 2 to the power 1. The sign is 1, the exponent field is 1 + 127 = 128 (10000000), and the fraction is zero. The bits are 1 10000000 followed by 23 zeros, which is 0xC0000000.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A float is sign, exponent and fraction. The exponent gives the size (the power of two) and the fraction gives the precision (the digits). Most surprising float results come from the fraction being too short to store a decimal exactly.</p></div>
+
+  <h3>Special values</h3>
+  <ul>
+    <li>If the exponent field is all ones and the fraction is zero, the value is infinity (positive or negative), for example from dividing 1.0 by 0.0.</li>
+    <li>If the exponent field is all ones and the fraction is not zero, the value is NaN (not a number), for example the result of 0.0 divided by 0.0. NaN is not equal to anything, not even to itself.</li>
+    <li>If the exponent field is all zeros, the number is <em>subnormal</em>: a very small value with no implicit leading 1. This gives gradual underflow near zero.</li>
+  </ul>
+
+  <h3>Seeing the bits in Python</h3>
+  <p>The <code>struct</code> module from the standard library can pack a Python float into its IEEE 754 single-precision bytes. The code below extracts the three fields for several values. It also prints two's complement patterns, and it shows the 0.1 + 0.2 surprise.</p>
+  <pre class="code" data-lang="python"><code>import struct
+
+def float32_bits(x):
+    # Pack the float as big-endian IEEE 754 single precision, then read the 32 bits as an integer.
+    return struct.unpack('&gt;I', struct.pack('&gt;f', x))[0]
+
+for value in [1.0, -2.0, 0.5, 0.1]:
+    b = float32_bits(value)
+    sign = b &gt;&gt; 31
+    exponent = (b &gt;&gt; 23) &amp; 0xFF
+    fraction = b &amp; 0x7FFFFF
+    print(f"{value}: sign={sign} exponent={exponent:08b} fraction={fraction:023b} hex={b:08X}")
+
+print(format(-1 &amp; 0xFF, '08b'))
+print(format(-128 &amp; 0xFF, '08b'))
+print(0.1 + 0.2, 0.1 + 0.2 == 0.3)</code></pre>
+  <pre class="output">1.0: sign=0 exponent=01111111 fraction=00000000000000000000000 hex=3F800000
+-2.0: sign=1 exponent=10000000 fraction=00000000000000000000000 hex=C0000000
+0.5: sign=0 exponent=01111110 fraction=00000000000000000000000 hex=3F000000
+0.1: sign=0 exponent=01111011 fraction=10011001100110011001101 hex=3DCCCCCD
+11111111
+10000000
+0.30000000000000004 False</pre>
+  <p>Read the output for 0.1 carefully. The fraction field does not end in zeros: it stops at a rounded value close to 0.1. The stored number is not exactly one tenth, so the comparison with 0.3 fails. C and Java show the same rounding in their <code>float</code> and <code>double</code> types.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Never compare floats with <code>==</code> when you mean "close enough". Compare the difference with a small tolerance, for example <code>abs(a - b) &lt; 1e-9</code>, or use an exact type such as integers in cents for money.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Why does 0.1 + 0.2 not equal 0.3?" Answer: 0.1 and 0.2 have no exact binary representation, so each is stored with a small rounding error, and the sum carries the errors into a value slightly above 0.3.</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="CPU and instructions">
+  <h2>The CPU: instruction cycle, addressing modes and architecture styles</h2>
+  <p>The central processing unit (CPU) runs a program by repeating one small cycle billions of times per second. To understand that cycle, you need the parts it uses. The <strong>arithmetic logic unit</strong> (ALU) does the arithmetic and logic. The <strong>control unit</strong> decodes instructions and sends signals to the other parts. The <strong>registers</strong> are very fast storage inside the CPU, and the main memory holds everything else. The <strong>clock</strong> sets the rhythm of every step.</p>
+  <p>Four special registers appear in every textbook description of the cycle:</p>
+  <ul>
+    <li><strong>Program counter</strong> (PC): the address of the next instruction.</li>
+    <li><strong>Instruction register</strong> (IR): the instruction currently being decoded.</li>
+    <li><strong>Memory address register</strong> (MAR): the address being read or written.</li>
+    <li><strong>Memory data register</strong> (MDR): the data being moved to or from memory.</li>
+  </ul>
+
+  <h3>The fetch-decode-execute cycle</h3>
+  <p>The basic cycle has three steps, often written with extra steps for memory and write-back:</p>
+  <ol>
+    <li><strong>Fetch.</strong> Put the PC on the address bus, read the instruction into the IR, and advance the PC so that it points to the next instruction. In register-transfer notation: MAR &lt;- PC; MDR &lt;- Memory[MAR]; IR &lt;- MDR; PC &lt;- PC + 1 (for fixed-length instructions).</li>
+    <li><strong>Decode.</strong> The control unit reads the opcode (the operation part of the instruction) and the operand fields, and works out which hardware units are needed.</li>
+    <li><strong>Execute.</strong> The ALU computes a result, or the CPU reads or writes memory. The result is written to a register or to memory. Then the cycle starts again.</li>
+  </ol>
+  <p>The code below is a toy machine with four registers and four instructions. It shows the three steps in ordinary Python, one instruction at a time, and prints the state after each cycle.</p>
+  <pre class="code" data-lang="python"><code>program = [
+    ("LOAD", 0, 5),     # R0 = 5
+    ("LOAD", 1, 7),     # R1 = 7
+    ("ADD", 0, 1),      # R0 = R0 + R1
+    ("PRINT", 0),       # output R0
+    ("HALT",),
+]
+
+regs = [0, 0, 0, 0]
+pc = 0
+cycle = 0
+running = True
+
+while running:
+    # FETCH: read the instruction at the program counter, then advance the counter.
+    instr = program[pc]
+    pc += 1
+    # DECODE: the opcode says which operation to perform.
+    op = instr[0]
+    # EXECUTE: perform the operation.
+    cycle += 1
+    if op == "LOAD":
+        regs[instr[1]] = instr[2]
+    elif op == "ADD":
+        regs[instr[1]] = regs[instr[1]] + regs[instr[2]]
+    elif op == "PRINT":
+        print("output:", regs[instr[1]])
+    elif op == "HALT":
+        running = False
+    print(f"cycle {cycle}: {op:&lt;5} pc={pc} regs={regs}")</code></pre>
+  <pre class="output">cycle 1: LOAD  pc=1 regs=[5, 0, 0, 0]
+cycle 2: LOAD  pc=2 regs=[5, 7, 0, 0]
+cycle 3: ADD   pc=3 regs=[12, 7, 0, 0]
+output: 12
+cycle 4: PRINT pc=4 regs=[12, 7, 0, 0]
+cycle 5: HALT  pc=5 regs=[12, 7, 0, 0]</pre>
+  <p>Notice that the PC moves forward by one before the instruction runs. That is why a jump instruction must overwrite the PC, not add to it: the PC already points past the jump when the jump executes.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Every instruction, from a simple add to a complex string copy, is run by this same loop of fetch, decode and execute. Pipelining (below) overlaps these steps across instructions to finish more work in the same time.</p></div>
+
+  <h3>Addressing modes</h3>
+  <p>An <strong>addressing mode</strong> tells the CPU where to find an operand. The same operation, such as "add", can take its operand from an instruction, a register or a memory location, depending on the mode. Each mode is a way to compute the <strong>effective address</strong>, which is the final memory location used by the instruction.</p>
+  <ul>
+    <li><strong>Immediate.</strong> The operand is inside the instruction. Example: <code>ADD R1, #7</code> adds the constant 7. There is no memory access.</li>
+    <li><strong>Direct (absolute).</strong> The instruction holds the memory address. Example: <code>LOAD R1, [100]</code> reads memory cell 100.</li>
+    <li><strong>Indirect.</strong> The instruction holds the address of a cell that holds the real address. This takes two memory reads.</li>
+    <li><strong>Register.</strong> The operand is in a register. No memory access is needed, so this is the fastest mode.</li>
+    <li><strong>Register indirect.</strong> A register holds the address of the operand. Pointers in C work this way.</li>
+    <li><strong>Indexed.</strong> The effective address is a base address plus an index register. Array access such as <code>a[i]</code> uses this pattern.</li>
+    <li><strong>Relative (PC-relative).</strong> The effective address is the PC plus a signed offset. Branches and jumps use this, so that code can move in memory without changes.</li>
+  </ul>
+  <p>The Python code below computes the effective address and the operand for each mode, using a small pretend memory.</p>
+  <pre class="code" data-lang="python"><code>memory = {100: 40, 101: 50, 102: 60, 200: 101}   # address to value
+regs = {"R1": 100, "R2": 2}
+pc = 50
+
+def immediate(value):
+    return value                       # the operand is inside the instruction
+
+def direct(address):
+    return memory[address]             # the instruction holds the address
+
+def indirect(address):
+    pointer = memory[address]          # the cell holds the real address
+    return memory[pointer]             # second memory read
+
+def register(name):
+    return regs[name]                  # operand is in a register
+
+def register_indirect(name):
+    return memory[regs[name]]          # the register holds the address
+
+def indexed(base, name):
+    return memory[base + regs[name]]   # base address plus index register
+
+def relative(offset):
+    return memory[pc + offset]         # offset added to the program counter
+
+print("immediate 7:", immediate(7))
+print("direct 100:", direct(100))
+print("indirect through 200:", indirect(200))
+print("register R1:", register("R1"))
+print("register indirect R1:", register_indirect("R1"))
+print("indexed base 100 plus R2:", indexed(100, "R2"))
+print("relative pc 50 offset 52:", relative(52))</code></pre>
+  <pre class="output">immediate 7: 7
+direct 100: 40
+indirect through 200: 50
+register R1: 100
+register indirect R1: 40
+indexed base 100 plus R2: 60
+relative pc 50 offset 52: 60</pre>
+  <p>Trace the indirect case by hand. The instruction names address 200. Memory cell 200 holds 101, which is a pointer. Cell 101 holds 50, and that is the operand. Two memory reads were needed, which is why indirect addressing is slower than direct.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>"Indirect" and "register indirect" are different. In register indirect, the register holds the address and there is one memory read. In indirect, a memory cell holds the address and there are two reads.</p></div>
+
+  <h3>RISC versus CISC</h3>
+  <p>Processor designers have two broad styles. <strong>CISC</strong> (complex instruction set computer) gives you many powerful instructions, some of which read and write memory and perform several steps in one instruction. The x86 family is the best-known CISC design. <strong>RISC</strong> (reduced instruction set computer) keeps the instruction set small and simple. Most instructions work on registers, and only special load and store instructions touch memory. ARM, RISC-V and MIPS are RISC designs.</p>
+  <div class="tablewrap"><table><thead><tr><th>Feature</th><th>RISC</th><th>CISC</th></tr></thead><tbody>
+    <tr><td>Instruction set</td><td>Small, simple instructions</td><td>Large, feature-rich instructions</td></tr>
+    <tr><td>Memory access</td><td>Only load and store instructions touch memory (load/store architecture)</td><td>Many instructions can take memory operands directly</td></tr>
+    <tr><td>Instruction length</td><td>Usually fixed length, which makes decoding simple</td><td>Often variable length</td></tr>
+    <tr><td>Registers</td><td>Usually many general-purpose registers</td><td>Usually fewer, with more special-purpose uses</td></tr>
+    <tr><td>Pipelining</td><td>Simple decoding suits pipelining well</td><td>Harder to pipeline, so modern CISC chips decode into simpler internal operations</td></tr>
+    <tr><td>Compiler effort</td><td>The compiler does more work to combine simple steps</td><td>Complex instructions can match high-level code more directly</td></tr>
+  </tbody></table></div>
+  <p>The line between the two is blurred today. Modern x86 processors decode their CISC instructions into simpler internal operations, often called micro-operations, and execute those on a RISC-like core. In an interview, say that the difference is in the instruction set design, and that real chips mix the ideas.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Why did RISC designs become popular?" Answer: simple, fixed-length instructions are fast to decode and easy to pipeline, and a small set of load and store instructions keeps the pipeline busy. The compiler takes on the work of combining simple steps.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="Pipelining">
+  <h2>Pipelining and hazards</h2>
+  <p>Without pipelining, the CPU finishes one instruction completely before it starts the next. A <strong>pipeline</strong> splits the work into stages and lets several instructions be in progress at once, each in a different stage. The idea is the same as a laundry line: while one load is drying, the next is being washed.</p>
+  <p>A classic five-stage pipeline has these stages:</p>
+  <ol>
+    <li><strong>IF</strong> (instruction fetch): read the instruction from memory.</li>
+    <li><strong>ID</strong> (instruction decode): decode it and read the registers it uses.</li>
+    <li><strong>EX</strong> (execute): the ALU computes the result or an address.</li>
+    <li><strong>MEM</strong> (memory access): read or write memory, if the instruction needs it.</li>
+    <li><strong>WB</strong> (write back): write the result into a register.</li>
+  </ol>
+  <p>The table shows three instructions, I1 to I3, moving through the pipeline. Each row is an instruction, and each column is a clock cycle. Read across a row to follow one instruction; read down a column to see what every stage is doing in that cycle.</p>
+  <div class="tablewrap"><table><thead><tr><th>Instruction</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th></tr></thead><tbody>
+    <tr><td>I1</td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td><td></td></tr>
+    <tr><td>I2</td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td></tr>
+    <tr><td>I3</td><td></td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td></tr>
+  </tbody></table></div>
+  <p>In cycle 3, three different instructions are in three different stages. Each instruction still takes five cycles from start to finish, so the pipeline does not make one instruction faster. It makes the processor finish about one instruction per cycle once the pipeline is full. This difference between how long one instruction takes (latency) and how many finish per unit time (throughput) is the key idea.</p>
+
+  <h3>How much faster is it?</h3>
+  <p>With k stages and n instructions and no hazards, a non-pipelined processor needs n * k cycles. A pipelined processor needs k cycles to finish the first instruction, then one more cycle for each of the other n - 1 instructions: k + (n - 1) cycles in total.</p>
+  <pre class="code" data-lang="python"><code>stages = 5
+n = 100
+no_pipeline = n * stages           # each instruction uses all five stages before the next starts
+pipelined = stages + (n - 1)       # first instruction takes 5 cycles, then one finishes each cycle
+print("cycles without pipelining:", no_pipeline)
+print("cycles with pipelining:", pipelined)
+print("speedup:", round(no_pipeline / pipelined, 2))</code></pre>
+  <pre class="output">cycles without pipelining: 500
+cycles with pipelining: 104
+speedup: 4.81</pre>
+  <p>The ideal speedup approaches the number of stages as n grows, but it never reaches it in practice, because of hazards.</p>
+
+  <h3>Hazards</h3>
+  <p>A <strong>hazard</strong> is a situation that stops the next instruction from running in the next cycle. There are three kinds.</p>
+  <ul>
+    <li><strong>Structural hazard.</strong> Two instructions need the same hardware in the same cycle, for example one memory unit used for both instruction fetch and data access. The fix is more hardware (separate instruction and data caches) or a stall.</li>
+    <li><strong>Data hazard.</strong> An instruction needs a value that an earlier instruction has not yet written. The most common case is read-after-write (RAW): <code>ADD R1, R2, R3</code> followed by <code>SUB R4, R1, R5</code>. The second instruction needs R1 before the first has written it.</li>
+    <li><strong>Control hazard.</strong> The pipeline does not know yet which instruction comes next, because of a branch. Instructions fetched after the branch may be the wrong ones, and they must be discarded (flushed).</li>
+  </ul>
+
+  <h3>Fixing data hazards</h3>
+  <p><strong>Forwarding</strong> (also called bypassing) sends a result straight from the EX or MEM stage to the next instruction's EX stage, without waiting for the write-back. Most RAW hazards disappear this way. The exception is a <strong>load-use hazard</strong>: an instruction that loads a value from memory and the next instruction uses it immediately. The loaded value is not ready until after the MEM stage, so one stall cycle is still needed.</p>
+  <p>Worked example: in <code>LOAD R1, [x]</code> followed by <code>ADD R2, R1, R3</code>, the ADD needs R1 in its EX stage. The LOAD only has the value at the end of its MEM stage. The pipeline inserts one bubble (an empty stage) between them, and forwarding carries the loaded value into the ADD without a second stall.</p>
+
+  <h3>Fixing control hazards</h3>
+  <p>Two common approaches are <strong>stalling</strong> until the branch is resolved, which wastes cycles, and <strong>branch prediction</strong>, which guesses the outcome and continues. If the guess is right, nothing is lost. If it is wrong, the instructions fetched on the wrong path are flushed and the correct ones are fetched. Modern processors predict branches very accurately, using the history of past branches.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A pipeline runs at full speed only when the next instruction does not need the result of the current one, and when the next instruction is known. Hazards are the reasons it does not.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Forwarding does not remove every stall. Explain the load-use case explicitly; saying "forwarding removes all data hazards" is a common wrong answer.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"What are the three kinds of pipeline hazard, and how do you handle each?" Answer: structural hazards are handled by duplicating hardware or stalling; data hazards by forwarding and stalling for loads; control hazards by stalling or branch prediction with flushing.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="Cache and AMAT">
+  <h2>Cache memory and AMAT</h2>
+  <p>Memory is slow compared with the CPU. A register access takes about one clock cycle, under a nanosecond on a modern CPU, while a main memory access takes on the order of 100 nanoseconds. A <strong>cache</strong> is a small, fast memory between the CPU and main memory that keeps copies of recently used data. The memory hierarchy has layers, from fastest and smallest to slowest and largest: registers, L1 cache, L2 cache, L3 cache, main memory (RAM), and then storage such as an SSD or disk.</p>
+  <p>Caches work because programs have <strong>locality</strong>:</p>
+  <ul>
+    <li><strong>Temporal locality.</strong> A recently used item is likely to be used again soon. A loop counter is a good example.</li>
+    <li><strong>Spatial locality.</strong> Items near a recently used item are likely to be used soon. Walking an array in order is a good example.</li>
+  </ul>
+  <p>Caches move data in fixed-size chunks called <strong>blocks</strong> or <strong>cache lines</strong>, often 64 bytes. When the CPU asks for an address, the cache checks whether that block is present. A <strong>hit</strong> means the block is there, and a <strong>miss</strong> means it is not, so the block must be fetched from the next level, which takes longer.</p>
+
+  <h3>Splitting an address: tag, index and offset</h3>
+  <p>To find a block, the cache splits the address into three fields. The <strong>offset</strong> selects a byte inside the block. The <strong>index</strong> selects the set (or line) in the cache. The <strong>tag</strong> is the remaining high bits, which identify which memory block is stored there.</p>
+  <p>The code below splits a 32-bit address for a cache with 16-byte blocks (4 offset bits) and 64 sets (6 index bits). Since 16 is 2 to the power 4 and 64 is 2 to the power 6, each field is a group of bits.</p>
+  <pre class="code" data-lang="python"><code>def split_address(address, offset_bits, index_bits):
+    offset = address &amp; ((1 &lt;&lt; offset_bits) - 1)
+    index = (address &gt;&gt; offset_bits) &amp; ((1 &lt;&lt; index_bits) - 1)
+    tag = address &gt;&gt; (offset_bits + index_bits)
+    return tag, index, offset
+
+# 32-bit addresses, 16-byte blocks (4 offset bits), 64 sets (6 index bits)
+for address in [0x00000000, 0x00000010, 0x00000400, 0x12345678]:
+    tag, index, offset = split_address(address, 4, 6)
+    print(f"address {address:#010x}: tag={tag:#x} index={index} offset={offset}")</code></pre>
+  <pre class="output">address 0x00000000: tag=0x0 index=0 offset=0
+address 0x00000010: tag=0x0 index=1 offset=0
+address 0x00000400: tag=0x1 index=0 offset=0
+address 0x12345678: tag=0x48d15 index=39 offset=8</pre>
+  <p>Look at the third address, 0x400. It is 1024, which is 16 blocks times 64 sets. Its block number is 64, and 64 modulo 64 is 0, so it maps to set 0 again. Its tag is 1. The same set is shared by many addresses with different tags.</p>
+
+  <h3>Mapping: where can a block go?</h3>
+  <ul>
+    <li><strong>Direct-mapped.</strong> Each block has exactly one possible slot, chosen by its index. Simple and fast, but two busy blocks with the same index keep evicting each other. This is a <strong>conflict miss</strong>.</li>
+    <li><strong>Fully associative.</strong> A block can go in any slot. There are no conflict misses, but finding a block requires comparing every tag, so it is expensive for large caches.</li>
+    <li><strong>Set-associative.</strong> A block can go in any of a few slots (for example 2, 4 or 8 ways) within one set. It is the usual compromise.</li>
+  </ul>
+  <p>The simulator below runs a direct-mapped cache with 8 slots. It takes a list of block numbers and reports a hit or miss for each. Block 0 and block 8 both map to slot 0, so they keep evicting each other.</p>
+  <pre class="code" data-lang="python"><code>def simulate_direct_mapped(refs, slots):
+    cache = [None] * slots            # each slot holds one block number, or None when empty
+    results = []
+    for block in refs:
+        slot = block % slots          # the index is the block number modulo the number of slots
+        if cache[slot] == block:
+            results.append("hit")
+        else:
+            results.append("miss")
+            cache[slot] = block       # fetch the block and evict whatever was there
+    return results
+
+print(simulate_direct_mapped([0, 8, 0, 8, 1, 1], 8))</code></pre>
+  <pre class="output">['miss', 'miss', 'miss', 'miss', 'miss', 'hit']</pre>
+  <p>Trace the list. Block 0 misses and fills slot 0. Block 8 maps to slot 0 too, so it misses and evicts block 0. Block 0 misses again and evicts block 8, and block 8 misses once more. Block 1 is a cold miss in slot 1, and the second access to block 1 is a hit. The four alternating accesses are all misses, even though seven of the eight slots are never used by these accesses. This is a conflict miss.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A direct-mapped cache can miss even when most of its slots are unused. Interviewers often use this to test whether you understand conflict misses.</p></div>
+
+  <h3>Write policies and replacement</h3>
+  <ul>
+    <li><strong>Write-through.</strong> Every write goes to the cache and to memory. Simple, but slow for frequent writes.</li>
+    <li><strong>Write-back.</strong> A write changes only the cache and sets a <em>dirty</em> bit. The block is written to memory when it is evicted. Faster, and the usual choice for L1 and L2.</li>
+    <li><strong>Write-allocate.</strong> On a write miss, the block is loaded into the cache first. The two write policies above are usually paired with this choice.</li>
+    <li><strong>Replacement.</strong> In a set-associative cache, when a set is full, a policy picks the victim. <strong>LRU</strong> (least recently used) evicts the block that has gone unused the longest. It works well because of temporal locality. FIFO and random are cheaper alternatives.</li>
+  </ul>
+  <p>The three classic causes of misses are <strong>compulsory</strong> (the first access to a block, which no cache can avoid), <strong>capacity</strong> (the working set is larger than the cache), and <strong>conflict</strong> (blocks compete for the same slot, as in the example above).</p>
+
+  <h3>Average memory access time (AMAT)</h3>
+  <p><strong>AMAT</strong> is the average time for one memory access, counting hits and misses. Its formula is:</p>
+  <p>AMAT = hit time + miss rate * miss penalty</p>
+  <p>Every access pays the hit time, because the cache is always checked first. Only the misses pay the extra penalty, which is the time to fetch from the next level. A two-level cache has a penalty that is itself an AMAT: the time for the L2 access, including its own misses.</p>
+  <pre class="code" data-lang="python"><code>def amat(hit_time, miss_rate, miss_penalty):
+    return hit_time + miss_rate * miss_penalty
+
+# One level: hit time 1 cycle, 5% misses, 100 cycle penalty to memory.
+print("one level:", amat(1, 0.05, 100))
+
+# Two levels: L1 hit 1 cycle, 10% L1 misses. The L1 penalty is the L2 AMAT:
+# L2 hit 10 cycles, 20% of L2 lookups miss, and memory costs 100 cycles.
+l2_amat = amat(10, 0.20, 100)
+print("two levels:", amat(1, 0.10, l2_amat))</code></pre>
+  <pre class="output">one level: 6.0
+two levels: 4.0</pre>
+  <p>Check the one-level answer by hand. Every access costs 1 cycle. Five in every hundred accesses also pay 100 more cycles. So the average is 1 + 0.05 * 100 = 1 + 5 = 6 cycles. For the two-level case, the L1 miss penalty is the L2 AMAT, which is 10 + 0.20 * 100 = 30 cycles. The overall average is 1 + 0.10 * 30 = 4 cycles.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>AMAT = hit time + miss rate * miss penalty. To cut AMAT, you can lower the hit time (a small, fast L1), the miss rate (a bigger or better-organised cache), or the miss penalty (a second-level cache). Improving the miss rate by a small amount can help more than any other change when the penalty is large.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Why does a larger cache not always help?" Answer: a bigger cache usually has a longer hit time, because checking more slots and tags takes longer. The best size balances hit time against miss rate.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="Interrupts vs DMA">
+  <h2>Input and output: interrupts versus DMA</h2>
+  <p>A computer talks to devices such as keyboards, disks and network cards. There are two main ways for data to move between a device and memory. In both, the device needs the CPU's attention at some point, but the amount of CPU work is very different.</p>
+
+  <h3>Interrupts</h3>
+  <p>An <strong>interrupt</strong> is a signal that tells the CPU to stop what it is doing and handle an event. A device raises an interrupt request (IRQ) when it needs service, for example when a key is pressed or a network packet has arrived. The steps are:</p>
+  <ol>
+    <li>The device raises the IRQ line.</li>
+    <li>The CPU finishes the current instruction, then saves the PC and the status flags, usually on the stack.</li>
+    <li>The CPU looks up the handler address in the <strong>interrupt vector table</strong>, using the interrupt number.</li>
+    <li>The CPU runs the <strong>interrupt service routine</strong> (ISR), which reads the device's data and clears the request.</li>
+    <li>The ISR returns, the saved state is restored, and the interrupted program continues.</li>
+  </ol>
+  <p>Interrupts are efficient when events are infrequent or each event carries only a little data, such as a key press. The cost is that the CPU handles every single event, and the time between the event and the handler starting is the <strong>interrupt latency</strong>.</p>
+
+  <h3>Direct memory access (DMA)</h3>
+  <p><strong>DMA</strong> lets a device move a block of data to or from memory without the CPU copying each byte. A <strong>DMA controller</strong>, a separate piece of hardware, does the transfer. The steps are:</p>
+  <ol>
+    <li>The CPU programs the DMA controller with the source address, the destination address and the number of bytes.</li>
+    <li>The CPU starts the transfer and goes on with other work.</li>
+    <li>The DMA controller moves the data directly between the device and memory. It takes control of the memory bus for short periods, a method called <em>cycle stealing</em>, or for one long burst.</li>
+    <li>When the transfer completes, the DMA controller raises one interrupt, and the CPU's ISR does the final bookkeeping.</li>
+  </ol>
+
+  <h3>Comparing the two</h3>
+  <div class="tablewrap"><table><thead><tr><th>Question</th><th>Interrupt-driven I/O</th><th>DMA</th></tr></thead><tbody>
+    <tr><td>Who moves each byte?</td><td>The CPU, in the ISR</td><td>The DMA controller</td></tr>
+    <tr><td>CPU involvement</td><td>One interrupt per event or unit of data</td><td>Setup and one completion interrupt per block</td></tr>
+    <tr><td>Best for</td><td>Small, infrequent events such as key presses</td><td>Large blocks such as disk reads or network packets</td></tr>
+    <tr><td>Hardware needed</td><td>Interrupt lines and a handler</td><td>A DMA controller and memory access rules</td></tr>
+  </tbody></table></div>
+  <p>A concrete example: reading 4 KB from a disk. With interrupts, the CPU might take one interrupt for each byte or word, which is many interrupts and much CPU time. With DMA, the CPU sets up one transfer and gets one interrupt at the end, so it is free to run other programs during the transfer.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>DMA does not mean the CPU is never involved. The CPU sets up the transfer, and it can be slowed down when the DMA controller uses the memory bus. Also, the CPU must not read the buffer before the completion interrupt says the data is ready.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"When would you choose DMA over interrupts?" Answer: when the device transfers large blocks of data, because DMA removes the per-byte work from the CPU and needs only one interrupt per block.</p></div>
+
+  <h3>Polling</h3>
+  <p>A third method is <strong>polling</strong>: the CPU repeatedly checks a device status register. Polling is simple, but it wastes CPU time while the device is idle. Interrupts were designed to avoid that waste.</p>
+</section>
+
+<section class="unit" id="c6" data-title="Multicore and GPUs">
+  <h2>Parallel hardware: multicore CPUs and GPUs</h2>
+  <p>For decades, processors became faster by raising the clock rate. That stopped being practical, so manufacturers now add more <strong>cores</strong> to one chip. A core is a complete processing unit with its own ALU, control unit and registers. A <strong>multicore</strong> processor runs several threads at the same time, and the cores usually share a larger cache (L3) and main memory.</p>
+  <p>Because the cores share memory, they must keep their own caches consistent. A <strong>cache coherence</strong> protocol, such as MESI (Modified, Exclusive, Shared, Invalid), makes sure that when one core writes a value, other cores do not keep using an old copy. Coherence traffic is one reason that adding cores does not give a perfect speedup.</p>
+
+  <h3>Amdahl's law</h3>
+  <p><strong>Amdahl's law</strong> gives the best speedup you can get from parallel hardware. Let p be the fraction of the program that can run in parallel, and n the number of cores. The serial part (1 - p) does not speed up. The speedup is:</p>
+  <p>speedup = 1 / ((1 - p) + p / n)</p>
+  <p>Worked example: if 90% of a program is parallel (p = 0.9), then with 4 cores the serial 10% still takes its full time, and the parallel 90% takes a quarter of its time. The new running time is 0.1 + 0.9 / 4 = 0.325 of the original, so the speedup is about 3.08, not 4. Even with infinitely many cores, the serial 10% limits the speedup to 1 / 0.1 = 10.</p>
+  <pre class="code" data-lang="python"><code>def amdahl(parallel_fraction, cores):
+    serial = 1 - parallel_fraction
+    return 1 / (serial + parallel_fraction / cores)
+
+for cores in [2, 4, 16]:
+    print(cores, "cores:", round(amdahl(0.9, cores), 2))
+print("limit with unlimited cores:", round(amdahl(0.9, 10**9), 2))</code></pre>
+  <pre class="output">2 cores: 1.82
+4 cores: 3.08
+16 cores: 6.4
+limit with unlimited cores: 10.0</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>The speedup from parallel hardware is limited by the serial part of the program. Reducing the serial fraction matters more than adding cores once there are many cores.</p></div>
+
+  <h3>GPUs</h3>
+  <p>A <strong>GPU</strong> (graphics processing unit) is built for the opposite trade-off from a CPU. A CPU has a few powerful cores that are optimised for low latency: finishing one thread quickly. A GPU has thousands of simpler cores that are optimised for throughput: doing a huge amount of identical work at once.</p>
+  <p>GPUs use a style called <strong>SIMT</strong> (single instruction, multiple threads). A group of threads runs the same instruction on different data. NVIDIA calls such a group a <em>warp</em>. This suits data-parallel work, such as applying the same calculation to every pixel of an image or every element of a large matrix. Work that branches a lot or needs many small, dependent steps runs poorly on a GPU.</p>
+  <ul>
+    <li><strong>CPU:</strong> a few fast cores, large caches, good for branchy and sequential code.</li>
+    <li><strong>GPU:</strong> thousands of simple cores, high memory bandwidth, good for data-parallel work.</li>
+  </ul>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Why does a GPU use many simple cores instead of a few complex ones?" Answer: the work is data-parallel, so the total throughput matters more than the speed of one thread. Simple cores take less area and power, so many more fit on the chip.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before you open the model answer. A good answer is short, correct, and gives one example.</p>
+  <details class="check"><summary>Why does a computer use two's complement for negative integers?</summary><div class="ans"><p>So that addition works the same way for positive and negative numbers, and the hardware needs only one adder. For example, -1 plus 1 in 8 bits is 11111111 + 00000001 = 100000000, and dropping the carry out of the top bit gives 0.</p></div></details>
+  <details class="check"><summary>What are the three fields of an IEEE 754 single-precision float?</summary><div class="ans"><p>One sign bit, eight exponent bits (stored with a bias of 127), and 23 fraction bits. The value of a normal number is (-1) to the power sign, times (1 + fraction), times 2 to the power (exponent minus 127).</p></div></details>
+  <details class="check"><summary>Describe the fetch-decode-execute cycle in one sentence.</summary><div class="ans"><p>The CPU reads the instruction at the address in the PC into the IR and advances the PC, decodes the opcode and operands, then executes the operation, which may use the ALU or access memory, and writes the result.</p></div></details>
+  <details class="check"><summary>What is the difference between direct and indirect addressing?</summary><div class="ans"><p>Direct addressing puts the address of the operand in the instruction, so one memory read gets the operand. Indirect addressing puts the address of a memory cell in the instruction; that cell holds the real address, so two reads are needed.</p></div></details>
+  <details class="check"><summary>What is the difference between RISC and CISC?</summary><div class="ans"><p>RISC uses a small set of simple, mostly fixed-length instructions, with memory access only through load and store instructions. CISC offers many complex instructions, some of which access memory directly. Modern CISC chips decode into simpler internal operations.</p></div></details>
+  <details class="check"><summary>Name the three kinds of pipeline hazard and one fix for each.</summary><div class="ans"><p>Structural: duplicate the hardware, for example separate instruction and data caches. Data: forwarding, plus a stall for a load followed by a use. Control: stall until the branch is resolved, or predict the branch and flush wrong-path instructions.</p></div></details>
+  <details class="check"><summary>Explain why a direct-mapped cache can have misses when most of its slots are empty.</summary><div class="ans"><p>Two blocks that map to the same index compete for one slot. Accessing them alternately evicts each other every time, so each access misses. These are conflict misses, and a set-associative cache reduces them.</p></div></details>
+  <details class="check"><summary>A cache hit takes 1 cycle, the miss rate is 5%, and a miss costs 100 extra cycles. What is the AMAT?</summary><div class="ans"><p>AMAT = 1 + 0.05 * 100 = 6 cycles. Every access pays the hit time, and only the misses pay the penalty.</p></div></details>
+  <details class="check"><summary>When would you use DMA instead of interrupt-driven transfer?</summary><div class="ans"><p>For large blocks of data, such as disk or network transfers. The CPU sets up the DMA controller and receives one completion interrupt, instead of handling an interrupt for every unit of data.</p></div></details>
+  <details class="check"><summary>A program is 80% parallel. What is the speedup on 4 cores, and why is it not 4?</summary><div class="ans"><p>Speedup = 1 / (0.2 + 0.8 / 4) = 1 / 0.4 = 2.5. The serial 20% does not speed up, so it limits the result. Even with unlimited cores, the speedup cannot exceed 1 / 0.2 = 5.</p></div></details>
+  <details class="check"><summary>Why are GPUs good at matrix operations but poor at tasks with many branches?</summary><div class="ans"><p>Threads in a GPU group run the same instruction together. Matrix operations apply the same arithmetic to many elements, so every thread is busy. When threads take different branches, some must wait, which reduces throughput.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: linked lists</h2>
+  <p>A <strong>linked list</strong> is a chain of nodes. Each node holds a value and a pointer (a reference, in Python) to the next node. The list is known by its first node, the <strong>head</strong>. Unlike an array, a linked list does not store its nodes side by side, so inserting or removing a node means changing pointers, not moving elements.</p>
+  <p>Most linked-list problems are about pointer handling. Three techniques cover most of them:</p>
+  <ul>
+    <li><strong>Dummy head.</strong> Create a placeholder node before the real head. It removes special cases when the head itself changes, because every node now has a previous node.</li>
+    <li><strong>Two pointers.</strong> Use a fast pointer and a slow pointer, or two pointers a fixed distance apart, to find positions in one pass.</li>
+    <li><strong>Save before you overwrite.</strong> When you change a <code>next</code> pointer, first save the node it pointed to, or the rest of the list is lost.</li>
+  </ul>
+  <p>Each problem below includes a small helper that builds a list from Python values and turns a list back into Python values, so you can check the output easily. Each code block is complete on its own.</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/reverse-linked-list/">
+    <h3>Reverse Linked List (LeetCode 206)</h3>
+    <div class="statement"><p>Given the head of a singly linked list, reverse the list and return the new head. Example: 1 to 2 to 3 to 4 to 5 becomes 5 to 4 to 3 to 2 to 1. Reversing an empty list or a single node returns it unchanged.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Every <code>next</code> pointer must point the other way. There are no extra nodes to create, so the answer reuses the same nodes.</li>
+      <li><strong>Brute force.</strong> Copy the values into an array, reverse the array, and rebuild the list. This takes O(n) extra space.</li>
+      <li><strong>Find the waste.</strong> The copy is unnecessary. Each node only needs its pointer flipped, and the previous node is the one to point to.</li>
+      <li><strong>Optimise.</strong> Walk the list with three variables: <code>prev</code> (the already reversed part, starting empty), <code>curr</code> (the node being processed), and a saved <code>nxt</code>. For each node, save <code>nxt</code>, point <code>curr.next</code> at <code>prev</code>, then move both pointers forward. O(n) time and O(1) space.</li>
+      <li><strong>Dry run.</strong> List 1, 2, 3. Start: prev = None, curr = 1. Step 1: nxt = 2, 1.next = None, prev = 1, curr = 2. Step 2: nxt = 3, 2.next = 1, prev = 2, curr = 3. Step 3: nxt = None, 3.next = 2, prev = 3, curr = None. Result: 3, 2, 1.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+def reverse_list(head):
+    prev = None
+    curr = head
+    while curr is not None:
+        nxt = curr.next        # 1. save the rest of the list
+        curr.next = prev       # 2. point this node backwards
+        prev = curr            # 3. move prev forward
+        curr = nxt             # 4. move curr forward
+    return prev                # prev is now the new head
+
+def build(values):
+    head = None
+    for v in reversed(values):
+        head = ListNode(v, head)
+    return head
+
+def to_list(head):
+    out = []
+    while head is not None:
+        out.append(head.val)
+        head = head.next
+    return out
+
+print(to_list(reverse_list(build([1, 2, 3, 4, 5]))))
+print(to_list(reverse_list(build([1, 2]))))
+print(to_list(reverse_list(build([]))))</code></pre>
+    <pre class="output">[5, 4, 3, 2, 1]
+[2, 1]
+[]</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you must reverse pointers in place, keep a <code>prev</code> and a <code>curr</code>, and save <code>curr.next</code> before you overwrite it.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/add-two-numbers/">
+    <h3>Add Two Numbers (LeetCode 2)</h3>
+    <div class="statement"><p>You are given two linked lists that represent two non-negative integers. The digits are stored in reverse order, one digit per node. Add the two numbers and return the sum as a linked list in the same format. Example: 2 to 4 to 3 (that is 342) plus 5 to 6 to 4 (that is 465) gives 7 to 0 to 8 (that is 807).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Reversed order means the first node holds the ones digit, so we can add from the head just as we add by hand. A carry is passed to the next position. The lists may have different lengths, and a final carry can make one more digit.</li>
+      <li><strong>Brute force.</strong> Convert each list to a Python integer, add them, and convert the result back to a list. This works, but it is not what the problem asks for: it hides the digit-by-digit addition the interviewer wants to see.</li>
+      <li><strong>Find the waste.</strong> Converting to integers is unnecessary. We only need the digit sum at each position and one carry value.</li>
+      <li><strong>Optimise.</strong> Walk both lists together. At each step, add the two digits (0 if a list has ended) and the carry. The new digit is the total modulo 10, and the new carry is the total divided by 10. Use a dummy head to collect the result. Continue while either list has nodes or a carry is left. O(max(m, n)) time.</li>
+      <li><strong>Dry run.</strong> 2,4,3 plus 5,6,4. Position 1: 2 + 5 + carry 0 = 7, digit 7, carry 0. Position 2: 4 + 6 + 0 = 10, digit 0, carry 1. Position 3: 3 + 4 + 1 = 8, digit 8, carry 0. No lists left, no carry. Result 7, 0, 8, which is 807.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+def add_two_numbers(l1, l2):
+    dummy = ListNode()             # placeholder head; the answer starts at dummy.next
+    tail = dummy
+    carry = 0
+    while l1 or l2 or carry:
+        total = carry
+        if l1:
+            total += l1.val
+            l1 = l1.next
+        if l2:
+            total += l2.val
+            l2 = l2.next
+        carry = total // 10        # the carry is the tens part
+        tail.next = ListNode(total % 10)   # the digit is the ones part
+        tail = tail.next
+    return dummy.next
+
+def build(values):
+    head = None
+    for v in reversed(values):
+        head = ListNode(v, head)
+    return head
+
+def to_list(head):
+    out = []
+    while head is not None:
+        out.append(head.val)
+        head = head.next
+    return out
+
+print(to_list(add_two_numbers(build([2, 4, 3]), build([5, 6, 4]))))
+print(to_list(add_two_numbers(build([0]), build([0]))))
+print(to_list(add_two_numbers(build([9, 9, 9, 9, 9, 9, 9]), build([9, 9, 9, 9]))))</code></pre>
+    <pre class="output">[7, 0, 8]
+[0]
+[8, 9, 9, 9, 0, 0, 0, 1]</pre>
+    <p class="cx">Time O(max(m, n)) · Space O(max(m, n)) for the result list</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting the final carry. Inputs 5 and 5 give 0 with a carry of 1, and the answer must be 10. The loop condition <code>or carry</code> handles it.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you combine two lists digit by digit, use a dummy head, a carry variable, and a loop that runs while either list or the carry still has something to add.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/remove-nth-node-from-end-of-list/">
+    <h3>Remove Nth Node From End of List (LeetCode 19)</h3>
+    <div class="statement"><p>Given the head of a linked list and an integer n, remove the nth node counted from the end of the list, and return the head. Example: list 1 to 2 to 3 to 4 to 5 with n = 2 removes the node 4, giving 1 to 2 to 3 to 5. The value n is always valid, so the node exists.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> "From the end" means the position counted from the last node. Removing the head is a special case, which is why a dummy head helps. A single-node list with n = 1 must also work.</li>
+      <li><strong>Brute force.</strong> Count the length L with one pass. Then walk to the node at position L - n from the start with a second pass, and remove the next node. This is correct and O(n) time, but it needs two passes.</li>
+      <li><strong>Find the waste.</strong> The two passes count the same list twice. We want the answer in one pass.</li>
+      <li><strong>Optimise.</strong> Use two pointers with a gap of n. Move <code>fast</code> n steps ahead. Then move <code>fast</code> and <code>slow</code> together until <code>fast</code> reaches the last node. At that point <code>slow</code> is just before the node to remove, so set <code>slow.next = slow.next.next</code>. One pass, O(1) extra space.</li>
+      <li><strong>Dry run.</strong> List 1, 2, 3, 4, 5 with a dummy in front, n = 2. Move fast 2 steps from the dummy: fast is now at node 2. Now move both pointers until fast.next is None. Fast moves to 3, 4, 5 and slow moves to 1, 2, 3. Fast.next is None, with fast at 5. So slow is at 3, and slow.next is 4, which is the node to remove. Set 3.next = 5. Result 1, 2, 3, 5.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+def remove_nth_from_end(head, n):
+    dummy = ListNode(0, head)      # the dummy lets us remove the real head too
+    fast = slow = dummy
+    for _ in range(n):             # move fast n steps ahead, creating the gap
+        fast = fast.next
+    while fast.next is not None:   # move both until fast is on the last node
+        fast = fast.next
+        slow = slow.next
+    slow.next = slow.next.next     # slow is just before the node to remove
+    return dummy.next
+
+def build(values):
+    head = None
+    for v in reversed(values):
+        head = ListNode(v, head)
+    return head
+
+def to_list(head):
+    out = []
+    while head is not None:
+        out.append(head.val)
+        head = head.next
+    return out
+
+print(to_list(remove_nth_from_end(build([1, 2, 3, 4, 5]), 2)))
+print(to_list(remove_nth_from_end(build([1, 2, 3, 4, 5]), 5)))
+print(to_list(remove_nth_from_end(build([1]), 1)))</code></pre>
+    <pre class="output">[1, 2, 3, 5]
+[2, 3, 4, 5]
+[]</pre>
+    <p class="cx">Time O(L) with one pass, where L is the list length · Space O(1)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Starting <code>fast</code> at the real head instead of the dummy. Then removing the head (n equal to the length) has no node before it, and the code breaks.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To find something a fixed distance from the end of a list in one pass, move one pointer n steps ahead, then move both together until the leading pointer reaches the end.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/reverse-nodes-in-k-group/">
+    <h3>Reverse Nodes in k-Group (LeetCode 25)</h3>
+    <div class="statement"><p>Given the head of a linked list and a positive integer k, reverse the nodes in groups of k, and return the new head. If the number of nodes left at the end is less than k, leave them as they are. You may not change the values in the nodes, only the pointers. Example: 1 to 2 to 3 to 4 to 5 with k = 2 gives 2 to 1 to 4 to 3 to 5. With k = 3 it gives 3 to 2 to 1 to 4 to 5.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The list is split into consecutive groups of k. Each complete group is reversed as a unit, and its neighbours are reconnected. A short group at the end is left alone. The rule "do not change values" means we must rewire pointers.</li>
+      <li><strong>Brute force.</strong> Copy all values into an array, reverse each chunk of k in the array, and build a new list. This is correct and simple, and it runs in O(n) time. It uses O(n) extra space, and it creates new nodes instead of rewiring the existing ones. The brute-force code below is a useful check.</li>
+      <li><strong>Find the waste.</strong> The array copy is the extra space. The same reversal we used in Reverse Linked List can be applied to each group, if we reconnect the group before and after it.</li>
+      <li><strong>Optimise.</strong> Keep <code>group_prev</code>, the node just before the current group, starting at the dummy. For each group: find the k-th node <code>kth</code> ahead of <code>group_prev</code>. If there is no k-th node, stop. Save <code>group_next</code>, the node after <code>kth</code>. Reverse the k nodes using <code>group_next</code> as the starting <code>prev</code>, so the first node of the group points to <code>group_next</code> automatically. Then connect <code>group_prev.next</code> to <code>kth</code>, and move <code>group_prev</code> to the old first node of the group, which is now its tail. O(n) time and O(1) extra space.</li>
+      <li><strong>Dry run.</strong> 1,2,3,4,5 with k = 2. Group 1: group_prev = dummy, kth = node 2, group_next = node 3. Reverse 1 and 2 with prev starting at node 3: 2 points to 1, 1 points to 3. Connect dummy to 2. group_prev = node 1. Group 2: node 1 now links to node 3, so the two steps from node 1 reach node 3, then node 4. So kth = node 4, and group_next = node 5. Reverse 3 and 4: 4 points to 3, 3 points to 5. Connect node 1 to node 4. group_prev = node 3. Group 3: node 3 links to 5, so the first step reaches 5 and the second step reaches None. The group is incomplete, so stop. Result: 2, 1, 4, 3, 5.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+def reverse_k_group(head, k):
+    dummy = ListNode(0, head)
+    group_prev = dummy                       # the node just before the current group
+    while True:
+        # Find the k-th node counting from group_prev. Stop if the group is incomplete.
+        kth = group_prev
+        for _ in range(k):
+            kth = kth.next
+            if kth is None:
+                return dummy.next
+        group_next = kth.next                # the first node after this group
+        # Reverse the k nodes. Start prev at group_next so the group's tail links forward.
+        prev = group_next
+        curr = group_prev.next
+        while curr is not group_next:
+            nxt = curr.next
+            curr.next = prev
+            prev = curr
+            curr = nxt
+        # Reconnect: the previous group now ends at kth, and the old first node is the new tail.
+        first = group_prev.next
+        group_prev.next = kth
+        group_prev = first
+
+def build(values):
+    head = None
+    for v in reversed(values):
+        head = ListNode(v, head)
+    return head
+
+def to_list(head):
+    out = []
+    while head is not None:
+        out.append(head.val)
+        head = head.next
+    return out
+
+print(to_list(reverse_k_group(build([1, 2, 3, 4, 5]), 2)))
+print(to_list(reverse_k_group(build([1, 2, 3, 4, 5]), 3)))
+print(to_list(reverse_k_group(build([1, 2, 3, 4, 5]), 1)))</code></pre>
+    <pre class="output">[2, 1, 4, 3, 5]
+[3, 2, 1, 4, 5]
+[1, 2, 3, 4, 5]</pre>
+    <h4>A brute-force check</h4>
+    <p>The simpler version copies values into an array. It is useful for checking the pointer version on small inputs, and it helps you explain the idea before you optimise.</p>
+    <pre class="code" data-lang="python"><code>def reverse_k_group_brute(values, k):
+    out = []
+    for start in range(0, len(values), k):
+        chunk = values[start:start + k]
+        if len(chunk) == k:               # only complete groups are reversed
+            chunk.reverse()
+        out.extend(chunk)
+    return out
+
+print(reverse_k_group_brute([1, 2, 3, 4, 5], 2))
+print(reverse_k_group_brute([1, 2, 3, 4, 5], 3))</code></pre>
+    <pre class="output">[2, 1, 4, 3, 5]
+[3, 2, 1, 4, 5]</pre>
+    <p class="cx">Time O(n) · Space O(1) for the pointer version, O(n) for the brute-force copy</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting to check that a full group of k exists before reversing. Reversing a short tail group breaks the rule that it must stay as it is.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Losing the rest of the list. Save <code>group_next</code> before you touch any <code>next</code> pointer in the group, or the nodes after the group disappear.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To reverse a block inside a list, find the boundary nodes first, reverse the block with the usual <code>prev</code> and <code>curr</code> loop starting from the node after the block, then reconnect the boundary nodes to the block's new ends.</p></div>
+  </article>
+
+  <h3>Mock questions</h3>
+  <p>Practise these in your head before coding. Each one tests a pattern from the problems above.</p>
+  <ul>
+    <li>How do you detect a cycle in a linked list? (Hint: fast and slow pointers.)</li>
+    <li>How would you find the middle node in one pass? (Hint: move fast two steps for every one step of slow.)</li>
+    <li>Why is a dummy head useful when the list might lose its first node?</li>
+  </ul>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Byte</dt><dd>A group of 8 bits, the basic unit of addressable memory.</dd></div>
+    <div><dt>Two's complement</dt><dd>The standard way to store negative integers, so that addition works without special cases.</dd></div>
+    <div><dt>IEEE 754</dt><dd>The standard for floating-point numbers: sign, exponent and fraction fields.</dd></div>
+    <div><dt>Bias</dt><dd>A fixed number added to the exponent when it is stored (127 for single precision).</dd></div>
+    <div><dt>Program counter (PC)</dt><dd>The register holding the address of the next instruction.</dd></div>
+    <div><dt>Instruction cycle</dt><dd>Fetch, decode and execute, repeated for every instruction.</dd></div>
+    <div><dt>Effective address</dt><dd>The final memory address an instruction uses, after the addressing mode is applied.</dd></div>
+    <div><dt>Addressing mode</dt><dd>The rule for finding an operand: immediate, direct, indirect, register, indexed, relative and so on.</dd></div>
+    <div><dt>RISC</dt><dd>Reduced instruction set: simple instructions and a load/store design, such as ARM, RISC-V and MIPS.</dd></div>
+    <div><dt>CISC</dt><dd>Complex instruction set: powerful instructions that can access memory directly, such as x86.</dd></div>
+    <div><dt>Pipeline</dt><dd>Overlapping the stages of several instructions so that one finishes per cycle once the pipeline is full.</dd></div>
+    <div><dt>Latency and throughput</dt><dd>Latency is how long one instruction takes; throughput is how many finish per unit time.</dd></div>
+    <div><dt>Hazard</dt><dd>A situation that prevents the next instruction from running in its planned cycle.</dd></div>
+    <div><dt>Forwarding</dt><dd>Passing a result directly to a later stage, so that a data hazard does not need a stall.</dd></div>
+    <div><dt>Branch prediction</dt><dd>Guessing the outcome of a branch and continuing; wrong guesses are flushed.</dd></div>
+    <div><dt>Cache hit and miss</dt><dd>A hit finds the data in the cache; a miss must fetch it from the next level.</dd></div>
+    <div><dt>Locality</dt><dd>Programs reuse recent data (temporal) and nearby data (spatial), which makes caches work.</dd></div>
+    <div><dt>Tag, index, offset</dt><dd>The three parts of an address used to find a block in a cache.</dd></div>
+    <div><dt>Conflict miss</dt><dd>A miss caused by two blocks competing for the same slot.</dd></div>
+    <div><dt>Write-back and dirty bit</dt><dd>Writes stay in the cache until eviction, and a dirty bit marks blocks that need saving.</dd></div>
+    <div><dt>AMAT</dt><dd>Average memory access time: hit time plus miss rate times miss penalty.</dd></div>
+    <div><dt>Interrupt</dt><dd>A signal that makes the CPU stop and run a handler for an event.</dd></div>
+    <div><dt>Interrupt service routine (ISR)</dt><dd>The handler that runs in response to an interrupt.</dd></div>
+    <div><dt>DMA</dt><dd>Direct memory access: a controller moves a block of data without the CPU copying each byte.</dd></div>
+    <div><dt>Polling</dt><dd>The CPU repeatedly checks a device's status, which wastes time when the device is idle.</dd></div>
+    <div><dt>Multicore</dt><dd>A chip with several complete cores that run threads in parallel.</dd></div>
+    <div><dt>Cache coherence</dt><dd>Rules, such as MESI, that keep copies of shared data consistent across cores.</dd></div>
+    <div><dt>Amdahl's law</dt><dd>Speedup = 1 / ((1 - p) + p / n): the serial part limits the gain from more cores.</dd></div>
+    <div><dt>GPU and SIMT</dt><dd>Many simple cores that run the same instruction across many threads on different data.</dd></div>
+    <div><dt>Dummy head</dt><dd>A placeholder node before the real head, which removes special cases in linked-list code.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>struct.pack('&gt;f', x)</code></td><td>Packs a float into 4 big-endian IEEE 754 bytes</td><td>Gives the bytes of 1.0 as 3F800000 in hex</td></tr>
+    <tr><td><code>struct.unpack('&gt;I', b)</code></td><td>Reads 4 bytes as an unsigned 32-bit integer</td><td>Turns those bytes back into 1065353216</td></tr>
+    <tr><td><code>format(x, '08b')</code></td><td>Formats an integer as binary, padded to 8 digits</td><td><code>format(5, '08b')</code> gives 00000101</td></tr>
+    <tr><td><code>x &amp; mask</code></td><td>Bitwise AND, used to keep the low bits</td><td><code>0x12345678 &amp; 0xFF</code> gives 120 (0x78)</td></tr>
+    <tr><td><code>x &gt;&gt; n</code></td><td>Shifts bits right by n places</td><td><code>1024 &gt;&gt; 10</code> gives 1</td></tr>
+    <tr><td><code>1 &lt;&lt; n</code></td><td>Shifts bits left, giving 2 to the power n</td><td><code>1 &lt;&lt; 4</code> gives 16</td></tr>
+    <tr><td><code>round(x, 2)</code></td><td>Rounds a float to two decimal places</td><td><code>round(4.8077, 2)</code> gives 4.81</td></tr>
+    <tr><td><code>list.reverse()</code></td><td>Reverses a list in place</td><td><code>[1, 2].reverse()</code> changes the list to [2, 1]</td></tr>
+    <tr><td><code>reversed(seq)</code></td><td>Iterates over a sequence from the end, without copying it</td><td><code>list(reversed([1, 2, 3]))</code> gives [3, 2, 1]</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 8?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 8 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-07.html"><small>Previous, day 7</small>Sunday: Aptitude, review, Mock 1, resume and HR</a><a class="next" href="day-09.html"><small>Next, day 9</small>OS 1: Processes, threads, CPU scheduling</a></nav>
+</main><script src="assets/app.js"></script></body></html>

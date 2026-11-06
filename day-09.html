@@ -1,0 +1,624 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 9: OS 1: Processes, threads, CPU scheduling</title><meta name="description" content="Today covers what an operating system does when it runs programs: the split between kernel mode and user mode, system calls, processes and their control blocks, fork and exec, zombie and orphan processes, inter-process communication, threads, and CPU scheduling. The scheduling section follows one set of four processes through five algorithms, drawing a Gantt chart and computing waiting and turnaround times for each. This exercise is a favourite in operating-systems interviews."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="9" data-key="9" data-noun="day" data-num="9" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>OS 1: <em>Processes, threads, CPU scheduling</em></h1>
+<p class="lede">Today covers what an operating system does when it runs programs: the split between kernel mode and user mode, system calls, processes and their control blocks, fork and exec, zombie and orphan processes, inter-process communication, threads, and CPU scheduling. The scheduling section follows one set of four processes through five algorithms, drawing a Gantt chart and computing waiting and turnaround times for each. This exercise is a favourite in operating-systems interviews.</p>
+<div class="station"><b>9</b><span>Tue 10 Nov 2026 · Systems · DSA: Stacks and monotonic stack</span></div>
+<ul class="topics"><li>Kernel and user mode</li><li>System calls</li><li>Processes and PCB</li><li>fork and exec</li><li>Zombie and orphan</li><li>IPC and threads</li><li>CPU scheduling and Gantt charts</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Kernel and system calls">
+  <h2>Kernel mode, user mode and system calls</h2>
+  <p>An <strong>operating system</strong> (OS) is the software that manages the hardware and gives programs a safe, shared environment. Its core, the <strong>kernel</strong>, is the part that runs with full control of the machine: it manages memory, schedules the CPU, and talks to devices. Everything else, including your editor, your browser and your Python script, is a <strong>user program</strong>.</p>
+  <p>The CPU enforces this split with a <strong>mode bit</strong>. In <strong>kernel mode</strong> (also called supervisor or privileged mode), code can run any instruction and touch any memory. In <strong>user mode</strong>, code is restricted. It cannot execute privileged instructions, such as switching off interrupts or writing directly to a device, and it cannot access memory that belongs to the kernel or to another process.</p>
+  <p>Why is this split needed? Protection. If a buggy program could write to the kernel's memory, one crash could bring the whole machine down, and one program could read another program's secrets. Running programs in user mode means a fault only affects that program, and the kernel can stop it cleanly.</p>
+
+  <h3>How the CPU switches modes</h3>
+  <ul>
+    <li><strong>System call.</strong> A user program asks the kernel for a service. It executes a special trap instruction, the CPU switches to kernel mode and jumps to a fixed entry point in the kernel.</li>
+    <li><strong>Interrupt.</strong> A device, such as a disk or a keyboard, signals that it needs attention. The CPU switches to kernel mode and runs the interrupt handler.</li>
+    <li><strong>Exception (trap).</strong> The running program causes a fault, for example dividing by zero or touching an address it does not own. The CPU enters kernel mode, and the kernel decides what to do, usually ending the program.</li>
+  </ul>
+  <p>When the kernel finishes, it returns to user mode and the program continues.</p>
+
+  <h3>System calls</h3>
+  <p>A <strong>system call</strong> is the controlled entry point through which a user program asks the kernel for a service it is not allowed to perform itself. Examples are opening a file, reading from a socket, creating a process, or asking for more memory.</p>
+  <p>Most programmers never make system calls directly. A library function, such as C's <code>printf</code> or Python's <code>open</code>, wraps the system call. The sequence for writing to a file looks like this:</p>
+  <ol>
+    <li>The program calls a library function, for example <code>write</code> through <code>printf</code> or a file object.</li>
+    <li>The library places the arguments in registers and executes the trap instruction.</li>
+    <li>The CPU switches to kernel mode. The kernel checks the arguments (is the file descriptor valid, does the buffer belong to this process?).</li>
+    <li>The kernel performs the work and places a result, such as the number of bytes written or an error code, in a register.</li>
+    <li>The CPU switches back to user mode, and the library returns the result to the program.</li>
+  </ol>
+  <p>A mode switch and the checks cost time. This is why programs buffer their output and make fewer, larger system calls, instead of one system call per character.</p>
+
+  <div class="tablewrap"><table><thead><tr><th>Task</th><th>Common library function</th><th>Underlying Linux system call</th></tr></thead><tbody>
+    <tr><td>Open a file</td><td><code>fopen</code> in C, <code>open</code> in Python</td><td><code>open</code></td></tr>
+    <tr><td>Write bytes to a file or terminal</td><td><code>printf</code> or <code>fwrite</code> (through buffers)</td><td><code>write</code></td></tr>
+    <tr><td>Create a new process</td><td><code>system</code> or a shell</td><td><code>fork</code> (and then <code>execve</code>)</td></tr>
+    <tr><td>Wait for a child process</td><td><code>wait</code> and <code>waitpid</code></td><td><code>wait4</code> (the kernel call behind <code>waitpid</code>)</td></tr>
+    <tr><td>Allocate memory</td><td><code>malloc</code></td><td><code>mmap</code> or <code>brk</code> for large or heap growth</td></tr>
+    <tr><td>Create a pipe</td><td><code>pipe</code></td><td><code>pipe</code></td></tr>
+  </tbody></table></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>User programs cannot touch hardware or other programs' memory. They ask the kernel through system calls, and the kernel checks every request. Protection and mode switching are the two ideas behind every OS topic in this day.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"What happens when you call <code>printf</code>?" Answer: the C library formats the text and stores it in a user-space buffer. When the buffer is flushed (for example at a newline on a terminal, or when full), the library calls the <code>write</code> system call, the CPU switches to kernel mode, and the kernel copies the bytes to the device or file.</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="Processes">
+  <h2>Processes, the PCB, fork and exec</h2>
+  <p>A <strong>process</strong> is a program in execution. It has its own address space (code, data, heap and stack), its own set of registers, and resources such as open files. The OS keeps a record of each process in a data structure called the <strong>process control block</strong> (PCB), which is also called the process descriptor.</p>
+  <p>The PCB typically holds:</p>
+  <ul>
+    <li><strong>Process ID</strong> (PID) and the PID of its parent.</li>
+    <li><strong>Process state</strong>, such as ready or waiting.</li>
+    <li><strong>Saved CPU registers</strong>, including the program counter, when the process is not running.</li>
+    <li><strong>Memory management information</strong>, such as a pointer to the page table.</li>
+    <li><strong>Scheduling information</strong>, such as priority and the time it has used.</li>
+    <li><strong>I/O information</strong>, such as the list of open files.</li>
+  </ul>
+
+  <h3>Process states</h3>
+  <p>A process moves through a set of states. The standard five are:</p>
+  <ol>
+    <li><strong>New.</strong> The process is being created.</li>
+    <li><strong>Ready.</strong> It has everything it needs and is waiting for the CPU.</li>
+    <li><strong>Running.</strong> It is executing on a CPU core.</li>
+    <li><strong>Waiting</strong> (also called blocked). It is waiting for an event, such as the end of a disk read or user input. It cannot use the CPU until the event happens.</li>
+    <li><strong>Terminated.</strong> It has finished, and the OS is cleaning up its resources.</li>
+  </ol>
+  <p>The transitions to remember: the scheduler dispatches a ready process to become running; a timer interrupt or a higher-priority arrival moves a running process back to ready; a process that starts an I/O request moves to waiting; the I/O completing moves it back to ready.</p>
+
+  <h3>Context switching</h3>
+  <p>A <strong>context switch</strong> stops one process and starts another. The kernel saves the running process's registers and program counter into its PCB, loads the next process's saved state from its PCB, and resumes it. The switch does no useful work for the programs, so it is overhead. It also has an indirect cost: the caches become cold for the new process. Schedulers therefore avoid switching too often.</p>
+
+  <h3>Creating processes: fork and exec</h3>
+  <p>On Unix-like systems, a new process is made in two steps.</p>
+  <ul>
+    <li><strong>fork</strong> creates a child process that is a copy of the caller. The child has the same code, the same open files and a copy of the memory. In practice, the memory is shared until one side writes to it, which is called copy-on-write, so fork is cheaper than it sounds.</li>
+    <li><strong>exec</strong> replaces the current process image with a new program. The PID stays the same, but the code, data and stack are replaced by the new program's. If exec succeeds, it does not return.</li>
+  </ul>
+  <p>The key fact for interviews is that <code>fork</code> returns twice. In the parent, it returns the child's PID. In the child, it returns 0. If it fails, it returns a negative value in the parent and no child is created. The program below uses that return value to decide what each process does.</p>
+  <pre class="code" data-lang="c"><code>#define _POSIX_C_SOURCE 200809L
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;unistd.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;sys/wait.h&gt;
+
+int main(void) {
+    pid_t pid = fork();              /* one call, and two processes return from it */
+    if (pid &lt; 0) {
+        perror("fork");              /* fork failed: no child exists */
+        return 1;
+    }
+    if (pid == 0) {
+        /* child: fork returned 0 here */
+        printf("child: running\n");
+        fflush(stdout);              /* make sure the text is written before exit */
+        exit(3);                     /* the exit status is 3 */
+    }
+    /* parent: fork returned the child's PID */
+    int status = 0;
+    waitpid(pid, &amp;status, 0);        /* wait until the child has finished */
+    if (WIFEXITED(status)) {
+        printf("parent: child exited with status %d\n", WEXITSTATUS(status));
+    }
+    return 0;
+}</code></pre>
+  <pre class="output">child: running
+parent: child exited with status 3</pre>
+  <p>Read the program carefully. The <code>if (pid == 0)</code> block runs only in the child. The parent skips it, calls <code>waitpid</code>, and reads the exit status the child left behind. The output is always in this order, because the parent waits for the child before it prints.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often think fork runs the child first, or the parent first, and then guess at the output. The order of the two processes is not guaranteed unless the program synchronises them, such as with <code>waitpid</code>. In the example, <code>waitpid</code> is the synchronisation.</p></div>
+
+  <h3>Zombie and orphan processes</h3>
+  <p>When a child process exits, the kernel cannot remove its PCB completely, because the parent may still want the child's exit status. Until the parent calls <code>wait</code>, the child is a <strong>zombie</strong>: it has finished running, holds no memory, but still has an entry in the process table, marked as defunct (state Z). A zombie cannot be killed, because it is already dead. The fix is for the parent to call <code>wait</code>. If the parent never does, the zombie stays until the parent exits.</p>
+  <p>An <strong>orphan</strong> is the opposite case. The parent exits while the child is still running. The child has no living parent to wait for it, so the kernel gives it a new parent: init (PID 1) or a designated "subreaper" process. That new parent calls <code>wait</code> when the orphan eventually exits, so orphans do not become zombies.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A zombie is not a process that uses resources. It holds only a process table entry. The real problem is a parent that keeps creating children and never calls <code>wait</code>, which fills the table.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"What is the difference between a zombie and an orphan?" Answer: a zombie is a child that has exited but whose parent has not yet collected its status. An orphan is a child whose parent has exited, so the child is adopted by init or a subreaper, which will collect its status.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="IPC and threads">
+  <h2>Inter-process communication and threads</h2>
+  <p>Processes have separate address spaces, so one process cannot read another's variables. When processes must cooperate, they use <strong>inter-process communication</strong> (IPC). The kernel provides the channel, and the processes agree on the format of the data.</p>
+  <ul>
+    <li><strong>Pipe.</strong> A one-way byte stream, usually between a parent and a child. The shell's <code>|</code> operator creates a pipe between two programs.</li>
+    <li><strong>Named pipe (FIFO).</strong> A pipe with a name in the file system, so unrelated processes can use it.</li>
+    <li><strong>Message queue.</strong> The kernel stores discrete messages, so each receive gets one whole message.</li>
+    <li><strong>Shared memory.</strong> Two processes map the same region of physical memory into their address spaces. This is the fastest form of IPC, but the kernel does not coordinate the accesses, so the processes must use synchronisation such as a mutex or a semaphore.</li>
+    <li><strong>Sockets.</strong> A two-way channel between processes on the same machine or across a network.</li>
+    <li><strong>Signals.</strong> A short notification that an event happened, such as SIGINT when you press Ctrl+C. Signals carry very little information.</li>
+  </ul>
+
+  <h3>Threads</h3>
+  <p>A <strong>thread</strong> is a unit of execution inside a process. All threads of a process share the same code, global data, heap and open files. Each thread has its own stack, its own registers and its own program counter. Creating a thread is cheaper than creating a process, because no new address space is needed. The trade-off is that shared data needs locks, and a crash in one thread can bring down the whole process.</p>
+  <div class="tablewrap"><table><thead><tr><th>Item</th><th>Process</th><th>Thread</th></tr></thead><tbody>
+    <tr><td>Address space</td><td>Its own</td><td>Shared with the other threads in the process</td></tr>
+    <tr><td>Stack and registers</td><td>Its own</td><td>Its own for each thread</td></tr>
+    <tr><td>Cost to create</td><td>Higher (new address space)</td><td>Lower</td></tr>
+    <tr><td>Communication</td><td>Through IPC</td><td>Through shared variables</td></tr>
+    <tr><td>Fault isolation</td><td>A crash affects only that process</td><td>A crash can take down all its threads</td></tr>
+  </tbody></table></div>
+  <p>Threads can be managed by the kernel (kernel threads, scheduled by the OS) or by a library in user space (user threads). Many systems use a mix. The interview point is that kernel threads can run in parallel on several cores, while a set of user threads on one kernel thread cannot.</p>
+
+  <h3>Why shared data needs locks</h3>
+  <p>Consider a counter shared by two threads. The statement <code>counter += 1</code> is really three steps: read the value, add one, and write it back. If two threads read the same old value, both add one and both write back, one increment is lost. This is a <strong>race condition</strong>. A <strong>mutex</strong> (mutual exclusion lock) makes the three steps behave as one from the other thread's point of view, because only the thread holding the lock may enter the section.</p>
+  <pre class="code" data-lang="python"><code>import threading
+
+counter = 0
+lock = threading.Lock()
+
+def work():
+    global counter
+    for _ in range(100000):
+        with lock:                 # only one thread at a time may update the counter
+            counter += 1
+
+threads = [threading.Thread(target=work) for _ in range(2)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()                       # wait for both threads to finish
+print(counter)</code></pre>
+  <pre class="output">200000</pre>
+  <p>The output is always 200000 because the lock is held for every update. Remove the <code>with lock:</code> line and the final value can be smaller, because updates can be lost. Two details for the interview: <code>join</code> waits for each thread before the program prints, and the lock is released automatically when the <code>with</code> block ends.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A lock does not make a program faster. It makes it correct. Keep the locked section short, and never hold two locks in different orders in different threads, because that can cause a deadlock.</p></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>Processes are isolated by default and need IPC to cooperate. Threads share memory by default and need locks to cooperate safely.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"What resources do threads of the same process share?" Answer: the code, global and static data, the heap, and open files. Each thread has its own stack, registers and program counter.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="CPU scheduling">
+  <h2>CPU scheduling: algorithms, Gantt charts and metrics</h2>
+  <p>A program alternates between <strong>CPU bursts</strong>, when it computes, and <strong>I/O bursts</strong>, when it waits for a device. The <strong>CPU scheduler</strong> decides which ready process runs next. The <strong>dispatcher</strong> then performs the context switch to start it. A scheduler is <strong>non-preemptive</strong> if a running process keeps the CPU until it finishes or blocks. It is <strong>preemptive</strong> if the scheduler can take the CPU away, for example when a timer expires or a more urgent process arrives.</p>
+
+  <h3>The metrics</h3>
+  <p>Each process has an arrival time (AT), a burst time (BT, the CPU time it needs), and a completion time (CT), which is read from the Gantt chart. From these we compute:</p>
+  <ul>
+    <li><strong>Turnaround time</strong> (TAT) = completion time minus arrival time. It is the total time the process spends in the system.</li>
+    <li><strong>Waiting time</strong> (WT) = turnaround time minus burst time. It is the time the process spends in the ready queue, waiting for the CPU.</li>
+    <li><strong>Response time</strong> = the time of the first CPU access minus arrival time. It matters for interactive programs.</li>
+  </ul>
+  <p>A <strong>Gantt chart</strong> is a timeline that shows which process runs in each interval. It is the fastest way to work out completion times, so draw it first.</p>
+
+  <h3>The example set</h3>
+  <p>All five algorithms below use the same four processes. Lower priority numbers mean higher priority, which is a common convention.</p>
+  <div class="tablewrap"><table><thead><tr><th>Process</th><th>Arrival time</th><th>Burst time</th><th>Priority</th></tr></thead><tbody>
+    <tr><td>P1</td><td>0</td><td>7</td><td>3</td></tr>
+    <tr><td>P2</td><td>2</td><td>4</td><td>1</td></tr>
+    <tr><td>P3</td><td>4</td><td>1</td><td>4</td></tr>
+    <tr><td>P4</td><td>5</td><td>4</td><td>2</td></tr>
+  </tbody></table></div>
+
+  <h3>First come, first served (FCFS)</h3>
+  <p>FCFS runs processes in arrival order, and it is non-preemptive. It is simple and fair in arrival order, but a long process at the front makes everyone behind it wait (the "convoy effect").</p>
+  <p>Step by step. At time 0 only P1 has arrived, so it runs from 0 to 7. At time 7, P2 (arrived at 2), P3 (arrived at 4) and P4 (arrived at 5) are waiting. The earliest arrival is P2, so it runs from 7 to 11. Then P3 runs from 11 to 12, and P4 runs from 12 to 16. The Gantt chart is P1 0-7, P2 7-11, P3 11-12, P4 12-16.</p>
+  <p>Now the metrics, one process at a time:</p>
+  <ul>
+    <li>P1: CT = 7, TAT = 7 - 0 = 7, WT = 7 - 7 = 0.</li>
+    <li>P2: CT = 11, TAT = 11 - 2 = 9, WT = 9 - 4 = 5.</li>
+    <li>P3: CT = 12, TAT = 12 - 4 = 8, WT = 8 - 1 = 7.</li>
+    <li>P4: CT = 16, TAT = 16 - 5 = 11, WT = 11 - 4 = 7.</li>
+  </ul>
+  <p>The averages are waiting 19 / 4 = 4.75 and turnaround 35 / 4 = 8.75.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Turnaround time is not the same as burst time, and waiting time is not the same as completion time. Always compute TAT from the arrival time and WT from TAT. P2 completes at 11, but its waiting time is 5, not 11.</p></div>
+
+  <h3>Shortest job first (SJF), non-preemptive</h3>
+  <p>When the CPU is free, SJF chooses the ready process with the smallest burst time. Ties go to the earlier arrival. It gives the lowest average waiting time among non-preemptive schedules, but it needs the burst time in advance, which real systems can only estimate, and long processes can starve.</p>
+  <p>At time 7, P2 (burst 4), P3 (burst 1) and P4 (burst 4) are ready. P3 has the smallest burst, so it runs from 7 to 8. At time 8, P2 and P4 both have burst 4, and P2 arrived first, so P2 runs from 8 to 12. Then P4 runs from 12 to 16. The Gantt chart is P1 0-7, P3 7-8, P2 8-12, P4 12-16. Waiting times are P1 0, P2 6, P3 3 and P4 7. The average waiting time is 4.0.</p>
+
+  <h3>Shortest remaining time first (SRTF)</h3>
+  <p>SRTF is the preemptive version of SJF. Whenever a process arrives, or the running process finishes, the scheduler picks the process with the least <em>remaining</em> time. A new arrival with a shorter remaining time takes the CPU at once.</p>
+  <p>Step by step. From 0 to 2, only P1 is present, and it runs. At time 2, P2 arrives with burst 4, while P1 has 5 units left, so P2 preempts P1 and runs from 2 to 4. At time 4, P3 arrives with 1 unit, which is less than P2's remaining 2, so P3 runs from 4 to 5 and finishes. At time 5, P4 arrives with 4 units. The ready processes are P1 (5 left), P2 (2 left) and P4 (4 left), so P2 runs from 5 to 7 and finishes. Next, P4 (4 left) runs ahead of P1 (5 left), from 7 to 11. Finally P1 runs from 11 to 16. The Gantt chart is P1 0-2, P2 2-4, P3 4-5, P2 5-7, P4 7-11, P1 11-16.</p>
+  <p>The metrics: P1 finishes at 16, so TAT = 16 and WT = 16 - 7 = 9. P2 finishes at 7, so TAT = 5 and WT = 1. P3 finishes at 5, so TAT = 1 and WT = 0. P4 finishes at 11, so TAT = 6 and WT = 2. The average waiting time is 12 / 4 = 3.0, the lowest in this example, and the average turnaround is 7.0.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>SRTF is the best of these algorithms for average waiting time, but it needs burst times in advance and can make long processes wait a very long time, so practical systems use estimates or other policies.</p></div>
+
+  <h3>Priority scheduling</h3>
+  <p>Each process has a priority, and the scheduler picks the highest-priority ready process. This version is non-preemptive, so once P1 starts at 0 it runs to 7. At time 7, the ready processes are P2 (priority 1), P3 (priority 4) and P4 (priority 2). P2 has the highest priority and runs from 7 to 11. Then P4 (priority 2) runs from 11 to 15, and P3 (priority 4) runs last, from 15 to 16.</p>
+  <p>The waiting times are P1 0, P2 5, P3 11 and P4 6, so the average waiting time is 22 / 4 = 5.5.</p>
+  <p>The main danger is <strong>starvation</strong>: a low-priority process may never run if higher-priority work keeps arriving. The usual fix is <strong>aging</strong>, where a waiting process gradually gains priority.</p>
+
+  <h3>Round robin (RR)</h3>
+  <p>Round robin gives each process a fixed time slice called a <strong>quantum</strong>. Ready processes wait in a queue. The process at the front runs for at most one quantum. If it is not finished, it goes to the back of the queue. Round robin is preemptive, fair and responsive, but the quantum matters: a very small quantum causes many context switches, and a very large one behaves like FCFS.</p>
+  <p>Here the quantum is 2. The interview detail is the order: when a process arrives at the same moment that a running process's quantum ends, the new arrival joins the queue first, and the preempted process goes to the back after it.</p>
+  <p>Step by step. P1 runs from 0 to 2 (it has 5 left), then P2 arrives at time 2 and joins the queue before P1 returns. P2 runs from 2 to 4 (2 left). At time 4, P3 arrives and joins, then P2 returns. The queue is P1, P3, P2. P1 runs from 4 to 6 (3 left). At time 5, P4 arrives and joins behind P2, so the queue is P3, P2, P4 and then P1 returns. P3 runs from 6 to 7 and finishes. P2 runs from 7 to 9 and finishes. P4 runs from 9 to 11 (2 left). P1 runs from 11 to 13 (1 left). P4 runs from 13 to 15 and finishes. P1 runs from 15 to 16 and finishes.</p>
+  <p>The Gantt chart is P1 0-2, P2 2-4, P1 4-6, P3 6-7, P2 7-9, P4 9-11, P1 11-13, P4 13-15, P1 15-16. The completion times are P1 16, P2 9, P3 7 and P4 15. So the turnaround times are 16, 7, 3 and 10, and the waiting times are 9, 3, 2 and 6. The average waiting time is 20 / 4 = 5.0, and the average turnaround is 36 / 4 = 9.0.</p>
+
+  <h3>Multilevel queues</h3>
+  <p>A <strong>multilevel queue</strong> keeps separate ready queues for different kinds of process, such as interactive foreground work and background batch work. Each queue can use its own algorithm, for example round robin for interactive processes and FCFS for batch jobs. Scheduling between the queues is either fixed priority (the foreground queue is always served first) or a time share (each queue gets a set fraction of the CPU). A process stays in its queue. A <strong>multilevel feedback queue</strong> lets a process move between queues, for example down to a lower-priority queue after it uses a lot of CPU time.</p>
+
+  <h3>Comparing the results</h3>
+  <div class="tablewrap"><table><thead><tr><th>Algorithm</th><th>Preemptive?</th><th>Gantt chart</th><th>Average waiting</th><th>Average turnaround</th></tr></thead><tbody>
+    <tr><td>FCFS</td><td>No</td><td>P1 0-7, P2 7-11, P3 11-12, P4 12-16</td><td>4.75</td><td>8.75</td></tr>
+    <tr><td>SJF</td><td>No</td><td>P1 0-7, P3 7-8, P2 8-12, P4 12-16</td><td>4.0</td><td>8.0</td></tr>
+    <tr><td>SRTF</td><td>Yes</td><td>P1 0-2, P2 2-4, P3 4-5, P2 5-7, P4 7-11, P1 11-16</td><td>3.0</td><td>7.0</td></tr>
+    <tr><td>Priority</td><td>No</td><td>P1 0-7, P2 7-11, P4 11-15, P3 15-16</td><td>5.5</td><td>9.5</td></tr>
+    <tr><td>Round robin (quantum 2)</td><td>Yes</td><td>P1 0-2, P2 2-4, P1 4-6, P3 6-7, P2 7-9, P4 9-11, P1 11-13, P4 13-15, P1 15-16</td><td>5.0</td><td>9.0</td></tr>
+  </tbody></table></div>
+
+  <p>The simulator below runs all five algorithms on the example set. It keeps a time counter and, at each time unit, picks the process to run. It then prints the Gantt chart and the metrics, so you can check the hand calculations above.</p>
+  <pre class="code" data-lang="python"><code>PROCS = [
+    ("P1", 0, 7, 3),   # name, arrival, burst, priority (lower number = higher priority)
+    ("P2", 2, 4, 1),
+    ("P3", 4, 1, 4),
+    ("P4", 5, 4, 2),
+]
+
+def simulate(policy):
+    arrival = {n: a for n, a, b, p in PROCS}
+    burst = {n: b for n, a, b, p in PROCS}
+    prio = {n: p for n, a, b, p in PROCS}
+    remaining = dict(burst)
+    keys = {
+        "fcfs": lambda n: (arrival[n],),
+        "sjf": lambda n: (burst[n], arrival[n]),
+        "srtf": lambda n: (remaining[n], arrival[n]),
+        "priority": lambda n: (prio[n], arrival[n]),
+    }
+    finish, timeline = {}, []
+    current, t = None, 0
+    while len(finish) &lt; len(PROCS):
+        ready = [n for n in remaining if arrival[n] &lt;= t and remaining[n] &gt; 0]
+        if not ready:
+            t += 1                              # the CPU is idle this time unit
+            continue
+        non_preemptive = policy in ("fcfs", "sjf", "priority")
+        if current is None or not non_preemptive:
+            current = min(ready, key=keys[policy])   # pick again at every step if preemptive
+        remaining[current] -= 1                 # run the chosen process for one time unit
+        if timeline and timeline[-1][0] == current and timeline[-1][2] == t:
+            timeline[-1][2] = t + 1             # extend the current segment of the Gantt chart
+        else:
+            timeline.append([current, t, t + 1])
+        t += 1
+        if remaining[current] == 0:
+            finish[current] = t
+            current = None
+    return timeline, finish
+
+def simulate_rr(quantum):
+    remaining = {n: b for n, a, b, p in PROCS}
+    finish, timeline = {}, []
+    queue, running, used, requeue, t = [], None, 0, None, 0
+    while len(finish) &lt; len(PROCS):
+        for n, a, b, p in PROCS:
+            if a == t:
+                queue.append(n)                 # new arrivals join the queue first
+        if requeue is not None:
+            queue.append(requeue)               # then the preempted process goes to the back
+            requeue = None
+        if running is None:
+            if not queue:
+                t += 1
+                continue
+            running, used = queue.pop(0), 0
+        remaining[running] -= 1
+        used += 1
+        if timeline and timeline[-1][0] == running and timeline[-1][2] == t:
+            timeline[-1][2] = t + 1
+        else:
+            timeline.append([running, t, t + 1])
+        t += 1
+        if remaining[running] == 0:
+            finish[running] = t
+            running = None
+        elif used == quantum:
+            requeue, running = running, None
+    return timeline, finish
+
+def report(label, timeline, finish):
+    waiting, turnaround = {}, {}
+    for n, a, b, p in PROCS:
+        turnaround[n] = finish[n] - a
+        waiting[n] = turnaround[n] - b
+    print(label)
+    print("  Gantt:", " | ".join(f"{p} {s}-{e}" for p, s, e in timeline))
+    print("  waiting:", waiting)
+    print("  average waiting:", sum(waiting.values()) / len(PROCS))
+    print("  average turnaround:", sum(turnaround.values()) / len(PROCS))
+
+for label, policy in [("FCFS", "fcfs"), ("SJF", "sjf"), ("SRTF", "srtf"), ("Priority", "priority")]:
+    tl, fin = simulate(policy)
+    report(label, tl, fin)
+tl, fin = simulate_rr(2)
+report("Round robin q=2", tl, fin)</code></pre>
+  <pre class="output">FCFS
+  Gantt: P1 0-7 | P2 7-11 | P3 11-12 | P4 12-16
+  waiting: {'P1': 0, 'P2': 5, 'P3': 7, 'P4': 7}
+  average waiting: 4.75
+  average turnaround: 8.75
+SJF
+  Gantt: P1 0-7 | P3 7-8 | P2 8-12 | P4 12-16
+  waiting: {'P1': 0, 'P2': 6, 'P3': 3, 'P4': 7}
+  average waiting: 4.0
+  average turnaround: 8.0
+SRTF
+  Gantt: P1 0-2 | P2 2-4 | P3 4-5 | P2 5-7 | P4 7-11 | P1 11-16
+  waiting: {'P1': 9, 'P2': 1, 'P3': 0, 'P4': 2}
+  average waiting: 3.0
+  average turnaround: 7.0
+Priority
+  Gantt: P1 0-7 | P2 7-11 | P4 11-15 | P3 15-16
+  waiting: {'P1': 0, 'P2': 5, 'P3': 11, 'P4': 6}
+  average waiting: 5.5
+  average turnaround: 9.5
+Round robin q=2
+  Gantt: P1 0-2 | P2 2-4 | P1 4-6 | P3 6-7 | P2 7-9 | P4 9-11 | P1 11-13 | P4 13-15 | P1 15-16
+  waiting: {'P1': 9, 'P2': 3, 'P3': 2, 'P4': 6}
+  average waiting: 5.0
+  average turnaround: 9.0</pre>
+  <p>Check the simulator's output against your hand work. The Gantt charts and averages should match the table above. If they differ, the Gantt chart is the first place to look.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Given a set of processes, how do you compute waiting and turnaround time?" Answer: draw the Gantt chart to get each completion time, then turnaround is completion minus arrival, and waiting is turnaround minus burst. Averages are the sums divided by the number of processes.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>In an exam, draw the Gantt chart with a time axis first, and write the times at each boundary. Most lost marks come from a wrong completion time, not from the arithmetic afterwards.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud, then check the model answer. Use one example in each answer.</p>
+  <details class="check"><summary>Why does the CPU have user mode and kernel mode?</summary><div class="ans"><p>For protection. User programs run with restricted privileges, so a bug or a malicious program cannot change the kernel, read another process's memory, or control devices directly. Privileged work goes through system calls, and the kernel checks each request.</p></div></details>
+  <details class="check"><summary>What happens during a system call?</summary><div class="ans"><p>The program executes a trap instruction, the CPU switches to kernel mode and jumps to a fixed entry point, the kernel checks the arguments and performs the service, then returns the result and switches back to user mode.</p></div></details>
+  <details class="check"><summary>What is stored in a process control block?</summary><div class="ans"><p>The PID and parent PID, the process state, saved registers including the program counter, memory management information such as the page table pointer, scheduling information such as priority, and I/O information such as open files.</p></div></details>
+  <details class="check"><summary>What does fork return, and why does that matter?</summary><div class="ans"><p>It returns twice: 0 in the child, the child's PID in the parent, and a negative value if it fails. The program uses the return value to decide which code each process runs. Example: the parent waits and the child calls exec.</p></div></details>
+  <details class="check"><summary>What is a zombie process, and how is it removed?</summary><div class="ans"><p>A child that has exited but whose parent has not called wait. It holds only a process table entry. The parent removes it by calling wait or waitpid. If the parent exits first, the zombie is inherited by init, which reaps it.</p></div></details>
+  <details class="check"><summary>What is an orphan process?</summary><div class="ans"><p>A child whose parent has exited while the child is still running. The kernel reparents it to init or a subreaper, so it is never left without a parent to clean it up.</p></div></details>
+  <details class="check"><summary>What is the difference between a process and a thread?</summary><div class="ans"><p>A process has its own address space and resources. Threads inside one process share the address space, the heap, global data and open files, but each thread has its own stack, registers and program counter. Creating a thread is cheaper than creating a process.</p></div></details>
+  <details class="check"><summary>Why do shared-memory programs need locks?</summary><div class="ans"><p>The kernel does not coordinate accesses to shared memory. Two threads that update the same variable without a lock can interleave their read, add and write steps, and lose an update. A mutex makes each critical section run by one thread at a time.</p></div></details>
+  <details class="check"><summary>Which scheduling algorithm gives the lowest average waiting time, and what is its drawback?</summary><div class="ans"><p>SRTF, the preemptive version of shortest job first, gives the lowest average waiting time among the algorithms in this day's example, and it is optimal for average waiting time in general. Its drawbacks are that it needs burst lengths in advance, which must be estimated, and long processes can starve.</p></div></details>
+  <details class="check"><summary>What happens to round robin if the quantum is very large or very small?</summary><div class="ans"><p>A very large quantum makes round robin behave like FCFS, so short processes wait behind long ones. A very small quantum causes many context switches, and the overhead of switching can outweigh the useful work.</p></div></details>
+  <details class="check"><summary>Explain starvation and aging in priority scheduling.</summary><div class="ans"><p>Starvation is when a low-priority process never gets the CPU because higher-priority processes keep arriving. Aging fixes it by increasing the priority of a process the longer it waits.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: stacks and the monotonic stack</h2>
+  <p>A <strong>stack</strong> is a list that you use from one end only: <code>push</code> adds to the top, <code>pop</code> removes from the top, and <code>peek</code> reads the top without removing it. Each operation takes constant time. Stacks suit problems where the most recent unresolved item is the one to handle next, such as matching brackets or evaluating expressions in postfix form.</p>
+  <p>A <strong>monotonic stack</strong> keeps its values in sorted order from bottom to top, either increasing or decreasing. Before each push, you pop every item that would break the order. Each popped item has found its answer: the new value is the first one that is larger (or smaller) than it. This gives O(n) time, because each index is pushed once and popped at most once.</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/valid-parentheses/">
+    <h3>Valid Parentheses (LeetCode 20)</h3>
+    <div class="statement"><p>Given a string containing only the characters ( ) [ ] { }, decide whether it is valid. A string is valid if every opening bracket is closed by the same type of bracket, in the correct order, and every closing bracket has a matching opening bracket. Example: "()[]{}" is valid. "(]" is not valid. "([)]" is not valid, because the brackets cross.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The order matters: the most recent unmatched opening bracket must close first. A closing bracket with nothing open is invalid, and so is any string with brackets left open at the end.</li>
+      <li><strong>Brute force.</strong> Repeatedly delete the adjacent pairs "()", "[]" and "{}" until none remain. If the string becomes empty, it is valid. This is correct but can take O(n squared) time, because each deletion rescans the string.</li>
+      <li><strong>Find the waste.</strong> The deletions are a way to find the most recent unmatched opening bracket. A stack keeps exactly that information.</li>
+      <li><strong>Optimise.</strong> Push each opening bracket. For a closing bracket, the stack top must be its matching opening bracket; pop it. If the stack is empty or the top does not match, return false. At the end, the stack must be empty. O(n) time and O(n) space.</li>
+      <li><strong>Dry run.</strong> "([)]". Push "(". Push "[". Next is ")": the top is "[", which does not match "(", so the string is invalid. Result: false. A valid example "{[]}": push "{", push "[", then "]" matches the top "[", so pop; then "}" matches the top "{", so pop. The stack is empty, so the result is true.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def is_valid(s):
+    pairs = {")": "(", "]": "[", "}": "{"}   # each closing bracket and its opening partner
+    stack = []
+    for ch in s:
+        if ch in pairs:                      # a closing bracket
+            if not stack or stack[-1] != pairs[ch]:
+                return False                 # nothing open, or the wrong type is open
+            stack.pop()
+        else:                                # an opening bracket
+            stack.append(ch)
+    return not stack                         # any bracket still open means invalid
+
+print(is_valid("()[]{}"))
+print(is_valid("(]"))
+print(is_valid("([)]"))
+print(is_valid("{[]}"))
+print(is_valid("(("))</code></pre>
+    <pre class="output">True
+False
+False
+True
+False</pre>
+    <p class="cx">Time O(n) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When matching nested pairs, push the opening symbol and pop when its closing partner arrives. The stack holds the most recent open item, which is the one that must close first.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/daily-temperatures/">
+    <h3>Daily Temperatures (LeetCode 739)</h3>
+    <div class="statement"><p>You are given a list of daily temperatures. For each day, return how many days you must wait until a warmer temperature. If no warmer day exists, the answer is 0. Example: temperatures [73,74,75,71,69,72,76,73] give [1,1,4,2,1,1,0,0]. For day 2 (75), the next warmer day is day 6 (76), which is 4 days later.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The answer is a distance, measured in days. Each day needs the nearest later day with a strictly higher temperature. Equal temperatures do not count as warmer.</li>
+      <li><strong>Brute force.</strong> For each day, scan forward until you find a warmer day. In the worst case, a long decreasing sequence makes this O(n squared).</li>
+      <li><strong>Find the waste.</strong> A day that is still waiting for a warmer day does not need to be compared with every later day separately. Keep the waiting days on a stack, and when a warm day arrives, it resolves all the colder days on top of the stack.</li>
+      <li><strong>Optimise.</strong> Keep a stack of day indices whose temperatures are decreasing from bottom to top. For each new day, while the stack top is colder than today, pop it and set its answer to today's index minus its index. Then push today. O(n) time, because each index is pushed and popped once.</li>
+      <li><strong>Dry run.</strong> Start with day 0 (73) pushed. Day 1 (74): pop day 0 (73 is colder), answer[0] = 1. Push day 1. Day 2 (75): pop day 1, answer[1] = 1. Push day 2. Day 3 (71): not colder than the top 75, so push. Stack is [2, 3]. Day 4 (69): push. Day 5 (72): pop day 4 (answer 1), pop day 3 (answer 5 - 3 = 2), top is 75, which is not colder, so push day 5. Day 6 (76): pop day 5 (answer 1), pop day 2 (answer 6 - 2 = 4). Push day 6. Day 7 (73): push. Days 6 and 7 remain with answer 0.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def daily_temperatures(temps):
+    answer = [0] * len(temps)
+    stack = []                               # indices of days still waiting for a warmer day
+    for i, t in enumerate(temps):
+        while stack and temps[stack[-1]] &lt; t:
+            j = stack.pop()                  # day j has found its warmer day, today
+            answer[j] = i - j
+        stack.append(i)
+    return answer
+
+print(daily_temperatures([73, 74, 75, 71, 69, 72, 76, 73]))
+print(daily_temperatures([30, 40, 50, 60]))
+print(daily_temperatures([30, 60, 90]))</code></pre>
+    <pre class="output">[1, 1, 4, 2, 1, 1, 0, 0]
+[1, 1, 1, 0]
+[1, 1, 0]</pre>
+    <p class="cx">Time O(n) · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Storing temperatures on the stack instead of indices. You need the index to compute the distance, so push the index and read the temperature through it.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For "next greater element" questions, keep a monotonic stack of indices still waiting for an answer. Each new element answers all waiting elements that it beats.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/evaluate-reverse-polish-notation/">
+    <h3>Evaluate Reverse Polish Notation (LeetCode 150)</h3>
+    <div class="statement"><p>You are given a list of tokens in Reverse Polish notation (postfix): each operator comes after its two operands. Evaluate the expression. Division truncates toward zero. Example: ["2","1","+","3","*"] means (2 + 1) * 3 = 9. Example: ["4","13","5","/","+"] means 4 + (13 / 5) = 4 + 2 = 6.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A number is pushed. An operator pops the two most recent numbers, applies the operator, and pushes the result. The second popped value is the left operand, so order matters for subtraction and division. Division truncates toward zero, which is not the same as floor division for negative numbers.</li>
+      <li><strong>Brute force.</strong> Convert the postfix tokens into a tree or a nested infix expression, then evaluate recursively. This works, but it adds a parsing step that the stack avoids.</li>
+      <li><strong>Find the waste.</strong> The operands needed by each operator are always the most recent ones. That is exactly what a stack gives.</li>
+      <li><strong>Optimise.</strong> Process the tokens from left to right. Push numbers. For an operator, pop b (the right operand) and then a (the left operand), compute a op b, and push the result. The final value is the only item left. O(n) time and O(n) space.</li>
+      <li><strong>Dry run.</strong> ["4","13","5","/","+"]. Push 4, push 13, push 5: stack [4, 13, 5]. "/": pop b = 5, pop a = 13, 13 / 5 truncates to 2, push: [4, 2]. "+": pop 2 and 4, push 6. The stack has one value, 6.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def divide(a, b):
+    # Truncate toward zero, as the problem requires (Python's // rounds down instead).
+    q = abs(a) // abs(b)
+    return q if (a &gt;= 0) == (b &gt;= 0) else -q
+
+def eval_rpn(tokens):
+    stack = []
+    for tok in tokens:
+        if tok in ("+", "-", "*", "/"):
+            b = stack.pop()              # the right operand is the most recent value
+            a = stack.pop()              # the left operand is the one before it
+            if tok == "+":
+                stack.append(a + b)
+            elif tok == "-":
+                stack.append(a - b)
+            elif tok == "*":
+                stack.append(a * b)
+            else:
+                stack.append(divide(a, b))
+        else:
+            stack.append(int(tok))       # a number, possibly negative such as "-11"
+    return stack[0]                      # one value is left at the end
+
+print(eval_rpn(["2", "1", "+", "3", "*"]))
+print(eval_rpn(["4", "13", "5", "/", "+"]))
+print(eval_rpn(["10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5", "+"]))
+print(divide(-7, 2), -7 // 2)</code></pre>
+    <pre class="output">9
+6
+22
+-3 -4</pre>
+    <p class="cx">Time O(n) · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Popping in the wrong order for subtraction and division. The first pop is the right operand. Writing <code>stack.pop() - stack.pop()</code> reverses the operands.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Using Python's <code>//</code> for division. It rounds toward negative infinity, so -7 // 2 is -4, while the problem's truncation toward zero gives -3. The helper above handles the sign.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Postfix expressions need no parentheses, because the stack already holds the operands in the order they are needed.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/largest-rectangle-in-histogram/">
+    <h3>Largest Rectangle in Histogram (LeetCode 84)</h3>
+    <div class="statement"><p>You are given an array of bar heights, where each bar has width 1. Find the area of the largest rectangle that fits entirely under the histogram, made of consecutive bars. Example: heights [2,1,5,6,2,3] give 10, from the two bars of height 5 and 6 (height 5, width 2). Example: [2,4] gives 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A rectangle is defined by a height and a range of consecutive bars that are all at least that tall. For each bar, the best rectangle that uses it as its height extends left and right as far as the bars stay at least as tall. So the key question for each bar is: how far can it stretch on each side?</li>
+      <li><strong>Brute force.</strong> For every pair of left and right ends, the height is the minimum bar in between, and the area is height times width. Trying all pairs is O(n squared) or worse, depending on how the minimum is found. Writing the nested loops is a good first step in an interview.</li>
+      <li><strong>Find the waste.</strong> For a bar of height h, the rectangle stops at the first bar on the left that is shorter than h, and the first bar on the right that is shorter than h. Those two boundaries can be found in one left-to-right pass with a stack of increasing heights.</li>
+      <li><strong>Optimise.</strong> Keep a stack of indices whose heights increase from bottom to top. When the current bar is shorter than the stack top, the top bar cannot extend further right, so its right boundary is the current index. Pop it. Its height is the popped bar's height. Its left boundary is the index of the new stack top plus one (or 0 if the stack is empty). Area = height * width. Add a sentinel bar of height 0 at the end so that everything is popped. O(n) time and O(n) space.</li>
+      <li><strong>Dry run.</strong> heights [2,1,5,6,2,3], plus a sentinel 0 at index 6. Process index 0 (2): push. Index 1 (1): pop index 0 (height 2): no bar to its left, so width = 1 - 0 = 1, area 2. Push 1. Index 2 (5): push. Index 3 (6): push. Index 4 (2): pop index 3 (height 6): left boundary is index 2, width = 4 - 3 = 1, area 6. Pop index 2 (height 5): the stack top is now index 1, so the rectangle starts at index 2, width = 4 - 2 = 2, area 10. Best is now 10. The bar of height 1 is shorter than 2, so it stays. Push 4. Index 5 (3): push. Index 6 (0, sentinel): pop 5 (height 3): the stack top is index 4, so the start is 5, width 1, area 3. Pop 4 (height 2): the stack top is index 1, so the start is 2, width 6 - 2 = 4, area 8. Pop 1 (height 1): the stack is empty, so the start is 0, width 6, area 6. The best area is 10.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def largest_rectangle(heights):
+    stack = []                               # indices whose heights increase from bottom to top
+    best = 0
+    heights = heights + [0]                  # sentinel bar of height 0 flushes the stack at the end
+    for i, h in enumerate(heights):
+        while stack and heights[stack[-1]] &gt; h:
+            top = stack.pop()
+            height = heights[top]
+            left = stack[-1] + 1 if stack else 0   # the first bar to the left that is shorter ends the range
+            width = i - left                       # i is the first bar to the right that is shorter
+            best = max(best, height * width)
+        stack.append(i)
+    return best
+
+print(largest_rectangle([2, 1, 5, 6, 2, 3]))
+print(largest_rectangle([2, 4]))
+print(largest_rectangle([1]))</code></pre>
+    <pre class="output">10
+4
+1</pre>
+    <h4>A brute-force check</h4>
+    <p>The brute force checks every range of bars. It is slower, but it is a reliable way to test the stack version on small inputs, and it shows the idea before the optimisation.</p>
+    <pre class="code" data-lang="python"><code>def largest_rectangle_brute(heights):
+    best = 0
+    n = len(heights)
+    for left in range(n):
+        low = heights[left]
+        for right in range(left, n):
+            low = min(low, heights[right])   # the rectangle's height is the shortest bar in the range
+            best = max(best, low * (right - left + 1))
+    return best
+
+print(largest_rectangle_brute([2, 1, 5, 6, 2, 3]))
+print(largest_rectangle_brute([2, 4]))</code></pre>
+    <pre class="output">10
+4</pre>
+    <p class="cx">Time O(n) for the stack version, O(n squared) for the brute force · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting the sentinel. Without the extra 0 at the end, bars that are still on the stack when the loop ends are never measured, and the answer can be too small. Example: [2,4] without a sentinel never pops anything, because the heights only increase, so the function returns 0 instead of 4.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Computing the width from the wrong boundary. After popping, the left boundary is the new stack top plus one, or 0 if the stack is empty. The right boundary is the current index, not the index of the bar you popped.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To find, for each element, the nearest smaller element on the left and right, use one monotonic stack. Each pop tells you the right boundary for the popped element, and the new stack top gives its left boundary.</p></div>
+  </article>
+
+  <h3>Mock questions</h3>
+  <ul>
+    <li>What changes in the monotonic stack if you want the next smaller element instead of the next greater one? (Answer: flip the comparison, so the stack keeps values increasing from bottom to top.)</li>
+    <li>What is the worst-case time of the stack solution for Valid Parentheses, and why? (Answer: O(n), because each character is pushed at most once and popped at most once.)</li>
+    <li>How would you handle invalid tokens in Reverse Polish Notation? (Answer: check the token type and raise an error, and check that exactly one value remains at the end.)</li>
+  </ul>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Kernel</dt><dd>The privileged core of the operating system that manages memory, devices and the CPU.</dd></div>
+    <div><dt>User mode</dt><dd>The restricted CPU mode in which ordinary programs run, without direct access to hardware or the kernel.</dd></div>
+    <div><dt>Kernel mode</dt><dd>The privileged CPU mode in which the kernel runs with full access to the hardware.</dd></div>
+    <div><dt>Mode bit</dt><dd>A hardware flag that records whether the CPU is in user or kernel mode.</dd></div>
+    <div><dt>System call</dt><dd>The controlled entry point through which a program asks the kernel for a service.</dd></div>
+    <div><dt>Trap</dt><dd>A software-triggered entry into the kernel, used for system calls and faults.</dd></div>
+    <div><dt>Process</dt><dd>A program in execution, with its own address space and resources.</dd></div>
+    <div><dt>PCB</dt><dd>Process control block: the kernel record of a process's PID, state, registers, memory and scheduling data.</dd></div>
+    <div><dt>Process state</dt><dd>New, ready, running, waiting (blocked) or terminated.</dd></div>
+    <div><dt>Context switch</dt><dd>Saving one process's state and restoring another's, which costs time but does no useful work.</dd></div>
+    <div><dt>fork</dt><dd>Creates a child process that copies the caller. Returns 0 in the child and the child's PID in the parent.</dd></div>
+    <div><dt>exec</dt><dd>Replaces the current process's program with a new one. The PID stays the same.</dd></div>
+    <div><dt>Zombie</dt><dd>A child that has exited but whose parent has not yet collected its exit status.</dd></div>
+    <div><dt>Orphan</dt><dd>A child whose parent has exited; the kernel gives it init or a subreaper as the new parent.</dd></div>
+    <div><dt>IPC</dt><dd>Inter-process communication: pipes, FIFOs, message queues, shared memory, sockets and signals.</dd></div>
+    <div><dt>Thread</dt><dd>A unit of execution inside a process that shares the process's memory but has its own stack and registers.</dd></div>
+    <div><dt>Race condition</dt><dd>A bug where the result depends on the timing of threads or processes that access shared data.</dd></div>
+    <div><dt>Mutex</dt><dd>A lock that lets only one thread at a time run a critical section.</dd></div>
+    <div><dt>CPU burst and I/O burst</dt><dd>The alternating periods of computing and waiting for a device.</dd></div>
+    <div><dt>Preemptive scheduling</dt><dd>The scheduler can take the CPU away from a running process.</dd></div>
+    <div><dt>Arrival, burst, completion</dt><dd>The times a process arrives, the CPU time it needs, and the time it finishes.</dd></div>
+    <div><dt>Turnaround time</dt><dd>Completion time minus arrival time: the total time in the system.</dd></div>
+    <div><dt>Waiting time</dt><dd>Turnaround time minus burst time: the time spent waiting in the ready queue.</dd></div>
+    <div><dt>Response time</dt><dd>The time from arrival to the first CPU access.</dd></div>
+    <div><dt>Gantt chart</dt><dd>A timeline showing which process runs in each interval.</dd></div>
+    <div><dt>Quantum</dt><dd>The fixed time slice in round robin scheduling.</dd></div>
+    <div><dt>Starvation and aging</dt><dd>Starvation is a process never getting the CPU; aging raises a waiting process's priority over time to prevent it.</dd></div>
+    <div><dt>Multilevel queue</dt><dd>Separate ready queues for different process types, each with its own scheduling rule.</dd></div>
+    <div><dt>Stack</dt><dd>A last-in, first-out list with push, pop and peek, all in constant time.</dd></div>
+    <div><dt>Monotonic stack</dt><dd>A stack that keeps its values in sorted order by popping any item that would break the order.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>fork()</code></td><td>Creates a copy of the calling process; returns 0 in the child and the child's PID in the parent</td><td><code>if (fork() == 0) { /* child */ }</code></td></tr>
+    <tr><td><code>waitpid(pid, &amp;status, 0)</code></td><td>Waits for a specific child to exit and stores its status</td><td>Removes the zombie entry for that child</td></tr>
+    <tr><td><code>WEXITSTATUS(status)</code></td><td>Extracts the exit code from a status value</td><td>Gives 3 when the child called <code>exit(3)</code></td></tr>
+    <tr><td><code>execve(path, argv, envp)</code></td><td>Replaces the process image with a new program</td><td>Does not return if it succeeds</td></tr>
+    <tr><td><code>threading.Thread(target=f)</code></td><td>Creates a Python thread that runs f</td><td><code>t.start()</code> then <code>t.join()</code></td></tr>
+    <tr><td><code>with lock:</code></td><td>Acquires a lock and releases it at the end of the block</td><td>Protects <code>counter += 1</code></td></tr>
+    <tr><td><code>list.append(x)</code></td><td>Pushes x onto the end of a list, which can act as a stack</td><td><code>stack.append(3)</code></td></tr>
+    <tr><td><code>list.pop()</code></td><td>Removes and returns the last item, the top of a stack</td><td><code>stack.pop()</code> returns 3</td></tr>
+    <tr><td><code>enumerate(seq)</code></td><td>Yields index and value pairs</td><td><code>for i, t in enumerate(temps)</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 9?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 9 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-08.html"><small>Previous, day 8</small>Computer Organization and Architecture</a><a class="next" href="day-10.html"><small>Next, day 10</small>OS 2: Synchronization and deadlocks</a></nav>
+</main><script src="assets/app.js"></script></body></html>

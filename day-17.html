@@ -1,0 +1,587 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 17: DBMS 2: Transactions, concurrency, indexing</title><meta name="description" content="Today is about what happens when many users change the same database at the same time, and what survives a crash. You will learn ACID, serializability and how to test it with a precedence graph, locks and two-phase locking, MVCC, isolation levels and their anomalies, write-ahead logging, B+ tree indexes, and replication with sharding. These are core interview topics for any backend or data role."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="17" data-key="17" data-noun="day" data-num="17" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>DBMS 2: <em>Transactions, concurrency, indexing</em></h1>
+<p class="lede">Today is about what happens when many users change the same database at the same time, and what survives a crash. You will learn ACID, serializability and how to test it with a precedence graph, locks and two-phase locking, MVCC, isolation levels and their anomalies, write-ahead logging, B+ tree indexes, and replication with sharding. These are core interview topics for any backend or data role.</p>
+<div class="station"><b>17</b><span>Wed 18 Nov 2026 · Databases · DSA: Heaps and priority queues</span></div>
+<ul class="topics"><li>ACID transactions</li><li>Serializability</li><li>Locks and 2PL</li><li>MVCC</li><li>Isolation levels</li><li>Recovery and WAL</li><li>B+ tree indexes</li><li>Replication and sharding</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="ACID">
+  <h2>Transactions and the ACID properties</h2>
+  <p>A <em>transaction</em> is a group of database operations that must succeed or fail together. The classic example is a bank transfer. Moving 500 from account 1 to account 2 takes two updates: subtract 500 from one balance, then add 500 to the other. If the system crashes between the two updates, money disappears. A transaction wraps both updates so that the database either applies both or applies neither.</p>
+  <pre class="code" data-lang="sql"><code>BEGIN;
+UPDATE accounts SET balance = balance - 500 WHERE id = 1;
+UPDATE accounts SET balance = balance + 500 WHERE id = 2;
+COMMIT;</code></pre>
+  <p>Everything between <code>BEGIN</code> and <code>COMMIT</code> is one unit. If something goes wrong before <code>COMMIT</code>, you run <code>ROLLBACK</code> and both updates are undone. In PostgreSQL, a statement run outside an explicit transaction is committed automatically, which is why the <code>BEGIN</code> is needed for multi-step work. SQL statements in these blocks print nothing, so they have no output.</p>
+
+  <p>The reliability of transactions is described by four properties, known as ACID. Interviewers often ask you to explain each one with the transfer example:</p>
+  <ul>
+    <li><strong>Atomicity.</strong> All of the transaction happens, or none of it does. If the transaction aborts, the database uses its log to undo the partial changes, so no other user ever sees half a transfer.</li>
+    <li><strong>Consistency.</strong> A transaction takes the database from one valid state to another. Valid means the rules hold: a CHECK such as <code>balance &gt;= 0</code> or a foreign key must still be true at commit. Some rules, such as "total money in the bank stays the same", are the application's job, because the database cannot know them.</li>
+    <li><strong>Isolation.</strong> Transactions running at the same time must not interfere with each other in harmful ways. The strongest form says the result equals some one-at-a-time order. Weaker levels, covered below, allow some interference in exchange for speed.</li>
+    <li><strong>Durability.</strong> Once <code>COMMIT</code> returns, the change survives a power failure or crash. This is achieved with a write-ahead log that is flushed to disk before the commit is acknowledged.</li>
+  </ul>
+  <div class="note key"><p><span class="t">Key idea</span>Atomicity and durability are about failures, when the machine crashes or a transaction aborts. Isolation is about concurrency, when several transactions run at once. Most of this day is about isolation and recovery.</p></div>
+
+  <h3>What a transaction is not</h3>
+  <p>A transaction does not make an application logic correct by itself. If the code reads a balance, computes a new value in Python, and writes it back without locking the row, the database still sees ordinary updates. Concurrency bugs of that kind are what the isolation levels in this day are designed to address.</p>
+
+  <details class="check"><summary>Which ACID property is violated if a crash leaves the debit applied but not the credit?</summary><div class="ans"><p>Atomicity. The two updates were not treated as one unit. A correct database would undo the debit during recovery, because the transaction never committed.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Serializability">
+  <h2>Serializability: conflicts, precedence graphs and view equivalence</h2>
+  <p>When several transactions run at once, the database interleaves their operations. The order of operations across all transactions is called a <em>schedule</em>. We write reads and writes compactly: <code>r1(A)</code> means transaction 1 reads item A, <code>w2(A)</code> means transaction 2 writes item A, and <code>c1</code> means transaction 1 commits.</p>
+  <p>A <em>serial schedule</em> runs one whole transaction, then the next. Serial schedules are always correct, because no transaction sees another one in the middle. A <em>serializable schedule</em> is an interleaved schedule whose effect is the same as some serial schedule. Serializability is the gold standard for isolation: it lets the database run transactions in parallel while promising that the result is explainable as a one-at-a-time order.</p>
+
+  <h3>Conflicts</h3>
+  <p>Two operations <em>conflict</em> when they come from different transactions, they touch the same item, and at least one of them is a write. Two reads never conflict. A read and a write on the same item conflict. Two writes on the same item conflict.</p>
+  <p>A schedule is <strong>conflict serializable</strong> when you can reach a serial schedule by swapping adjacent operations that do not conflict. Swapping two non-conflicting operations does not change what any transaction reads or writes, so it is safe. The practical test uses a <em>precedence graph</em>:</p>
+  <ol>
+    <li>Create one node for each transaction.</li>
+    <li>For every pair of conflicting operations where operation of Ti comes first, draw an edge from Ti to Tj.</li>
+    <li>The schedule is conflict serializable exactly when the graph has no cycle. A topological order of the graph (an order in which every edge goes forward) is an equivalent serial schedule.</li>
+  </ol>
+
+  <h3>A worked precedence graph</h3>
+  <p>Take two transactions that both read and then write item A. The first schedule interleaves them so that each reads before the other writes:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Step</th><th>Schedule S1</th><th>Conflicting pair</th><th>Edge</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>r1(A)</td><td>r1(A) and w2(A) conflict, because T1 reads before T2 writes</td><td>T1 &rarr; T2</td></tr>
+      <tr><td>2</td><td>r2(A)</td><td>r2(A) and w1(A) conflict, because T2 reads before T1 writes</td><td>T2 &rarr; T1</td></tr>
+      <tr><td>3</td><td>w1(A)</td><td>w1(A) and w2(A) conflict, because T1 writes before T2 writes</td><td>T1 &rarr; T2</td></tr>
+      <tr><td>4</td><td>w2(A)</td><td>&mdash;</td><td>&mdash;</td></tr>
+    </tbody>
+  </table></div>
+  <p>The graph has the edges T1 &rarr; T2 and T2 &rarr; T1. That is a cycle of length two, so S1 is not conflict serializable. In a real database this is the classic lost-update situation. Each transaction read the old value, and one of the writes overwrites the other.</p>
+  <p>Now look at the schedule S2 where T1 finishes its read and write before T2 starts. The only conflicts point from T1 to T2, so the graph is acyclic and the equivalent serial order is T1 then T2. The next program checks both schedules, and a third one, and prints the graph.</p>
+
+  <pre class="code" data-lang="python"><code>def precedence_edges(schedule):
+    """schedule is a list of (transaction, operation, item). Return the conflict edges."""
+    edges = set()
+    for i, (ti, op_i, item_i) in enumerate(schedule):
+        for tj, op_j, item_j in schedule[i + 1:]:
+            if ti != tj and item_i == item_j and "w" in (op_i, op_j):
+                edges.add((ti, tj))
+    return edges
+
+
+def has_cycle(nodes, edges):
+    graph = {node: [] for node in nodes}
+    for a, b in edges:
+        graph[a].append(b)
+    state = {node: 0 for node in nodes}          # 0 = new, 1 = on the stack, 2 = done
+
+    def visit(node):
+        state[node] = 1
+        for nxt in graph[node]:
+            if state[nxt] == 1:
+                return True
+            if state[nxt] == 0 and visit(nxt):
+                return True
+        state[node] = 2
+        return False
+
+    return any(state[node] == 0 and visit(node) for node in nodes)
+
+
+def conflict_serializable(schedule):
+    txns = sorted({t for t, _, _ in schedule})
+    edges = precedence_edges(schedule)
+    return not has_cycle(txns, edges), sorted(edges)
+
+
+s1 = [(1, "r", "A"), (2, "r", "A"), (1, "w", "A"), (2, "w", "A")]
+s2 = [(1, "r", "A"), (1, "w", "A"), (2, "r", "A"), (2, "w", "A")]
+s3 = [(1, "r", "A"), (2, "w", "A"), (1, "w", "A"), (3, "w", "A")]
+for name, sched in [("S1", s1), ("S2", s2), ("S3", s3)]:
+    ok, edges = conflict_serializable(sched)
+    print(name, "conflict serializable:", ok, "edges:", edges)</code></pre>
+  <pre class="output">S1 conflict serializable: False edges: [(1, 2), (2, 1)]
+S2 conflict serializable: True edges: [(1, 2)]
+S3 conflict serializable: False edges: [(1, 2), (1, 3), (2, 1), (2, 3)]</pre>
+  <p>S1 has a cycle, so it is not conflict serializable. S2 has one edge and no cycle, so it is. S3 has a cycle between T1 and T2, so it is not conflict serializable either, yet it is still acceptable to the database. The reason is the subject of the next part.</p>
+
+  <h3>View serializability and blind writes</h3>
+  <p>Conflict serializability is a sufficient test, not the only correct one. Two schedules are <strong>view equivalent</strong> when they have the same <em>reads-from</em> relation (each read sees the same earlier write, or the initial value) and the same final write on every item. A schedule is <strong>view serializable</strong> when it is view equivalent to some serial schedule.</p>
+  <p>Look at S3 again: r1(A), then w2(A), then w1(A), then w3(A). T2 writes A without reading it first. That is a <em>blind write</em>. In S3, T1 reads the initial value of A, and the last write is by T3. The serial schedule T1, T2, T3 also has T1 reading the initial value and T3 writing last, so the two schedules are view equivalent. S3 is view serializable but not conflict serializable.</p>
+  <p>View serializability is the more permissive notion, but it is much harder to test. Deciding it is NP-complete, so databases use conflict serializability, which can be checked quickly with the graph. You will rarely be asked to test view equivalence by hand, but you should know the difference and the reason blind writes cause it.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>"Serializable" in a database means the result equals some serial order. It does not mean transactions run one after another. Serializable databases run transactions in parallel and detect or prevent the conflicts that would break the equivalence.</p></div>
+
+  <h3>Recoverability</h3>
+  <p>A schedule is <em>recoverable</em> when a transaction commits only after every transaction whose data it read has committed. If T2 reads a value written by T1 and T2 commits first, then T1 aborts, T2 has committed a value that never existed. The fix is to delay T2's commit. Strict schedules go further and forbid reading uncommitted data at all. Most real systems produce strict schedules.</p>
+  <details class="check"><summary>Why does a cycle of length two in the precedence graph mean lost updates are possible?</summary><div class="ans"><p>The two edges say each transaction must come before the other in any equivalent serial order, which is impossible. In practice it means each transaction read a value before the other wrote it, so one write overwrites work based on a stale read.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Locks and MVCC">
+  <h2>Concurrency control: locks, two-phase locking and MVCC</h2>
+  <p>A database enforces serializability with a <em>concurrency control</em> protocol. The two main families are locking, which makes conflicting transactions wait, and multiversion concurrency control (MVCC), which lets readers see an older copy of the data instead of waiting.</p>
+
+  <h3>Lock types and compatibility</h3>
+  <p>A <em>shared lock</em> (S) is taken before reading an item. An <em>exclusive lock</em> (X) is taken before writing it. Many transactions can hold shared locks on the same item at once, but an exclusive lock excludes everyone else. The compatibility rule is shown below.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Lock held by others</th><th>Request S (read)</th><th>Request X (write)</th></tr></thead>
+    <tbody>
+      <tr><td>Nothing</td><td>Granted</td><td>Granted</td></tr>
+      <tr><td>S (one or more readers)</td><td>Granted</td><td>Wait</td></tr>
+      <tr><td>X (one writer)</td><td>Wait</td><td>Wait</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Two-phase locking (2PL)</h3>
+  <p>Locks alone do not guarantee serializability. A transaction that unlocks an item too early can let another transaction see an intermediate state. <em>Two-phase locking</em> fixes this with one rule: after a transaction releases its first lock, it may not acquire any new lock. Its life has two phases:</p>
+  <ol>
+    <li><strong>Growing phase.</strong> The transaction acquires locks and never releases any.</li>
+    <li><strong>Shrinking phase.</strong> The transaction releases locks and never acquires any.</li>
+  </ol>
+  <p>Every 2PL schedule is conflict serializable, and the serial order is the order of the lock points, the moment each transaction reached its full set of locks. The proof is short: if two transactions conflict on an item, the one that locks it first must release it before the other can lock it, so every conflict points the same way from earlier to later lock points.</p>
+  <p>Plain 2PL has a weakness. If a transaction releases a write lock and then aborts, another transaction may already have read the uncommitted value. Two stricter variants fix this:</p>
+  <ul>
+    <li><strong>Strict 2PL.</strong> Exclusive locks are held until the transaction commits or aborts. Other transactions cannot read uncommitted data, and cascading aborts are avoided.</li>
+    <li><strong>Rigorous 2PL.</strong> All locks, shared and exclusive, are held until the end. The serial order then equals the commit order.</li>
+  </ul>
+
+  <h3>Deadlocks</h3>
+  <p>Locking introduces a new problem. Two transactions can each hold a lock the other needs. T1 locks A and waits for B. T2 locks B and waits for A. Neither can move, and this is a <em>deadlock</em>. The database finds deadlocks by building a wait-for graph, with an edge from each waiting transaction to the transaction it waits for. A cycle in that graph is a deadlock. The database then aborts one transaction, the victim, so the others can proceed. Another method is to acquire locks in a fixed global order, which makes cycles impossible.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>2PL guarantees serializability but not freedom from deadlock. Deadlock handling is a separate job: detection and abort, or ordering, or timeouts.</p></div>
+
+  <h3>MVCC: readers that never wait</h3>
+  <p>Under locking, a long report that reads many rows blocks every writer touching those rows. MVCC avoids this by keeping several versions of each row. Each write creates a new version tagged with the transaction that wrote it. A reader sees the version that was committed as of its snapshot, so reads never wait for writes and writes never wait for reads.</p>
+  <p>Here is a timeline with one account row. T1 starts first, so it keeps seeing the snapshot it began with:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Time</th><th>Event</th><th>What T1 sees for the balance</th></tr></thead>
+    <tbody>
+      <tr><td>t1</td><td>T1 begins, takes its snapshot. Committed balance is 100.</td><td>100</td></tr>
+      <tr><td>t2</td><td>T2 updates the balance to 150 and commits. A new version is created.</td><td>100 (old version still visible to T1)</td></tr>
+      <tr><td>t3</td><td>T1 reads the balance again.</td><td>100 (same as before, so repeatable)</td></tr>
+      <tr><td>t4</td><td>T3 begins after T2 committed, and reads.</td><td>T3 sees 150, but T1 still sees 100</td></tr>
+    </tbody>
+  </table></div>
+  <p>In PostgreSQL each row version records the transaction that created it and the transaction that replaced it. A snapshot decides which versions are visible. Old versions are removed later by VACUUM once no snapshot can need them. MVCC needs a rule for two writers on the same row: the second writer must either wait for the first, or fail, so the database does not lose an update. PostgreSQL makes the second writer wait, then either proceed or fail with a serialization error, depending on the isolation level.</p>
+  <div class="note trap"><p><span class="t">Trap</span>MVCC does not remove the need for locks. Writers still lock the rows they change, and readers still need protection in some isolation levels. MVCC changes who waits, not whether conflicts are checked.</p></div>
+  <details class="check"><summary>In strict 2PL, when is an exclusive lock released?</summary><div class="ans"><p>Only at commit or abort, after the transaction's last write is either durable or undone. Holding the lock until then means no other transaction can read the uncommitted value.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Isolation levels">
+  <h2>Isolation levels and read anomalies</h2>
+  <p>Full serializability costs time, because transactions wait or get aborted. SQL therefore defines four <em>isolation levels</em>, each one allowing some anomalies in exchange for more concurrency. An <em>anomaly</em> here is a read or write result that could not have happened in a serial order. Learn the anomalies first, because the levels are defined by which ones they allow.</p>
+
+  <h3>The anomalies</h3>
+  <ul>
+    <li><strong>Dirty read.</strong> A transaction reads data written by another transaction that has not committed yet. If that transaction rolls back, the reader saw a value that never existed.</li>
+    <li><strong>Non-repeatable read.</strong> A transaction reads the same row twice and gets different values, because another transaction updated and committed the row in between.</li>
+    <li><strong>Phantom read.</strong> A transaction runs the same query with a condition twice and gets a different set of rows, because another transaction inserted or deleted a matching row and committed.</li>
+    <li><strong>Lost update.</strong> Two transactions read the same value, each computes a new value from it, and both write. One write overwrites the other, and its change is lost.</li>
+    <li><strong>Write skew.</strong> Two transactions read an overlapping set of rows, then each writes a different row. Neither writes a row the other wrote, so row-level conflict checks pass, yet the combined result breaks a rule that each transaction checked on its own.</li>
+  </ul>
+
+  <h3>Each anomaly as a timeline</h3>
+  <p>Take an account with a balance of 100. The timelines below show two transactions, T1 and T2, reading from the top down.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Anomaly</th><th>Timeline</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Dirty read</td><td>T1 sets balance to 150 (not committed). T2 reads balance: 150. T1 rolls back, balance is 100 again.</td><td>T2 used a value that was never committed</td></tr>
+      <tr><td>Non-repeatable read</td><td>T1 reads balance: 100. T2 sets it to 150 and commits. T1 reads again: 150.</td><td>T1 saw two different values in one transaction</td></tr>
+      <tr><td>Phantom read</td><td>T1 counts rows where dept = IT: 3. T2 inserts a new IT row and commits. T1 counts again: 4.</td><td>The same query gave a different set of rows</td></tr>
+      <tr><td>Lost update</td><td>T1 reads 100. T2 reads 100. T1 writes 110 and commits. T2 writes 120 and commits.</td><td>Final balance 120; T1's +10 is gone</td></tr>
+      <tr><td>Write skew</td><td>Two doctors are on call (count 2). T1 reads the count and takes Alice off call. T2 reads the same count and takes Bob off call. Both commit.</td><td>Zero doctors on call; the rule "at least one" is broken</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The four standard levels</h3>
+  <p>The SQL standard defines the levels by the anomalies they must prevent. An anomaly marked "possible" is allowed at that level:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Isolation level</th><th>Dirty read</th><th>Non-repeatable read</th><th>Phantom read</th></tr></thead>
+    <tbody>
+      <tr><td>READ UNCOMMITTED</td><td>Possible</td><td>Possible</td><td>Possible</td></tr>
+      <tr><td>READ COMMITTED</td><td>Not possible</td><td>Possible</td><td>Possible</td></tr>
+      <tr><td>REPEATABLE READ</td><td>Not possible</td><td>Not possible</td><td>Possible</td></tr>
+      <tr><td>SERIALIZABLE</td><td>Not possible</td><td>Not possible</td><td>Not possible</td></tr>
+    </tbody>
+  </table></div>
+  <p>The standard table does not mention lost update or write skew. Those depend on the implementation. Many databases prevent lost updates even at READ COMMITTED, for example when an UPDATE locks the row it changes. Write skew is the anomaly that REPEATABLE READ in many systems still allows.</p>
+
+  <h3>What PostgreSQL actually does</h3>
+  <p>PostgreSQL implements the levels with MVCC snapshots, and its behaviour differs from the table in a few useful ways:</p>
+  <ul>
+    <li><strong>READ UNCOMMITTED</strong> behaves exactly like READ COMMITTED. Dirty reads never happen.</li>
+    <li><strong>READ COMMITTED</strong> (the default) takes a new snapshot for each statement. Two statements in one transaction can see different committed data, so non-repeatable and phantom reads are possible.</li>
+    <li><strong>REPEATABLE READ</strong> takes one snapshot at the start of the transaction. It prevents phantom reads as well, but it still allows write skew. If two transactions try to update the same row, the second one fails with a serialization error that the application must retry.</li>
+    <li><strong>SERIALIZABLE</strong> uses serializable snapshot isolation. It tracks read and write dependencies and aborts a transaction that would create a cycle. Like the other levels, it asks the application to retry on failure.</li>
+  </ul>
+  <p>Here is a short session to show the difference at READ COMMITTED. The second transaction commits between the two reads:</p>
+  <pre class="code" data-lang="sql"><code>-- session 1 (default READ COMMITTED)
+BEGIN;
+SELECT balance FROM accounts WHERE id = 1;   -- returns 100
+-- session 2 updates the row to 150 and commits here
+SELECT balance FROM accounts WHERE id = 1;   -- returns 150
+COMMIT;</code></pre>
+  <p>Under REPEATABLE READ, the second select would still return 100. The output is the query results, which depend on other sessions, so this block is shown without an output block.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Setting a higher isolation level is not always safer for a given application. It can increase the number of aborts and retries. Choose the lowest level that prevents the anomalies your business logic cannot tolerate, and handle retries in code.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you prevent a lost update? Options: use an atomic statement such as <code>UPDATE accounts SET balance = balance + 10</code>, lock the row with <code>SELECT ... FOR UPDATE</code>, use a version column checked in the WHERE clause, or run at SERIALIZABLE and retry on failure.</p></div>
+  <details class="check"><summary>Why does REPEATABLE READ in PostgreSQL still allow write skew?</summary><div class="ans"><p>Its snapshot check only detects two transactions writing the same row. In the doctor example the two transactions write different rows, so no conflict is detected even though together they break the rule. Only SERIALIZABLE tracks the read dependencies that expose this.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Recovery and WAL">
+  <h2>Recovery and write-ahead logging</h2>
+  <p>A database keeps its working data in memory, in a buffer pool of pages, and writes pages to disk later. If the machine loses power, the memory contents are gone. <em>Recovery</em> is the process that brings the database back to a correct state, using information that was saved to disk in advance. The saved information is the <em>log</em>.</p>
+
+  <h3>The write-ahead log rule</h3>
+  <p>The log is a sequence of records. Each change writes a record containing the transaction ID, the item, the old value (needed to undo) and the new value (needed to redo). Each record gets a log sequence number (LSN), which increases over time. Two rules make recovery possible:</p>
+  <ol>
+    <li><strong>Write-ahead rule.</strong> A log record must reach stable storage before the changed data page does. Then every change on disk has a record describing how to undo it.</li>
+    <li><strong>Commit rule.</strong> A transaction is committed only when its commit record has been flushed to stable storage (for example with an fsync call). Only then does <code>COMMIT</code> return to the client. This is how durability is achieved.</li>
+  </ol>
+  <p>The two rules give durability cheaply. Writing the data pages can be delayed and batched, because the log already holds everything needed. The log itself is written sequentially, which is much faster than random writes to data pages.</p>
+
+  <h3>Undo and redo</h3>
+  <p>The buffer manager may write a dirty page to disk before its transaction commits, which is called <em>steal</em>. Then recovery must undo uncommitted changes. It may also delay writing a committed change to disk, which is called <em>no-force</em>. Then recovery must redo committed changes that never reached the data files. Most real systems choose steal and no-force, because they perform best.</p>
+  <p>Consider a log with these records, followed by a crash before T2 commits:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>LSN</th><th>Record</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>T1 begin</td><td>Transaction 1 starts</td></tr>
+      <tr><td>2</td><td>T1 update account 1: old 100, new 90</td><td>Change to undo or redo</td></tr>
+      <tr><td>3</td><td>T1 commit</td><td>Committed, so the log was flushed here</td></tr>
+      <tr><td>4</td><td>T2 begin</td><td>Transaction 2 starts</td></tr>
+      <tr><td>5</td><td>T2 update account 2: old 200, new 210</td><td>Uncommitted when the crash happens</td></tr>
+      <tr><td>crash</td><td>&mdash;</td><td>Memory lost; disk may or may not hold the page changes</td></tr>
+    </tbody>
+  </table></div>
+  <p>Recovery works in three passes, as in the ARIES family of algorithms (Algorithms for Recovery and Isolation Exploiting Semantics). The names are analysis, redo and undo:</p>
+  <ol>
+    <li><strong>Analysis.</strong> Read the log from the last checkpoint. Find which transactions were active at the crash (T2) and which were committed (T1).</li>
+    <li><strong>Redo.</strong> Replay every logged change in LSN order, including those of uncommitted transactions, so the pages match the log exactly. Repeating a change is safe, because each page records the LSN of the last change it holds.</li>
+    <li><strong>Undo.</strong> Roll back the uncommitted transactions by applying their old values in reverse order. Here T2 is rolled back, so account 2 returns to 200.</li>
+  </ol>
+  <p>The result is account 1 equal to 90, the committed value, and account 2 equal to 200, the value before the uncommitted transaction. A <em>checkpoint</em> is a point where the database flushes dirty pages and records the active transactions, so that analysis and redo start near the end of the log instead of at the beginning.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The log is the source of truth. Data pages are a cache of the log that may be behind or ahead of the committed state, and recovery makes them match the committed state.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Turning off fsync or using a volatile cache for the log can make commits fast and then lose them after a power failure. The log flush at commit is what makes a COMMIT durable, so it cannot be skipped in a system that must keep committed data.</p></div>
+  <details class="check"><summary>Why must the log record be flushed before the commit returns, even if the data page is still only in memory?</summary><div class="ans"><p>After a crash the data page is lost, so the only copy of the committed change is the log. If the commit record were not on stable storage, the database could tell the client the transaction succeeded while nothing on disk proves it, and redo would have nothing to replay.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="B+ tree indexes">
+  <h2>Indexes and the B+ tree</h2>
+  <p>An <em>index</em> is a separate structure that lets the database find rows by key without scanning the whole table. Without an index, a query such as <code>WHERE email = 'a@x.com'</code> reads every row, which is O(N) work for N rows. A good index finds the row in about O(log N) steps.</p>
+  <p>Most relational databases use the <em>B+ tree</em> for indexes. It is a balanced tree, meaning every leaf is at the same depth, with three properties that matter in interviews:</p>
+  <ul>
+    <li><strong>Internal nodes hold only keys</strong> used to route a search. Each internal node with k keys has k+1 children, and the keys tell the search which child covers which range.</li>
+    <li><strong>Leaf nodes hold all the keys</strong>, in sorted order, together with a pointer to the row (or the row itself in a clustered index). Every search ends at a leaf.</li>
+    <li><strong>Leaves are linked</strong> in a chain from left to right, so a range query such as <code>BETWEEN 10 AND 20</code> finds the first leaf and then walks the chain.</li>
+  </ul>
+  <p>The branching factor (fan-out) is large because each node fills one disk page, often 8 KB. With a fan-out of a few hundred, a tree of height 3 or 4 can index millions of rows, so a lookup reads only three or four pages. That is why B+ trees suit disks: fewer page reads means fewer slow random I/Os.</p>
+
+  <h3>A small example</h3>
+  <p>The diagram below is a tree with a fan-out of 3, so it is small enough to read. Each leaf is a sorted run of keys, and the leaves are linked:</p>
+  <pre class="code" data-lang="text"><code>                 [ 20 | 40 ]                  internal node: routing keys only
+                /     |      \
+     [ 5 | 10 ]  [ 20 | 30 ]  [ 40 | 50 | 60 ]   leaves: all keys, sorted
+          |  ---&gt;     |  ---&gt;        |
+     search 30 goes: root 30 is between 20 and 40, so take the middle child,
+     then 30 is found in the middle leaf.</code></pre>
+  <p>A search for key 30 reads the root, sees that 30 lies between 20 and 40, follows the middle pointer, and finds 30 in the middle leaf. The search always reads one node per level, so its cost is the height. A range query for keys from 20 to 40 finds 20 in the middle leaf and then follows the chain to the leaf that holds 40.</p>
+
+  <h3>Index variants</h3>
+  <ul>
+    <li><strong>Clustered index.</strong> The table rows are stored in the order of the index key, so the leaves hold the rows themselves. A table has at most one clustered index. In MySQL InnoDB the primary key is clustered. PostgreSQL tables are heap files, and its CLUSTER command reorders a table once, but the order is not maintained.</li>
+    <li><strong>Secondary index.</strong> A separate index whose leaves point to the rows. It costs extra space and makes writes slower, because every insert or update must also update each index.</li>
+    <li><strong>Composite index.</strong> An index on several columns, such as <code>(last_name, first_name)</code>. It is sorted by the first column, then by the second. It helps queries that filter on the first column, or on both, but not a query that filters on the second column alone.</li>
+    <li><strong>Hash index.</strong> Stores a hash of the key. It answers equality lookups only, not ranges or sorting.</li>
+  </ul>
+
+  <div class="note trap"><p><span class="t">Trap</span>Every index slows down writes and uses disk space. Adding an index for every column is a common mistake. Add an index for the queries that matter, and check them with EXPLAIN (Day 19).</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why do databases use B+ trees rather than binary search trees? A binary tree has a fan-out of two, so its height grows with log base 2 of N, and each level is a separate disk read. A B+ tree packs hundreds of keys per page, so its height is much smaller, and its linked leaves support range scans.</p></div>
+  <details class="check"><summary>Given a composite index on (city, age), can it answer a query that filters only on age?</summary><div class="ans"><p>Not efficiently. The index is sorted by city first, so entries with a given age are scattered across all the cities. The database can scan the whole index, but it cannot jump to the right entries. The index helps when the query filters on city, or on city and age together.</p></div></details>
+</section>
+
+<section class="unit" id="c7" data-title="Replication and sharding">
+  <h2>Replication and sharding</h2>
+  <p>A single database server has limits: one machine can fail, and it has finite CPU, memory and disk. Two techniques scale a database beyond one machine, and they solve different problems. <em>Replication</em> keeps copies of the same data on several machines, which improves availability and read capacity. <em>Sharding</em> splits the data across machines, so that each machine holds only part of it, which improves write capacity and storage size.</p>
+
+  <h3>Replication</h3>
+  <p>In the common <em>leader-follower</em> design, one node (the leader) accepts all writes and sends its change log to one or more followers, which apply the same changes in the same order. Reads can go to followers, which is why they are called read replicas.</p>
+  <ul>
+    <li><strong>Synchronous replication.</strong> The leader waits until at least one follower has the change before reporting the commit. No acknowledged commit is lost on a leader failure, but each commit is slower, and a slow follower slows the leader.</li>
+    <li><strong>Asynchronous replication.</strong> The leader reports the commit immediately, and followers catch up later. Commits are fast, but the followers lag behind, and if the leader fails before a follower receives a commit, that commit is lost.</li>
+    <li><strong>Replication lag.</strong> The time or number of changes by which a follower is behind. A read from a lagging follower can return stale data, so an application that writes and then reads must read from the leader or wait until the follower catches up.</li>
+    <li><strong>Failover.</strong> If the leader fails, a follower is promoted. Choosing the new leader correctly is the hard part, and it is why consensus protocols such as Raft exist (Day 29).</li>
+  </ul>
+
+  <h3>Sharding</h3>
+  <p>A <em>shard</em> is a portion of the data, stored on its own machine or group of machines. The <em>shard key</em> decides which shard holds each row. Two common strategies:</p>
+  <ul>
+    <li><strong>Range sharding.</strong> Each shard holds a contiguous range of keys, such as user IDs 1 to 1,000,000 on shard A. Range queries touch few shards, but new data often lands on the newest range, which creates a hot spot.</li>
+    <li><strong>Hash sharding.</strong> The shard is chosen by hashing the key, for example shard = hash(user_id) mod 4. Load spreads evenly, but a range query must ask every shard.</li>
+  </ul>
+  <p>Sharding has real costs. A query that joins rows on different shards needs data movement across the network. A transaction that writes to several shards needs a distributed protocol such as two-phase commit (Day 29). Changing the number of shards means moving data, which is slow and must be done carefully. Because of these costs, teams usually shard only after a single well-tuned primary with replicas is no longer enough.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Replication copies the same data to more machines. Sharding splits different data across machines. Large systems use both: each shard is a small leader-follower group.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Read replicas do not help a write-heavy workload. Every write still goes to the single leader. Replicas help reads only.</p></div>
+  <details class="check"><summary>Why can an asynchronous replica lose a committed transaction?</summary><div class="ans"><p>The leader confirms the commit before the follower has received the change. If the leader crashes and the follower is promoted, the new leader never saw that commit, so the client was told a successful commit that the system no longer has.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <details class="check"><summary>Explain ACID with a bank transfer.</summary><div class="ans"><p>Atomicity: both the debit and the credit happen, or neither. Consistency: the balances still satisfy the rules, such as no negative balance. Isolation: another user never sees the money in flight. Durability: after COMMIT returns, the transfer survives a crash.</p></div></details>
+  <details class="check"><summary>What is a schedule, and when is it serializable?</summary><div class="ans"><p>A schedule is the interleaved order of operations of several transactions. It is serializable when its effect equals the effect of some serial schedule, one transaction after another. Conflict serializability is the practical test: the precedence graph of conflicting operations must have no cycle.</p></div></details>
+  <details class="check"><summary>Two transactions conflict when, exactly?</summary><div class="ans"><p>They belong to different transactions, they access the same item, and at least one of the two accesses is a write. Two reads on the same item never conflict.</p></div></details>
+  <details class="check"><summary>What does two-phase locking guarantee, and what does it not guarantee?</summary><div class="ans"><p>It guarantees conflict serializability, because all locks are acquired before any is released. It does not guarantee freedom from deadlock, and plain 2PL can allow cascading aborts unless the exclusive locks are held to commit (strict 2PL).</p></div></details>
+  <details class="check"><summary>How does MVCC let readers avoid waiting for writers?</summary><div class="ans"><p>Each write creates a new version of the row, and each reader sees the versions committed as of its snapshot. A reader never needs a lock that a writer holds, because the old version it needs is still stored.</p></div></details>
+  <details class="check"><summary>What is the difference between a non-repeatable read and a phantom read?</summary><div class="ans"><p>A non-repeatable read changes the value of a row that the transaction already read. A phantom changes the set of rows that match a condition, because a new row was inserted or an existing one was deleted or moved into the matching set.</p></div></details>
+  <details class="check"><summary>Why does PostgreSQL's default isolation level allow non-repeatable reads?</summary><div class="ans"><p>READ COMMITTED takes a new snapshot for each statement, so a second statement in the same transaction can see changes committed by others in between. That trades repeatability for less blocking and fewer retries.</p></div></details>
+  <details class="check"><summary>What is write skew, and which level prevents it in PostgreSQL?</summary><div class="ans"><p>Write skew is when two transactions read overlapping data, write different rows, and together break a rule. PostgreSQL's SERIALIZABLE level prevents it by tracking read dependencies and aborting one transaction. REPEATABLE READ does not.</p></div></details>
+  <details class="check"><summary>What is the write-ahead rule, and why does it matter?</summary><div class="ans"><p>A log record describing a change must reach stable storage before the modified data page is written. Then every change on disk can be undone after a crash, and the log is always complete enough to recover from.</p></div></details>
+  <details class="check"><summary>Why is a B+ tree index useful for range queries?</summary><div class="ans"><p>All keys are stored in sorted order in linked leaf nodes. The database finds the first key of the range with a tree search of a few page reads, then follows the leaf chain until the range ends.</p></div></details>
+  <details class="check"><summary>What is the difference between replication and sharding?</summary><div class="ans"><p>Replication stores the same data on several machines, improving availability and read capacity. Sharding stores different data on different machines, improving write capacity and total storage. Large systems combine them.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: heaps and priority queues</h2>
+  <p>A <em>heap</em> is a complete binary tree stored in an array, with one ordering rule. In a <em>min-heap</em> every parent is less than or equal to its children, so the smallest value sits at the root. A <em>max-heap</em> reverses the rule. A <em>priority queue</em> is the abstract idea: insert items, and repeatedly remove the one with the highest priority. Heaps are the usual way to build one.</p>
+  <p>The operations and their costs are the reason to know heaps. Inserting a value and removing the top both take O(log n) time, because the value moves up or down one level per step along a single path. Reading the top takes O(1). Building a heap from n values all at once takes O(n) with <code>heapify</code>, which is faster than n separate inserts.</p>
+  <p>Python's <code>heapq</code> module provides a min-heap on a plain list. It has no max-heap, so the standard trick is to store negated values: the smallest negative is the largest original value. Three patterns cover most heap questions:</p>
+  <ul>
+    <li><strong>Greedy extreme choice.</strong> Repeatedly take the largest or smallest available item, and put a changed item back. Last Stone Weight and Task Scheduler use this.</li>
+    <li><strong>Keep the best k.</strong> Maintain a heap of size k, and discard the worst item whenever the heap grows past k. K Closest Points uses this.</li>
+    <li><strong>Two heaps.</strong> Keep the smaller half in a max-heap and the larger half in a min-heap, so the middle values are at the two tops. Find Median from Data Stream uses this.</li>
+  </ul>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/last-stone-weight/">
+    <h3>Last Stone Weight (LeetCode 1046)</h3>
+    <div class="statement"><p>You have stones with positive weights. Each turn, take the two heaviest stones. If they weigh the same, both are destroyed. Otherwise the lighter one is destroyed and the heavier one's weight is reduced by the lighter one's weight. Repeat until at most one stone is left, and return its weight, or 0 if none is left. For <code>[2, 7, 4, 1, 8, 1]</code> the answer is 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each turn needs the two largest values. Stones are changed and removed, so the collection changes all the time. The answer is the last survivor, or 0.</li>
+      <li><strong>Brute force.</strong> Sort the list at every turn and take the last two items. Each turn costs O(n log n), and there can be n turns, so the total is O(n^2 log n).</li>
+      <li><strong>Find the waste.</strong> Re-sorting throws away almost all of the order from the previous turn. Only the two largest are needed, and only one new value is inserted per turn.</li>
+      <li><strong>Optimise.</strong> Use a max-heap. Pop the two largest, push back their difference if it is not zero, and repeat. Each turn costs O(log n), so the total is O(n log n).</li>
+      <li><strong>Dry run.</strong> For <code>[2, 7, 4, 1, 8, 1]</code>: 8 and 7 leave 1, so the stones are 4, 2, 1, 1, 1. Then 4 and 2 leave 2, giving 2, 1, 1, 1. Then 2 and 1 leave 1, giving 1, 1, 1. Then 1 and 1 destroy each other, leaving 1. The result is 1.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+
+
+def last_stone_weight(stones):
+    heap = [-s for s in stones]              # Python has only a min-heap, so store negatives
+    heapq.heapify(heap)
+    while len(heap) &gt; 1:
+        first = -heapq.heappop(heap)         # heaviest stone
+        second = -heapq.heappop(heap)        # second heaviest
+        if first != second:
+            heapq.heappush(heap, -(first - second))
+    return -heap[0] if heap else 0
+
+
+print(last_stone_weight([2, 7, 4, 1, 8, 1]))
+print(last_stone_weight([1]))
+print(last_stone_weight([3, 3]))</code></pre>
+    <pre class="output">1
+1
+0</pre>
+    <p class="cx">Time O(n log n) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you repeatedly need the current largest or smallest item, and the set changes, use a heap instead of sorting again.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/k-closest-points-to-origin/">
+    <h3>K Closest Points to Origin (LeetCode 973)</h3>
+    <div class="statement"><p>Given a list of points <code>[x, y]</code> and an integer k, return the k points closest to the origin (0, 0). Distance is the usual Euclidean distance. For <code>[[1, 3], [-2, 2]]</code> with k = 1 the answer is <code>[[-2, 2]]</code>. You may return the points in any order; the examples below sort them by distance so the output is predictable.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Compare squared distances, since the square root does not change the order. Points can tie. The answer must contain exactly k points.</li>
+      <li><strong>Brute force.</strong> Compute every squared distance, sort all points, and take the first k. That is O(n log n) time, which is fine for small inputs but sorts points that are not needed.</li>
+      <li><strong>Find the waste.</strong> We only need the k best points, and the rest can be dropped as soon as they are known to be worse. Sorting everything keeps the order of points that are discarded anyway.</li>
+      <li><strong>Optimise.</strong> Keep a max-heap of size k keyed by distance. Its top is the farthest point kept so far. For each new point, push it; if the heap now holds k plus one points, pop the farthest. At the end the heap holds the k closest points. Each step costs O(log k), so the total is O(n log k).</li>
+      <li><strong>Dry run.</strong> For <code>[[3, 3], [5, -1], [-2, 4]]</code> with k = 2: squared distances are 18, 26 and 20. After the first two points the heap holds both. The third point (20) is pushed, the farthest (26) is popped, and the heap keeps 18 and 20.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+
+
+def k_closest(points, k):
+    heap = []                                 # max-heap of at most k points, stored negated
+    for x, y in points:
+        dist = x * x + y * y
+        heapq.heappush(heap, (-dist, [x, y]))
+        if len(heap) &gt; k:
+            heapq.heappop(heap)               # drop the farthest point
+    kept = [point for _, point in heap]
+    return sorted(kept, key=lambda p: p[0] ** 2 + p[1] ** 2)
+
+
+print(k_closest([[1, 3], [-2, 2]], 1))
+print(k_closest([[3, 3], [5, -1], [-2, 4]], 2))</code></pre>
+    <pre class="output">[[-2, 2]]
+[[3, 3], [-2, 4]]</pre>
+    <p class="cx">Time O(n log k) · Space O(k)</p>
+    <div class="note trap"><p><span class="t">Trap</span>A min-heap of size k keeps the smallest values, which are the wrong points here. For the k closest points you need a max-heap that discards the farthest one.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To find the k best items out of n, keep a heap of size k with the worst item at the top. Then each new item costs O(log k), not O(log n).</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/task-scheduler/">
+    <h3>Task Scheduler (LeetCode 621)</h3>
+    <div class="statement"><p>You are given tasks labelled with letters, and a cooldown n. The same task must have at least n units of time between two runs. Each unit runs one task or stays idle. Return the minimum total time to finish all tasks. For <code>["A", "A", "A", "B", "B", "B"]</code> with n = 2, one schedule is A B idle A B idle A B, which takes 8 units.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Idle units are allowed and count toward the total time. The order matters only for the cooldown rule. Tasks with the most copies are the hardest to place.</li>
+      <li><strong>Brute force.</strong> Try every ordering of the tasks and compute the time each one needs. There are n! orderings, so this is hopeless beyond a dozen tasks.</li>
+      <li><strong>Find the waste.</strong> Only the counts matter, not the labels. At each unit of time, the best move is to run the task with the most remaining copies that is not cooling down. Choosing a rare task first would leave gaps that the frequent task cannot fill.</li>
+      <li><strong>Optimise.</strong> Keep a max-heap of the remaining counts, and a queue of tasks cooling down, each stored with the time it becomes available again. At each time unit: pop the largest count and run that task, if one is available. Move it to the cooldown queue with its new count. Any task whose cooldown has ended goes back on the heap. The time counter advances by one each loop, including idle units when the heap is empty. This costs O(T log 26) where T is the total time, which is at most a few thousand for typical inputs.</li>
+      <li><strong>Dry run.</strong> For the example with n = 2. At time 1 A runs and goes to the cooldown queue. It returns to the heap at time 3, so it can run again at time 4, which leaves two idle or other slots (times 2 and 3) between the runs. At time 2 B runs and returns at time 4. At time 3 the heap is empty, so the unit is idle and A returns to the heap. At time 4 A runs again, B returns, and the schedule continues to time 8.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+from collections import Counter, deque
+
+
+def least_interval(tasks, n):
+    heap = [-count for count in Counter(tasks).values()]
+    heapq.heapify(heap)
+    time = 0
+    cooldown = deque()                        # (time the task is ready again, remaining copies)
+    while heap or cooldown:
+        time += 1
+        if heap:
+            count = -heapq.heappop(heap) - 1  # run the most frequent available task
+            if count &gt; 0:
+                cooldown.append((time + n, count))
+        if cooldown and cooldown[0][0] == time:
+            _, count = cooldown.popleft()
+            heapq.heappush(heap, -count)
+    return time
+
+
+print(least_interval(["A", "A", "A", "B", "B", "B"], 2))
+print(least_interval(["A", "A", "A", "B", "B", "B"], 0))
+print(least_interval(["A", "A", "A", "A", "A", "A", "B", "C", "D", "E", "F", "G"], 2))</code></pre>
+    <pre class="output">8
+6
+16</pre>
+    <p class="cx">Time O(T log 26), where T is the answer · Space O(26)</p>
+    <div class="note tip"><p><span class="t">Tip</span>There is also a closed formula: with maxCount copies of the most frequent task and countMax tasks tied at that count, the answer is the larger of the number of tasks and (maxCount - 1) times (n + 1) plus countMax. The heap simulation is the one to explain, because it shows why the formula works.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Greedy plus a max-heap: always spend the next slot on the most urgent item that is currently allowed, and park items that must wait in a queue.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/find-median-from-data-stream/">
+    <h3>Find Median from Data Stream (LeetCode 295)</h3>
+    <div class="statement"><p>Design a class with two methods. <code>addNum(num)</code> adds a number to the data. <code>findMedian()</code> returns the median of all numbers added so far. The median is the middle value when the numbers are sorted, or the average of the two middle values when there is an even count. Adding 1 then 2 gives median 1.5. Adding 3 next gives median 2.0.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Numbers keep arriving, and the median is needed after each one. The median depends only on the middle of the sorted data, so the numbers far from the middle matter less.</li>
+      <li><strong>Brute force.</strong> Keep a list, and sort it on every call to <code>findMedian</code>. Each call costs O(n log n).</li>
+      <li><strong>Find the waste.</strong> Re-sorting the whole list on each query is wasteful. We only need to know the largest value of the lower half and the smallest value of the upper half.</li>
+      <li><strong>Optimise.</strong> Keep two heaps. <code>low</code> is a max-heap (stored negated) holding the smaller half. <code>high</code> is a min-heap holding the larger half. Keep <code>low</code> either the same size as <code>high</code> or one bigger. The median is the top of <code>low</code> when sizes differ, and the average of both tops when they are equal. Each add costs O(log n), and each query costs O(1).</li>
+      <li><strong>Dry run.</strong> Add 1: it goes to low, then moves to high, then back to low since high must not be bigger. Low holds 1. Add 2: low holds 1 and 2 temporarily, 2 moves to high. Sizes are equal, so the median is (1 + 2) / 2 = 1.5. Add 3: 3 moves to high, which is then bigger, so 2 moves back to low. Low holds 1 and 2, high holds 3, and the median is 2.0.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+
+
+class MedianFinder:
+    def __init__(self):
+        self.low = []      # max-heap for the smaller half, stored negated
+        self.high = []     # min-heap for the larger half
+
+    def addNum(self, num):
+        heapq.heappush(self.low, -num)
+        heapq.heappush(self.high, -heapq.heappop(self.low))   # move the largest low value up
+        if len(self.high) &gt; len(self.low):
+            heapq.heappush(self.low, -heapq.heappop(self.high))   # keep low at least as big
+
+    def findMedian(self):
+        if len(self.low) &gt; len(self.high):
+            return float(-self.low[0])
+        return (-self.low[0] + self.high[0]) / 2
+
+
+finder = MedianFinder()
+finder.addNum(1)
+finder.addNum(2)
+print(finder.findMedian())
+finder.addNum(3)
+print(finder.findMedian())
+finder.addNum(-5)
+print(finder.findMedian())</code></pre>
+    <pre class="output">1.5
+2.0
+1.5</pre>
+    <p class="cx">Time O(log n) per addNum, O(1) per findMedian · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Sizes must be kept balanced after every insert. If <code>low</code> ends up smaller than <code>high</code>, the top of <code>low</code> is no longer the median, and even counts give the wrong average.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need the middle of a growing set, split it into a lower max-heap and an upper min-heap, and keep their sizes within one of each other.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Transaction</dt><dd>A group of operations that succeeds or fails as one unit.</dd></div>
+    <div><dt>Atomicity</dt><dd>All of a transaction happens, or none of it does.</dd></div>
+    <div><dt>Consistency</dt><dd>A transaction moves the database from one valid state to another.</dd></div>
+    <div><dt>Isolation</dt><dd>Concurrent transactions do not interfere in ways the chosen level forbids.</dd></div>
+    <div><dt>Durability</dt><dd>Committed changes survive crashes, because the log was flushed before the commit returned.</dd></div>
+    <div><dt>Schedule</dt><dd>The interleaved order of the operations of several transactions.</dd></div>
+    <div><dt>Serial schedule</dt><dd>Each transaction runs entirely before the next one starts.</dd></div>
+    <div><dt>Conflict</dt><dd>Two operations on the same item from different transactions, at least one a write.</dd></div>
+    <div><dt>Conflict serializable</dt><dd>The precedence graph of conflicts has no cycle.</dd></div>
+    <div><dt>View serializable</dt><dd>Equivalent to a serial schedule in reads-from and final writes; allows blind writes.</dd></div>
+    <div><dt>Blind write</dt><dd>A write to an item the transaction did not read first.</dd></div>
+    <div><dt>Recoverable schedule</dt><dd>A transaction commits only after the transactions it read from have committed.</dd></div>
+    <div><dt>Shared lock</dt><dd>Taken before reading; compatible with other shared locks.</dd></div>
+    <div><dt>Exclusive lock</dt><dd>Taken before writing; incompatible with every other lock.</dd></div>
+    <div><dt>Two-phase locking</dt><dd>No lock is acquired after the first release, which guarantees conflict serializability.</dd></div>
+    <div><dt>Strict 2PL</dt><dd>Exclusive locks are held until commit or abort.</dd></div>
+    <div><dt>Deadlock</dt><dd>Transactions wait for each other in a cycle; resolved by aborting a victim.</dd></div>
+    <div><dt>MVCC</dt><dd>Multiple row versions, so readers see a snapshot and never wait for writers.</dd></div>
+    <div><dt>Snapshot</dt><dd>The set of committed versions a transaction is allowed to see.</dd></div>
+    <div><dt>VACUUM</dt><dd>PostgreSQL's process that removes row versions no snapshot can still need.</dd></div>
+    <div><dt>Dirty read</dt><dd>Reading a value written by a transaction that has not committed.</dd></div>
+    <div><dt>Non-repeatable read</dt><dd>The same row gives different values within one transaction.</dd></div>
+    <div><dt>Phantom read</dt><dd>The same condition returns a different set of rows within one transaction.</dd></div>
+    <div><dt>Lost update</dt><dd>Two read-modify-write cycles overlap, and one update overwrites the other.</dd></div>
+    <div><dt>Write skew</dt><dd>Transactions write different rows and together break a rule.</dd></div>
+    <div><dt>Write-ahead log</dt><dd>Log records reach stable storage before the data pages they describe.</dd></div>
+    <div><dt>LSN</dt><dd>Log sequence number: an increasing position in the log.</dd></div>
+    <div><dt>Steal and no-force</dt><dd>Dirty pages may be written early, and committed pages may be written late.</dd></div>
+    <div><dt>Redo and undo</dt><dd>Redo replays logged changes after a crash; undo rolls back uncommitted ones.</dd></div>
+    <div><dt>B+ tree</dt><dd>A balanced index: routing keys in internal nodes, all keys in linked leaves.</dd></div>
+    <div><dt>Clustered index</dt><dd>The table rows are stored in the order of the index key.</dd></div>
+    <div><dt>Composite index</dt><dd>An index on several columns, sorted by the first and then the second.</dd></div>
+    <div><dt>Replication</dt><dd>Copies of the same data on several machines.</dd></div>
+    <div><dt>Replication lag</dt><dd>How far a follower is behind the leader; reads from it may be stale.</dd></div>
+    <div><dt>Sharding</dt><dd>Splitting different data across machines by a shard key.</dd></div>
+    <div><dt>Heap</dt><dd>A complete binary tree in an array where a parent is ordered before its children.</dd></div>
+    <div><dt>Priority queue</dt><dd>An abstract structure that removes the highest-priority item; usually a heap.</dd></div>
+    <div><dt>Negation trick</dt><dd>Store negated values in Python's min-heap to get a max-heap.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td>BEGIN / COMMIT / ROLLBACK</td><td>Start, make permanent, or undo a transaction</td><td><code>BEGIN; UPDATE t SET x = 1; COMMIT;</code></td></tr>
+      <tr><td>SET TRANSACTION ISOLATION LEVEL</td><td>Choose the isolation level for a transaction</td><td><code>SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;</code></td></tr>
+      <tr><td>SELECT ... FOR UPDATE</td><td>Read and lock the rows for a later update</td><td><code>SELECT balance FROM accounts WHERE id = 1 FOR UPDATE;</code></td></tr>
+      <tr><td>CREATE INDEX</td><td>Build a B+ tree index on one or more columns</td><td><code>CREATE INDEX idx_name ON employees (last_name, first_name);</code></td></tr>
+      <tr><td>CLUSTER</td><td>Reorder a table once by an index (not maintained later)</td><td><code>CLUSTER employees USING idx_name;</code></td></tr>
+      <tr><td>heapq.heappush / heappop</td><td>Insert into and remove the smallest item from a heap</td><td><code>heapq.heappush(h, 3)</code></td></tr>
+      <tr><td>heapq.heapify</td><td>Turn a list into a heap in O(n)</td><td><code>heapq.heapify(nums)</code></td></tr>
+      <tr><td>collections.Counter</td><td>Count occurrences of each item</td><td><code>Counter("AAB")</code> gives A: 2, B: 1</td></tr>
+      <tr><td>last_stone_weight, k_closest, least_interval, MedianFinder</td><td>The solutions to today's DSA problems</td><td>See the code blocks above</td></tr>
+      <tr><td>conflict_serializable(schedule)</td><td>Python function from this page: test conflict serializability</td><td><code>conflict_serializable(s2)</code> returns <code>(True, [(1, 2)])</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 17?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 17 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-16.html"><small>Previous, day 16</small>DBMS 1: ER model, keys, normalization</a><a class="next" href="day-18.html"><small>Next, day 18</small>SQL 1: Queries, joins, aggregation, subqueries</a></nav>
+</main><script src="assets/app.js"></script></body></html>

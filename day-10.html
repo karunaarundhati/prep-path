@@ -1,0 +1,825 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 10: OS 2: Synchronization and deadlocks</title><meta name="description" content="Today is about what goes wrong when several threads or processes touch the same data at the same time, and how operating systems stop that from corrupting results or freezing the whole machine. You will learn the classic synchronization tools (mutexes, semaphores, monitors), the three textbook coordination problems, the four conditions for deadlock, and the Banker&#x27;s algorithm. Interviewers ask these questions constantly because they test whether you can reason about timing, not just sequential code."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="10" data-key="10" data-noun="day" data-num="10" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>OS 2: <em>Synchronization and deadlocks</em></h1>
+<p class="lede">Today is about what goes wrong when several threads or processes touch the same data at the same time, and how operating systems stop that from corrupting results or freezing the whole machine. You will learn the classic synchronization tools (mutexes, semaphores, monitors), the three textbook coordination problems, the four conditions for deadlock, and the Banker&#x27;s algorithm. Interviewers ask these questions constantly because they test whether you can reason about timing, not just sequential code.</p>
+<div class="station"><b>10</b><span>Wed 11 Nov 2026 · Systems · DSA: Queues and deques</span></div>
+<ul class="topics"><li>Race conditions and critical sections</li><li>Mutex vs semaphore</li><li>Monitors and condition variables</li><li>Producer-consumer, readers-writers, dining philosophers</li><li>Deadlock conditions</li><li>Banker&#x27;s algorithm</li><li>Deadlock detection and recovery</li><li>Queues and deques</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Race conditions">
+  <h2>Race conditions and the critical section</h2>
+  <p>Imagine two bank tabs both withdrawing money from the same account at the same moment. Each tab reads the balance, subtracts the amount, and writes the new balance back. If the two reads happen before either write, one withdrawal silently disappears. That is the core problem of synchronization: when several flows of control share data, the result can depend on the exact order in which their small steps happen to interleave.</p>
+  <p>A <strong>thread</strong> is an independent flow of execution inside a process. Threads in the same process share the same memory, which makes them fast to communicate with and also makes them dangerous. A <strong>process</strong> has its own memory, so two processes do not share variables by default. Synchronization is mostly a thread problem, although the same ideas apply to processes that share memory or files.</p>
+
+  <h3>Why <code>counter += 1</code> is not one step</h3>
+  <p>In Python, and in almost every language, the statement <code>counter += 1</code> looks like a single action, but the processor performs three steps: load the value of <code>counter</code> from memory into a register, add 1 in the register, and store the register back into memory. The operating system can switch from one thread to another between any two of these steps, and the CPU can run threads on different cores at the same time.</p>
+  <p>Here is one bad interleaving, with the counter starting at 5. Both threads want to add 1, so the correct final value is 7.</p>
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Thread A</th><th>Thread B</th><th>Value in memory</th></tr></thead><tbody>
+    <tr><td>1</td><td>load counter (reads 5)</td><td></td><td>5</td></tr>
+    <tr><td>2</td><td></td><td>load counter (reads 5)</td><td>5</td></tr>
+    <tr><td>3</td><td>add 1 (register holds 6)</td><td></td><td>5</td></tr>
+    <tr><td>4</td><td></td><td>add 1 (register holds 6)</td><td>5</td></tr>
+    <tr><td>5</td><td>store 6</td><td></td><td>6</td></tr>
+    <tr><td>6</td><td></td><td>store 6</td><td>6</td></tr>
+  </tbody></table></div>
+  <p>Both threads did their work, but the final value is 6 instead of 7. One update was lost. This is a <strong>race condition</strong>: a bug where the outcome depends on the timing of threads racing each other. Race conditions are nasty because they are intermittent. The program may pass every test on your laptop and fail once a month in production.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A race condition needs two things: shared data, and at least one thread that writes it while another thread can touch it. Not every shared read is a problem, but read-modify-write sequences almost always are.</p></div>
+
+  <h3>The critical section</h3>
+  <p>The part of a program that accesses shared data is called the <strong>critical section</strong>. The goal of synchronization is to make sure that at most one thread is inside a given critical section at a time. This property is called <strong>mutual exclusion</strong>. Mutual exclusion is the way we turn a sequence of steps that could interleave into something that behaves as if it were one step.</p>
+  <p>A correct solution to the critical section problem must satisfy three requirements:</p>
+  <ol>
+    <li><strong>Mutual exclusion.</strong> If one thread is in its critical section, no other thread may enter its own critical section for the same shared data.</li>
+    <li><strong>Progress.</strong> If no thread is in the critical section and some threads want to enter, the choice of who goes next cannot be postponed forever by threads that are not competing for the section.</li>
+    <li><strong>Bounded waiting.</strong> After a thread asks to enter, there is a limit on how many other threads can enter before it gets its turn. This prevents starvation, where one thread never gets in.</li>
+  </ol>
+  <p>Early attempts at this problem used flags and turn variables in plain software, and they were notoriously hard to get right on modern hardware, which reorders memory operations. Today we rely on <strong>hardware-supported atomic instructions</strong> such as compare-and-swap, plus library primitives built on them. An atomic instruction completes as one indivisible step, so no other processor can observe it half done.</p>
+
+  <h3>Worked example: the same counter, made safe</h3>
+  <p>The fix for the counter is to put the whole read-modify-write inside a critical section guarded by a lock. The code below starts four threads, and each adds 1 to a shared counter one thousand times. Without the lock the final number would usually be less than 4000. With the lock it is always exactly 4000.</p>
+  <pre class="code" data-lang="python"><code>import threading
+
+counter = 0
+lock = threading.Lock()
+
+def worker(times):
+    global counter
+    for _ in range(times):
+        with lock:              # only one thread at a time runs this block
+            counter += 1        # the read, add, and write happen as one unit
+
+threads = [threading.Thread(target=worker, args=(1000,)) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()                    # wait until every thread has finished
+
+print("final counter:", counter)</code></pre>
+  <pre class="output">final counter: 4000</pre>
+  <p>The <code>with lock:</code> statement acquires the lock on entry and releases it on exit, even if an exception is raised. That is the safe way to write a critical section in Python, because you cannot forget the release.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Locking only the write, not the read-modify-write, is still a race. In <code>counter += 1</code> the read is the first step of the danger, so the lock must cover all three steps.</p></div>
+
+  <details class="check"><summary>Why can two threads each run <code>counter += 1</code> one million times and still end below 2,000,000 without a lock?</summary><div class="ans"><p>Because the statement is three steps (load, add, store), and the threads can interleave between them. Two threads can load the same old value, both add 1, and both store the same result, so one increment is lost. The lock makes the three steps one critical section, so the interleaving cannot happen.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Mutex vs semaphore">
+  <h2>Locks: mutex vs semaphore</h2>
+  <p>Two primitives appear in almost every interview answer about synchronization: the <strong>mutex</strong> and the <strong>semaphore</strong>. People often use the words loosely, so it is worth being precise.</p>
+  <p>A <strong>mutex</strong> (short for mutual exclusion) is a lock with one job: allow at most one thread into a critical section at a time. A thread calls <code>lock()</code> before the section and <code>unlock()</code> after it. A mutex normally has an <strong>owner</strong>: the thread that locked it is the one that must unlock it. POSIX mutexes and Java's <code>synchronized</code> blocks enforce this rule.</p>
+  <p>A <strong>semaphore</strong> is an integer counter with two operations, historically named <code>P</code> (wait) and <code>V</code> (signal). <code>wait</code> decrements the counter, and if the counter would go below zero, the calling thread blocks until someone signals. <code>signal</code> increments the counter and wakes a waiting thread if there is one. A semaphore has no owner: any thread may signal it, even a thread that never waited.</p>
+
+  <div class="tablewrap"><table><thead><tr><th>Property</th><th>Mutex</th><th>Semaphore</th></tr></thead><tbody>
+    <tr><td>What it counts</td><td>Only two states: locked or unlocked</td><td>An integer from zero up to some maximum</td></tr>
+    <tr><td>Ownership</td><td>Yes, the locker must unlock</td><td>No, any thread can signal</td></tr>
+    <tr><td>Typical use</td><td>Protecting one critical section</td><td>Limiting how many threads use a pool of resources, or signaling between threads</td></tr>
+    <tr><td>Binary form</td><td>Already binary</td><td>A binary semaphore (value 0 or 1) behaves like a mutex but without ownership</td></tr>
+  </tbody></table></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>Use a mutex to protect data. Use a semaphore to count resources or to say "something happened, you may continue".</p></div>
+
+  <h3>Seeing the difference in code</h3>
+  <p>The next program uses both primitives in their simplest form. It never blocks, because we pass <code>blocking=False</code> so that every call returns immediately. That makes the output easy to predict. The lock is a single resource: the first acquire succeeds and the second fails. The semaphore starts with two permits, so two acquires succeed and the third fails. Releasing one permit makes one more acquire succeed.</p>
+  <pre class="code" data-lang="python"><code>import threading
+
+lock = threading.Lock()
+print("lock acquired:", lock.acquire())
+print("second acquire without waiting:", lock.acquire(blocking=False))
+lock.release()
+
+sem = threading.Semaphore(2)     # two permits
+print("permit 1:", sem.acquire(blocking=False))
+print("permit 2:", sem.acquire(blocking=False))
+print("permit 3:", sem.acquire(blocking=False))
+sem.release()                    # give one permit back
+print("after one release:", sem.acquire(blocking=False))</code></pre>
+  <pre class="output">lock acquired: True
+second acquire without waiting: False
+permit 1: True
+permit 2: True
+permit 3: False
+after one release: True</pre>
+  <p>Read the output carefully. <code>acquire()</code> returns <code>True</code> when it succeeded. With <code>blocking=False</code>, a failed attempt returns <code>False</code> immediately instead of waiting. The lock never had more than one holder, while the semaphore allowed two holders at once.</p>
+
+  <h3>When a semaphore is the right tool</h3>
+  <p>Suppose you have a connection pool with five database connections. Threads must borrow a connection, use it, and return it. A semaphore initialized to 5 is the natural fit: each borrow is a <code>wait</code>, each return is a <code>signal</code>, and the sixth thread blocks until a connection comes back. A mutex would be wrong here because it allows only one holder.</p>
+  <p>Semaphores are also used to signal events between threads. A thread that finishes loading a file can signal a semaphore that another thread is waiting on. Here there is no mutual exclusion at all; the semaphore just carries a notification.</p>
+
+  <h3>Spinlocks and why we do not always spin</h3>
+  <p>A <strong>spinlock</strong> is a lock where a waiting thread keeps checking the lock in a loop rather than sleeping. Spinning is fast when the lock will be released in a few instructions, which happens inside kernels on multiprocessor systems. Spinning wastes CPU time when the wait is long, so user programs usually use locks that put waiting threads to sleep. Mention spinlocks in an interview as a trade-off, not as a default.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A binary semaphore is not automatically a mutex. Because a semaphore has no owner, a thread can signal a semaphore that another thread holds, which breaks the rule that the locker unlocks. Use a real mutex when you need that rule.</p></div>
+
+  <details class="check"><summary>A semaphore starts at 0. What happens when a thread calls wait, and what does signal do?</summary><div class="ans"><p>The counter would go to -1, so the thread blocks. Later, when another thread calls signal, the counter increases to 0 and the waiting thread is woken up and allowed to continue. In this case the semaphore acts as a signal: one thread waits, another announces that the event has happened.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Monitors">
+  <h2>Monitors and condition variables</h2>
+  <p>Semaphores are powerful but easy to misuse. Forgetting one <code>signal</code>, or swapping the order of two <code>wait</code> calls, produces a deadlock that is hard to find. A <strong>monitor</strong> is a higher-level construct that packages the shared data together with the methods that touch it, and it guarantees that only one thread is executing inside the monitor at any time. The compiler or the runtime inserts the lock acquire and release for you.</p>
+  <p>A monitor alone is not enough, because a thread sometimes has to wait for a condition inside the monitor. For example, a consumer must wait while a buffer is empty. Monitors provide <strong>condition variables</strong> for this. A condition variable has three operations:</p>
+  <ul>
+    <li><strong>wait.</strong> The thread releases the monitor lock and goes to sleep. When it wakes up, it re-acquires the lock before returning.</li>
+    <li><strong>notify (signal).</strong> Wake up one waiting thread, if any.</li>
+    <li><strong>notify_all (broadcast).</strong> Wake up every waiting thread.</li>
+  </ul>
+  <p>Java's <code>synchronized</code> methods with <code>wait()</code> and <code>notifyAll()</code> form a monitor. Python gives you <code>threading.Condition</code>, which pairs a lock with a condition variable.</p>
+
+  <h3>The while loop rule</h3>
+  <p>When a waiting thread wakes up, the condition it was waiting for may already be false again, because another thread got in first. Therefore a thread must check its condition in a <code>while</code> loop, not an <code>if</code> statement. The loop re-checks the condition after every wake-up. This is one of the most important details in the whole topic.</p>
+  <pre class="code" data-lang="python"><code>import threading
+from collections import deque
+
+class BoundedBuffer:
+    def __init__(self, capacity):
+        self.items = deque()
+        self.capacity = capacity
+        self.cond = threading.Condition()   # lock plus condition variable
+
+    def put(self, item):
+        with self.cond:
+            while len(self.items) == self.capacity:   # while, not if
+                self.cond.wait()                      # sleep until a consumer makes room
+            self.items.append(item)
+            self.cond.notify_all()                    # wake any waiting consumers
+
+    def get(self):
+        with self.cond:
+            while not self.items:                     # wait while the buffer is empty
+                self.cond.wait()
+            item = self.items.popleft()
+            self.cond.notify_all()                    # wake any waiting producers
+            return item
+
+buf = BoundedBuffer(2)
+buf.put("a")
+buf.put("b")
+print(buf.get())
+print(buf.get())
+print(len(buf.items))</code></pre>
+  <pre class="output">a
+b
+0</pre>
+  <p>This single-threaded run shows the logic without any risk of blocking forever. If you call <code>put</code> a third time before any <code>get</code>, the producer would wait on the condition variable, and it would stay asleep until a consumer removed an item and called <code>notify_all</code>.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why must a condition wait be inside a loop? Because wake-ups can be spurious and because another thread may consume the item between the notify and the time the waiter re-acquires the lock. Re-checking the condition makes the code correct either way.</p></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>A monitor is a lock plus the data it protects plus condition variables for waiting. Semaphores can build the same thing, but monitors are harder to get wrong.</p></div>
+
+  <details class="check"><summary>Why does <code>wait()</code> release the monitor lock before sleeping?</summary><div class="ans"><p>If the waiting thread kept the lock, no other thread could enter the monitor to change the condition, so the waiter would sleep forever. Releasing the lock lets other threads run, make the condition true, and notify. The lock is re-acquired before <code>wait()</code> returns, so the thread can safely re-check the condition.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Classic problems">
+  <h2>Classic problems: producer-consumer, readers-writers, dining philosophers</h2>
+  <p>Almost every synchronization question in an interview is a variation of three classic problems. Learn their shapes, and you can reason about any new one. Each problem is a model of a real situation: a pipeline, a shared database or cache, and resources that neighbours compete for.</p>
+
+  <h3>Producer-consumer with a bounded buffer</h3>
+  <p>One or more producers create items and put them in a shared buffer. One or more consumers take items out. The buffer has a fixed capacity <code>N</code>. A producer must wait when the buffer is full, and a consumer must wait when it is empty. A web server with a request queue, or a log pipeline, has exactly this shape.</p>
+  <p>The classic semaphore solution uses three semaphores:</p>
+  <ul>
+    <li><code>mutex</code>, initialized to 1, protects the buffer data itself (a binary semaphore).</li>
+    <li><code>empty</code>, initialized to N, counts free slots. A producer waits on it before adding.</li>
+    <li><code>full</code>, initialized to 0, counts filled slots. A consumer waits on it before removing.</li>
+  </ul>
+  <p>The program below uses those three semaphores. Notice the order: a producer first waits for a free slot and only then takes the mutex. If the order were reversed, a producer could hold the mutex while waiting for an empty slot, and the consumer would never be able to take the mutex to free a slot. That is a deadlock, and it is a common interview trap.</p>
+  <pre class="code" data-lang="python"><code>import threading
+from collections import deque
+
+N = 3                              # buffer capacity
+buffer = deque()
+mutex = threading.Lock()           # protects the buffer contents
+empty = threading.Semaphore(N)     # counts free slots
+full = threading.Semaphore(0)      # counts filled slots
+consumed = []
+
+def producer():
+    for item in range(1, 11):
+        empty.acquire()            # wait for a free slot first
+        with mutex:
+            buffer.append(item)
+        full.release()             # announce one more item
+
+def consumer():
+    for _ in range(10):
+        full.acquire()             # wait until an item exists
+        with mutex:
+            item = buffer.popleft()
+        empty.release()            # announce one more free slot
+        consumed.append(item)
+
+p = threading.Thread(target=producer)
+c = threading.Thread(target=consumer)
+p.start()
+c.start()
+p.join()
+c.join()
+print("consumed:", consumed)
+print("sum:", sum(consumed))</code></pre>
+  <pre class="output">consumed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+sum: 55</pre>
+  <p>Why does the consumed list come out in order? There is one producer and one consumer, and the buffer is a first-in, first-out queue, so items leave in the same order they entered. With several producers the order between them would vary from run to run, which is why careful tests check totals or sets rather than exact sequences.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Using a single semaphore for both the slots and the mutual exclusion does not work. The mutex must protect only the buffer operation, and the counting semaphores must be waited on before the mutex is taken, never after.</p></div>
+
+  <h3>Readers-writers</h3>
+  <p>A shared database has two kinds of users. <strong>Readers</strong> only look at the data, so any number of them can look at the same time without harm. <strong>Writers</strong> change the data, so a writer must have exclusive access: no readers and no other writers while it writes. The readers-writers problem asks for a scheme that gives this behaviour while keeping things fast.</p>
+  <p>The first readers-writers solution, usually called the readers-preference version, uses two synchronization objects: a mutex that protects a counter of active readers, and a write lock that writers hold while they write. The first reader to arrive locks out writers, and the last reader to leave lets them back in. Here is the logic in pseudocode, which is clearer than a full program because the interesting part is the handshake:</p>
+  <pre class="code" data-lang="text"><code>reader:
+    wait(mutex)
+    read_count = read_count + 1
+    if read_count == 1:
+        wait(write_lock)        # first reader blocks writers
+    signal(mutex)
+
+    ... read the shared data ...
+
+    wait(mutex)
+    read_count = read_count - 1
+    if read_count == 0:
+        signal(write_lock)      # last reader lets writers in
+    signal(mutex)
+
+writer:
+    wait(write_lock)
+    ... write the shared data ...
+    signal(write_lock)</code></pre>
+  <p>This version favours readers. If readers keep arriving, the read count never drops to zero, so a waiting writer can starve. Fair versions add a queue or a turn variable so that a writer waiting in line blocks new readers. In an interview, state the trade-off first: readers-preference gives higher read throughput but can starve writers.</p>
+  <p>Real systems use read-write locks, which are described in the next day's material. Java's <code>ReentrantReadWriteLock</code> and POSIX <code>pthread_rwlock_t</code> both implement this idea.</p>
+
+  <h3>Dining philosophers</h3>
+  <p>Five philosophers sit around a round table. Between each pair of neighbours lies one fork, so there are five forks. A philosopher alternates between thinking and eating. To eat, a philosopher needs both the fork on the left and the fork on the right. The problem is to design a protocol that never deadlocks and lets everyone eat.</p>
+  <p>The naive protocol is: pick up the left fork, then pick up the right fork. Suppose all five philosophers become hungry at the same moment and each picks up the left fork. Now every fork is held, and each philosopher waits for the right fork, which belongs to a neighbour who is also waiting. This is a circular wait, and nobody ever eats.</p>
+  <p>Three standard fixes break the cycle:</p>
+  <ol>
+    <li><strong>Limit the diners.</strong> Allow at most four philosophers to try to pick up forks at once. With four diners and five forks, at least one philosopher can always get both forks.</li>
+    <li><strong>Asymmetric pick-up.</strong> Odd-numbered philosophers pick up the left fork first, and even-numbered philosophers pick up the right fork first. The cycle can no longer close.</li>
+    <li><strong>Global ordering.</strong> Number the forks and always pick up the lower-numbered fork first. This is the most general fix, because it is a resource-ordering rule that applies to any locks.</li>
+  </ol>
+  <p>The program below shows the third fix. It prints the order in which each philosopher takes forks. Philosopher 4 sits between fork 4 and fork 0, so the ordering rule makes it take fork 0 first. The cycle that formed in the naive protocol cannot close, because someone always takes the lower fork first.</p>
+  <pre class="code" data-lang="python"><code>N = 5    # philosophers and forks
+
+def fork_order(i):
+    left, right = i, (i + 1) % N      # the two forks next to philosopher i
+    return sorted([left, right])      # always grab the lower-numbered fork first
+
+for i in range(N):
+    print(f"philosopher {i} takes forks {fork_order(i)}")</code></pre>
+  <pre class="output">philosopher 0 takes forks [0, 1]
+philosopher 1 takes forks [1, 2]
+philosopher 2 takes forks [2, 3]
+philosopher 3 takes forks [3, 4]
+philosopher 4 takes forks [0, 4]</pre>
+  <p>Notice what the ordering buys you. Philosopher 4 would otherwise hold fork 4 and wait for fork 0, which closes the circle. Because the rule makes it ask for fork 0 first, the circle cannot form, and some philosopher always gets two forks, eats, and puts them down.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Most deadlocks in practice are circular waits caused by inconsistent lock order. Agreeing on one global order for locks removes the cycle.</p></div>
+
+  <details class="check"><summary>In the dining philosophers problem, why does limiting the number of diners to four prevent deadlock?</summary><div class="ans"><p>A deadlock needs all five forks to be held, each by a different philosopher, and every one of them waiting for a neighbour's fork. With at most four diners trying to eat, one fork always stays free. A philosopher next to that free fork can take it as the second fork, eat, and release both forks, so the system keeps moving.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Deadlock">
+  <h2>Deadlock and its four conditions</h2>
+  <p>A <strong>deadlock</strong> is a situation where a set of processes or threads each wait for a resource that another process in the set holds, so none of them can ever continue. Deadlock is different from <strong>starvation</strong>. A starved thread may eventually run if conditions change, for example if a scheduler happens to favour it. Deadlocked threads wait forever unless something outside the cycle changes.</p>
+  <p>In 1971 Coffman, Elphick and Shoshani described four conditions. Deadlock can occur only if all four hold at the same time:</p>
+  <ol>
+    <li><strong>Mutual exclusion.</strong> At least one resource cannot be shared. Only one process can use it at a time. A printer is a typical example, while a read-only file can be shared.</li>
+    <li><strong>Hold and wait.</strong> A process holds at least one resource while it waits to acquire another resource that some other process holds.</li>
+    <li><strong>No preemption.</strong> A resource cannot be taken away from the process holding it. It is released only when that process finishes with it.</li>
+    <li><strong>Circular wait.</strong> There is a chain of waiting processes P0, P1, and so on up to Pn, where each process waits for a resource held by the next one, and Pn waits for a resource held by P0.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>All four conditions must hold for deadlock. Breaking any single condition makes deadlock impossible, which is the basis of every prevention strategy.</p></div>
+
+  <h3>A resource allocation graph</h3>
+  <p>Operating system textbooks draw deadlock as a graph. Processes are circles and resources are squares. An edge from a process to a resource means the process is requesting that resource. An edge from a resource to a process means the resource is assigned to that process. If every resource has exactly one instance, a cycle in this graph means deadlock. If some resources have several instances, a cycle is necessary but not sufficient, and you need the algorithms in the next sections to decide.</p>
+  <p>Read a small example in words. Process P1 holds resource R1 and requests R2. Process P2 holds R2 and requests R1. The graph has the cycle P1 to R2 to P2 to R1 back to P1. Neither process can proceed, and neither will release its resource on its own, because each is blocked waiting for the other.</p>
+
+  <h3>Prevention: break one condition</h3>
+  <ul>
+    <li><strong>Mutual exclusion.</strong> You cannot remove it for a device that really must be exclusive, but you can avoid locks by using read-only data or lock-free designs where possible.</li>
+    <li><strong>Hold and wait.</strong> Require a process to request all of its resources at once, or to release everything it holds before asking for more. Both approaches reduce utilization because resources sit idle.</li>
+    <li><strong>No preemption.</strong> Allow the system to take a resource away from a waiting process and roll it back. This works well for memory and CPU registers, and is hard for printers or tape drives.</li>
+    <li><strong>Circular wait.</strong> Impose a total order on all resources and require every process to request them in increasing order. This is the global ordering rule from the dining philosophers section, and it is the most practical prevention technique in application code.</li>
+  </ul>
+
+  <div class="note trap"><p><span class="t">Trap</span>The most common real deadlock in application code is two threads that take the same two locks in opposite orders. Thread A takes lock X then lock Y, while thread B takes Y then X. Each thread holds one lock and waits for the other. The fix is always the same: acquire the locks in one agreed order everywhere.</p></div>
+
+  <details class="check"><summary>Two processes each hold one tape drive and want the single printer. Which of the four conditions is easiest to break in software, and why?</summary><div class="ans"><p>Circular wait is usually the easiest to break in software, by imposing an order on resources (for example, always request the tape drive before the printer). Mutual exclusion is hard to remove for a printer, and no preemption is hard to remove for a device that carries state. Breaking circular wait by ordering is practical and does not reduce utilization much.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Banker's algorithm">
+  <h2>Deadlock avoidance: the Banker's algorithm</h2>
+  <p>Prevention is strict and sometimes wasteful. <strong>Avoidance</strong> is more flexible: the system looks at each request before granting it and refuses any request that could lead to deadlock later. Edsger Dijkstra's <strong>Banker's algorithm</strong> is the classic avoidance method. It is named after a bank that never lends so much that it cannot still satisfy every customer's maximum credit line in some order.</p>
+  <p>The algorithm needs four pieces of information, each stored as a table with one row per process and one column per resource type:</p>
+  <ul>
+    <li><strong>Allocation.</strong> How many units of each resource each process currently holds.</li>
+    <li><strong>Max.</strong> The maximum number of units each process will ever need at once. Processes declare this in advance.</li>
+    <li><strong>Need.</strong> Max minus Allocation: what each process may still request.</li>
+    <li><strong>Available.</strong> How many units of each resource are free right now.</li>
+  </ul>
+  <p>A state is <strong>safe</strong> if there is some order, called a <strong>safe sequence</strong>, in which every process can get all the resources it still needs, finish, and return what it holds, so that the next process in the sequence can also finish. A state is <strong>unsafe</strong> if no such order exists. An unsafe state is not a deadlock yet, but deadlock is possible. The rule of avoidance is simple: never move from a safe state to an unsafe one.</p>
+
+  <h3>The safety algorithm, step by step</h3>
+  <ol>
+    <li>Set <em>Work</em> equal to Available, and mark every process as not finished.</li>
+    <li>Find any unfinished process <em>i</em> whose Need is less than or equal to Work in every resource type. If none exists, go to step 4.</li>
+    <li>Pretend process <em>i</em> runs to completion and returns everything it holds: add its Allocation to Work, and mark it finished. Go back to step 2.</li>
+    <li>If all processes are finished, the state is safe, and the order you found is a safe sequence. Otherwise it is unsafe.</li>
+  </ol>
+
+  <h3>The resource-request algorithm</h3>
+  <p>When process <em>i</em> asks for a vector of resources <em>Request</em>, the system does three checks:</p>
+  <ol>
+    <li>If Request is greater than Need for process <em>i</em>, the process has broken its promise, so the request is an error.</li>
+    <li>If Request is greater than Available, the process must wait, because the resources are not free yet.</li>
+    <li>Otherwise, pretend to grant the request: subtract it from Available, add it to the process's Allocation, and subtract it from its Need. Then run the safety algorithm. If the result is safe, grant the request for real. If it is unsafe, undo the pretence and make the process wait.</li>
+  </ol>
+
+  <h3>Worked example with three resource types</h3>
+  <p>Assume three resource types A, B and C with totals of 10, 5 and 7 units. Five processes P0 to P4 are running. The table below shows the state at the start. Need is computed as Max minus Allocation, row by row. For example, P0 needs 7 minus 0 of A, 5 minus 1 of B, and 3 minus 0 of C, which gives 7, 4, 3.</p>
+  <div class="tablewrap"><table><thead><tr><th>Process</th><th>Allocation (A B C)</th><th>Max (A B C)</th><th>Need (A B C)</th></tr></thead><tbody>
+    <tr><td>P0</td><td>0 1 0</td><td>7 5 3</td><td>7 4 3</td></tr>
+    <tr><td>P1</td><td>2 0 0</td><td>3 2 2</td><td>1 2 2</td></tr>
+    <tr><td>P2</td><td>3 0 2</td><td>9 0 2</td><td>6 0 0</td></tr>
+    <tr><td>P3</td><td>2 1 1</td><td>2 2 2</td><td>0 1 1</td></tr>
+    <tr><td>P4</td><td>0 0 2</td><td>4 3 3</td><td>4 3 1</td></tr>
+  </tbody></table></div>
+  <p>Available is 3 3 2. Check that the totals add up: column A allocations sum to 7, and 7 plus Available 3 gives the total of 10. The same check works for B (2 plus 3 gives 5) and C (5 plus 2 gives 7).</p>
+  <p>Now run the safety algorithm by hand. Work starts at 3 3 2.</p>
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Work before</th><th>Process that can finish (Need is at most Work)</th><th>Work after (Work plus its Allocation)</th></tr></thead><tbody>
+    <tr><td>1</td><td>3 3 2</td><td>P1 (needs 1 2 2)</td><td>5 3 2</td></tr>
+    <tr><td>2</td><td>5 3 2</td><td>P3 (needs 0 1 1)</td><td>7 4 3</td></tr>
+    <tr><td>3</td><td>7 4 3</td><td>P4 (needs 4 3 1)</td><td>7 4 5</td></tr>
+    <tr><td>4</td><td>7 4 5</td><td>P0 (needs 7 4 3)</td><td>7 5 5</td></tr>
+    <tr><td>5</td><td>7 5 5</td><td>P2 (needs 6 0 0)</td><td>10 5 7</td></tr>
+  </tbody></table></div>
+  <p>Every process finished, so the state is safe, with the safe sequence <strong>P1, P3, P4, P0, P2</strong>. At the first step, P0 and P2 could not finish yet, and that is fine: the algorithm only needs one finishable process at each step. Notice also that the final Work, 10 5 7, equals the total resources, which is what you expect once everyone has returned everything.</p>
+
+  <h3>Checking two requests in code</h3>
+  <p>The program below implements both algorithms. It recomputes Need from Max and Allocation, prints the Need table, checks the safe state, and then runs two requests through the resource-request algorithm. The first request, from P1 for one unit of A and two of C, is granted because the state stays safe. The second, from P4 for three units of A and three of B, is refused because granting it would leave no safe order, even though the resources are free right now.</p>
+  <pre class="code" data-lang="python"><code>def is_safe(available, allocation, need):
+    n = len(allocation)                    # number of processes
+    work = available[:]                    # resources free right now
+    finished = [False] * n
+    order = []
+    while len(order) &lt; n:
+        progress = False
+        for i in range(n):
+            if finished[i]:
+                continue
+            if all(need[i][j] &lt;= work[j] for j in range(len(work))):
+                # Process i can run to completion with what is free.
+                for j in range(len(work)):
+                    work[j] += allocation[i][j]    # it returns everything it holds
+                finished[i] = True
+                order.append(f"P{i}")
+                progress = True
+        if not progress:
+            return False, []               # nobody can finish, so the state is unsafe
+    return True, order
+
+def try_request(pid, request, available, allocation, maximum):
+    n_res = len(available)
+    need = [[maximum[i][j] - allocation[i][j] for j in range(n_res)]
+            for i in range(len(allocation))]
+    if any(request[j] &gt; need[pid][j] for j in range(n_res)):
+        return "error: request is more than the declared maximum"
+    if any(request[j] &gt; available[j] for j in range(n_res)):
+        return "wait: not enough resources free right now"
+    # Pretend to grant the request, then test whether the state is still safe.
+    new_available = [available[j] - request[j] for j in range(n_res)]
+    new_allocation = [row[:] for row in allocation]
+    for j in range(n_res):
+        new_allocation[pid][j] += request[j]
+    new_need = [[maximum[i][j] - new_allocation[i][j] for j in range(n_res)]
+                for i in range(len(allocation))]
+    safe, order = is_safe(new_available, new_allocation, new_need)
+    if safe:
+        return "granted, safe sequence: " + " ".join(order)
+    return "denied: the state would be unsafe"
+
+allocation = [[0, 1, 0], [2, 0, 0], [3, 0, 2], [2, 1, 1], [0, 0, 2]]
+maximum    = [[7, 5, 3], [3, 2, 2], [9, 0, 2], [2, 2, 2], [4, 3, 3]]
+available  = [3, 3, 2]
+
+need = [[maximum[i][j] - allocation[i][j] for j in range(3)] for i in range(5)]
+for i, row in enumerate(need):
+    print(f"P{i} need {row}")
+
+safe, order = is_safe(available, allocation, need)
+print("safe:", safe, "sequence:", " ".join(order))
+print("P1 requests [1, 0, 2]:", try_request(1, [1, 0, 2], available, allocation, maximum))
+print("P4 requests [3, 3, 0]:", try_request(4, [3, 3, 0], available, allocation, maximum))</code></pre>
+  <pre class="output">P0 need [7, 4, 3]
+P1 need [1, 2, 2]
+P2 need [6, 0, 0]
+P3 need [0, 1, 1]
+P4 need [4, 3, 1]
+safe: True sequence: P1 P3 P4 P0 P2
+P1 requests [1, 0, 2]: granted, safe sequence: P1 P3 P4 P0 P2
+P4 requests [3, 3, 0]: denied: the state would be unsafe</pre>
+  <p>Look closely at the P4 case. The request of 3 A and 3 B fits within Available (3 3 2), and within P4's Need (4 3 1). A naive system would grant it. But after granting, Available becomes 0 0 2, and no process can finish with that little, because every other process still needs at least one unit of A or B. The Banker's algorithm refuses it, which avoids the trap.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Is an unsafe state the same as a deadlocked state? No. An unsafe state means deadlock is possible if the processes all ask for their maximum needs in the worst order. Many unsafe states never deadlock, but the algorithm cannot tell which, so it refuses to enter any of them.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The Banker's algorithm needs each process to declare its maximum need in advance, and it assumes a fixed number of processes and resource types. Those assumptions rarely hold in general-purpose operating systems, which is why real systems prefer prevention rules and detection.</p></div>
+
+  <details class="check"><summary>What does it mean for a state to be safe, in one sentence?</summary><div class="ans"><p>A state is safe when there is at least one order in which every process can obtain its remaining resources, run to completion, and return its resources, so that the system never gets stuck.</p></div></details>
+</section>
+
+<section class="unit" id="c7" data-title="Detection and recovery">
+  <h2>Deadlock detection and recovery</h2>
+  <p>Avoidance needs advance knowledge of maximum needs, and prevention can waste resources. A third strategy accepts that deadlock may happen, detects it after the fact, and then recovers. This is common in database systems, which detect deadlocks among lock waits and abort one transaction. Most general-purpose operating systems take a different approach for ordinary kernel locks: they rely on careful lock ordering and debugging tools rather than running a detector.</p>
+
+  <h3>Detection with a wait-for graph</h3>
+  <p>When every resource has a single instance, you can simplify the resource allocation graph into a <strong>wait-for graph</strong>. Remove the resource nodes, and draw an edge from process A to process B whenever A is waiting for a resource that B holds. A deadlock exists exactly when this graph contains a cycle. Finding a cycle is a standard graph search: a depth-first search that keeps track of the nodes on the current path. If it reaches a node that is already on the path, it has found a cycle.</p>
+  <p>For resources with several instances, detection uses an algorithm that looks like the safety algorithm, but it works with the current Request matrix instead of Need. Any process whose requests can be met by Work is marked as able to finish. Processes left unmarked at the end are deadlocked.</p>
+  <p>The program below implements the single-instance case. It searches a wait-for graph for a cycle, reports the cycle, and then shows that the cycle disappears after recovery.</p>
+  <pre class="code" data-lang="python"><code>def find_cycle(graph):
+    # graph maps each process to the processes it is waiting for
+    on_path = []        # processes on the current depth-first search path
+    finished = set()    # processes whose search is complete
+
+    def visit(node):
+        on_path.append(node)
+        for nxt in graph.get(node, []):
+            if nxt in on_path:                  # reached the current path: a cycle
+                start = on_path.index(nxt)
+                return on_path[start:] + [nxt]
+            if nxt not in finished:
+                cycle = visit(nxt)
+                if cycle:
+                    return cycle
+        on_path.pop()
+        finished.add(node)
+        return None
+
+    for node in graph:
+        if node not in finished:
+            cycle = visit(node)
+            if cycle:
+                return cycle
+    return None
+
+waiting_for = {"P1": ["P2"], "P2": ["P3"], "P3": ["P1"], "P4": ["P2"]}
+cycle = find_cycle(waiting_for)
+print("cycle:", " -&gt; ".join(cycle) if cycle else "none")
+
+# Recovery: terminate P3. Its resources are released, so P2 can proceed
+# and no longer waits for P3.
+recovered = {"P1": ["P2"], "P4": ["P2"]}
+print("after recovery:", find_cycle(recovered))</code></pre>
+  <pre class="output">cycle: P1 -&gt; P2 -&gt; P3 -&gt; P1
+after recovery: None</pre>
+  <p>The graph in the program has P1 waiting for P2, P2 waiting for P3, P3 waiting for P1, and P4 waiting for P2. P4 is not part of the cycle, so it is blocked but not deadlocked. The search starts at P1, follows the edges P1, P2, P3, and then finds P1 already on the path. The cycle it reports starts at P1 and ends where it began.</p>
+
+  <h3>Recovery</h3>
+  <p>Once a deadlock is detected, the system must break at least one of the waits. There are two broad options:</p>
+  <ul>
+    <li><strong>Process termination.</strong> Abort every deadlocked process, which is simple but expensive because all their work is lost. Or abort one process at a time and re-run detection until the cycle is gone. The victim is usually chosen by a cost function: lowest priority, least computation done so far, fewest resources held, or whether it can be safely restarted.</li>
+    <li><strong>Resource preemption.</strong> Take a resource from a process and give it to another, then roll the victim back to a safe earlier checkpoint. The danger is starvation: if the same process is always chosen as the victim, it never finishes. A good cost function counts past rollbacks so that the choice rotates.</li>
+  </ul>
+  <div class="note key"><p><span class="t">Key idea</span>Detection finds the cycle, and recovery decides who loses. Breaking the cycle at the cheapest point is the whole game.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Which is better, prevention, avoidance, or detection? None is best everywhere. Prevention is simple and fast but can waste resources, avoidance needs maximum claims in advance, and detection costs time to run but does not restrict requests. Name the trade-off, then choose based on the system.</p></div>
+
+  <details class="check"><summary>In a wait-for graph, what does a cycle mean, and why is a process that merely waits for a deadlocked process not itself deadlocked?</summary><div class="ans"><p>A cycle means every process on it is waiting for the next one, so none can ever proceed. A process outside the cycle that waits for a cycle member is blocked, but it is not part of the circular wait. It becomes free once the cycle is broken, which is why recovery usually only needs to act on the cycle.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Use these to test yourself. Cover the answer, say your own version out loud, then compare.</p>
+  <details class="check"><summary>What is a race condition, and what is the minimal fix?</summary><div class="ans"><p>A race condition is a bug where the result depends on how threads interleave while they access shared data. The minimal fix is to make the read-modify-write sequence a critical section, guarded by a lock so that only one thread at a time executes it.</p></div></details>
+  <details class="check"><summary>What is the difference between a mutex and a semaphore?</summary><div class="ans"><p>A mutex is a lock for mutual exclusion, with an owner who must unlock it. A semaphore is a counter that controls how many threads may proceed, with no owner, so any thread may signal it. Use a mutex to protect data and a semaphore to count resources or to signal events.</p></div></details>
+  <details class="check"><summary>Why must a thread re-check its condition in a while loop after waking from wait?</summary><div class="ans"><p>Another thread may have changed the state between the notify and the moment the waiter re-acquires the lock, so the condition may be false again. Wake-ups can also occur without a notify. The while loop re-checks the condition each time and waits again if it is still not met.</p></div></details>
+  <details class="check"><summary>Name the four conditions for deadlock.</summary><div class="ans"><p>Mutual exclusion, hold and wait, no preemption, and circular wait. All four must hold at once. Breaking any one of them prevents deadlock.</p></div></details>
+  <details class="check"><summary>What is the difference between deadlock and starvation?</summary><div class="ans"><p>In deadlock, a set of threads wait on each other in a cycle, so none can ever proceed without outside intervention. In starvation, a thread is repeatedly passed over and may never get its turn, even though the system as a whole keeps making progress. Deadlock is a stuck system, starvation is an unfair one.</p></div></details>
+  <details class="check"><summary>Two threads sometimes freeze when they take two locks. How do you fix it?</summary><div class="ans"><p>Make both threads acquire the locks in the same global order, for example always by a fixed lock ID or name. This breaks the circular wait. The bug is usually one thread taking X then Y while another takes Y then X.</p></div></details>
+  <details class="check"><summary>Why does the bounded-buffer solution wait on the empty or full semaphore before taking the mutex?</summary><div class="ans"><p>If a producer took the mutex first and then waited for an empty slot, it would hold the mutex while blocked. The consumer would then need the mutex to free a slot, and the two would wait forever. Waiting on the counting semaphore first means no thread blocks while holding the mutex.</p></div></details>
+  <details class="check"><summary>What is a safe state in the Banker's algorithm?</summary><div class="ans"><p>A state is safe when there is a safe sequence: an order of processes in which each can get its remaining need from Available plus resources returned by earlier processes, and finish. The system grants a request only if the resulting state is still safe.</p></div></details>
+  <details class="check"><summary>How does a deadlock detector find a cycle in a wait-for graph?</summary><div class="ans"><p>It runs a depth-first search from each unvisited process, keeping the current path. If the search reaches a process already on the path, the path from that process onward, closed back to itself, is a cycle, and it names the deadlocked processes.</p></div></details>
+  <details class="check"><summary>What trade-off does the readers-preference readers-writers solution make?</summary><div class="ans"><p>It maximizes read throughput, because new readers join an active group without waiting. The cost is possible starvation of writers, since a steady stream of readers can keep the read count above zero forever. Fair versions add ordering so waiting writers are not starved.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: queues and deques</h2>
+  <p>A <strong>queue</strong> is a first-in, first-out (FIFO) container. Items join at the back and leave from the front, like a line at a bank. A <strong>stack</strong> is last-in, first-out (LIFO): the most recent item is the first to leave. A <strong>deque</strong> (pronounced "deck", short for double-ended queue) lets you add and remove at both ends. Queues show up in breadth-first search, scheduling, and streaming, while deques power sliding-window problems.</p>
+  <p>The most important implementation detail in Python is this: a plain <code>list</code> works as a stack, because <code>append</code> and <code>pop()</code> both work at the end in constant time. But <code>list.pop(0)</code> removes from the front, and it must shift every remaining element one place, which takes time proportional to the length. Use <code>collections.deque</code> for queues. Its <code>append</code>, <code>appendleft</code>, <code>pop</code>, and <code>popleft</code> all run in constant time.</p>
+  <pre class="code" data-lang="python"><code>from collections import deque
+
+q = deque()
+q.append("a")          # add to the back
+q.append("b")
+q.appendleft("z")      # add to the front
+print(q)
+print(q.popleft())    # remove from the front
+print(q.pop())        # remove from the back
+print(q)</code></pre>
+  <pre class="output">deque(['z', 'a', 'b'])
+z
+b
+deque(['a'])</pre>
+  <p>Three patterns cover most queue and deque interview problems:</p>
+  <ul>
+    <li><strong>Two containers as one.</strong> Two stacks can simulate a queue, moving items between them only when needed. Each item moves a bounded number of times, so the cost averages out to constant time. This is called amortized constant time.</li>
+    <li><strong>A fixed-size ring.</strong> Store a deque of capacity k in an array, with a front index. Positions wrap around with the modulo operator, so the array never needs to shift.</li>
+    <li><strong>A monotonic deque.</strong> Keep only candidates that could still be useful, in sorted order, by removing items from the back that are dominated by a newer item. The front then always holds the answer for the current window.</li>
+  </ul>
+
+  <div class="note tip"><p><span class="t">Tip</span>When a problem says "sliding window" and asks for a max, min, or a running result over a window, reach for a deque of indices before you reach for a heap.</p></div>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/implement-queue-using-stacks/">
+    <h3>Implement Queue using Stacks (LeetCode 232)</h3>
+    <div class="statement"><p>Implement a first-in, first-out queue using only two stacks. Support <code>push(x)</code>, <code>pop()</code> (remove and return the front element), <code>peek()</code> (return the front element without removing it), and <code>empty()</code>. For example, push 1, push 2, then peek returns 1, pop returns 1, and empty returns False.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Only stack operations are allowed: push and pop at the top, plus a size check. Every operation should be amortized constant time.</li>
+      <li><strong>Brute force.</strong> On every pop, move all items from one stack to the other, pop, and move them back. Each operation costs O(n), which is wasteful.</li>
+      <li><strong>Find the waste.</strong> The brute force reverses the whole stack each time. Reversing once is enough, as long as the reversed items stay reversed until they are all taken out.</li>
+      <li><strong>Optimise.</strong> Use an inbox stack for pushes and an outbox stack for pops and peeks. When the outbox is empty and a pop or peek is needed, move everything from the inbox into the outbox. The reversal happens once per item, so the cost is amortized O(1).</li>
+      <li><strong>Dry run.</strong> Push 1 and 2: inbox is [1, 2]. Pop needs the front, so the outbox is refilled: pop 2 from the inbox into the outbox, then pop 1, giving outbox [2, 1]. The top of the outbox is 1, which is the front of the queue. Pop removes it, leaving outbox [2].</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class MyQueue:
+    def __init__(self):
+        self.inbox = []     # receives every push
+        self.outbox = []    # serves pop and peek, so its top is the oldest item
+
+    def push(self, x):
+        self.inbox.append(x)
+
+    def _refill(self):
+        # Move items only when the outbox is empty. Each item moves at most once.
+        if not self.outbox:
+            while self.inbox:
+                self.outbox.append(self.inbox.pop())
+
+    def pop(self):
+        self._refill()
+        return self.outbox.pop()
+
+    def peek(self):
+        self._refill()
+        return self.outbox[-1]
+
+    def empty(self):
+        return not self.inbox and not self.outbox
+
+q = MyQueue()
+q.push(1)
+q.push(2)
+print(q.peek())
+print(q.pop())
+print(q.empty())
+q.push(3)
+print(q.pop())
+print(q.pop())
+print(q.empty())</code></pre>
+    <pre class="output">1
+1
+False
+2
+3
+True</pre>
+    <p class="cx">Time O(1) amortized per operation · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a structure must behave in the opposite order of the one you naturally have, move items once into a second container that reverses them, and only refill when it is empty.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/design-circular-deque/">
+    <h3>Design Circular Deque (LeetCode 641)</h3>
+    <div class="statement"><p>Design a double-ended queue with a fixed capacity k. Support insertFront, insertLast, deleteFront, deleteLast, getFront, getRear, isEmpty, and isFull. Each insert returns False when the deque is full, and each delete returns False when it is empty. Getters return -1 when the deque is empty. Example: with capacity 3, insertLast(1), insertLast(2), insertFront(3) succeed, insertFront(4) fails because the deque is full, and getRear returns 2.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The capacity is fixed, so we can use an array of size k. Every operation must be O(1).</li>
+      <li><strong>Brute force.</strong> Use a Python list. insertFront is list.insert(0, x), which shifts every element, so it costs O(n).</li>
+      <li><strong>Find the waste.</strong> Shifting elements is the waste. If we keep the array fixed and move only a front index, nothing has to shift.</li>
+      <li><strong>Optimise.</strong> Keep an array data, a front index, and a size. The rear is at (front + size - 1) modulo k. Adding at the front moves the front index back by one, wrapping around with modulo. Adding at the back writes to (front + size) modulo k. Every operation touches one slot.</li>
+      <li><strong>Dry run.</strong> With k = 3 and front = 0, insertLast(1) writes slot 0 and size becomes 1. insertLast(2) writes slot 1. insertFront(3) moves front to (0 - 1) modulo 3 = 2 and writes slot 2. Now size is 3 and the deque is full, so insertFront(4) returns False. getRear reads slot (2 + 3 - 1) modulo 3 = 1, which holds 2.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class MyCircularDeque:
+    def __init__(self, k):
+        self.data = [0] * k
+        self.capacity = k
+        self.front = 0       # index of the first element
+        self.size = 0        # how many elements are stored
+
+    def insertFront(self, value):
+        if self.isFull():
+            return False
+        self.front = (self.front - 1) % self.capacity
+        self.data[self.front] = value
+        self.size += 1
+        return True
+
+    def insertLast(self, value):
+        if self.isFull():
+            return False
+        rear = (self.front + self.size) % self.capacity
+        self.data[rear] = value
+        self.size += 1
+        return True
+
+    def deleteFront(self):
+        if self.isEmpty():
+            return False
+        self.front = (self.front + 1) % self.capacity
+        self.size -= 1
+        return True
+
+    def deleteLast(self):
+        if self.isEmpty():
+            return False
+        self.size -= 1
+        return True
+
+    def getFront(self):
+        return -1 if self.isEmpty() else self.data[self.front]
+
+    def getRear(self):
+        if self.isEmpty():
+            return -1
+        return self.data[(self.front + self.size - 1) % self.capacity]
+
+    def isEmpty(self):
+        return self.size == 0
+
+    def isFull(self):
+        return self.size == self.capacity
+
+dq = MyCircularDeque(3)
+print(dq.insertLast(1))
+print(dq.insertLast(2))
+print(dq.insertFront(3))
+print(dq.insertFront(4))
+print(dq.getRear())
+print(dq.isFull())
+print(dq.deleteLast())
+print(dq.insertFront(4))
+print(dq.getFront())</code></pre>
+    <pre class="output">True
+True
+True
+False
+2
+True
+True
+True
+4</pre>
+    <p class="cx">Time O(1) per operation · Space O(k)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>A fixed-size circular buffer keeps a start index and a size, and uses modulo arithmetic so that both ends move without shifting any data.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/dota2-senate/">
+    <h3>Dota2 Senate (LeetCode 649)</h3>
+    <div class="statement"><p>A senate is a string of letters. R means a Radiant senator and D means a Dire senator. Senators act in rounds, in order around the string. A senator on their turn may ban one senator of the other party, who then loses all rights. Banned senators are skipped. The game ends when only one party still has active senators, and that party wins. Return "Radiant" or "Dire". For example, "RD" gives "Radiant", because the Radiant senator bans the Dire senator first. "RDD" gives "Dire".</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The order matters, and a banned senator loses their turn for good. The winner depends only on which party's senator acts first when two senators face each other.</li>
+      <li><strong>Brute force.</strong> Simulate round after round, scanning the string and removing banned senators. Each round is O(n), and there can be many rounds, so this can reach O(n squared) or worse.</li>
+      <li><strong>Find the waste.</strong> The only question that matters is which senator in each party comes up first. We can track each party as a queue of positions and resolve one face-off at a time.</li>
+      <li><strong>Optimise.</strong> Keep two deques, one for Radiant positions and one for Dire positions. Pop the front of each. The one with the smaller index acts first, bans the other, and then comes back in the next round. Give the survivor its position plus n, so it sorts after everyone who acts in the current round. The party whose queue is not empty at the end wins.</li>
+      <li><strong>Dry run.</strong> Take "RDD", so n = 3. Radiant = [0], Dire = [1, 2]. Face-off: 0 against 1, Radiant acts first, so Radiant gets 0 + 3 = 3 for the next round. Radiant = [3], Dire = [2]. Face-off: 3 against 2, Dire acts first, so Dire gets 2 + 3 = 5. Radiant is empty, so Dire wins.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+def predict_party_victory(senate):
+    n = len(senate)
+    radiant = deque()          # positions of active Radiant senators
+    dire = deque()             # positions of active Dire senators
+    for i, ch in enumerate(senate):
+        if ch == "R":
+            radiant.append(i)
+        else:
+            dire.append(i)
+    while radiant and dire:
+        r = radiant.popleft()
+        d = dire.popleft()
+        # The earlier senator bans the later one. The survivor comes back
+        # in the next round, so its position moves forward by n.
+        if r &lt; d:
+            radiant.append(r + n)
+        else:
+            dire.append(d + n)
+    return "Radiant" if radiant else "Dire"
+
+print(predict_party_victory("RD"))
+print(predict_party_victory("RDD"))
+print(predict_party_victory("RRDDD"))</code></pre>
+    <pre class="output">Radiant
+Dire
+Radiant</pre>
+    <p class="cx">Time O(n) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When two groups take turns eliminating each other, keep each group in a queue of positions and let the earliest front resolve each face-off. Re-queue the survivor with an offset to model the next round.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/sliding-window-maximum/">
+    <h3>Sliding Window Maximum (LeetCode 239)</h3>
+    <div class="statement"><p>You are given an array <code>nums</code> and a window size <code>k</code>. The window slides from the left end of the array to the right end, one position at a time. Return an array with the maximum value inside each window. For example, with nums = [1, 3, -1, -3, 5, 3, 6, 7] and k = 3, the windows are [1, 3, -1], [3, -1, -3], [-1, -3, 5], [-3, 5, 3], [5, 3, 6], and [3, 6, 7], and the answer is [3, 3, 5, 5, 6, 7].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> There are n minus k plus 1 windows. We need one maximum per window, and the array can be large, so we want about O(n) total time rather than O(n times k).</li>
+      <li><strong>Brute force.</strong> For each window, scan its k elements for the maximum. That is O(n times k) time, which is too slow when k is large. The brute force is shown in the code so you can compare it with the fast version.</li>
+      <li><strong>Find the waste.</strong> Consecutive windows overlap in k minus 1 elements. Most of the work repeats. Also, when a new value x arrives, any older value that is smaller than or equal to x can never be the maximum again, because x is newer (it stays in the window at least as long) and at least as large.</li>
+      <li><strong>Optimise.</strong> Keep a deque of indices whose values are in decreasing order from front to back. The front is always the index of the current window's maximum. For each new index i: first drop the front if it has slipped out of the window (its index is at most i minus k). Then pop from the back while the back value is at most the new value. Then push i. Once i reaches k minus 1, the front is the answer for the window.</li>
+      <li><strong>Dry run.</strong> With k = 3, the deque holds indices and the values they point to. At i = 0 (value 1), the deque is [0]. At i = 1 (value 3), the back value 1 is at most 3, so it is removed, and the deque is [1]. At i = 2 (value -1), nothing is removed, and the deque is [1, 2], with values [3, -1]. The first full window ends here, so the answer is the value at the front, 3. At i = 3 (value -3), the front index 1 is still inside the window (1 is greater than 3 minus 3 = 0), so the deque becomes [1, 2, 3] and the front gives 3 again. At i = 4 (value 5), index 1 is at most 4 minus 3 = 1, so it is dropped. Then the values -3 and -1 are popped from the back, so only the 5 remains, and the deque is [4], giving 5. Continuing this way produces 5, 6, and 7.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+def max_window_brute(nums, k):
+    # Look at every window and take its maximum: O(n times k)
+    return [max(nums[i:i + k]) for i in range(len(nums) - k + 1)]
+
+def max_window(nums, k):
+    window = deque()           # indices, with values decreasing from front to back
+    result = []
+    for i, x in enumerate(nums):
+        if window and window[0] &lt;= i - k:            # the front index left the window
+            window.popleft()
+        while window and nums[window[-1]] &lt;= x:      # smaller values can never be a maximum again
+            window.pop()
+        window.append(i)
+        if i &gt;= k - 1:                              # the first full window ends at i = k - 1
+            result.append(nums[window[0]])
+    return result
+
+nums = [1, 3, -1, -3, 5, 3, 6, 7]
+print(max_window_brute(nums, 3))
+print(max_window(nums, 3))
+print(max_window([9, 1], 1))</code></pre>
+    <pre class="output">[3, 3, 5, 5, 6, 7]
+[3, 3, 5, 5, 6, 7]
+[9, 1]</pre>
+    <p class="cx">Time O(n) · Space O(k)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For a running maximum or minimum over a sliding window, keep a monotonic deque of indices. Each index enters and leaves at most once, so the whole pass is linear.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this as a quick reference before the interview. Each line is a definition you should be able to say in one breath.</p>
+  <dl>
+    <div><dt>Thread</dt><dd>An independent flow of execution that shares memory with other threads in its process.</dd></div>
+    <div><dt>Race condition</dt><dd>A bug where the result depends on how threads interleave while touching shared data.</dd></div>
+    <div><dt>Critical section</dt><dd>The code that accesses shared data and must run by at most one thread at a time.</dd></div>
+    <div><dt>Mutual exclusion</dt><dd>The guarantee that no two threads are inside the same critical section at once.</dd></div>
+    <div><dt>Mutex</dt><dd>A lock with an owner: the thread that locks it must unlock it.</dd></div>
+    <div><dt>Semaphore</dt><dd>An integer counter with wait and signal operations, with no owner, used to count resources or signal events.</dd></div>
+    <div><dt>Binary semaphore</dt><dd>A semaphore whose value is 0 or 1. It behaves like a mutex but without ownership.</dd></div>
+    <div><dt>Spinlock</dt><dd>A lock where a waiting thread loops checking the lock instead of sleeping.</dd></div>
+    <div><dt>Monitor</dt><dd>A lock plus the data it protects and condition variables, so only one thread at a time runs its methods.</dd></div>
+    <div><dt>Condition variable</dt><dd>A wait queue that releases the monitor lock while a thread sleeps, and lets other threads wake it up.</dd></div>
+    <div><dt>Producer-consumer</dt><dd>Producers add items to a bounded buffer and consumers remove them, using empty, full, and mutex.</dd></div>
+    <div><dt>Readers-writers</dt><dd>Many readers may share the data, but a writer needs exclusive access.</dd></div>
+    <div><dt>Dining philosophers</dt><dd>Five philosophers share five forks. A global fork order prevents the circular wait.</dd></div>
+    <div><dt>Starvation</dt><dd>A thread is repeatedly passed over and never gets its turn, though the system keeps running.</dd></div>
+    <div><dt>Deadlock</dt><dd>A set of threads each wait for a resource held by another thread in the set, so none can continue.</dd></div>
+    <div><dt>Mutual exclusion (deadlock condition)</dt><dd>At least one resource can be held by only one process at a time.</dd></div>
+    <div><dt>Hold and wait</dt><dd>A process holds a resource while waiting for another one.</dd></div>
+    <div><dt>No preemption</dt><dd>A resource is released only voluntarily by the process holding it.</dd></div>
+    <div><dt>Circular wait</dt><dd>A cycle of processes where each waits for a resource held by the next.</dd></div>
+    <div><dt>Safe state</dt><dd>A state where some order lets every process finish with the resources available.</dd></div>
+    <div><dt>Safe sequence</dt><dd>The order of processes that the safety algorithm finds for a safe state.</dd></div>
+    <div><dt>Banker's algorithm</dt><dd>An avoidance method that grants a request only if the resulting state is safe.</dd></div>
+    <div><dt>Need</dt><dd>Max minus Allocation: what a process may still request.</dd></div>
+    <div><dt>Wait-for graph</dt><dd>A graph with an edge from each process to the process holding what it waits for. A cycle means deadlock.</dd></div>
+    <div><dt>Deadlock recovery</dt><dd>Breaking a deadlock by terminating a victim process or preempting its resources.</dd></div>
+    <div><dt>Queue</dt><dd>A first-in, first-out container: add at the back, remove from the front.</dd></div>
+    <div><dt>Deque</dt><dd>A double-ended queue that adds and removes at both ends in constant time.</dd></div>
+    <div><dt>Monotonic deque</dt><dd>A deque kept in sorted order by removing dominated items, so the front is the window answer.</dd></div>
+  </dl>
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td><code>threading.Lock()</code></td><td>Creates a mutex</td><td><code>lock = threading.Lock()</code></td></tr>
+      <tr><td><code>lock.acquire()</code></td><td>Locks, waiting if needed. Returns True when acquired</td><td><code>lock.acquire(blocking=False)</code></td></tr>
+      <tr><td><code>lock.release()</code></td><td>Unlocks the mutex</td><td><code>lock.release()</code></td></tr>
+      <tr><td><code>with lock:</code></td><td>Acquires on entry and releases on exit, even on error</td><td><code>with lock: counter += 1</code></td></tr>
+      <tr><td><code>threading.Semaphore(n)</code></td><td>Creates a counter with n permits</td><td><code>sem = threading.Semaphore(2)</code></td></tr>
+      <tr><td><code>sem.acquire()</code></td><td>Takes a permit, waiting if none is free (the wait operation)</td><td><code>sem.acquire(blocking=False)</code></td></tr>
+      <tr><td><code>sem.release()</code></td><td>Returns a permit (the signal operation)</td><td><code>sem.release()</code></td></tr>
+      <tr><td><code>threading.Condition()</code></td><td>A lock with a condition variable</td><td><code>cond = threading.Condition()</code></td></tr>
+      <tr><td><code>cond.wait()</code></td><td>Releases the lock and sleeps until notified</td><td><code>while not items: cond.wait()</code></td></tr>
+      <tr><td><code>cond.notify_all()</code></td><td>Wakes every waiting thread</td><td><code>cond.notify_all()</code></td></tr>
+      <tr><td><code>deque.append(x)</code></td><td>Adds at the back in O(1)</td><td><code>q.append(5)</code></td></tr>
+      <tr><td><code>deque.appendleft(x)</code></td><td>Adds at the front in O(1)</td><td><code>q.appendleft(5)</code></td></tr>
+      <tr><td><code>deque.popleft()</code></td><td>Removes and returns the front in O(1)</td><td><code>q.popleft()</code></td></tr>
+      <tr><td><code>deque.pop()</code></td><td>Removes and returns the back in O(1)</td><td><code>q.pop()</code></td></tr>
+      <tr><td><code>list.pop(0)</code></td><td>Removes the front, but shifts everything, so O(n)</td><td><code>items.pop(0)</code></td></tr>
+      <tr><td><code>synchronized</code> (Java)</td><td>Makes a block or method a monitor on its object</td><td><code>synchronized (this) { count++; }</code></td></tr>
+      <tr><td><code>wait()</code>, <code>notifyAll()</code> (Java)</td><td>Condition wait and broadcast inside a monitor</td><td><code>while (!ready) wait();</code></td></tr>
+      <tr><td><code>pthread_mutex_lock</code> and <code>unlock</code> (C)</td><td>POSIX mutex with ownership</td><td><code>pthread_mutex_lock(&amp;m);</code></td></tr>
+      <tr><td><code>sem_wait</code> and <code>sem_post</code> (C)</td><td>POSIX semaphore wait and signal</td><td><code>sem_wait(&amp;s);</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 10?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 10 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-09.html"><small>Previous, day 9</small>OS 1: Processes, threads, CPU scheduling</a><a class="next" href="day-11.html"><small>Next, day 11</small>Concurrency and multithreading in practice</a></nav>
+</main><script src="assets/app.js"></script></body></html>

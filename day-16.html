@@ -1,0 +1,891 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 16: DBMS 1: ER model, keys, normalization</title><meta name="description" content="Today covers how a database is designed before any SQL is written: the relational model, turning an entity-relationship diagram into tables, keys and constraints, relational algebra, functional dependencies and normalization from 1NF to BCNF. Interviewers use these ideas to test whether you can design a schema that stays correct as data changes, and the same reasoning explains every table you will ever create."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="16" data-key="16" data-noun="day" data-num="16" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>DBMS 1: <em>ER model, keys, normalization</em></h1>
+<p class="lede">Today covers how a database is designed before any SQL is written: the relational model, turning an entity-relationship diagram into tables, keys and constraints, relational algebra, functional dependencies and normalization from 1NF to BCNF. Interviewers use these ideas to test whether you can design a schema that stays correct as data changes, and the same reasoning explains every table you will ever create.</p>
+<div class="station"><b>16</b><span>Tue 17 Nov 2026 · Databases · DSA: Binary search trees</span></div>
+<ul class="topics"><li>Relational model</li><li>ER model to tables</li><li>Keys and constraints</li><li>Relational algebra</li><li>Functional dependencies and closure</li><li>Normalization (1NF to BCNF)</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Fundamentals">
+  <h2>Database fundamentals and the relational model</h2>
+  <p>A <em>database</em> is an organised collection of data. A <em>database management system</em> (DBMS) is the software that stores that data and lets many programs and people read and write it safely. PostgreSQL, MySQL, Oracle and SQL Server are all DBMSs. The ones that organise data as tables and use SQL to query them are called relational database management systems (RDBMSs).</p>
+  <p>Before databases, each program kept its own data files. Every program had its own file format, the same facts were copied into many files, and a change made in one file was easy to forget in another. A DBMS solves this by keeping one shared, managed copy of the data. A good DBMS gives you four things, and interviewers like it when you name them:</p>
+  <ul>
+    <li><strong>Data independence.</strong> A program asks for the data it needs by name, not by its position on disk. Administrators can change how the bytes are stored, or add a new column to a table, without rewriting every program. The schema (the logical design) and the storage (the physical design) can change separately.</li>
+    <li><strong>Integrity.</strong> Rules such as "every order must belong to a customer" are enforced by the database itself, so a buggy program cannot quietly break them.</li>
+    <li><strong>Concurrency.</strong> Many users can read and write at the same time without destroying each other's work. Day 17 covers how this is done.</li>
+    <li><strong>Recovery and security.</strong> The database can come back to a correct state after a crash, and permissions decide which user may read or change which table.</li>
+  </ul>
+
+  <h3>The relational model</h3>
+  <p>In 1970 Edgar F. Codd proposed the <em>relational model</em>. Its single idea is that all data is stored in tables, and each table is a mathematical <em>relation</em>. Because the idea is so precise, you can reason about correctness, and that is why SQL, the language built on it, has lasted for decades.</p>
+  <p>Interviewers use the formal words, so learn them exactly:</p>
+  <ul>
+    <li><strong>Relation</strong> is the formal word for a table.</li>
+    <li><strong>Tuple</strong> is a row. A table with five rows has five tuples.</li>
+    <li><strong>Attribute</strong> is a column. The column names form the header of the relation.</li>
+    <li><strong>Domain</strong> is the set of values an attribute is allowed to take, such as whole numbers, dates, or text. Every value in a column must come from that column's domain.</li>
+    <li><strong>Degree</strong> is the number of attributes. <strong>Cardinality</strong> is the number of tuples.</li>
+    <li><strong>Schema</strong> is the structure: table names, column names, data types and rules. It changes rarely. <strong>Instance</strong> is the data stored at one moment. It changes all the time.</li>
+  </ul>
+  <p>Here is a small relation. Its degree is 3 (three attributes) and its cardinality is 3 (three tuples):</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>student_id</th><th>name</th><th>city</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>Asha</td><td>Pune</td></tr>
+      <tr><td>102</td><td>Ben</td><td>Chennai</td></tr>
+      <tr><td>103</td><td>Chen</td><td>Pune</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>In the formal model a relation is a <em>set</em> of tuples: no duplicate rows, and no meaningful row order. SQL tables are looser. They are bags (multisets) and can hold duplicate rows unless you declare a key, so expect an interviewer to ask about this difference.</p></div>
+
+  <h3>Why schema design matters</h3>
+  <p>A badly designed table does not fail at once. It works for a while, then produces wrong answers. Two copies of the same fact drift apart. A new row cannot be added without inventing data for an unrelated column. Deleting one fact silently deletes another. Those failures are called <em>anomalies</em>, and this day is about preventing them. The tools are the ER model (to decide which tables exist), keys and constraints (to decide which rows are allowed), and normalization (to decide which columns belong together). We will work through all three, in that order.</p>
+</section>
+
+<section class="unit" id="c2" data-title="ER model">
+  <h2>The entity-relationship model and its mapping to tables</h2>
+  <p>Before writing <code>CREATE TABLE</code>, most designers draw an <em>entity-relationship</em> (ER) diagram. It is a sketch of the things you care about and how they connect. It is not a database, but every ER diagram maps to tables with a fixed set of rules.</p>
+
+  <h3>Entities and attributes</h3>
+  <p>An <em>entity</em> is a thing that can be told apart from other things, such as a student, a course or a department. An <em>entity type</em> (or entity set) is the category, such as all students. Each member of the category is an <em>entity instance</em>. An <em>attribute</em> describes an entity, such as a student's name. Attributes come in four kinds:</p>
+  <ul>
+    <li><strong>Simple</strong> attributes cannot be split further, such as <code>roll_no</code>.</li>
+    <li><strong>Composite</strong> attributes are made of smaller parts, such as an address made of street, city and postal code.</li>
+    <li><strong>Derived</strong> attributes are computed from other data, such as age computed from a date of birth. They are usually not stored.</li>
+    <li><strong>Multivalued</strong> attributes can hold several values for one entity, such as several phone numbers for one employee.</li>
+  </ul>
+  <p>A <em>strong</em> entity has its own key. A <em>weak</em> entity cannot be identified by its own attributes alone. It needs an owner. For example, a dependant of an employee is identified by the employee's ID together with the dependant's first name. Weak entities are drawn with a double rectangle in most notations.</p>
+
+  <h3>Relationships, cardinality and participation</h3>
+  <p>A <em>relationship</em> connects entities. A student <em>enrolls in</em> a course. The <em>degree</em> of a relationship is the number of entity types it connects: binary (two) is by far the most common, and ternary (three) appears in some designs.</p>
+  <p>The <em>cardinality ratio</em> says how many entities on each side can be linked:</p>
+  <ul>
+    <li><strong>One to one (1:1).</strong> A person has one passport and a passport belongs to one person.</li>
+    <li><strong>One to many (1:N).</strong> One department has many employees, and each employee works in one department.</li>
+    <li><strong>Many to many (M:N).</strong> A student takes many courses, and a course has many students.</li>
+  </ul>
+  <p>The <em>participation</em> says whether every entity must take part. <em>Total</em> participation means every employee must belong to a department. <em>Partial</em> participation means some entities may take no part, such as a department with no employees yet.</p>
+  <p>A relationship can have its own attributes. In a student and course example, the grade a student receives is not a property of the student alone or of the course alone. It belongs to the pair, so it is an attribute of the <em>enrolls in</em> relationship.</p>
+
+  <h3>Mapping the diagram to tables</h3>
+  <p>The mapping rules are mechanical, and interviewers often ask you to apply them to a diagram. Here they are in order:</p>
+  <ol>
+    <li><strong>Strong entity.</strong> Make one table. Its columns are the simple attributes, and its primary key is the entity's key.</li>
+    <li><strong>Composite attribute.</strong> Flatten it into several columns, such as <code>street</code>, <code>city</code> and <code>postal_code</code>.</li>
+    <li><strong>Derived attribute.</strong> Do not store it, or store it deliberately in a view, because storing a computed value can go stale.</li>
+    <li><strong>Multivalued attribute.</strong> Make a separate table with one row per value. Its key is the owner's key plus the value, so one employee can have many phone rows.</li>
+    <li><strong>One to many (1:N).</strong> Put a foreign key on the many side, which points to the one side. Any attribute of the relationship also goes on the many side.</li>
+    <li><strong>Many to many (M:N).</strong> Make a new <em>junction</em> (or associative) table. It has a foreign key to each participant, and its primary key is both foreign keys together. Relationship attributes such as <code>grade</code> live in this table.</li>
+    <li><strong>One to one (1:1).</strong> Put a foreign key on one side, preferably the side with total participation, and add a UNIQUE constraint so that each row is paired with at most one row on the other side.</li>
+    <li><strong>Weak entity.</strong> Make a table whose primary key is the owner's key plus the weak entity's partial key. The owner's key is also a foreign key.</li>
+  </ol>
+
+  <p>Here is the mapping applied to two relationships. Employees and departments form a 1:N relationship. Students and courses form an M:N relationship with a <code>grade</code> attribute:</p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE department (
+    dept_id   INTEGER PRIMARY KEY,
+    dept_name VARCHAR(50) NOT NULL UNIQUE
+);
+
+CREATE TABLE employee (
+    emp_id    INTEGER PRIMARY KEY,
+    full_name VARCHAR(100) NOT NULL,
+    dept_id   INTEGER REFERENCES department (dept_id)   -- the 'many' side holds the foreign key
+);
+
+CREATE TABLE student (
+    student_id INTEGER PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE course (
+    course_id INTEGER PRIMARY KEY,
+    title     VARCHAR(100) NOT NULL
+);
+
+-- M:N becomes a junction table; the relationship attribute grade lives here
+CREATE TABLE enrollment (
+    student_id INTEGER REFERENCES student (student_id),
+    course_id  INTEGER REFERENCES course (course_id),
+    grade      CHAR(2),
+    PRIMARY KEY (student_id, course_id)
+);</code></pre>
+  <p>There is no output here because DDL (data definition language) statements create structure and print nothing. The comments start with two hyphens, which is SQL's comment syntax.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often put the foreign key for a many to many relationship on one of the entity tables. That can hold only one course per student. The fix is always the junction table.</p></div>
+
+  <details class="check"><summary>A department has many employees. Where does the foreign key go?</summary><div class="ans"><p>On the employee table, the many side. The foreign key <code>dept_id</code> points to the one side, the department. Putting it on the department table would allow only one employee per department.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Keys and constraints">
+  <h2>Keys and constraints</h2>
+  <p>A <em>key</em> identifies a row. Keys are the most tested idea in relational design, so it helps to build them from the bottom up.</p>
+  <h3>From superkey to primary key</h3>
+  <ul>
+    <li><strong>Superkey.</strong> A set of attributes whose values are unique across all rows. Any set that contains a superkey is also a superkey. The full set of all columns is always a superkey, but it is usually too big to be useful.</li>
+    <li><strong>Candidate key.</strong> A <em>minimal</em> superkey: a superkey from which no attribute can be removed while keeping it unique. A table can have several candidate keys.</li>
+    <li><strong>Primary key.</strong> The one candidate key chosen to identify rows. It must be unique and cannot contain NULL.</li>
+    <li><strong>Alternate key.</strong> A candidate key that was not chosen as the primary key. Its columns are often declared UNIQUE.</li>
+    <li><strong>Prime attribute.</strong> An attribute that belongs to at least one candidate key. Other attributes are called non-prime. This term is needed in the normal forms below.</li>
+  </ul>
+  <p>Take a table of students with columns <code>roll_no</code>, <code>email</code> and <code>name</code>. Both <code>roll_no</code> and <code>email</code> are unique, so each is a candidate key. The set <code>{roll_no, email}</code> is a superkey, but it is not a candidate key, because <code>roll_no</code> alone already works and so the pair is not minimal. The designer picks <code>roll_no</code> as the primary key and makes <code>email</code> an alternate key.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between a superkey and a candidate key? A superkey only has to be unique. A candidate key is a superkey with no unnecessary attributes, so removing any column breaks the uniqueness.</p></div>
+
+  <h3>Foreign keys and referential integrity</h3>
+  <p>A <em>foreign key</em> is a column (or set of columns) whose values must match a primary key value in another table, or be NULL when NULL is allowed. The rule that every foreign key value has a matching row is called <em>referential integrity</em>. It stops the database from holding an employee whose department does not exist.</p>
+  <p>What should happen when the parent row is deleted? The foreign key clause answers this:</p>
+  <ul>
+    <li><strong>NO ACTION</strong> (the default in PostgreSQL) and <strong>RESTRICT</strong> refuse the delete while child rows still point to the parent. The difference is timing: RESTRICT is checked at once, while NO ACTION can be deferred to the end of the transaction if the constraint is declared DEFERRABLE.</li>
+    <li><strong>CASCADE</strong> deletes the child rows too. Deleting a department would delete all of its employees.</li>
+    <li><strong>SET NULL</strong> keeps the child rows and sets their foreign key to NULL.</li>
+    <li><strong>SET DEFAULT</strong> sets the foreign key to its default value, which must itself exist in the parent.</li>
+  </ul>
+
+  <h3>Column constraints</h3>
+  <p>Constraints are rules the DBMS enforces on every insert and update:</p>
+  <ul>
+    <li><strong>NOT NULL</strong> means a value must be supplied. NULL means "unknown or not applicable", not zero and not an empty string.</li>
+    <li><strong>UNIQUE</strong> means no two rows can have the same value. In PostgreSQL, several rows may hold NULL in a UNIQUE column, because two unknown values are not considered equal.</li>
+    <li><strong>CHECK</strong> means a condition that every row must satisfy, such as <code>salary &gt; 0</code>.</li>
+    <li><strong>DEFAULT</strong> supplies a value when the insert does not mention the column.</li>
+    <li><strong>PRIMARY KEY</strong> combines NOT NULL and UNIQUE for one set of columns, and a table can have only one.</li>
+  </ul>
+
+  <p>The next block declares the constraints for a small employee table. Read each line as a rule the database will enforce:</p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE department (
+    dept_id   INTEGER PRIMARY KEY,
+    dept_name VARCHAR(50) NOT NULL UNIQUE
+);
+
+CREATE TABLE employee (
+    emp_id    INTEGER PRIMARY KEY,
+    email     VARCHAR(120) NOT NULL UNIQUE,
+    full_name VARCHAR(100) NOT NULL,
+    salary    NUMERIC(10, 2) CHECK (salary &gt; 0),
+    dept_id   INTEGER REFERENCES department (dept_id) ON DELETE SET NULL
+);</code></pre>
+  <p>With these rules in place, the database rejects an insert with a negative salary (CHECK), a second employee with the same email (UNIQUE), and an employee whose <code>dept_id</code> names a department that does not exist (the foreign key). Deleting a department sets its employees' <code>dept_id</code> to NULL instead of deleting them, because of <code>ON DELETE SET NULL</code>.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Put a constraint in the database even when your application already checks it. Applications have bugs, scripts run directly against the database, and other applications may share the same tables.</p></div>
+
+  <details class="check"><summary>Why can a UNIQUE column hold several NULLs in PostgreSQL, while a PRIMARY KEY column cannot?</summary><div class="ans"><p>A primary key must be NOT NULL. A UNIQUE constraint does not require values, and by default NULL is treated as unknown, so two NULLs are not considered equal to each other and the uniqueness check passes. Each NULL is a different unknown value.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Relational algebra">
+  <h2>Relational algebra: the formal core of SQL</h2>
+  <p><em>Relational algebra</em> is a small set of operators that take relations as input and produce a new relation as output. SQL is a practical language built on the same ideas. Learning the algebra makes SQL queries easy to plan, and interviewers often ask you to write an expression in symbols and then in SQL.</p>
+  <p>Each operator produces a relation, and operators can be nested like arithmetic. These are the core operators:</p>
+  <ul>
+    <li><strong>Selection, sigma (&sigma;).</strong> Keeps the rows that satisfy a condition. Written <code>&sigma;<sub>dept='Sales'</sub>(Emp)</code>. It corresponds to <code>WHERE</code>.</li>
+    <li><strong>Projection, pi (&pi;).</strong> Keeps only the listed attributes, and removes duplicate rows because a relation is a set. Written <code>&pi;<sub>name</sub>(Emp)</code>. It corresponds to choosing columns in <code>SELECT</code>, with <code>DISTINCT</code> behaviour.</li>
+    <li><strong>Union (&cup;).</strong> All rows in either relation. The two inputs must have the same attributes.</li>
+    <li><strong>Difference (&minus;).</strong> Rows in the first relation that are not in the second. The inputs must be union-compatible.</li>
+    <li><strong>Cartesian product (&times;).</strong> Every row of one relation paired with every row of the other. A relation with 3 rows times one with 4 rows gives 12 rows.</li>
+    <li><strong>Natural join (&#8904;).</strong> A product followed by a selection that keeps only pairs with equal values in every attribute name the two relations share, followed by a projection that removes the duplicate shared columns. In SQL it is a join on the shared column names.</li>
+    <li><strong>Rename (&rho;).</strong> Gives a relation or attribute a new name. It is needed when a join must compare columns with different names.</li>
+  </ul>
+
+  <h3>Worked example</h3>
+  <p>Use two small relations. <code>Emp</code> has the attributes <code>eid</code>, <code>name</code> and <code>dept</code>. <code>Dept</code> has the attributes <code>dept</code> and <code>floor</code>.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="3">Emp</th><th colspan="2">Dept</th></tr>
+    <tr><th>eid</th><th>name</th><th>dept</th><th>dept</th><th>floor</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Asha</td><td>Sales</td><td>Sales</td><td>2</td></tr>
+      <tr><td>2</td><td>Ben</td><td>IT</td><td>IT</td><td>3</td></tr>
+      <tr><td>3</td><td>Chen</td><td>Sales</td><td>HR</td><td>1</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The selection <code>&sigma;<sub>dept='Sales'</sub>(Emp)</code> keeps two rows. It reads "take the Emp rows where dept is Sales":</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>eid</th><th>name</th><th>dept</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Asha</td><td>Sales</td></tr>
+      <tr><td>3</td><td>Chen</td><td>Sales</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The projection <code>&pi;<sub>dept</sub>(Emp)</code> lists the departments. Asha and Chen are both in Sales, but the relation is a set, so Sales appears once:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept</th></tr></thead>
+    <tbody><tr><td>Sales</td></tr><tr><td>IT</td></tr></tbody>
+  </table></div>
+
+  <p>The natural join <code>Emp &#8904; Dept</code> matches rows on the shared name <code>dept</code>. Each Emp row is paired with the Dept row that has the same department name. The HR row in Dept has no employee, so it does not appear:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>eid</th><th>name</th><th>dept</th><th>floor</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Asha</td><td>Sales</td><td>2</td></tr>
+      <tr><td>2</td><td>Ben</td><td>IT</td><td>3</td></tr>
+      <tr><td>3</td><td>Chen</td><td>Sales</td><td>2</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The difference <code>Emp &minus; &sigma;<sub>dept='IT'</sub>(Emp)</code> removes Ben's row and keeps the rest. It is the set of employees who are not in IT:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>eid</th><th>name</th><th>dept</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Asha</td><td>Sales</td></tr>
+      <tr><td>3</td><td>Chen</td><td>Sales</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The same ideas in SQL</h3>
+  <p>Each algebra operator has a SQL counterpart. Knowing the mapping helps you check a query by reasoning about it:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Algebra</th><th>SQL</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>&sigma;<sub>dept='Sales'</sub>(Emp)</td><td><code>SELECT * FROM emp WHERE dept = 'Sales'</code></td><td>Filter rows</td></tr>
+      <tr><td>&pi;<sub>dept</sub>(Emp)</td><td><code>SELECT DISTINCT dept FROM emp</code></td><td>Choose columns and remove duplicates</td></tr>
+      <tr><td>Emp &#8904; Dept</td><td><code>SELECT * FROM emp NATURAL JOIN dept</code></td><td>Join on shared names</td></tr>
+      <tr><td>R &cup; S</td><td><code>SELECT ... UNION SELECT ...</code></td><td>Combine, no duplicates</td></tr>
+      <tr><td>R &minus; S</td><td><code>SELECT ... EXCEPT SELECT ...</code></td><td>Rows in R that are not in S</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Relational algebra works on sets, so its projection removes duplicates. SQL's <code>SELECT</code> keeps duplicates unless you write <code>DISTINCT</code>. Forgetting this is the most common source of mismatch between the algebra and a query.</p></div>
+
+  <p>Relational algebra is also the basis of query optimisation. A database can rewrite &sigma;(R &times; S) as a join, or apply a filter before a join so that fewer rows are combined. Day 19 shows the same idea through EXPLAIN plans.</p>
+</section>
+
+<section class="unit" id="c5" data-title="Functional dependencies">
+  <h2>Functional dependencies and attribute closure</h2>
+  <p>So far we have looked at keys. Normalization needs something more general: rules about which attributes determine which others. Those rules are <em>functional dependencies</em>.</p>
+
+  <h3>Definition</h3>
+  <p>A functional dependency (FD) written <code>X &rarr; Y</code> means: for any two rows in the relation, if they agree on every attribute in X, they must also agree on every attribute in Y. X determines Y. Some examples:</p>
+  <ul>
+    <li><code>emp_id &rarr; name</code>. Two rows with the same employee ID must have the same name.</li>
+    <li><code>{student, course} &rarr; grade</code>. A student has one grade in each course.</li>
+    <li><code>dept_id &rarr; dept_name</code>. A department ID identifies one department name.</li>
+  </ul>
+  <p>An FD is a statement about the meaning of the data, not something you can discover by looking at a small sample. Sample rows can only show that an FD is violated, never prove that it holds. The designer decides which FDs are true of the real world, and the rules are written into the schema.</p>
+  <p>An FD <code>X &rarr; Y</code> is <em>trivial</em> when Y is a subset of X, because then it always holds. For example <code>{A, B} &rarr; A</code> is trivial.</p>
+
+  <h3>Armstrong's axioms</h3>
+  <p>William Armstrong showed that three rules are enough to derive every FD that follows from a given set. They are sound (they never derive a false FD) and complete (they derive every FD that must hold):</p>
+  <ol>
+    <li><strong>Reflexivity.</strong> If Y is a subset of X, then <code>X &rarr; Y</code>.</li>
+    <li><strong>Augmentation.</strong> If <code>X &rarr; Y</code>, then <code>XZ &rarr; YZ</code> for any set Z.</li>
+    <li><strong>Transitivity.</strong> If <code>X &rarr; Y</code> and <code>Y &rarr; Z</code>, then <code>X &rarr; Z</code>.</li>
+  </ol>
+  <p>Three convenient rules follow from them. <em>Union</em>: if <code>X &rarr; Y</code> and <code>X &rarr; Z</code>, then <code>X &rarr; YZ</code>. <em>Decomposition</em>: if <code>X &rarr; YZ</code>, then <code>X &rarr; Y</code> and <code>X &rarr; Z</code>. <em>Pseudotransitivity</em>: if <code>X &rarr; Y</code> and <code>WY &rarr; Z</code>, then <code>WX &rarr; Z</code>.</p>
+
+  <h3>Attribute closure</h3>
+  <p>Checking derivations by hand is slow. The standard tool is the <em>closure</em> of a set of attributes. The closure of X, written X<sup>+</sup>, is the set of every attribute that X determines under the given FDs. The algorithm is short:</p>
+  <ol>
+    <li>Start with the result set equal to X.</li>
+    <li>Look at each FD <code>A &rarr; B</code>. If every attribute of A is already in the result, add all of B to the result.</li>
+    <li>Repeat step 2 until nothing new is added.</li>
+  </ol>
+  <p>Take the relation R(A, B, C, D, E) with the FDs <code>AB &rarr; C</code>, <code>C &rarr; D</code> and <code>D &rarr; E</code>. Compute the closure of {A, B}:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Step</th><th>FD used</th><th>Left side in result?</th><th>Result after step</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>(start)</td><td>&mdash;</td><td>{A, B}</td></tr>
+      <tr><td>1</td><td>AB &rarr; C</td><td>Yes, A and B are both there</td><td>{A, B, C}</td></tr>
+      <tr><td>2</td><td>C &rarr; D</td><td>Yes, C was just added</td><td>{A, B, C, D}</td></tr>
+      <tr><td>3</td><td>D &rarr; E</td><td>Yes, D was just added</td><td>{A, B, C, D, E}</td></tr>
+    </tbody>
+  </table></div>
+  <p>So <code>{A, B}<sup>+</sup></code> is all five attributes. Now compute the closure of {A} alone. No FD has a left side that is contained in {A}, because <code>AB &rarr; C</code> needs B too. So <code>{A}<sup>+</sup> = {A}</code>.</p>
+  <p>Closure answers the main design questions:</p>
+  <ul>
+    <li><strong>Is X a superkey?</strong> Yes exactly when X<sup>+</sup> contains every attribute of the relation.</li>
+    <li><strong>Does <code>X &rarr; Y</code> follow from the FDs?</strong> Yes exactly when Y is a subset of X<sup>+</sup>.</li>
+    <li><strong>Is X a candidate key?</strong> It is a superkey, and removing any single attribute gives a set whose closure is not everything.</li>
+  </ul>
+  <p>In the example above, {A, B} is a superkey. Because {A} and {B} are not superkeys (the closure of {B} is just {B}), {A, B} is the only candidate key.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The closure of X is the set of everything X can reach by repeatedly applying the FDs. X is a superkey exactly when the closure covers the whole relation.</p></div>
+
+  <h3>Closure in code</h3>
+  <p>The next program implements the closure algorithm and finds every candidate key by brute force. It is pure Python, so the output is exact. Attributes are single letters, and an FD is a pair of strings.</p>
+  <pre class="code" data-lang="python"><code>from itertools import combinations
+
+
+def closure(attrs, fds):
+    """Return the attribute closure of attrs under the functional dependencies fds."""
+    result = set(attrs)
+    changed = True
+    while changed:
+        changed = False
+        for lhs, rhs in fds:
+            if set(lhs) &lt;= result and not set(rhs) &lt;= result:
+                result |= set(rhs)
+                changed = True
+    return "".join(sorted(result))
+
+
+def candidate_keys(all_attrs, fds):
+    """Return all minimal superkeys, smallest first."""
+    everything = "".join(sorted(all_attrs))
+    keys = []
+    for size in range(1, len(all_attrs) + 1):
+        for combo in combinations(all_attrs, size):
+            candidate = "".join(combo)
+            if closure(candidate, fds) != everything:
+                continue                      # not a superkey
+            if any(set(k) &lt;= set(candidate) for k in keys):
+                continue                      # contains a smaller key, not minimal
+            keys.append(candidate)
+    return keys
+
+
+fds = [("AB", "C"), ("C", "D"), ("D", "B")]
+print("closure of A:", closure("A", fds))
+print("closure of C:", closure("C", fds))
+print("closure of AB:", closure("AB", fds))
+print("candidate keys:", candidate_keys("ABCD", fds))</code></pre>
+  <pre class="output">closure of A: A
+closure of C: BCD
+closure of AB: ABCD
+candidate keys: ['AB', 'AC', 'AD']</pre>
+  <p>The closure of C is BCD because C gives D, and D gives B. The three candidate keys are AB, AC and AD. Each one reaches all four attributes, and none of them contains another key. All four attributes are prime, because each appears in at least one key. Attribute A appears in all three keys, while C appears only in AC.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not infer FDs from sample data. Two rows with different names can have the same department, which is fine. Only the business rules say whether an FD is true, and the answer decides the normal form.</p></div>
+
+  <details class="check"><summary>Given R(A, B, C) with FDs A &rarr; B and B &rarr; C, what is the only candidate key?</summary><div class="ans"><p>A. The closure of A is {A, B, C} because A gives B and B gives C. No other single attribute works: the closure of B is {B, C} and the closure of C is {C}. So A is the only candidate key.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Normalization">
+  <h2>Anomalies and normalization from 1NF to BCNF</h2>
+  <p><em>Normalization</em> is the process of decomposing a relation into smaller relations so that each fact is stored in one place. It is driven by functional dependencies. The goal is to avoid the three <em>anomalies</em> introduced earlier, which are the failures a poorly designed table causes when you insert, delete or update data.</p>
+
+  <h3>An unnormalized table with all three anomalies</h3>
+  <p>Consider one table that records which student took which course and what grade they got. The key is the pair <code>{StudentID, CourseID}</code>:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>StudentID</th><th>StudentName</th><th>CourseID</th><th>CourseTitle</th><th>Grade</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>Asha</td><td>CS101</td><td>Databases</td><td>A</td></tr>
+      <tr><td>S1</td><td>Asha</td><td>CS102</td><td>Compilers</td><td>B</td></tr>
+      <tr><td>S2</td><td>Ben</td><td>CS101</td><td>Databases</td><td>C</td></tr>
+      <tr><td>S3</td><td>Chen</td><td>CS101</td><td>Databases</td><td>B</td></tr>
+    </tbody>
+  </table></div>
+  <p>The table has these problems:</p>
+  <ul>
+    <li><strong>Update anomaly.</strong> The title "Databases" is stored three times. If the course is renamed to "Database Systems", all three rows must change. If one is missed, the table disagrees with itself.</li>
+    <li><strong>Insert anomaly.</strong> Suppose the college adds course CS103, "Operating Systems", before any student enrolls. Where do you store it? A row needs a StudentID, and StudentID is part of the key, so you would have to invent a student or store NULL in a key column, which is not allowed.</li>
+    <li><strong>Delete anomaly.</strong> If Chen drops his only course, the row that holds his name disappears with it. If the last student leaves CS102, the title "Compilers" disappears too, even though the course still exists.</li>
+  </ul>
+  <p>Each anomaly happens because one table stores facts about different things: students, courses and enrollments. Normalization separates them.</p>
+
+  <h3>First normal form (1NF)</h3>
+  <p>A relation is in <strong>1NF</strong> when every attribute holds atomic values, meaning single indivisible values, and there are no repeating groups. A cell that contains <code>Databases, Compilers</code> breaks the rule, because the cell holds two values. The fix is to store one row per value. A well-designed table should always be in 1NF. SQL cannot stop you from putting a list into one text column, so 1NF is a design rule you must follow yourself.</p>
+
+  <h3>Second normal form (2NF)</h3>
+  <p>A <em>partial dependency</em> exists when a non-prime attribute depends on only part of a candidate key. A relation is in <strong>2NF</strong> when it is in 1NF and there are no partial dependencies. Only relations with composite keys can violate 2NF.</p>
+  <p>In the table above, the key is {StudentID, CourseID}. The FD <code>StudentID &rarr; StudentName</code> uses only part of the key, so it is partial. The FD <code>CourseID &rarr; CourseTitle</code> is partial too. The grade depends on the whole key, so it is fine. Decompose the table along each partial FD:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="2">Student</th></tr><tr><th>StudentID</th><th>StudentName</th></tr></thead>
+    <tbody><tr><td>S1</td><td>Asha</td></tr><tr><td>S2</td><td>Ben</td></tr><tr><td>S3</td><td>Chen</td></tr></tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="2">Course</th></tr><tr><th>CourseID</th><th>CourseTitle</th></tr></thead>
+    <tbody><tr><td>CS101</td><td>Databases</td></tr><tr><td>CS102</td><td>Compilers</td></tr></tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="3">Enrollment</th></tr><tr><th>StudentID</th><th>CourseID</th><th>Grade</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>CS101</td><td>A</td></tr>
+      <tr><td>S1</td><td>CS102</td><td>B</td></tr>
+      <tr><td>S2</td><td>CS101</td><td>C</td></tr>
+      <tr><td>S3</td><td>CS101</td><td>B</td></tr>
+    </tbody>
+  </table></div>
+  <p>Now the title is stored once. Renaming a course touches one row, a course can exist with no students, and deleting Chen's enrollment no longer deletes his name. The three tables are linked by the key columns, which act as foreign keys.</p>
+
+  <h3>Third normal form (3NF)</h3>
+  <p>A <em>transitive dependency</em> exists when <code>X &rarr; Y</code> and <code>Y &rarr; Z</code> hold, Y is not a superkey, and Z is a non-prime attribute. A relation is in <strong>3NF</strong> when it is in 2NF and has no transitive dependencies. A commonly used equivalent statement: for every non-trivial FD <code>X &rarr; Y</code>, either X is a superkey, or every attribute in Y is prime.</p>
+  <p>Consider an employee table with the key EmpID:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>EmpID</th><th>Name</th><th>DeptID</th><th>DeptName</th></tr></thead>
+    <tbody>
+      <tr><td>E1</td><td>Asha</td><td>D10</td><td>Sales</td></tr>
+      <tr><td>E2</td><td>Ben</td><td>D10</td><td>Sales</td></tr>
+      <tr><td>E3</td><td>Chen</td><td>D20</td><td>IT</td></tr>
+    </tbody>
+  </table></div>
+  <p>The FD <code>EmpID &rarr; DeptID</code> is fine because EmpID is the key. The FD <code>DeptID &rarr; DeptName</code> is a problem. DeptID is not a superkey, and DeptName is not prime. The name is determined through a chain, EmpID to DeptID to DeptName, which is the transitive dependency. Splitting the table fixes it:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="3">Employee</th></tr><tr><th>EmpID</th><th>Name</th><th>DeptID</th></tr></thead>
+    <tbody><tr><td>E1</td><td>Asha</td><td>D10</td></tr><tr><td>E2</td><td>Ben</td><td>D10</td></tr><tr><td>E3</td><td>Chen</td><td>D20</td></tr></tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="2">Department</th></tr><tr><th>DeptID</th><th>DeptName</th></tr></thead>
+    <tbody><tr><td>D10</td><td>Sales</td></tr><tr><td>D20</td><td>IT</td></tr></tbody>
+  </table></div>
+
+  <h3>Boyce-Codd normal form (BCNF)</h3>
+  <p>A relation is in <strong>BCNF</strong> when, for every non-trivial FD <code>X &rarr; Y</code>, X is a superkey. BCNF is stricter than 3NF. The 3NF definition allowed an FD whose right side is prime, and BCNF does not. Here is the classic case where 3NF holds but BCNF does not.</p>
+  <p>Take R(Student, Course, Instructor) with these FDs. Each student has one instructor per course, and each instructor teaches one course:</p>
+  <ul>
+    <li><code>{Student, Course} &rarr; Instructor</code></li>
+    <li><code>Instructor &rarr; Course</code></li>
+  </ul>
+  <p>The candidate keys are <code>{Student, Course}</code> and <code>{Student, Instructor}</code>, since the second pair determines Course through the second FD. Every attribute is prime, so the relation is in 3NF. But <code>Instructor &rarr; Course</code> has a left side that is not a superkey, so the relation is not in BCNF. The fix is to decompose on that FD:</p>
+  <ul>
+    <li><strong>R1(Instructor, Course)</strong> holds <code>Instructor &rarr; Course</code>, and Instructor is its key.</li>
+    <li><strong>R2(Student, Instructor)</strong> holds the rest of the information.</li>
+  </ul>
+  <p>Test the decomposition on sample rows: (Asha, Databases, Ravi), (Ben, Databases, Ravi) and (Asha, Operating Systems, Mei). Project each table, then join them again:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="2">R1: Instructor, Course</th></tr><tr><th>Instructor</th><th>Course</th></tr></thead>
+    <tbody><tr><td>Ravi</td><td>Databases</td></tr><tr><td>Mei</td><td>Operating Systems</td></tr></tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="2">R2: Student, Instructor</th></tr><tr><th>Student</th><th>Instructor</th></tr></thead>
+    <tbody><tr><td>Asha</td><td>Ravi</td></tr><tr><td>Ben</td><td>Ravi</td></tr><tr><td>Asha</td><td>Mei</td></tr></tbody>
+  </table></div>
+  <p>Joining R2 with R1 on Instructor gives back exactly the three original rows: (Asha, Ravi, Databases), (Ben, Ravi, Databases) and (Asha, Mei, Operating Systems). Nothing was invented and nothing was lost. The decomposition is <em>lossless</em>. A quick test for a two-table split: it is lossless when the attributes the two tables share form a key of at least one of them. Here the shared attribute is Instructor, and it is the key of R1.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>BCNF can lose an FD. The original rule <code>{Student, Course} &rarr; Instructor</code> is no longer inside one table, so checking it means joining the two tables. A 3NF decomposition always keeps every FD, but it may keep some redundancy. Designers choose between the two based on the workload.</p></div>
+
+  <h3>Choosing a normal form</h3>
+  <p>Work through the checks in order. Find the candidate keys with closure. List the FDs. Look for a partial dependency (2NF), a transitive dependency (3NF) and a determinant that is not a superkey (BCNF). Decompose on the violating FD and check that the result is lossless. In practice most OLTP schemas target 3NF or BCNF, and a read-heavy reporting schema may deliberately denormalise, that is, store a duplicated value to avoid a join. Denormalising is a conscious trade-off, not a mistake.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between 3NF and BCNF? Both forbid transitive dependencies on non-prime attributes. BCNF also forbids any FD whose left side is not a superkey, even when the right side is prime. 3NF always allows a dependency-preserving, lossless decomposition, while BCNF is lossless but may not preserve every FD.</p></div>
+
+  <details class="check"><summary>Why is a relation with the key {A, B} and the FD B &rarr; C not in 2NF?</summary><div class="ans"><p>The FD B &rarr; C depends only on part of the key {A, B}, because B alone determines C. C is non-prime, so the dependency is partial and the relation violates 2NF. Splitting it into R1(B, C) and R2(A, B) fixes the problem.</p></div></details>
+  <details class="check"><summary>Can a relation be in BCNF but still have an anomaly?</summary><div class="ans"><p>BCNF removes the anomalies that come from FDs. A relation can still have anomalies caused by multivalued dependencies, which are a separate concept handled by 4NF. Ordinary FDs are the main concern for interviews.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <details class="check"><summary>What is the difference between a relation and a table?</summary><div class="ans"><p>A relation is the formal mathematical object. A table is its common implementation. The main differences are that a relation is a set (no duplicate rows, no row order), while an SQL table is a bag that can hold duplicates unless constrained, and SQL adds features such as NULL that the pure model does not have.</p></div></details>
+  <details class="check"><summary>Define degree and cardinality with an example.</summary><div class="ans"><p>Degree is the number of attributes (columns). Cardinality is the number of tuples (rows). A table of students with columns id, name and city, holding 40 rows, has degree 3 and cardinality 40.</p></div></details>
+  <details class="check"><summary>What is the difference between a superkey, a candidate key and a primary key?</summary><div class="ans"><p>A superkey is any set of attributes that is unique across rows. A candidate key is a superkey with no unnecessary attributes. The primary key is the one candidate key the designer chooses to identify rows, and it must not contain NULL.</p></div></details>
+  <details class="check"><summary>How do you map a many to many relationship to tables?</summary><div class="ans"><p>Create a junction table with a foreign key to each participating entity. Make the primary key the combination of those two foreign keys. Any attribute of the relationship, such as a grade, is stored as a column in the junction table.</p></div></details>
+  <details class="check"><summary>What does ON DELETE CASCADE do, and when would you avoid it?</summary><div class="ans"><p>It deletes child rows automatically when the parent row is deleted. It is convenient for owned data, such as order lines of an order. Avoid it when child rows have a life of their own, because a single delete can remove much more data than intended.</p></div></details>
+  <details class="check"><summary>What is referential integrity?</summary><div class="ans"><p>It is the rule that every non-NULL foreign key value must match an existing primary key value in the referenced table. The DBMS enforces it on inserts, updates and deletes, so the database never contains dangling references.</p></div></details>
+  <details class="check"><summary>Explain the three anomalies with a one-line example each.</summary><div class="ans"><p>Update: a course title stored in many rows must be changed in every row. Insert: you cannot record a course that has no students, because the key requires a student. Delete: removing a student's last enrollment also removes the student's name if both are stored in one row.</p></div></details>
+  <details class="check"><summary>Given R(A, B, C, D) with FDs A &rarr; B and C &rarr; D, is AC a key?</summary><div class="ans"><p>Yes. The closure of {A, C} is {A, B, C, D}, because A gives B and C gives D. Neither A nor C alone is a superkey, because the closure of A is {A, B} and the closure of C is {C, D}. So AC is a candidate key, and it is the only one.</p></div></details>
+  <details class="check"><summary>Is a table in 3NF automatically in BCNF?</summary><div class="ans"><p>No. 3NF allows an FD whose left side is not a superkey when the right side is prime. The classic example is the Student, Course, Instructor table, where Instructor determines Course and the relation is in 3NF but not BCNF.</p></div></details>
+  <details class="check"><summary>What does lossless decomposition mean and why does it matter?</summary><div class="ans"><p>A decomposition is lossless when joining the parts gives back exactly the original rows, with no extra rows and no missing rows. A lossy split would invent false combinations of facts. Lossless decomposition is mandatory when normalising.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: binary search trees</h2>
+  <p>A <em>binary tree</em> is a tree where each node has at most two children, called left and right. A <em>binary search tree</em> (BST) adds an ordering rule: for every node, every value in its left subtree is smaller than the node's value, and every value in its right subtree is larger. Duplicates are either forbidden or sent to one side, depending on the problem statement.</p>
+  <p>The BST rule gives two powerful consequences. First, searching can discard half the tree at each step, just as binary search discards half of a sorted array. Second, an <em>inorder</em> traversal (visit left subtree, then the node, then the right subtree) visits the values in sorted order. Most BST interview problems use one of these two facts.</p>
+  <p>The tree is always built from a level-order list in the examples. Each list entry is a node value, and <code>None</code> marks a missing child. The list <code>[4, 2, 7, 1, 3]</code> describes a root of 4, with children 2 and 7, and 2 has children 1 and 3. The helper functions below build such trees and turn them back into lists, so every answer can be printed and checked.</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/search-in-a-binary-search-tree/">
+    <h3>Search in a Binary Search Tree (LeetCode 700)</h3>
+    <div class="statement"><p>Given the root of a binary search tree and an integer <code>val</code>, return the subtree rooted at the node whose value is <code>val</code>. If no node has that value, return null. For the tree <code>[4, 2, 7, 1, 3]</code> and <code>val = 2</code>, the answer is the subtree <code>[2, 1, 3]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The answer is a whole subtree, not just a value. If the value is missing, the answer is null. Values are unique in this problem.</li>
+      <li><strong>Brute force.</strong> Visit every node with any traversal and compare values. That works, but it ignores the BST rule, so it costs O(n) time even when the target is near the top.</li>
+      <li><strong>Find the waste.</strong> The brute force looks at the whole tree. The BST rule says that at each node, the target is either this node, or it is in exactly one subtree. Half the tree never needs a look.</li>
+      <li><strong>Optimise.</strong> Start at the root. If the target equals the node, stop. If the target is smaller, move left. If it is larger, move right. Each step goes one level deeper, so the work is the height of the tree.</li>
+      <li><strong>Dry run.</strong> Search for 2 in <code>[4, 2, 7, 1, 3]</code>. The steps are shown below.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Current node</th><th>Compare</th><th>Decision</th></tr></thead>
+      <tbody>
+        <tr><td>4 (root)</td><td>2 &lt; 4</td><td>Move left</td></tr>
+        <tr><td>2</td><td>2 = 2</td><td>Found, return this node</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_tree(values):
+    """Build a tree from a level-order list; None marks a missing child."""
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+
+def to_list(root):
+    """Turn a tree back into a level-order list, with trailing None values removed."""
+    if root is None:
+        return []
+    out = []
+    queue = deque([root])
+    while queue:
+        node = queue.popleft()
+        if node is None:
+            out.append(None)
+            continue
+        out.append(node.val)
+        queue.append(node.left)
+        queue.append(node.right)
+    while out and out[-1] is None:
+        out.pop()
+    return out
+
+
+def search_bst(root, val):
+    node = root
+    while node is not None and node.val != val:
+        node = node.left if val &lt; node.val else node.right
+    return node
+
+
+root = build_tree([4, 2, 7, 1, 3])
+print(to_list(search_bst(root, 2)))
+print(to_list(search_bst(root, 7)))
+print(to_list(search_bst(root, 5)))
+print(search_bst(root, 5) is None)</code></pre>
+    <pre class="output">[2, 1, 3]
+[7]
+[]
+True</pre>
+    <p class="cx">Time O(h) · Space O(1), where h is the height of the tree: about log n when the tree is balanced, and n in the worst case when it is a chain</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>In a BST, each comparison tells you which subtree can be ignored. Walk down one path, and the cost is the height, not the size.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/validate-binary-search-tree/">
+    <h3>Validate Binary Search Tree (LeetCode 98)</h3>
+    <div class="statement"><p>Given the root of a binary tree, decide whether it is a valid BST. Every node's left subtree must hold values strictly smaller than the node, and its right subtree must hold values strictly larger, and the same must hold for every node below. The tree <code>[5, 1, 4, null, null, 3, 6]</code> is not valid, even though each node is larger than its own left child, because 3 sits in the right subtree of 5 and is smaller than 5.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The rule applies to all descendants, not only to direct children. Values are strict, so equal values are invalid. An empty tree is valid.</li>
+      <li><strong>Brute force.</strong> Check each node against every value in its left and right subtrees. That is correct but repeats work, because the same nodes are scanned again for each ancestor.</li>
+      <li><strong>Find the waste.</strong> Each node has a valid range of values, and the range is set by its ancestors. The root allows anything. A left child of the root must be below the root. A right grandchild must be above its parent and also above the root. Checking only parent and child is not enough, as the example shows: 3 is a valid child of 4, but 3 is not valid under 5.</li>
+      <li><strong>Optimise.</strong> Pass the allowed range down the recursion. At node v with range (low, high), require low &lt; v &lt; high. Going left narrows high to v. Going right raises low to v. Each node is checked once, in O(n) time.</li>
+      <li><strong>Dry run.</strong> The steps for <code>[5, 1, 4, null, null, 3, 6]</code> are shown below.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Node</th><th>Allowed range (low, high)</th><th>Check</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>5 (root)</td><td>(-inf, inf)</td><td>-inf &lt; 5 &lt; inf</td><td>OK, recurse on both children</td></tr>
+        <tr><td>1 (left of 5)</td><td>(-inf, 5)</td><td>-inf &lt; 1 &lt; 5</td><td>OK, no children</td></tr>
+        <tr><td>4 (right of 5)</td><td>(5, inf)</td><td>5 &lt; 4 is false</td><td>Invalid, return False</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_tree(values):
+    """Build a tree from a level-order list; None marks a missing child."""
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+
+def is_valid_bst(root):
+    def check(node, low, high):
+        if node is None:
+            return True
+        if not (low &lt; node.val &lt; high):
+            return False
+        return check(node.left, low, node.val) and check(node.right, node.val, high)
+
+    return check(root, float("-inf"), float("inf"))
+
+
+print(is_valid_bst(build_tree([2, 1, 3])))
+print(is_valid_bst(build_tree([5, 1, 4, None, None, 3, 6])))
+print(is_valid_bst(build_tree([2, 2, 2])))</code></pre>
+    <pre class="output">True
+False
+False</pre>
+    <p class="cx">Time O(n) · Space O(h) for the recursion stack</p>
+    <div class="note trap"><p><span class="t">Trap</span>Checking only each node against its direct children passes <code>[5, 4, 6, null, null, 3, 7]</code>, because 4 is below 5, 6 is above 5, and 3 is below 6. The answer is still wrong, since 3 sits in the right subtree of 5. Always carry the bounds from the ancestors.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a property depends on all ancestors, pass the constraint down as parameters. This is the same idea used in many tree problems that carry a range, a sum or a path.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/kth-smallest-element-in-a-bst/">
+    <h3>Kth Smallest Element in a BST (LeetCode 230)</h3>
+    <div class="statement"><p>Given the root of a BST and an integer <code>k</code>, return the k-th smallest value in the tree, counting from 1. For <code>[3, 1, 4, null, 2]</code> and <code>k = 1</code>, the answer is 1. For <code>k = 3</code> the answer is 3.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> "k-th smallest" is the same as the k-th value in sorted order. Count the values from smallest to largest and stop at the k-th one.</li>
+      <li><strong>Brute force.</strong> Collect every value into a list, sort it, and index position k. That is O(n log n) time and O(n) space, and it ignores the tree's structure completely.</li>
+      <li><strong>Find the waste.</strong> The BST property means an inorder traversal already produces the values in sorted order. The brute force sorts a list that is already sorted.</li>
+      <li><strong>Optimise.</strong> Run an inorder traversal and count. Stop as soon as the count reaches k, so the work is proportional to the number of nodes visited, not the whole tree. An explicit stack gives an iterative version that can stop early without an exception.</li>
+      <li><strong>Dry run.</strong> For <code>[3, 1, 4, null, 2]</code> and <code>k = 1</code>, the stack holds 3 and 1 when we reach the leftmost node. Pop 1, count it as the first value, and return 1.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_tree(values):
+    """Build a tree from a level-order list; None marks a missing child."""
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+
+def kth_smallest(root, k):
+    stack = []
+    node = root
+    while stack or node is not None:
+        while node is not None:          # go as far left as possible
+            stack.append(node)
+            node = node.left
+        node = stack.pop()               # next value in sorted order
+        k -= 1
+        if k == 0:
+            return node.val
+        node = node.right
+    return None
+
+
+print(kth_smallest(build_tree([3, 1, 4, None, 2]), 1))
+print(kth_smallest(build_tree([5, 3, 6, 2, 4, None, None, 1]), 3))
+print(kth_smallest(build_tree([5, 3, 6, 2, 4, None, None, 1]), 6))</code></pre>
+    <pre class="output">1
+3
+6</pre>
+    <p class="cx">Time O(h + k) · Space O(h) for the stack, where h is the height</p>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>What if the tree is modified often and you must answer many k queries quickly? Keep a count of nodes in each subtree. Then you can walk down from the root, going left or right according to the size of the left subtree, in O(h) time per query.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Inorder traversal of a BST gives sorted order. Any "k-th smallest" or "sorted order" question on a BST is an inorder traversal with an early stop.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/serialize-and-deserialize-binary-tree/">
+    <h3>Serialize and Deserialize Binary Tree (LeetCode 297)</h3>
+    <div class="statement"><p>Design a way to turn a binary tree into a string (serialize) and turn that string back into the same tree (deserialize). You choose the format. For the tree <code>[1, 2, 3, null, null, 4, 5]</code>, one valid string is <code>1,2,#,#,3,4,#,#,5,#,#</code>, where <code>#</code> marks a missing child. The round trip must give back the same shape and values.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The string must contain enough information to rebuild the shape, not only the values. Empty trees and single nodes must work. Values can be negative or repeated.</li>
+      <li><strong>Brute force.</strong> Try to store only the values, in inorder or preorder, with no markers. This fails: the values alone do not fix the shape. The root 1 with a right child 2, and the root 2 with a left child 1, both have inorder sequence 1, 2. A correct encoding must record where the missing children are.</li>
+      <li><strong>Find the waste.</strong> The real need is a marker for each missing child. Without markers the decoder cannot tell where one subtree ends and the next begins. A marker lets the decoder read the string once, in the same order the encoder wrote it.</li>
+      <li><strong>Optimise.</strong> Use preorder (node, left subtree, right subtree) with <code>#</code> for each missing child. Serialize with a recursive walk. Deserialize with the same recursive order: read the next token, and if it is <code>#</code> return null, otherwise create a node and read its left subtree and then its right subtree. An iterator over the tokens keeps the position between recursive calls. Both directions are O(n) time.</li>
+      <li><strong>Dry run.</strong> Read the tokens of <code>1,2,#,#,3,4,#,#,5,#,#</code> in order. The table shows what the decoder does with each one.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Token read</th><th>Action</th><th>Node created</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Create the root, then build its left subtree</td><td>1</td></tr>
+        <tr><td>2</td><td>Create the left child of 1, then build its left subtree</td><td>2</td></tr>
+        <tr><td>#</td><td>Left child of 2 is missing, return null</td><td>none</td></tr>
+        <tr><td>#</td><td>Right child of 2 is missing, so 2 is complete, return to 1</td><td>none</td></tr>
+        <tr><td>3</td><td>Create the right child of 1, then build its left subtree</td><td>3</td></tr>
+        <tr><td>4</td><td>Create the left child of 3, then build its left subtree</td><td>4</td></tr>
+        <tr><td>#, #</td><td>Both children of 4 are missing, so 4 is complete</td><td>none</td></tr>
+        <tr><td>5</td><td>Create the right child of 3, then its two markers finish it</td><td>5</td></tr>
+        <tr><td>#, #</td><td>Both children of 5 are missing; the tree is complete</td><td>none</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_tree(values):
+    """Build a tree from a level-order list; None marks a missing child."""
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+
+def to_list(root):
+    """Turn a tree back into a level-order list, with trailing None values removed."""
+    if root is None:
+        return []
+    out = []
+    queue = deque([root])
+    while queue:
+        node = queue.popleft()
+        if node is None:
+            out.append(None)
+            continue
+        out.append(node.val)
+        queue.append(node.left)
+        queue.append(node.right)
+    while out and out[-1] is None:
+        out.pop()
+    return out
+
+
+class Codec:
+    def serialize(self, root):
+        parts = []
+
+        def dfs(node):
+            if node is None:
+                parts.append("#")
+                return
+            parts.append(str(node.val))
+            dfs(node.left)
+            dfs(node.right)
+
+        dfs(root)
+        return ",".join(parts)
+
+    def deserialize(self, data):
+        tokens = iter(data.split(","))
+
+        def build():
+            token = next(tokens)
+            if token == "#":
+                return None
+            node = TreeNode(int(token))
+            node.left = build()
+            node.right = build()
+            return node
+
+        return build()
+
+
+codec = Codec()
+root = build_tree([1, 2, 3, None, None, 4, 5])
+text = codec.serialize(root)
+print(text)
+print(to_list(codec.deserialize(text)))
+print(codec.serialize(None))</code></pre>
+    <pre class="output">1,2,#,#,3,4,#,#,5,#,#
+[1, 2, 3, None, None, 4, 5]
+#</pre>
+    <p class="cx">Time O(n) · Space O(n) for the string and the recursion stack, O(h) for the stack alone</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting the marker for a missing child is the usual bug. Without the second <code>#</code> after 2, the decoder would attach 3 as the right child of 2 instead of the right child of 1.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To rebuild a tree from a sequence, record the shape with null markers in a fixed traversal order. Then decode with the same traversal, reading one token at a time.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Relation</dt><dd>The formal name for a table: a set of tuples over named attributes.</dd></div>
+    <div><dt>Tuple</dt><dd>One row of a relation.</dd></div>
+    <div><dt>Attribute</dt><dd>A named column of a relation.</dd></div>
+    <div><dt>Domain</dt><dd>The set of allowed values for an attribute.</dd></div>
+    <div><dt>Degree and cardinality</dt><dd>Degree is the number of attributes; cardinality is the number of tuples.</dd></div>
+    <div><dt>Schema and instance</dt><dd>The schema is the structure; the instance is the data at one moment.</dd></div>
+    <div><dt>Entity and weak entity</dt><dd>A thing we model; a weak entity needs an owner entity to be identified.</dd></div>
+    <div><dt>Relationship</dt><dd>An association between entities, which can have its own attributes.</dd></div>
+    <div><dt>Cardinality ratio</dt><dd>How many entities on each side may be linked: 1:1, 1:N or M:N.</dd></div>
+    <div><dt>Participation</dt><dd>Total means every entity must take part; partial means some need not.</dd></div>
+    <div><dt>Junction table</dt><dd>The table that represents a many to many relationship.</dd></div>
+    <div><dt>Superkey</dt><dd>A set of attributes that is unique across all rows.</dd></div>
+    <div><dt>Candidate key</dt><dd>A minimal superkey: removing any attribute breaks uniqueness.</dd></div>
+    <div><dt>Primary key</dt><dd>The candidate key chosen to identify rows; it cannot be NULL.</dd></div>
+    <div><dt>Alternate key</dt><dd>A candidate key that is not the primary key.</dd></div>
+    <div><dt>Prime attribute</dt><dd>An attribute that belongs to at least one candidate key.</dd></div>
+    <div><dt>Foreign key</dt><dd>A column whose values must match a primary key in another table.</dd></div>
+    <div><dt>Referential integrity</dt><dd>Every non-NULL foreign key value refers to an existing row.</dd></div>
+    <div><dt>Selection (sigma)</dt><dd>Keeps the rows that satisfy a condition; the WHERE clause.</dd></div>
+    <div><dt>Projection (pi)</dt><dd>Keeps chosen attributes and removes duplicate rows.</dd></div>
+    <div><dt>Natural join</dt><dd>Pairs rows that agree on all shared attribute names.</dd></div>
+    <div><dt>Functional dependency</dt><dd>X determines Y when rows agreeing on X always agree on Y.</dd></div>
+    <div><dt>Trivial dependency</dt><dd>An FD whose right side is contained in its left side; it always holds.</dd></div>
+    <div><dt>Armstrong's axioms</dt><dd>Reflexivity, augmentation and transitivity: sound and complete rules for deriving FDs.</dd></div>
+    <div><dt>Attribute closure</dt><dd>The set of attributes that X determines, computed by repeatedly applying FDs.</dd></div>
+    <div><dt>Anomaly</dt><dd>An insert, update or delete problem caused by redundant or mixed data.</dd></div>
+    <div><dt>Partial dependency</dt><dd>A non-prime attribute depends on part of a composite key; violates 2NF.</dd></div>
+    <div><dt>Transitive dependency</dt><dd>X determines Y, Y determines a non-prime Z, and Y is not a key; violates 3NF.</dd></div>
+    <div><dt>1NF, 2NF, 3NF</dt><dd>Atomic values; no partial dependencies; no transitive dependencies.</dd></div>
+    <div><dt>BCNF</dt><dd>Every non-trivial FD has a superkey on its left side.</dd></div>
+    <div><dt>Lossless decomposition</dt><dd>Splitting a relation so that joining the parts returns exactly the original rows.</dd></div>
+    <div><dt>Dependency preservation</dt><dd>Every FD can still be checked inside one of the decomposed tables.</dd></div>
+    <div><dt>Binary search tree</dt><dd>A binary tree where left values are smaller and right values larger than each node.</dd></div>
+    <div><dt>Inorder traversal</dt><dd>Left, node, right; visits a BST in sorted order.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td>CREATE TABLE</td><td>Defines a new table and its columns and constraints</td><td><code>CREATE TABLE t (id INTEGER PRIMARY KEY);</code></td></tr>
+      <tr><td>PRIMARY KEY</td><td>Unique, NOT NULL identifier for rows</td><td><code>id INTEGER PRIMARY KEY</code></td></tr>
+      <tr><td>UNIQUE</td><td>No two rows share a value; NULLs are not equal</td><td><code>email TEXT UNIQUE</code></td></tr>
+      <tr><td>NOT NULL</td><td>Requires a value in the column</td><td><code>name TEXT NOT NULL</code></td></tr>
+      <tr><td>CHECK</td><td>Requires a condition on every row</td><td><code>CHECK (salary &gt; 0)</code></td></tr>
+      <tr><td>REFERENCES</td><td>Declares a foreign key to a primary key</td><td><code>dept_id INTEGER REFERENCES department (dept_id)</code></td></tr>
+      <tr><td>ON DELETE CASCADE</td><td>Deletes child rows when the parent is deleted</td><td><code>REFERENCES department (dept_id) ON DELETE CASCADE</code></td></tr>
+      <tr><td>ON DELETE SET NULL</td><td>Sets the foreign key to NULL when the parent is deleted</td><td><code>REFERENCES department (dept_id) ON DELETE SET NULL</code></td></tr>
+      <tr><td>&sigma; (selection)</td><td>Filter rows; SQL WHERE</td><td><code>&sigma;<sub>dept='Sales'</sub>(Emp)</code></td></tr>
+      <tr><td>&pi; (projection)</td><td>Choose attributes, remove duplicates; SQL SELECT DISTINCT</td><td><code>&pi;<sub>name</sub>(Emp)</code></td></tr>
+      <tr><td>closure(attrs, fds)</td><td>Python function from this page: attribute closure</td><td><code>closure("A", [("AB", "C")])</code> returns <code>A</code></td></tr>
+      <tr><td>candidate_keys(attrs, fds)</td><td>Python function from this page: all minimal superkeys</td><td><code>candidate_keys("ABCD", fds)</code></td></tr>
+      <tr><td>Codec.serialize / deserialize</td><td>Encode a tree as preorder text with # markers, and decode it</td><td><code>serialize(build_tree([1, 2]))</code> gives <code>1,2,#,#,#</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 16?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 16 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-15.html"><small>Previous, day 15</small>Networks, APIs, security basics + FastAPI</a><a class="next" href="day-17.html"><small>Next, day 17</small>DBMS 2: Transactions, concurrency, indexing</a></nav>
+</main><script src="assets/app.js"></script></body></html>

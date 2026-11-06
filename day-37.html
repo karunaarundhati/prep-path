@@ -1,0 +1,844 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 37: Machine learning + Explainable AI</title><meta name="description" content="Today covers the working core of machine learning: how a model learns from examples, how to split and prepare data without cheating, the classic supervised and unsupervised algorithms, how to measure a model honestly, and how to explain what a model is doing. Interviewers use these questions to test whether you understand the trade-offs behind each name, not just the names themselves."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="37" data-key="37" data-noun="day" data-num="37" data-track="ai">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Machine learning + Explainable AI</h1>
+<p class="lede">Today covers the working core of machine learning: how a model learns from examples, how to split and prepare data without cheating, the classic supervised and unsupervised algorithms, how to measure a model honestly, and how to explain what a model is doing. Interviewers use these questions to test whether you understand the trade-offs behind each name, not just the names themselves.</p>
+<div class="station"><b>37</b><span>Tue 8 Dec 2026 · AI &amp; ML · DSA: Mixed set: dynamic programming</span></div>
+<ul class="topics"><li>Bias, variance and data leakage</li><li>Supervised algorithms</li><li>Unsupervised algorithms</li><li>Metrics: confusion matrix, ROC-AUC, RMSE</li><li>Tuning and pipelines</li><li>Explainable AI and fairness</li><li>DSA: dynamic programming</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Foundations">
+  <h2>Machine learning foundations and data preparation</h2>
+  <p>Traditional programming means a person writes the rules and the computer applies them. Machine learning reverses that. A person supplies examples, and an algorithm finds a rule (a <em>model</em>) that maps inputs to outputs. The model is a function with adjustable numbers called <strong>parameters</strong> (for example, the slope and intercept of a line). Settings chosen by the person before training, such as the depth of a tree or the learning rate, are called <strong>hyperparameters</strong>.</p>
+  <p>Most tasks fall into two families. In <strong>supervised learning</strong> every training example has a known answer, called the <strong>label</strong> or <strong>target</strong>. The model learns to predict the label from the <strong>features</strong>, which are the measured inputs such as house size or number of rooms. Predicting a number is <strong>regression</strong>. Predicting a category is <strong>classification</strong>. In <strong>unsupervised learning</strong> there are no labels. The algorithm looks for structure on its own, for example groups of similar customers (clustering) or a smaller set of directions that capture most of the variation (dimensionality reduction).</p>
+
+  <h3>The goal is to predict new data, not old data</h3>
+  <p>A model that repeats the training answers perfectly has learned nothing useful. What matters is how it performs on <strong>unseen data</strong>. That is why data is split into a <strong>training set</strong> (used to fit the parameters), a <strong>validation set</strong> (used to choose hyperparameters), and a <strong>test set</strong> (used once, at the end, to report an honest score).</p>
+  <p>Two kinds of error explain almost every model problem:</p>
+  <ul>
+    <li><strong>Bias</strong> is error from a model that is too simple to capture the real pattern. It misses the signal in both the training data and the new data. This is <strong>underfitting</strong>.</li>
+    <li><strong>Variance</strong> is error from a model that is so sensitive to the particular training sample that it fits the noise. It does well on the training data but poorly on new data. This is <strong>overfitting</strong>.</li>
+  </ul>
+  <p>Some error can never be removed. It comes from noise in the data itself, and it is called <strong>irreducible error</strong>. The art is to choose a model flexible enough to capture the pattern but not so flexible that it memorizes the noise. That trade-off is the <strong>bias-variance trade-off</strong>.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Training error goes down as a model gets more flexible. Test error goes down at first, then rises again once the model starts fitting noise. The best model sits at the bottom of the test-error curve.</p></div>
+
+  <h3>A worked example: two poor models, two different failures</h3>
+  <p>The next example makes this concrete. The training data follows roughly the line y = 2x + 1 with a little noise. The first model, the <em>mean model</em>, ignores x and predicts the average of the training labels for every input. It is too simple, so it has high bias. The second model, <em>nearest neighbour</em>, finds the training point closest to the new input and copies its label. It memorizes the training set, so it has high variance.</p>
+  <p>The function <code>mse</code> is the mean squared error. For each point, subtract the prediction from the true value, square the difference (so positive and negative errors both count), and average the squares. Lower is better.</p>
+  <pre class="code" data-lang="python"><code># Training data: roughly y = 2x + 1 with a little noise
+x_train = [0, 1, 2, 3, 4, 5, 6, 7]
+y_train = [1.2, 2.8, 5.1, 6.9, 9.2, 10.8, 13.1, 15.0]
+# Test data: new points the models never saw during training
+x_test = [0.5, 2.5, 4.5, 6.5]
+y_test = [2.1, 6.3, 10.1, 13.8]
+
+def mse(y_true, y_pred):
+    return sum((a - b) ** 2 for a, b in zip(y_true, y_pred)) / len(y_true)
+
+# Model 1: the mean model (simple, high bias)
+mean_y = sum(y_train) / len(y_train)
+def predict_mean(x):
+    return mean_y
+
+# Model 2: nearest neighbour (memorizes, high variance)
+def predict_nearest(x):
+    nearest = min(range(len(x_train)), key=lambda i: abs(x_train[i] - x))
+    return y_train[nearest]
+
+for name, predict in [("mean model", predict_mean), ("nearest neighbour", predict_nearest)]:
+    train_pred = [predict(x) for x in x_train]
+    test_pred = [predict(x) for x in x_test]
+    print(f"{name}: train MSE {mse(y_train, train_pred):.2f}, test MSE {mse(y_test, test_pred):.2f}")</code></pre>
+  <pre class="output">mean model: train MSE 20.90, test MSE 18.94
+nearest neighbour: train MSE 0.00, test MSE 0.89</pre>
+  <h3>Data preparation and leakage</h3>
+  <p><strong>Data leakage</strong> happens when information that would not be available at prediction time sneaks into training. It is the most common reason a model looks excellent in a notebook and fails in production. There are two main forms. <em>Target leakage</em> happens when a feature is computed from the outcome itself, for example a field "refund issued" in a model that predicts whether a purchase will be refunded. <em>Preprocessing leakage</em> happens when a step that learns from data, such as a scaler, an imputer or a one-hot encoder, is fitted on the whole dataset before splitting. The test set then influences the training inputs.</p>
+  <p>The rule is simple: <strong>split first, then fit every preprocessing step on the training data only</strong>, and apply the already-fitted step to the validation and test data. The example below shows how the scaling range changes when the test data is included by mistake. The test value 100 is far larger than the training values, so the leaked version squeezes all the training values toward zero.</p>
+  <pre class="code" data-lang="python"><code>train = [2.0, 4.0, 6.0, 8.0]
+test = [100.0, 12.0]
+
+def min_max_scale(values, lo, hi):
+    return [(v - lo) / (hi - lo) for v in values]
+
+# WRONG: learn the minimum and maximum from ALL the data, then split
+all_data = train + test
+lo_bad, hi_bad = min(all_data), max(all_data)
+print("leaky range:", lo_bad, hi_bad)
+print("leaky scaled train:", [round(v, 3) for v in min_max_scale(train, lo_bad, hi_bad)])
+
+# RIGHT: learn the minimum and maximum from the training data only
+lo, hi = min(train), max(train)
+print("clean range:", lo, hi)
+print("clean scaled train:", [round(v, 3) for v in min_max_scale(train, lo, hi)])
+print("clean scaled test:", [round(v, 3) for v in min_max_scale(test, lo, hi)])</code></pre>
+  <pre class="output">leaky range: 2.0 100.0
+leaky scaled train: [0.0, 0.02, 0.041, 0.061]
+clean range: 2.0 8.0
+clean scaled train: [0.0, 0.333, 0.667, 1.0]
+clean scaled test: [16.333, 1.667]</pre>
+  <h3>Encoding categories and keeping a validation set</h3>
+  <p>Most algorithms need numbers, so text categories must be encoded. A <strong>one-hot encoding</strong> creates one 0/1 column per category. Each row has a single 1 in the column of its own category. One-hot encoding avoids accidentally telling the model that "blue" is less than "red" or that the categories have an order. The categories must be learned from the training data too, so unseen categories at prediction time need a plan (for example, an all-zero row).</p>
+  <pre class="code" data-lang="python"><code>colors = ["red", "green", "red", "blue"]
+categories = sorted(set(colors))
+print("categories:", categories)
+for c in colors:
+    row = [1 if c == cat else 0 for cat in categories]
+    print(c, row)</code></pre>
+  <pre class="output">categories: ['blue', 'green', 'red']
+red [0, 0, 1]
+green [0, 1, 0]
+red [0, 0, 1]
+blue [1, 0, 0]</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Splitting after scaling, imputing or encoding on the full dataset. Always split first, fit the transformers on the training part, then reuse them. Scikit-learn's <code>Pipeline</code> (in the tuning and pipelines unit below) does this for you.</p></div>
+  <p>Use the <strong>validation set</strong> to make choices (which model, which k, which depth) and keep the <strong>test set</strong> locked away until the end. If you look at the test score, try a change, and look again, the test set has quietly become a second validation set and your reported score is optimistic.</p>
+</section>
+
+<section class="unit" id="c2" data-title="Supervised">
+  <h2>Supervised algorithms, one idea at a time</h2>
+  <p>Each supervised algorithm answers the same question in a different way: given labelled examples, which function should I use for new inputs, and how do I choose its parameters? Learn the answer to that question for each algorithm, and the interview follow-ups become easy.</p>
+
+  <h3>Linear regression</h3>
+  <p><strong>Linear regression</strong> predicts a number as a weighted sum of the features, for example y = w x + b for one feature. Training means choosing w and b so that the sum of squared errors is as small as possible. This is <strong>least squares</strong>. For one feature there is a closed-form answer. The slope equals the covariance of x and y divided by the variance of x, and the intercept makes the line pass through the point of averages. With many features the same idea is written with matrices (the normal equation), or the weights are found by gradient descent, which repeatedly nudges the parameters downhill on the error surface.</p>
+  <pre class="code" data-lang="python"><code>xs = [1, 2, 3, 4, 5]
+ys = [2.1, 3.9, 6.2, 7.8, 10.1]
+
+n = len(xs)
+mean_x = sum(xs) / n
+mean_y = sum(ys) / n
+
+# slope = covariance(x, y) / variance(x)
+cov = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / n
+var = sum((x - mean_x) ** 2 for x in xs) / n
+slope = cov / var
+intercept = mean_y - slope * mean_x
+
+print(f"slope={slope:.3f} intercept={intercept:.3f}")
+for x in [6, 7]:
+    print(f"predict x={x}: {intercept + slope * x:.2f}")</code></pre>
+  <pre class="output">slope=1.990 intercept=0.050
+predict x=6: 11.99
+predict x=7: 13.98</pre>
+
+  <h3>Logistic regression</h3>
+  <p>Despite its name, <strong>logistic regression</strong> is a classifier. It computes a score z = w x + b, then squashes it into a probability with the <strong>sigmoid</strong> function, sigma(z) = 1 / (1 + e^(-z)). The sigmoid output is always between 0 and 1. The model predicts class 1 when the probability is at least 0.5, which is the same as z being at least 0. Training minimizes the <strong>log loss</strong> (also called cross-entropy), which punishes confident wrong answers heavily. Unlike linear regression, there is no closed form, so the parameters are found by gradient descent.</p>
+  <p>The code below trains a one-feature model by gradient descent. Each pass (an <em>epoch</em>) computes the gradient, which tells us how the loss changes if each weight moves a little, and then moves both weights a small step in the opposite direction. The learning rate controls the step size.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+xs = [0.5, 1.0, 1.5, 3.0, 3.5, 4.0]
+ys = [0, 0, 0, 1, 1, 1]
+
+def sigmoid(z):
+    return 1 / (1 + math.exp(-z))
+
+w, b = 0.0, 0.0
+learning_rate = 0.1
+for epoch in range(2000):
+    grad_w = 0.0
+    grad_b = 0.0
+    for x, y in zip(xs, ys):
+        p = sigmoid(w * x + b)      # predicted probability of class 1
+        grad_w += (p - y) * x       # gradient of the log loss for w
+        grad_b += (p - y)           # gradient of the log loss for b
+    w -= learning_rate * grad_w / len(xs)
+    b -= learning_rate * grad_b / len(xs)
+
+print(f"w={w:.2f} b={b:.2f}")
+for x in [1.0, 2.5, 4.0]:
+    print(f"x={x}: P(y=1)={sigmoid(w * x + b):.2f}")</code></pre>
+  <pre class="output">w=3.24 b=-6.93
+x=1.0: P(y=1)=0.02
+x=2.5: P(y=1)=0.76
+x=4.0: P(y=1)=1.00</pre>
+  <h3>k-nearest neighbours (kNN)</h3>
+  <p><strong>k-nearest neighbours</strong> has no training phase at all. It stores the training examples. To classify a new point it measures the distance to every stored point, keeps the k closest, and takes a majority vote. Because nothing is learned in advance, kNN is called a <em>lazy</em> learner. Its prediction cost grows with the size of the training set, and its results depend heavily on the scale of the features, so standardize them first. A small k (such as 1) has high variance, and a very large k smooths the boundary until it underfits. For two classes, an odd k avoids ties.</p>
+  <pre class="code" data-lang="python"><code>import math
+from collections import Counter
+
+train_points = [((1.0, 1.0), "A"), ((1.5, 2.0), "A"), ((3.0, 4.0), "B"),
+                ((5.0, 7.0), "B"), ((3.5, 5.0), "B"), ((1.0, 0.5), "A")]
+
+def knn_predict(query, k=3):
+    # 1. measure the distance from the query to every stored point
+    dists = []
+    for point, label in train_points:
+        dists.append((math.dist(query, point), label))
+    # 2. keep the k closest and take a majority vote
+    dists.sort()
+    votes = Counter(label for _, label in dists[:k])
+    return votes.most_common(1)[0][0]
+
+print(knn_predict((1.2, 1.4)))
+print(knn_predict((4.0, 5.5)))</code></pre>
+  <pre class="output">A
+B</pre>
+
+  <h3>Naive Bayes</h3>
+  <p><strong>Naive Bayes</strong> uses Bayes' rule. It estimates, for each class, the probability of the observed features and combines it with the class prior (how common the class is). The word "naive" refers to the assumption that the features are independent once the class is known. That assumption is almost never true (the words "free" and "money" are related), but the method still ranks classes well, is extremely fast, and works with very little data. It is a classic baseline for text classification such as spam filtering. A count of zero would make the whole product zero, so <strong>Laplace smoothing</strong> adds 1 to every count.</p>
+  <pre class="code" data-lang="python"><code>spam_docs = [["free", "money"], ["free", "offer"], ["win", "money"]]
+ham_docs = [["meeting", "today"], ["lunch", "today"], ["project", "meeting"]]
+vocab = {w for doc in spam_docs + ham_docs for w in doc}
+
+def likelihood(word, docs):
+    # P(word | class) with Laplace smoothing: (count + 1) / (total words + vocabulary size)
+    total_words = sum(len(doc) for doc in docs)
+    count = sum(doc.count(word) for doc in docs)
+    return (count + 1) / (total_words + len(vocab))
+
+def posterior_spam(message):
+    # Equal priors (3 documents in each class); multiply the per-word likelihoods
+    p_spam = 0.5
+    p_ham = 0.5
+    for word in message:
+        p_spam *= likelihood(word, spam_docs)
+        p_ham *= likelihood(word, ham_docs)
+    return p_spam / (p_spam + p_ham)
+
+print(round(posterior_spam(["free", "money"]), 3))
+print(round(posterior_spam(["meeting", "today"]), 3))</code></pre>
+  <pre class="output">0.9
+0.1</pre>
+
+  <h3>Support vector machines (SVM)</h3>
+  <p>A <strong>support vector machine</strong> looks for the straight boundary (a <em>hyperplane</em>, a line in 2D) that separates the classes with the widest possible <strong>margin</strong>, the empty band around the boundary. The points that touch the edges of the band are the <strong>support vectors</strong>. Only they determine the boundary, which is why SVMs are robust to many easy points far from the line. The formula is w . x + b = 0 for the boundary. The signed distance of a point from the boundary is (w . x + b) divided by the length of w, and the margin width is 2 divided by the length of w. Maximizing the margin is the same as minimizing the length of w, subject to the points being on the correct side.</p>
+  <p>Real data is rarely perfectly separable, so the <em>soft margin</em> version allows a few violations, controlled by a constant C. Its loss is the <strong>hinge loss</strong>, max(0, 1 - y f(x)) for labels y of +1 or -1. A <strong>kernel</strong> (for example the RBF kernel) lets the SVM draw curved boundaries by working as if the data had been mapped to a higher-dimensional space, without computing that mapping explicitly. This is the <em>kernel trick</em>.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+w = (1.0, 1.0)
+b = -3.0
+points = [(3.0, 2.0), (1.0, 1.0), (2.0, 2.0)]
+
+norm_w = math.sqrt(w[0] ** 2 + w[1] ** 2)
+for x in points:
+    score = w[0] * x[0] + w[1] * x[1] + b
+    distance = score / norm_w
+    side = "positive" if score &gt; 0 else "negative"
+    print(x, "score", score, "distance", round(distance, 3), side)</code></pre>
+  <pre class="output">(3.0, 2.0) score 2.0 distance 1.414 positive
+(1.0, 1.0) score -1.0 distance -0.707 negative
+(2.0, 2.0) score 1.0 distance 0.707 positive</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>SVMs and kNN depend on distances, so an unscaled feature measured in large units (income in dollars next to age in years) silently dominates the result. Scale the features first.</p></div>
+
+  <h3>Decision trees</h3>
+  <p>A <strong>decision tree</strong> asks a sequence of yes/no questions about the features, such as "is income at most 50?", and predicts the majority label (or the average, for regression) in the leaf it reaches. Trees are built greedily. At each node the algorithm tests candidate splits and keeps the one that makes the child groups the <em>purest</em>. Purity is measured with <strong>Gini impurity</strong>, 1 minus the sum of the squared class fractions. A pure group has Gini 0. A 50/50 group has Gini 0.5 for two classes. The gain of a split is the parent's impurity minus the weighted average impurity of the children.</p>
+  <p>The next example scans every midpoint between neighbouring feature values and reports the split with the largest gain.</p>
+  <pre class="code" data-lang="python"><code>data = [(2.0, "no"), (3.0, "no"), (4.0, "no"), (6.0, "yes"), (7.0, "yes"), (8.0, "yes"), (9.0, "no")]
+
+def gini(labels):
+    n = len(labels)
+    if n == 0:
+        return 0.0
+    yes_fraction = labels.count("yes") / n
+    no_fraction = 1 - yes_fraction
+    return 1 - (yes_fraction ** 2 + no_fraction ** 2)
+
+def best_split(rows):
+    parent = gini([label for _, label in rows])
+    values = sorted(set(v for v, _ in rows))
+    best = None
+    for i in range(len(values) - 1):
+        threshold = (values[i] + values[i + 1]) / 2
+        left = [label for v, label in rows if v &lt;= threshold]
+        right = [label for v, label in rows if v &gt; threshold]
+        weighted = (len(left) * gini(left) + len(right) * gini(right)) / len(rows)
+        gain = parent - weighted
+        if best is None or gain &gt; best[1]:
+            best = (threshold, gain)
+    return parent, best
+
+parent, (threshold, gain) = best_split(data)
+print("parent gini:", round(parent, 3))
+print("best threshold:", threshold, "gain:", round(gain, 3))</code></pre>
+  <pre class="output">parent gini: 0.49
+best threshold: 5.0 gain: 0.276</pre>
+  <h3>Ensembles: random forest and gradient boosting</h3>
+  <p>An <strong>ensemble</strong> combines many models so their individual mistakes partly cancel. Two families dominate tabular data. <strong>Bagging</strong> (bootstrap aggregating) trains many models on random resamples of the data and averages them. A <strong>random forest</strong> is bagging with deep decision trees, plus one extra trick: at each split only a random subset of the features is considered. This decorrelates the trees, so averaging removes more variance. Forests are hard to overfit badly and need little tuning.</p>
+  <p><strong>Boosting</strong> builds models one after another, and each new model concentrates on the mistakes of the ones before. In <strong>gradient boosting</strong> the first model predicts the mean. The residuals (true value minus current prediction) are computed, a small tree is fitted to those residuals, and its scaled output is added to the running prediction. Repeating this many times reduces the bias that a single shallow tree would leave. A learning rate (shrinkage) keeps each step small. Popular libraries implement this idea efficiently, but the mechanism is the same.</p>
+  <pre class="code" data-lang="python"><code>ys = [3.0, 5.0, 4.0, 8.0, 9.0]
+pred = sum(ys) / len(ys)
+residuals = [round(y - pred, 2) for y in ys]
+print("start prediction:", pred)
+print("residuals:", residuals)</code></pre>
+  <pre class="output">start prediction: 5.8
+residuals: [-2.8, -0.8, -1.8, 2.2, 3.2]</pre>
+  <p>The next boosting round would fit a tree to those residuals. Notice that the points with positive residuals are the ones the model underestimated, so the next tree should push its predictions up for them.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Bagging or boosting, which reduces variance and which reduces bias? Bagging averages many high-variance models, so it mainly reduces variance. Boosting adds models that correct earlier errors, so it mainly reduces bias, although it needs care to avoid overfitting.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="Unsupervised">
+  <h2>Unsupervised learning: clustering and dimensionality reduction</h2>
+  <p>Without labels, the algorithm must decide what "similar" means and what structure to report. Clustering groups points that are close together. Dimensionality reduction finds a smaller set of new features that keep most of the information. In both cases the choice of distance and scaling matters as much as the algorithm.</p>
+
+  <h3>k-means clustering</h3>
+  <p><strong>k-means</strong> divides the data into k clusters. Each cluster has a <strong>centroid</strong>, the mean of its points. The standard method, <strong>Lloyd's algorithm</strong>, alternates two steps. The <em>assignment</em> step puts each point in the cluster of its nearest centroid. The <em>update</em> step moves each centroid to the mean of the points now assigned to it. The steps repeat until nothing changes. Each step can only lower the total squared distance from points to their centroids, so the algorithm always converges, but possibly to a local optimum. This is why practical implementations run several random starts and use the k-means++ seeding method. You must choose k in advance, and k-means assumes roughly round clusters of similar size.</p>
+  <pre class="code" data-lang="python"><code>points = [1.0, 1.5, 2.0, 8.0, 9.0, 10.0]
+centroids = [0.0, 5.0]
+
+for step in range(3):
+    # Assignment: each point joins its nearest centroid
+    clusters = [[], []]
+    for p in points:
+        nearest = min(range(len(centroids)), key=lambda c: abs(p - centroids[c]))
+        clusters[nearest].append(p)
+    # Update: each centroid moves to the mean of its cluster
+    centroids = [sum(c) / len(c) for c in clusters]
+    print(f"step {step + 1}: clusters={clusters} centroids={centroids}")</code></pre>
+  <pre class="output">step 1: clusters=[[1.0, 1.5, 2.0], [8.0, 9.0, 10.0]] centroids=[1.5, 9.0]
+step 2: clusters=[[1.0, 1.5, 2.0], [8.0, 9.0, 10.0]] centroids=[1.5, 9.0]
+step 3: clusters=[[1.0, 1.5, 2.0], [8.0, 9.0, 10.0]] centroids=[1.5, 9.0]</pre>
+  <h3>Hierarchical clustering</h3>
+  <p><strong>Agglomerative hierarchical clustering</strong> starts with every point as its own cluster and repeatedly merges the two closest clusters. The result is a tree called a <strong>dendrogram</strong>. You can cut the tree at any height to get any number of clusters, so you do not have to fix k in advance. What "closest" means depends on the <strong>linkage</strong>. <em>Single linkage</em> uses the closest pair of members (it can chain clusters together through a thin bridge of points). <em>Complete linkage</em> uses the farthest pair (compact clusters). <em>Average linkage</em> uses the mean pairwise distance. The example below uses single linkage on four points.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+points = {"A": (0, 0), "B": (1, 0), "C": (5, 0), "D": (6, 0)}
+clusters = {name: [name] for name in points}
+
+def single_link(c1, c2):
+    # single linkage: the distance between the closest pair of members
+    return min(math.dist(points[a], points[b]) for a in clusters[c1] for b in clusters[c2])
+
+step = 0
+while len(clusters) &gt; 1:
+    names = sorted(clusters)
+    best = None
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            d = single_link(names[i], names[j])
+            if best is None or d &lt; best[0]:
+                best = (d, names[i], names[j])
+    d, a, b = best
+    step += 1
+    clusters[a] = clusters[a] + clusters.pop(b)
+    print(f"merge {step}: {a}+{b} at distance {d}, now {sorted(clusters[a])}")</code></pre>
+  <pre class="output">merge 1: A+B at distance 1.0, now ['A', 'B']
+merge 2: C+D at distance 1.0, now ['C', 'D']
+merge 3: A+C at distance 4.0, now ['A', 'B', 'C', 'D']</pre>
+
+  <h3>DBSCAN</h3>
+  <p><strong>DBSCAN</strong> (density-based spatial clustering of applications with noise) defines clusters as dense regions. It has two settings: <code>eps</code>, the radius of a neighbourhood, and <code>min_samples</code>, the number of points needed inside that radius. A <strong>core point</strong> has at least <code>min_samples</code> points within eps (counting itself). Core points that lie within eps of each other form one cluster, and <strong>border points</strong> (non-core points near a core point) join it. Points that belong to no cluster are labelled <strong>noise</strong>. DBSCAN finds clusters of any shape, needs no value for k, and marks outliers explicitly. Its weak spot is clusters of very different densities, because a single eps cannot suit them all.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+points = [(0, 0), (0, 1), (1, 0), (1, 1), (5, 5), (9, 9)]
+eps = 1.5
+min_samples = 3
+
+for p in points:
+    neighbours = [q for q in points if math.dist(p, q) &lt;= eps]
+    kind = "core" if len(neighbours) &gt;= min_samples else "not core"
+    print(p, len(neighbours), kind)</code></pre>
+  <pre class="output">(0, 0) 4 core
+(0, 1) 4 core
+(1, 0) 4 core
+(1, 1) 4 core
+(5, 5) 1 not core
+(9, 9) 1 not core</pre>
+
+  <h3>Principal component analysis (PCA)</h3>
+  <p><strong>Principal component analysis</strong> rotates the data onto new axes, the <em>principal components</em>, which are ordered by how much variance they capture. The first component points in the direction of greatest spread, the second is perpendicular to it and captures the most of what remains, and so on. Mathematically, the components are the eigenvectors of the <strong>covariance matrix</strong> (a table of variances and covariances of the features), and the variance along each component is its eigenvalue. Keeping the first few components compresses the data while losing the least variance. PCA is linear and sensitive to scale, so standardize the features first.</p>
+  <p>For a 2 by 2 symmetric matrix you do not need a library. Its two eigenvalues are (trace/2) plus or minus the square root of (trace squared / 4 minus the determinant). The trace is the sum of the diagonal, and the determinant is ad minus bc.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+data = [(2.0, 1.0), (3.0, 3.0), (4.0, 3.0), (5.0, 5.0)]
+n = len(data)
+mx = sum(p[0] for p in data) / n
+my = sum(p[1] for p in data) / n
+centered = [(x - mx, y - my) for x, y in data]
+
+# 2 by 2 covariance matrix [[sxx, sxy], [sxy, syy]] (divide by n)
+sxx = sum(x * x for x, _ in centered) / n
+syy = sum(y * y for _, y in centered) / n
+sxy = sum(x * y for x, y in centered) / n
+
+trace = sxx + syy
+det = sxx * syy - sxy * sxy
+root = math.sqrt(trace * trace / 4 - det)
+lam1 = trace / 2 + root
+lam2 = trace / 2 - root
+
+print(f"variance along PC1: {lam1:.3f}, along PC2: {lam2:.3f}")
+print(f"explained by PC1: {lam1 / trace:.1%}")</code></pre>
+  <pre class="output">variance along PC1: 3.171, along PC2: 0.079
+explained by PC1: 97.6%</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>PCA on unscaled data lets the feature with the largest units dominate the first component. Standardize each feature to mean 0 and standard deviation 1 before PCA, unless the units are already comparable.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you choose k for k-means? Try several values, plot the within-cluster sum of squares (the "elbow" plot), and check silhouette scores. Then judge whether the clusters are meaningful for the business question. There is no single correct k.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="Metrics">
+  <h2>Measuring models honestly</h2>
+  <p>A metric turns a model's predictions into a single number. Choosing the right metric is a business decision as much as a statistical one. A fraud detector and a movie recommender can both be "90 percent accurate" and be useless or excellent for very different reasons. The metrics below are the ones interviewers expect you to compute by hand.</p>
+
+  <h3>The confusion matrix</h3>
+  <p>For a binary classifier, every prediction falls into one of four cells. The <strong>true positives</strong> (TP) are positives predicted as positive. The <strong>false positives</strong> (FP) are negatives predicted as positive, also called false alarms or type I errors. The <strong>false negatives</strong> (FN) are positives missed, also called type II errors. The <strong>true negatives</strong> (TN) are negatives predicted as negative. Every other metric is built from these four counts.</p>
+  <ul>
+    <li><strong>Accuracy</strong> = (TP + TN) / total. The share of all predictions that are right.</li>
+    <li><strong>Precision</strong> = TP / (TP + FP). Of the items the model flagged, how many were truly positive.</li>
+    <li><strong>Recall</strong> (also called sensitivity or true positive rate) = TP / (TP + FN). Of the truly positive items, how many the model found.</li>
+    <li><strong>F1</strong> = 2 x precision x recall / (precision + recall). The harmonic mean of precision and recall. It is high only when both are high.</li>
+  </ul>
+  <p>Work through a small example. The model below predicts on ten items. Read the code and count the four cells yourself before looking at the output.</p>
+  <pre class="code" data-lang="python"><code>y_true = [1, 1, 1, 1, 0, 0, 0, 0, 0, 1]
+y_pred = [1, 1, 0, 1, 0, 0, 1, 0, 0, 0]
+
+tp = sum(1 for t, p in zip(y_true, y_pred) if t == 1 and p == 1)
+fp = sum(1 for t, p in zip(y_true, y_pred) if t == 0 and p == 1)
+fn = sum(1 for t, p in zip(y_true, y_pred) if t == 1 and p == 0)
+tn = sum(1 for t, p in zip(y_true, y_pred) if t == 0 and p == 0)
+print("TP", tp, "FP", fp, "FN", fn, "TN", tn)
+
+precision = tp / (tp + fp)
+recall = tp / (tp + fn)
+f1 = 2 * precision * recall / (precision + recall)
+accuracy = (tp + tn) / len(y_true)
+print(f"accuracy={accuracy:.2f} precision={precision:.2f} recall={recall:.2f} f1={f1:.2f}")</code></pre>
+  <pre class="output">TP 3 FP 1 FN 2 TN 4
+accuracy=0.70 precision=0.75 recall=0.60 f1=0.67</pre>
+  <p>Notice that precision and recall pull in different directions. Lowering the decision threshold flags more items, which raises recall and usually lowers precision. Raising it does the reverse. Choose the balance from the cost of each error: a cancer screening test should favour recall (do not miss cases), while a spam filter that deletes real email should favour precision.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Accuracy on imbalanced data. If 99 percent of transactions are legitimate, a model that always says "legitimate" scores 99 percent accuracy and catches zero fraud. Use precision, recall, F1, or PR-AUC when the positive class is rare.</p></div>
+
+  <h3>ROC curve and ROC-AUC</h3>
+  <p>Many classifiers output a score rather than a yes or no. Choosing a threshold turns the score into a decision. The <strong>ROC curve</strong> plots the true positive rate (recall) against the <strong>false positive rate</strong>, FP / (FP + TN), for every possible threshold. A perfect model reaches the top-left corner. A random guess runs along the diagonal. The <strong>AUC</strong> (area under the curve) summarizes the whole curve in one number from 0 to 1, and it has a clean meaning: <em>the probability that a randomly chosen positive gets a higher score than a randomly chosen negative</em>. A tie counts as half a win. The code computes that probability by comparing every positive with every negative.</p>
+  <pre class="code" data-lang="python"><code>scores = [0.9, 0.8, 0.6, 0.55, 0.4, 0.3]
+labels = [1, 0, 1, 1, 0, 0]
+
+pos = [s for s, y in zip(scores, labels) if y == 1]
+neg = [s for s, y in zip(scores, labels) if y == 0]
+
+wins = 0.0
+for ps in pos:
+    for ns in neg:
+        if ps &gt; ns:
+            wins += 1
+        elif ps == ns:
+            wins += 0.5
+auc = wins / (len(pos) * len(neg))
+print("pairs:", len(pos) * len(neg))
+print("AUC:", round(auc, 3))</code></pre>
+  <pre class="output">pairs: 9
+AUC: 0.778</pre>
+  <p>ROC-AUC does not depend on a threshold, and it is unaffected by how the scores are scaled (only their order matters). It can look optimistic on heavily imbalanced data, because the false positive rate uses the large number of negatives in its denominator. In that case the precision-recall curve is more informative.</p>
+
+  <h3>Regression metrics: MAE, MSE and RMSE</h3>
+  <p>For numbers, the error is the true value minus the prediction. The <strong>mean absolute error</strong> (MAE) averages the absolute errors and is easy to explain. The <strong>mean squared error</strong> (MSE) averages the squared errors, so large mistakes count much more. The <strong>root mean squared error</strong> (RMSE) is the square root of the MSE, which brings the result back into the units of the target, such as dollars. Use MAE when every unit of error costs the same, and RMSE when big misses are disproportionately bad.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+y_true = [3.0, 5.0, 2.5, 7.0]
+y_pred = [2.5, 5.0, 4.0, 8.0]
+errors = [t - p for t, p in zip(y_true, y_pred)]
+mae = sum(abs(e) for e in errors) / len(errors)
+mse = sum(e * e for e in errors) / len(errors)
+rmse = math.sqrt(mse)
+print("errors:", errors)
+print(f"MAE={mae} MSE={mse} RMSE={rmse:.3f}")</code></pre>
+  <pre class="output">errors: [0.5, 0.0, -1.5, -1.0]
+MAE=0.75 MSE=0.875 RMSE=0.935</pre>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why is ROC-AUC not enough on its own? Because it summarizes ranking quality across all thresholds, but the business needs one threshold and a cost for each error type. Pick the threshold from precision and recall at the operating point you need, and report calibration if you use the probabilities directly.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="Tuning and pipelines">
+  <h2>Cross-validation, tuning and pipelines</h2>
+  <p>A single train/validation split can be lucky or unlucky. <strong>k-fold cross-validation</strong> fixes this. The data is cut into k equal folds. Each fold takes a turn as the validation set while the other k minus 1 folds train the model. The k scores are averaged, and their spread tells you how stable the result is. Five or ten folds are typical. Every example is validated exactly once. The code below only shows how the folds are formed, which is the part people most often get wrong.</p>
+  <pre class="code" data-lang="python"><code>data = list(range(10))
+k = 5
+fold_size = len(data) // k
+for fold in range(k):
+    start = fold * fold_size
+    val = data[start:start + fold_size]
+    train = [x for x in data if x not in val]
+    print(f"fold {fold + 1}: validation={val} train={train}")</code></pre>
+  <pre class="output">fold 1: validation=[0, 1] train=[2, 3, 4, 5, 6, 7, 8, 9]
+fold 2: validation=[2, 3] train=[0, 1, 4, 5, 6, 7, 8, 9]
+fold 3: validation=[4, 5] train=[0, 1, 2, 3, 6, 7, 8, 9]
+fold 4: validation=[6, 7] train=[0, 1, 2, 3, 4, 5, 8, 9]
+fold 5: validation=[8, 9] train=[0, 1, 2, 3, 4, 5, 6, 7]</pre>
+  <p>Cross-validation is also the safe way to choose hyperparameters. A <strong>grid search</strong> tries every combination from a list of values, and a <strong>random search</strong> samples combinations at random, which often finds good settings faster when only a few hyperparameters matter. Each combination is scored with cross-validation on the training data, and the test set stays untouched. If you need an unbiased estimate of the whole tuning procedure, use <strong>nested cross-validation</strong>: an inner loop tunes and an outer loop measures.</p>
+
+  <h3>Pipelines keep preprocessing honest</h3>
+  <p>A <strong>pipeline</strong> chains preprocessing steps and a model into one object. When you call <code>fit</code> on a pipeline inside cross-validation, each step is fitted only on the training folds, so the leakage from earlier in this unit cannot happen by accident. The example below is scikit-learn code. It needs the <a href="https://scikit-learn.org/stable/">scikit-learn library</a>, which is not available in this lesson's runner, so it has no output block. Read it for structure: the parameter name <code>model__C</code> means "the C parameter of the step called model".</p>
+  <pre class="code" data-lang="python"><code>from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+X_train, y_train = make_classification(n_samples=200, n_features=5, random_state=0)
+
+pipe = Pipeline([
+    ("scale", StandardScaler()),                 # fitted on each training fold only
+    ("model", LogisticRegression(max_iter=200)),
+])
+param_grid = {"model__C": [0.1, 1.0, 10.0]}      # C controls the regularization strength
+search = GridSearchCV(pipe, param_grid, cv=5, scoring="f1")
+search.fit(X_train, y_train)
+print(search.best_params_)</code></pre>
+  <div class="note trap"><p><span class="t">Trap</span>Tuning on the test set. Each time you compare models on the test set and keep the best, you overfit to the test set. Tune with cross-validation on training data and report the test score once.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Put every data-dependent step inside the pipeline. Then cross-validation measures the whole procedure, not just the model.</p></div>
+</section>
+
+<section class="unit" id="c6" data-title="Explainability">
+  <h2>Explainable AI and fairness</h2>
+  <p>A model that cannot be explained is hard to debug, hard to trust, and sometimes illegal to use (for example for some credit decisions). <strong>Explainable AI</strong> (XAI) is the set of methods that show why a model made a prediction. Two distinctions organize the field. A <strong>global</strong> explanation describes the model as a whole, such as which features matter most on average. A <strong>local</strong> explanation describes one prediction, such as why this applicant was declined. Also, <strong>intrinsically interpretable</strong> models (short trees, linear models with sensible features) are explained by their structure, while <strong>post-hoc</strong> methods explain a complicated model after training.</p>
+
+  <h3>Partial dependence plots (PDP)</h3>
+  <p>A <strong>partial dependence plot</strong> shows how the average prediction changes as one feature changes. To compute it for a value v, set that feature to v for every row of the data, keep the other features as they really are, get the predictions, and average them. Repeating this over a grid of values draws the curve. It is a global, model-agnostic method. Its assumption is that the feature is not strongly correlated with the others, because setting it to v can create rows that never occur in real life.</p>
+  <pre class="code" data-lang="python"><code>def model(size, rooms):
+    return 40 * size + 5 * size ** 2 + 3 * rooms
+
+data = [(1.0, 2), (1.5, 3), (2.0, 3), (2.5, 4)]
+
+def partial_dependence_size(size):
+    # Fix size for every row, keep each row's real rooms, then average the predictions
+    return sum(model(size, rooms) for _, rooms in data) / len(data)
+
+for size in [1.0, 2.0, 3.0]:
+    print(f"size={size}: average prediction {partial_dependence_size(size):.1f}")</code></pre>
+  <pre class="output">size=1.0: average prediction 54.0
+size=2.0: average prediction 109.0
+size=3.0: average prediction 174.0</pre>
+  <h3>SHAP and Shapley values</h3>
+  <p><strong>SHAP</strong> (SHapley Additive exPlanations) explains one prediction by giving each feature a contribution. The contributions come from <strong>Shapley values</strong>, an idea from cooperative game theory. Imagine the features are players who share a prize (the prediction minus a baseline). Each player's fair share is its average marginal contribution over all possible orders in which the players could join the team. Shapley values have useful properties: the contributions add up exactly to the difference between the prediction and the baseline (the <em>additivity</em> property), and a feature that never changes the output gets zero.</p>
+  <p>Exact Shapley values need every subset of features, which grows quickly, so libraries use approximations and fast tree-specific algorithms. The code below computes exact values for three features by brute force, so you can see every step. The model has an interaction term, x1 times x3, which the contributions must split between the two features.</p>
+  <pre class="code" data-lang="python"><code>from itertools import combinations
+from math import factorial
+
+def f(x):
+    return 2 * x[0] + 3 * x[1] + x[0] * x[2]
+
+def value(coalition, x, baseline):
+    # Features in the coalition take the instance's values; the others take baseline values
+    z = [x[i] if i in coalition else baseline[i] for i in range(len(x))]
+    return f(z)
+
+def shapley(x, baseline):
+    n = len(x)
+    phi = []
+    for i in range(n):
+        others = [j for j in range(n) if j != i]
+        total = 0.0
+        for size in range(len(others) + 1):
+            for S in combinations(others, size):
+                weight = factorial(size) * factorial(n - size - 1) / factorial(n)
+                total += weight * (value(set(S) | {i}, x, baseline) - value(set(S), x, baseline))
+        phi.append(total)
+    return phi
+
+x = [1.0, 2.0, 3.0]
+baseline = [0.0, 0.0, 0.0]
+phi = shapley(x, baseline)
+print("contributions:", [round(p, 3) for p in phi])
+print("sum of contributions:", round(sum(phi), 3))
+print("f(x) - f(baseline):", f(x) - f(baseline))</code></pre>
+  <pre class="output">contributions: [3.5, 6.0, 1.5]
+sum of contributions: 11.0
+f(x) - f(baseline): 11.0</pre>
+  <h3>LIME and local surrogates</h3>
+  <p><strong>LIME</strong> (Local Interpretable Model-agnostic Explanations) explains one prediction by fitting a simple model nearby. It creates many perturbed copies of the instance (by switching features on or off, or by sampling values near the original), asks the black-box model for their predictions, weights the copies by how close they are to the original, and fits a small linear model to them. The coefficients of that linear model are the explanation. It is local, so it is only trusted near the instance, and results can change between runs because the sampling is random. Report the stability of the explanation before relying on it.</p>
+
+  <h3>Grad-CAM for images</h3>
+  <p><strong>Grad-CAM</strong> (gradient-weighted class activation mapping) explains a convolutional network's decision on an image. Take the last convolutional layer, which has one feature map per channel. Compute the gradient of the class score with respect to each feature map, average those gradients over the spatial positions to get one importance weight per channel, and sum the feature maps using these weights. Apply a ReLU so that only positive evidence is kept, then upscale the result and overlay it on the picture as a heat map. The heat map shows where the network looked, but not why it looked there, so it can highlight a background pattern the model shouldn't use. It is a diagnostic, not a proof.</p>
+
+  <h3>Counterfactual explanations</h3>
+  <p>A <strong>counterfactual explanation</strong> answers "what would have to change for a different decision?" It finds the smallest change to the input that flips the outcome. This is often the most useful form for the person affected, because it is actionable. The example applies a simple loan rule and searches for the smallest income increase that would be approved.</p>
+  <pre class="code" data-lang="python"><code>def approved(income_k, years):
+    return 0.5 * income_k + 2 * years &gt;= 30
+
+applicant = {"income_k": 40, "years": 3}
+print("original decision:", approved(**applicant))
+
+extra = 0
+while not approved(applicant["income_k"] + extra, applicant["years"]):
+    extra += 1
+print("income needed to flip:", applicant["income_k"] + extra)</code></pre>
+  <pre class="output">original decision: False
+income needed to flip: 48</pre>
+  <h3>Fairness metrics</h3>
+  <p>Fairness starts with a question: fair to whom, measured how? Several definitions exist and they cannot all hold at once when the groups have different base rates. The three most common are as follows. <strong>Demographic parity</strong> requires the same selection (approval) rate in each group. <strong>Equal opportunity</strong> requires the same true positive rate (recall) in each group, so qualified people are found equally often. <strong>Equalized odds</strong> requires equal true positive and false positive rates. A common rule of thumb in US employment testing, the four-fifths rule, flags a selection rate below 80 percent of the highest group's rate as possible adverse impact. The code computes each group's selection rate, the demographic parity difference and the disparate impact ratio on a small set of decisions.</p>
+  <pre class="code" data-lang="python"><code>decisions = [("A", 1), ("A", 1), ("A", 0), ("A", 1), ("B", 1), ("B", 0), ("B", 0), ("B", 0)]
+
+def selection_rate(group):
+    outcomes = [approved for g, approved in decisions if g == group]
+    return sum(outcomes) / len(outcomes)
+
+rate_a = selection_rate("A")
+rate_b = selection_rate("B")
+print(f"approval rate A={rate_a:.2f} B={rate_b:.2f}")
+print(f"demographic parity difference={rate_a - rate_b:.2f}")
+print(f"disparate impact ratio={rate_b / rate_a:.2f}")</code></pre>
+  <pre class="output">approval rate A=0.75 B=0.25
+demographic parity difference=0.50
+disparate impact ratio=0.33</pre>
+  <h3>Choosing and checking an explanation</h3>
+  <ul>
+    <li><strong>PDP</strong> assumes the features are independent. With strongly correlated features it asks the model about impossible rows.</li>
+    <li><strong>Shapley and SHAP</strong> are exact for the model they explain, but the baseline and the background data define what "absent" means. Change the baseline and the contributions change. Feature contributions also do not mean causes.</li>
+    <li><strong>LIME</strong> is local and random. Run it several times and check that the top features are stable.</li>
+    <li><strong>Grad-CAM</strong> is available only for networks with convolutional layers and shows attention, not reasoning.</li>
+    <li><strong>Fairness metrics</strong> need the sensitive attribute (or a proxy), and optimizing one definition can worsen another. Choose the definition with the stakeholders, then measure it on a test set that represents the people affected.</li>
+  </ul>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How would you explain a single loan decision to the applicant? Use a local method (SHAP or a counterfactual), state the top two or three reasons in plain words, and give an actionable counterfactual such as "an income of 48 thousand would have been approved". Never present a feature contribution as a guarantee of cause.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before opening it. A good answer names the idea, gives one example, and states the trade-off.</p>
+  <details class="check"><summary>What is the bias-variance trade-off, in one sentence?</summary><div class="ans"><p>Simple models have high bias and miss the real pattern, while very flexible models have high variance and fit the noise in the training sample. The goal is a model complex enough for the pattern but not for the noise, judged by error on unseen data.</p></div></details>
+  <details class="check"><summary>What is data leakage, and how do you prevent it?</summary><div class="ans"><p>Leakage is information from outside the training data (the future, the target, or the test set) reaching the model, so validation scores look better than real performance. Prevent it by splitting first, fitting every preprocessing step on the training data only, and putting all steps inside a pipeline.</p></div></details>
+  <details class="check"><summary>Why does accuracy mislead on imbalanced data?</summary><div class="ans"><p>If the positive class is rare, a model that always predicts the majority class gets high accuracy and finds no positives. Use precision, recall, F1 or PR-AUC, and choose the threshold from the cost of each error type.</p></div></details>
+  <details class="check"><summary>Precision or recall: how do you choose?</summary><div class="ans"><p>Choose recall when a missed positive is costly (missed disease, missed fraud alert that loses money). Choose precision when a false alarm is costly (blocking a legitimate customer, deleting real email). F1 balances the two when both matter equally.</p></div></details>
+  <details class="check"><summary>What does ROC-AUC measure?</summary><div class="ans"><p>It measures how well the scores rank positives above negatives, across all thresholds. Equivalently, it is the probability that a random positive scores higher than a random negative. It does not depend on a single threshold.</p></div></details>
+  <details class="check"><summary>How does a decision tree choose a split?</summary><div class="ans"><p>It tests candidate thresholds on each feature and keeps the split with the largest gain, meaning the largest drop in impurity (Gini or entropy) from parent to weighted children. It repeats this greedily until a stopping rule such as maximum depth is reached.</p></div></details>
+  <details class="check"><summary>Random forest or gradient boosting: which reduces variance and which reduces bias?</summary><div class="ans"><p>Random forest averages many decorrelated deep trees, which mainly reduces variance. Gradient boosting adds shallow trees that correct the residuals of the ensemble so far, which mainly reduces bias, and it needs a learning rate and early stopping to control overfitting.</p></div></details>
+  <details class="check"><summary>How does k-means work, and what are its limits?</summary><div class="ans"><p>It alternates between assigning each point to its nearest centroid and moving each centroid to the mean of its points, until nothing changes. It needs k in advance, is sensitive to initialization and feature scale, and assumes compact, roughly round clusters.</p></div></details>
+  <details class="check"><summary>What is the difference between SHAP and LIME?</summary><div class="ans"><p>SHAP assigns each feature a Shapley value, a fair share of the prediction relative to a baseline, and the shares add up exactly to the prediction. LIME fits a simple linear model to random perturbations near one instance. SHAP is more consistent; LIME is quicker to reason about but can vary from run to run.</p></div></details>
+  <details class="check"><summary>What does a partial dependence plot show, and what is its main assumption?</summary><div class="ans"><p>It shows the average prediction as one feature is set to each value, while the other features keep their real values. Its assumption is that the feature is roughly independent of the others; with correlated features it evaluates unrealistic combinations.</p></div></details>
+  <details class="check"><summary>What is demographic parity, and why can it conflict with other fairness goals?</summary><div class="ans"><p>Demographic parity requires equal selection rates across groups. When groups have different base rates of the true outcome, parity can conflict with equal error rates such as equal opportunity, so the team must choose a definition with stakeholders rather than assume all can be met.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: mixed dynamic programming</h2>
+  <p><strong>Dynamic programming</strong> (DP) solves a problem by solving smaller versions of it once and reusing those answers. It applies when a problem has two properties. The first is <strong>overlapping subproblems</strong>: a naive recursion asks the same question many times. The second is <strong>optimal substructure</strong>: the best answer to the whole problem can be built from the best answers to its parts.</p>
+  <p>There are two ways to organize the reuse. <strong>Top-down</strong> DP is recursion plus a cache (memoization). <strong>Bottom-up</strong> DP fills a table from the smallest subproblem to the largest, so no recursion is needed. Both give the same answer and the same complexity. Here is the classic demonstration. Notice the call count, not just the value.</p>
+  <pre class="code" data-lang="python"><code>from functools import lru_cache
+
+calls = 0
+
+@lru_cache(maxsize=None)
+def fib(n):
+    global calls
+    calls += 1
+    if n &lt; 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+print(fib(30))
+print("calls made:", calls)</code></pre>
+  <pre class="output">832040
+calls made: 31</pre>
+  <p>Five steps make most DP problems manageable. Write them down in this order before coding.</p>
+  <ol>
+    <li><strong>Define the state.</strong> Say in words what dp[i] (or dp[i][j]) means, for example "the number of ways to decode the first i characters".</li>
+    <li><strong>Write the recurrence.</strong> Express dp at a state using smaller states, by considering the last choice made.</li>
+    <li><strong>Set the base cases.</strong> The smallest states, such as the empty string or a single character.</li>
+    <li><strong>Choose the order.</strong> Fill smaller intervals or prefixes before the larger ones that depend on them.</li>
+    <li><strong>Read the answer.</strong> It is usually one specific cell, such as dp[n] or dp[0][n-1].</li>
+  </ol>
+  <div class="note key"><p><span class="t">Pattern to remember</span>When you see "count the ways", "minimum or maximum over choices", or "is it possible", and a brute-force recursion repeats the same inputs, think DP. Define the state as the information the future needs, and nothing more.</p></div>
+
+  <h3>Problem 1: Longest Palindromic Subsequence (LeetCode 516)</h3>
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/longest-palindromic-subsequence/">
+    <h3>Longest Palindromic Subsequence (LeetCode 516)</h3>
+    <div class="statement"><p>Given a string s, return the length of its longest palindromic subsequence. A subsequence keeps the original order but may skip characters, so it need not be contiguous. For "bbbab" the answer is 4, because "bbbb" is a palindrome taken from positions 0, 1, 2 and 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Letters can be skipped, so "substring" thinking is wrong. Only the length is needed. A single character is a palindrome of length 1.</li>
+      <li><strong>Brute force.</strong> Try all 2 to the power n subsequences and test each one. That is exponential, far too slow.</li>
+      <li><strong>Find the waste.</strong> The question for a whole string depends on the same question for smaller pieces: "what is the answer inside s[i..j]?" Many pieces appear again and again.</li>
+      <li><strong>Optimise.</strong> Let dp[i][j] be the longest palindromic subsequence inside s[i..j]. If the two end letters match, they wrap around the best answer for the middle: dp[i][j] = dp[i+1][j-1] + 2. If they do not match, drop one end and take the better result: dp[i][j] = max(dp[i+1][j], dp[i][j-1]). Fill the table with i moving from right to left, so that dp[i+1] rows already exist.</li>
+      <li><strong>Dry run.</strong> Work on "cbbd" (below) to see the table fill.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def longest_palindrome_subseq(s):
+    n = len(s)
+    if n == 0:
+        return 0
+    # dp[i][j] = length of the longest palindromic subsequence inside s[i..j]
+    dp = [[0] * n for _ in range(n)]
+    for i in range(n):
+        dp[i][i] = 1                       # one letter is a palindrome
+    for i in range(n - 1, -1, -1):         # i runs from right to left
+        for j in range(i + 1, n):          # j runs from left to right
+            if s[i] == s[j]:
+                dp[i][j] = dp[i + 1][j - 1] + 2
+            else:
+                dp[i][j] = max(dp[i + 1][j], dp[i][j - 1])
+    return dp[0][n - 1]
+
+print(longest_palindrome_subseq("bbbab"))
+print(longest_palindrome_subseq("cbbd"))
+print(longest_palindrome_subseq("a"))</code></pre>
+    <pre class="output">4
+2
+1</pre>
+    <p class="cx">Time O(n^2) · Space O(n^2)</p>
+    <p>Dry run on "cbbd" (positions 0 to 3). The table below shows each row i, with the columns j = 0 to 3. Cells below the diagonal stay 0 because they are empty ranges.</p>
+    <div class="tablewrap"><table><thead><tr><th>i \ j</th><th>0 (c)</th><th>1 (b)</th><th>2 (b)</th><th>3 (d)</th></tr></thead><tbody><tr><td>0 (c)</td><td>1</td><td>1</td><td>2</td><td>2</td></tr><tr><td>1 (b)</td><td>0</td><td>1</td><td>2</td><td>2</td></tr><tr><td>2 (b)</td><td>0</td><td>0</td><td>1</td><td>1</td></tr><tr><td>3 (d)</td><td>0</td><td>0</td><td>0</td><td>1</td></tr></tbody></table></div>
+    <p>Cell dp[1][2] is 2 because s[1] and s[2] are both "b", so it is dp[2][1] + 2, and dp[2][1] is an empty range worth 0. Cell dp[0][3] is 2 because c and d differ, so take the max of dp[1][3] = 2 and dp[0][2] = 2. The answer, dp[0][3], is 2.</p>
+    <div class="note trap"><p><span class="t">Trap</span>Mixing up subsequence and substring. The longest palindromic substring is a different problem (contiguous only). Here the characters may be skipped, so the recurrence must allow dropping either end.</p></div>
+  </article>
+
+  <h3>Problem 2: Decode Ways (LeetCode 91)</h3>
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/decode-ways/">
+    <h3>Decode Ways (LeetCode 91)</h3>
+    <div class="statement"><p>A message of digits is encoded so that "1" maps to A, "2" to B, up to "26" to Z. Given a string of digits, return the number of ways to decode it. "12" can be read as "AB" (1 then 2) or "L" (12), so the answer is 2. A string starting with "0", or containing a "0" that is not part of "10" or "20", has no valid decoding. "06" gives 0.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each step reads either one digit (valid only if it is 1 to 9) or two digits (valid only if the value is 10 to 26). Count the parsings.</li>
+      <li><strong>Brute force.</strong> Recursively try both lengths at each position. This branches heavily, since the same suffix is re-parsed from many paths.</li>
+      <li><strong>Find the waste.</strong> The number of ways to decode the suffix starting at position i does not depend on how the prefix was read.</li>
+      <li><strong>Optimise.</strong> Let ways[i] be the number of ways to decode the first i characters. The last character can stand alone (if it is not "0"), adding ways[i-1]. The last two characters can form a valid pair (10 to 26), adding ways[i-2]. Only the last two values are needed, so two variables replace the array.</li>
+      <li><strong>Dry run.</strong> Walk "226" in the table below.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def num_decodings(s):
+    if not s or s[0] == "0":
+        return 0
+    prev2 = 1          # ways for the empty prefix
+    prev1 = 1          # ways for the prefix of length 1 (already known to be valid)
+    for i in range(1, len(s)):
+        cur = 0
+        if s[i] != "0":                 # s[i] alone is a letter 1 to 9
+            cur += prev1
+        two = int(s[i - 1:i + 1])       # the two-digit number ending at position i
+        if 10 &lt;= two &lt;= 26:             # "10" to "26" are the letters J to Z
+            cur += prev2
+        prev2, prev1 = prev1, cur
+    return prev1
+
+print(num_decodings("12"))
+print(num_decodings("226"))
+print(num_decodings("06"))
+print(num_decodings("1001"))</code></pre>
+    <pre class="output">2
+3
+0
+0</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <p>Dry run on "226". Start with prev2 = 1 (empty prefix) and prev1 = 1 (prefix "2").</p>
+    <div class="tablewrap"><table><thead><tr><th>i</th><th>s[i]</th><th>One digit (adds prev1)</th><th>Two digits (adds prev2)</th><th>Ways for prefix</th></tr></thead><tbody><tr><td>1</td><td>2</td><td>yes, 2 is valid, adds 1</td><td>"22" is valid, adds 1</td><td>2 (2|2 and 22)</td></tr><tr><td>2</td><td>6</td><td>yes, 6 is valid, adds 2</td><td>"26" is valid, adds 1</td><td>3 (2|2|6, 22|6 and 2|26)</td></tr></tbody></table></div>
+    <p>The final answer is 3. The table shows the two different routes that each add to the count.</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting that "0" cannot stand alone. The string "10" is valid (J), but "100" is not, and "30" is not. Check the single digit and the pair separately, and never let a bare "0" count as a letter.</p></div>
+  </article>
+
+  <h3>Problem 3: Burst Balloons (LeetCode 312)</h3>
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/burst-balloons/">
+    <h3>Burst Balloons (LeetCode 312)</h3>
+    <div class="statement"><p>You have n balloons in a row, with a number painted on each. Bursting balloon i gives nums[left] times nums[i] times nums[right] coins, where left and right are its current neighbours (a missing neighbour counts as 1). After it bursts, its neighbours become adjacent. Choose the order of bursting to maximize the coins. For [3, 1, 5, 8] the answer is 167. For [1, 5] the answer is 10: burst 1 first (1 x 1 x 5 = 5), then 5 (1 x 5 x 1 = 5).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The coins depend on the neighbours at the moment of bursting, so the order matters. The goal is the best order, not the best single balloon. Padding the row with a 1 at each end removes the special case of a missing neighbour.</li>
+      <li><strong>Brute force.</strong> Try every order (n factorial orders) and simulate. The code below does this. It is correct, but only practical for small n.</li>
+      <li><strong>Find the waste.</strong> Thinking forward ("burst this one first") is hard because bursting changes the neighbours of everything else. Thinking backward helps. Pick the balloon k that is burst <em>last</em> inside the open range (l, r). Its neighbours at that moment are exactly the boundaries l and r, because everything else in between is already gone. So the coins for k are arr[l] times arr[k] times arr[r], and the two sides (l, k) and (k, r) are independent subproblems.</li>
+      <li><strong>Optimise.</strong> Let dp[l][r] be the most coins from the balloons strictly between l and r. Then dp[l][r] = max over k of dp[l][k] + arr[l] x arr[k] x arr[r] + dp[k][r]. Compute short ranges first, and the answer is dp[0][m-1] on the padded array. That gives O(n^3) time and O(n^2) space.</li>
+      <li><strong>Dry run.</strong> Use the padded array [1, 3, 1, 5, 8, 1]. The table lists some intervals and their values. The full answer is dp[0][5] = 167.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from itertools import permutations
+
+def brute_force(nums):
+    best = 0
+    for order in permutations(range(len(nums))):   # every possible bursting order
+        alive = list(range(len(nums)))             # indices of balloons still on the wall
+        total = 0
+        for idx in order:
+            pos = alive.index(idx)
+            left = nums[alive[pos - 1]] if pos &gt; 0 else 1
+            right = nums[alive[pos + 1]] if pos + 1 &lt; len(alive) else 1
+            total += left * nums[idx] * right
+            alive.pop(pos)
+        best = max(best, total)
+    return best
+
+def max_coins(nums):
+    # Pad with a 1 on both ends so every balloon has two neighbours
+    arr = [1] + nums + [1]
+    m = len(arr)
+    # dp[l][r] = most coins from bursting every balloon strictly between l and r
+    dp = [[0] * m for _ in range(m)]
+    for length in range(2, m):              # length of the gap between the two boundaries
+        for l in range(0, m - length):
+            r = l + length
+            for k in range(l + 1, r):       # k is the LAST balloon burst in (l, r)
+                coins = arr[l] * arr[k] * arr[r] + dp[l][k] + dp[k][r]
+                if coins &gt; dp[l][r]:
+                    dp[l][r] = coins
+    return dp[0][m - 1]
+
+print(brute_force([3, 1, 5, 8]))
+print(brute_force([1, 5]))
+print(max_coins([3, 1, 5, 8]))
+print(max_coins([1, 5]))
+print(max_coins([]))</code></pre>
+    <pre class="output">167
+10
+167
+10
+0</pre>
+    <p class="cx">Time O(n^3) · Space O(n^2) for the DP; the brute force is O(n! x n)</p>
+    <p>Dry run on the padded array [1, 3, 1, 5, 8, 1] (indices 0 to 5). Each row gives an interval (l, r) and the best coins for the balloons strictly inside it.</p>
+    <div class="tablewrap"><table><thead><tr><th>Interval (l, r)</th><th>Balloons inside</th><th>Best coins</th><th>How it is reached</th></tr></thead><tbody><tr><td>(0, 2)</td><td>index 1 (value 3)</td><td>3</td><td>1 x 3 x 1</td></tr><tr><td>(1, 3)</td><td>index 2 (value 1)</td><td>15</td><td>3 x 1 x 5</td></tr><tr><td>(2, 4)</td><td>index 3 (value 5)</td><td>40</td><td>1 x 5 x 8</td></tr><tr><td>(3, 5)</td><td>index 4 (value 8)</td><td>40</td><td>5 x 8 x 1</td></tr><tr><td>(1, 4)</td><td>indices 2 and 3</td><td>135</td><td>k = 3 last: 15 + (3 x 5 x 8) + 0</td></tr><tr><td>(0, 5)</td><td>all four</td><td>167</td><td>the answer</td></tr></tbody></table></div>
+    <p>For the interval (1, 4), the choice k = 2 would give 0 + (3 x 1 x 8) + 40 = 64, and k = 3 gives 135, so the larger value is kept. Each inner interval is solved once and then reused, which is the DP idea in action.</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When the cost of an action depends on its neighbours at that moment, decide the last action in a range first. Its neighbours are then fixed, and the problem splits into two independent ranges.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Choosing the first balloon to burst. Its effect on the neighbours cannot be undone, so greedy choices fail here. Always choose the last balloon in the interval.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read these one-line definitions aloud until each one can be explained with an example.</p>
+  <dl>
+    <div><dt>Parameter</dt><dd>A value the training process learns, such as a slope or a weight.</dd></div>
+    <div><dt>Hyperparameter</dt><dd>A setting chosen before training, such as k, tree depth or the learning rate.</dd></div>
+    <div><dt>Bias</dt><dd>Error from a model too simple to capture the real pattern (underfitting).</dd></div>
+    <div><dt>Variance</dt><dd>Error from a model that reacts to noise in the training sample (overfitting).</dd></div>
+    <div><dt>Irreducible error</dt><dd>Noise in the data itself that no model can remove.</dd></div>
+    <div><dt>Validation set</dt><dd>Data used to choose hyperparameters and models, separate from the test set.</dd></div>
+    <div><dt>Data leakage</dt><dd>Information from outside the training data reaching the model, inflating scores.</dd></div>
+    <div><dt>One-hot encoding</dt><dd>One 0/1 column per category, so categories have no false order.</dd></div>
+    <div><dt>Sigmoid</dt><dd>The S-shaped function 1 / (1 + e^(-z)) that maps any score to a value between 0 and 1.</dd></div>
+    <div><dt>Log loss</dt><dd>The loss used by logistic regression, which heavily punishes confident wrong probabilities.</dd></div>
+    <div><dt>Laplace smoothing</dt><dd>Adding 1 to every count so that an unseen value does not make a product zero.</dd></div>
+    <div><dt>Support vector</dt><dd>A training point on the edge of the margin that defines an SVM boundary.</dd></div>
+    <div><dt>Kernel trick</dt><dd>Computing similarities as if the data were in a higher-dimensional space, without mapping it explicitly.</dd></div>
+    <div><dt>Gini impurity</dt><dd>1 minus the sum of squared class fractions; zero for a pure group.</dd></div>
+    <div><dt>Bagging</dt><dd>Training models on bootstrap resamples and averaging them, to reduce variance.</dd></div>
+    <div><dt>Boosting</dt><dd>Adding models in sequence, each correcting the residual errors of the ensemble so far.</dd></div>
+    <div><dt>Centroid</dt><dd>The mean of the points in a cluster.</dd></div>
+    <div><dt>Core point (DBSCAN)</dt><dd>A point with at least min_samples neighbours within eps.</dd></div>
+    <div><dt>Principal component</dt><dd>A direction of maximum remaining variance, found from the covariance matrix's eigenvectors.</dd></div>
+    <div><dt>Confusion matrix</dt><dd>The table of TP, FP, FN and TN counts for a classifier.</dd></div>
+    <div><dt>F1 score</dt><dd>The harmonic mean of precision and recall, high only when both are high.</dd></div>
+    <div><dt>ROC-AUC</dt><dd>The probability that a random positive outranks a random negative; threshold-free.</dd></div>
+    <div><dt>RMSE</dt><dd>Square root of the mean squared error, in the same units as the target.</dd></div>
+    <div><dt>Cross-validation</dt><dd>Rotating which fold is used for validation, to get a stable score.</dd></div>
+    <div><dt>Pipeline</dt><dd>A chain of preprocessing steps and a model that is fitted and applied as one unit.</dd></div>
+    <div><dt>SHAP</dt><dd>Per-feature contributions based on Shapley values; they add up to the prediction minus the baseline.</dd></div>
+    <div><dt>LIME</dt><dd>A local linear surrogate fitted to perturbed copies of one instance.</dd></div>
+    <div><dt>Partial dependence</dt><dd>The average prediction as one feature is set to each value, with the others kept as they are.</dd></div>
+    <div><dt>Grad-CAM</dt><dd>A heat map of the image regions that drove a CNN's class score, from gradients of the last convolution layer.</dd></div>
+    <div><dt>Counterfactual</dt><dd>The smallest change to an input that would change the model's decision.</dd></div>
+    <div><dt>Demographic parity</dt><dd>Equal selection rates across groups.</dd></div>
+    <div><dt>Dynamic programming</dt><dd>Solving overlapping subproblems once and reusing their answers.</dd></div>
+    <div><dt>Memoization</dt><dd>Caching the result of each recursive call so it is computed only once.</dd></div>
+    <div><dt>Interval DP</dt><dd>A DP over ranges (l, r), solved from short ranges to long ones.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td>zip</td><td>Pairs up items from several iterables</td><td><code>list(zip([1, 2], "ab"))</code> gives [(1, 'a'), (2, 'b')]</td></tr>
+    <tr><td>min with key</td><td>Returns the item with the smallest key value</td><td><code>min([3, -5, 2], key=abs)</code> gives 2, the smallest absolute value</td></tr>
+    <tr><td>sorted</td><td>Returns a new sorted list</td><td><code>sorted({"b", "a"})</code> gives ['a', 'b']</td></tr>
+    <tr><td>math.dist</td><td>Euclidean distance between two points</td><td><code>math.dist((0, 0), (3, 4))</code> gives 5.0</td></tr>
+    <tr><td>math.sqrt</td><td>Square root</td><td><code>math.sqrt(16)</code> gives 4.0</td></tr>
+    <tr><td>math.exp</td><td>e raised to a power, used in the sigmoid</td><td><code>math.exp(0)</code> gives 1.0</td></tr>
+    <tr><td>collections.Counter</td><td>Counts hashable items</td><td><code>Counter("aab").most_common(1)</code> gives [('a', 2)]</td></tr>
+    <tr><td>itertools.combinations</td><td>All subsets of a given size, order ignored</td><td><code>list(combinations([1, 2, 3], 2))</code> gives 3 pairs</td></tr>
+    <tr><td>itertools.permutations</td><td>All orderings of the items</td><td><code>len(list(permutations("abc")))</code> gives 6</td></tr>
+    <tr><td>functools.lru_cache</td><td>Caches a function's results (memoization)</td><td><code>@lru_cache(maxsize=None)</code> above a recursive function</td></tr>
+    <tr><td>str.count / list.count</td><td>Counts occurrences of an item</td><td><code>["no", "yes", "no"].count("no")</code> gives 2</td></tr>
+    <tr><td>round</td><td>Rounds a number to a given number of decimals</td><td><code>round(0.6667, 2)</code> gives 0.67</td></tr>
+    <tr><td>f-string format spec</td><td>Formats numbers in output</td><td><code>f"{0.4567:.1%}"</code> gives 45.7%</td></tr>
+    <tr><td>StandardScaler (scikit-learn)</td><td>Rescales features to mean 0, standard deviation 1; fit on training data only</td><td><code>StandardScaler().fit(X_train)</code></td></tr>
+    <tr><td>Pipeline (scikit-learn)</td><td>Chains preprocessing and a model</td><td><code>Pipeline([("scale", StandardScaler()), ("model", LogisticRegression())])</code></td></tr>
+    <tr><td>GridSearchCV (scikit-learn)</td><td>Cross-validated search over a parameter grid</td><td><code>GridSearchCV(pipe, {"model__C": [0.1, 1.0]}, cv=5)</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 37?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 37 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-36.html"><small>Previous, day 36</small>Python data stack + Math for ML</a><a class="next" href="day-38.html"><small>Next, day 38</small>Deep learning + computer vision</a></nav>
+</main><script src="assets/app.js"></script></body></html>

@@ -1,0 +1,672 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 18: SQL 1: Queries, joins, aggregation, subqueries</title><meta name="description" content="Today is hands-on SQL with PostgreSQL syntax. You will learn the command families, filtering and the NULL rules that trip up most candidates, CASE expressions, grouping with HAVING, every kind of join, subqueries, EXISTS versus IN, and set operations. Each idea is shown on one small employees and departments schema, with the result table for every query, because interviewers expect you to predict output without running anything."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="18" data-key="18" data-noun="day" data-num="18" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>SQL 1: <em>Queries, joins, aggregation, subqueries</em></h1>
+<p class="lede">Today is hands-on SQL with PostgreSQL syntax. You will learn the command families, filtering and the NULL rules that trip up most candidates, CASE expressions, grouping with HAVING, every kind of join, subqueries, EXISTS versus IN, and set operations. Each idea is shown on one small employees and departments schema, with the result table for every query, because interviewers expect you to predict output without running anything.</p>
+<div class="station"><b>18</b><span>Thu 19 Nov 2026 · Databases · DSA: Graphs: BFS and DFS</span></div>
+<ul class="topics"><li>SQL command types</li><li>Filtering and NULL</li><li>CASE expressions</li><li>GROUP BY and HAVING</li><li>All joins</li><li>Subqueries and EXISTS vs IN</li><li>Set operations</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Command types and schema">
+  <h2>SQL command types and the sample schema</h2>
+  <p><em>SQL</em> (Structured Query Language) is the language of relational databases. Its statements are grouped into families by what they do. Interviewers often ask you to name them, so learn the families first:</p>
+  <ul>
+    <li><strong>DDL (data definition language).</strong> Creates and changes structure: <code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>. Day 16 used these.</li>
+    <li><strong>DML (data manipulation language).</strong> Changes the rows: <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>.</li>
+    <li><strong>DQL (data query language).</strong> Reads rows: <code>SELECT</code>. Many courses fold this into DML.</li>
+    <li><strong>DCL (data control language).</strong> Grants and revokes permissions: <code>GRANT</code>, <code>REVOKE</code>.</li>
+    <li><strong>TCL (transaction control language).</strong> Manages transactions: <code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code>, <code>SAVEPOINT</code> (Day 17).</li>
+  </ul>
+  <p>Almost every interview query is a single <code>SELECT</code>. Its clauses run in a fixed logical order, which explains many surprises, so memorise this order:</p>
+  <ol>
+    <li><code>FROM</code> and <code>JOIN</code>: build the combined rows.</li>
+    <li><code>WHERE</code>: keep only the rows that match a condition. This runs before grouping.</li>
+    <li><code>GROUP BY</code>: combine rows into groups.</li>
+    <li><code>HAVING</code>: keep only the groups that match a condition.</li>
+    <li><code>SELECT</code>: compute the output columns. Aliases defined here cannot be used in WHERE.</li>
+    <li><code>DISTINCT</code>, then <code>ORDER BY</code>, then <code>LIMIT</code>.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>The order in which the clauses are written is not the order in which they run. WHERE runs before SELECT, so an alias from SELECT cannot appear in WHERE, but it can appear in ORDER BY.</p></div>
+
+  <h3>The sample schema</h3>
+  <p>Every query in this day uses the same two tables. The first block creates them and inserts the rows. It prints nothing, so it has no output block. Notice that Farah has no department, Research has no employees, and Asha has no manager. Those gaps are deliberate, because joins and NULLs are easiest to understand when the data has holes.</p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE departments (
+    dept_id   INTEGER PRIMARY KEY,
+    dept_name TEXT NOT NULL
+);
+
+CREATE TABLE employees (
+    emp_id     INTEGER PRIMARY KEY,
+    emp_name   TEXT NOT NULL,
+    dept_id    INTEGER REFERENCES departments (dept_id),
+    manager_id INTEGER REFERENCES employees (emp_id),
+    salary     INTEGER NOT NULL,
+    bonus      INTEGER
+);
+
+INSERT INTO departments (dept_id, dept_name) VALUES
+    (1, 'Engineering'), (2, 'Sales'), (3, 'Marketing'), (4, 'Research');
+
+INSERT INTO employees (emp_id, emp_name, dept_id, manager_id, salary, bonus) VALUES
+    (1, 'Asha',  1,    NULL, 120000, 15000),
+    (2, 'Ben',   1,    1,     95000, NULL),
+    (3, 'Chen',  1,    1,     95000, 5000),
+    (4, 'Dana',  2,    1,     70000, NULL),
+    (5, 'Eli',   2,    4,     65000, 2000),
+    (6, 'Farah', NULL, 1,     58000, NULL),
+    (7, 'Gus',   3,    1,     72000, NULL),
+    (8, 'Hana',  3,    7,     61000, 0);</code></pre>
+
+  <p>After those statements the two tables look like this. The NULL values are shown as NULL here, which is how an interviewer will expect you to read them:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="2">departments</th></tr><tr><th>dept_id</th><th>dept_name</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Engineering</td></tr>
+      <tr><td>2</td><td>Sales</td></tr>
+      <tr><td>3</td><td>Marketing</td></tr>
+      <tr><td>4</td><td>Research</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th colspan="6">employees</th></tr>
+    <tr><th>emp_id</th><th>emp_name</th><th>dept_id</th><th>manager_id</th><th>salary</th><th>bonus</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Asha</td><td>1</td><td>NULL</td><td>120000</td><td>15000</td></tr>
+      <tr><td>2</td><td>Ben</td><td>1</td><td>1</td><td>95000</td><td>NULL</td></tr>
+      <tr><td>3</td><td>Chen</td><td>1</td><td>1</td><td>95000</td><td>5000</td></tr>
+      <tr><td>4</td><td>Dana</td><td>2</td><td>1</td><td>70000</td><td>NULL</td></tr>
+      <tr><td>5</td><td>Eli</td><td>2</td><td>4</td><td>65000</td><td>2000</td></tr>
+      <tr><td>6</td><td>Farah</td><td>NULL</td><td>1</td><td>58000</td><td>NULL</td></tr>
+      <tr><td>7</td><td>Gus</td><td>3</td><td>1</td><td>72000</td><td>NULL</td></tr>
+      <tr><td>8</td><td>Hana</td><td>3</td><td>7</td><td>61000</td><td>0</td></tr>
+    </tbody>
+  </table></div>
+  <p>The <code>manager_id</code> column refers to another row of the same table. That is a <em>self-reference</em>, and it is used in a self join later today.</p>
+  <p>PostgreSQL uses the same types as this schema: <code>INTEGER</code>, <code>TEXT</code> and <code>NUMERIC</code>, and it accepts <code>VARCHAR</code> too. The queries below use only standard features, so they also work in other engines, with minor syntax changes.</p>
+</section>
+
+<section class="unit" id="c2" data-title="Filtering and NULL">
+  <h2>Filtering, NULL and CASE</h2>
+  <p>The <code>WHERE</code> clause keeps rows for which a condition is true. Conditions use comparison operators (<code>=</code>, <code>&lt;&gt;</code> meaning not equal, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code>), the logical operators <code>AND</code>, <code>OR</code> and <code>NOT</code>, and a few helpers:</p>
+  <ul>
+    <li><code>BETWEEN a AND b</code> includes both ends, so it means <code>&gt;= a AND &lt;= b</code>.</li>
+    <li><code>IN (x, y, z)</code> is a shorthand for a list of equalities.</li>
+    <li><code>LIKE</code> matches text patterns: <code>%</code> stands for any run of characters, and <code>_</code> for exactly one character. <code>ILIKE</code> is the case-insensitive version in PostgreSQL.</li>
+    <li><code>IS NULL</code> and <code>IS NOT NULL</code> test for missing values.</li>
+  </ul>
+
+  <h3>NULL is not a value</h3>
+  <p>NULL means "unknown" or "not applicable". It is not zero, not an empty string, and not equal to anything, including another NULL. A comparison with NULL gives the third truth value, UNKNOWN, and <code>WHERE</code> keeps only rows where the condition is TRUE. Rows where it is FALSE or UNKNOWN are both removed. That single rule causes most NULL surprises.</p>
+  <p>The truth tables below show how NULL propagates. Read UNKNOWN as "could be true or false":</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>AND</th><th>TRUE</th><th>FALSE</th><th>UNKNOWN</th></tr></thead>
+    <tbody>
+      <tr><td>TRUE</td><td>TRUE</td><td>FALSE</td><td>UNKNOWN</td></tr>
+      <tr><td>FALSE</td><td>FALSE</td><td>FALSE</td><td>FALSE</td></tr>
+      <tr><td>UNKNOWN</td><td>UNKNOWN</td><td>FALSE</td><td>UNKNOWN</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>OR</th><th>TRUE</th><th>FALSE</th><th>UNKNOWN</th></tr></thead>
+    <tbody>
+      <tr><td>TRUE</td><td>TRUE</td><td>TRUE</td><td>TRUE</td></tr>
+      <tr><td>FALSE</td><td>TRUE</td><td>FALSE</td><td>UNKNOWN</td></tr>
+      <tr><td>UNKNOWN</td><td>TRUE</td><td>UNKNOWN</td><td>UNKNOWN</td></tr>
+    </tbody>
+  </table></div>
+  <p>NOT UNKNOWN is UNKNOWN. So a filter such as <code>WHERE bonus &gt; 0</code> removes employees whose bonus is NULL, and <code>WHERE NOT (bonus &gt; 0)</code> removes them too. Neither matches the NULL rows, which is the point to remember.</p>
+
+  <pre class="code" data-lang="sql"><code>-- Wrong: never true, because x = NULL is UNKNOWN for every x
+SELECT emp_name FROM employees WHERE bonus = NULL;
+
+-- Right: the IS NULL test
+SELECT emp_name FROM employees WHERE bonus IS NULL;</code></pre>
+  <p>The first query returns no rows, because every comparison with NULL is UNKNOWN. The second returns the employees whose bonus is missing: Ben, Dana, Farah and Gus. These are the same rows you would get by reading the employees table and marking the blank bonus cells.</p>
+
+  <h3>COALESCE and handling NULL values</h3>
+  <p><code>COALESCE(a, b, c)</code> returns the first argument that is not NULL. It is the standard way to replace missing values for display or arithmetic. Adding a NULL to a number gives NULL, so <code>salary + bonus</code> is NULL for anyone with no bonus, while <code>salary + COALESCE(bonus, 0)</code> gives the total pay.</p>
+
+  <h3>CASE expressions</h3>
+  <p><code>CASE</code> is SQL's if-else. It tests conditions in order and returns the value of the first one that is TRUE. If none is TRUE and there is no <code>ELSE</code>, the result is NULL. A <code>CASE</code> can appear anywhere a value can appear, including in SELECT, WHERE and ORDER BY:</p>
+  <pre class="code" data-lang="sql"><code>SELECT emp_name,
+       salary,
+       CASE
+           WHEN salary &gt;= 90000 THEN 'High'
+           WHEN salary &gt;= 60000 THEN 'Mid'
+           ELSE 'Entry'
+       END AS band
+FROM employees
+ORDER BY emp_id;</code></pre>
+  <p>The conditions are checked from top to bottom, so 95000 gets 'High' because the first WHEN matches. Reversing the order would put every salary at 60000 or above into 'Mid' first, which is a common bug. The result is:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>emp_name</th><th>salary</th><th>band</th></tr></thead>
+    <tbody>
+      <tr><td>Asha</td><td>120000</td><td>High</td></tr>
+      <tr><td>Ben</td><td>95000</td><td>High</td></tr>
+      <tr><td>Chen</td><td>95000</td><td>High</td></tr>
+      <tr><td>Dana</td><td>70000</td><td>Mid</td></tr>
+      <tr><td>Eli</td><td>65000</td><td>Mid</td></tr>
+      <tr><td>Farah</td><td>58000</td><td>Entry</td></tr>
+      <tr><td>Gus</td><td>72000</td><td>Mid</td></tr>
+      <tr><td>Hana</td><td>61000</td><td>Mid</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Writing <code>WHERE dept_id &lt;&gt; 1</code> silently drops the row for Farah, whose dept_id is NULL. If you need those rows, write <code>WHERE dept_id &lt;&gt; 1 OR dept_id IS NULL</code>.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What does <code>COUNT(*)</code> count compared with <code>COUNT(bonus)</code>? COUNT(*) counts all rows. COUNT(column) counts only the rows where that column is not NULL. On the sample table COUNT(*) is 8 and COUNT(bonus) is 4, because only Asha, Chen, Eli and Hana have a bonus value (Hana's is 0, which is not NULL).</p></div>
+  <details class="check"><summary>What rows does <code>WHERE NOT (bonus &gt; 0)</code> return on the sample table?</summary><div class="ans"><p>Only rows where bonus is 0 or lower. Hana has bonus 0, so she is returned. Ben, Dana, Farah and Gus have NULL bonus, which makes the condition UNKNOWN, so they are removed. The rows with bonus 15000, 5000 and 2000 are FALSE and also removed.</p></div></details>
+  <details class="check"><summary>Why does <code>WHERE dept_id NOT IN (1, 2)</code> not return Farah?</summary><div class="ans"><p>Farah's dept_id is NULL. NULL NOT IN (1, 2) is UNKNOWN, so the row is removed. Only rows that are definitely outside the list are kept. On the sample table that leaves Gus and Hana, whose dept_id is 3.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="GROUP BY and HAVING">
+  <h2>Aggregation with GROUP BY and HAVING</h2>
+  <p>An <em>aggregate function</em> takes many rows and returns one value. The five standard ones are <code>COUNT</code>, <code>SUM</code>, <code>AVG</code>, <code>MIN</code> and <code>MAX</code>. Without <code>GROUP BY</code>, an aggregate treats the whole filtered table as one group. With <code>GROUP BY</code>, the rows are split into groups by one or more columns, and the aggregate is computed for each group.</p>
+  <p>Two rules matter in every grouped query:</p>
+  <ul>
+    <li>Every column in SELECT must either appear in GROUP BY or be inside an aggregate. Asking for <code>emp_name</code> next to <code>AVG(salary)</code> with no grouping on name is an error, because one group has many names.</li>
+    <li><code>WHERE</code> filters rows before grouping, so it cannot use an aggregate. <code>HAVING</code> filters groups after grouping, so it can. Filtering on <code>COUNT(*)</code> must use HAVING.</li>
+  </ul>
+  <p>Query 4 counts employees per department, averages the salary, and keeps only departments with at least two employees. NULL is treated as a group of its own, so Farah's row (dept_id NULL) forms a group of size 1, which HAVING removes:</p>
+  <pre class="code" data-lang="sql"><code>SELECT dept_id,
+       COUNT(*) AS headcount,
+       ROUND(AVG(salary), 2) AS avg_salary
+FROM employees
+GROUP BY dept_id
+HAVING COUNT(*) &gt;= 2
+ORDER BY dept_id;</code></pre>
+  <p><strong>Query 4 result.</strong> Engineering averages (120000 + 95000 + 95000) / 3 = 103333.33, which is rounded to two decimals. Sales averages (70000 + 65000) / 2 = 67500.00. Marketing averages (72000 + 61000) / 2 = 66500.00.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept_id</th><th>headcount</th><th>avg_salary</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>3</td><td>103333.33</td></tr>
+      <tr><td>2</td><td>2</td><td>67500.00</td></tr>
+      <tr><td>3</td><td>2</td><td>66500.00</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Putting <code>WHERE COUNT(*) &gt;= 2</code> is an error, because WHERE runs before grouping. Use HAVING for any condition on an aggregate.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>The order is: rows are filtered by WHERE, grouped, filtered by HAVING, and then the SELECT list is computed. Keeping this order in mind answers most "why does this fail" questions.</p></div>
+  <details class="check"><summary>What is the difference between <code>COUNT(*)</code> and <code>COUNT(bonus)</code> on a grouped query?</summary><div class="ans"><p>COUNT(*) counts every row in each group. COUNT(bonus) counts only the rows in the group where bonus is not NULL. Use COUNT(*) for headcount and COUNT(column) for how many rows have a value.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Joins">
+  <h2>Joins: inner, outer, cross and self</h2>
+  <p>A <em>join</em> combines rows from two tables that satisfy a condition. The condition is written in the <code>ON</code> clause. Think of the result as a set of pairs, each pair being one row from the left table and one from the right. The join type decides which pairs and which unmatched rows survive.</p>
+  <ul>
+    <li><strong>INNER JOIN.</strong> Keeps only the pairs where the condition is TRUE. A row with no match on either side disappears.</li>
+    <li><strong>LEFT OUTER JOIN.</strong> Keeps all left rows. When a left row has no match, the right-side columns are filled with NULL.</li>
+    <li><strong>RIGHT OUTER JOIN.</strong> The mirror image: all right rows are kept. It is rarely used, because a LEFT JOIN with the tables swapped says the same thing.</li>
+    <li><strong>FULL OUTER JOIN.</strong> Keeps all rows from both sides, filling in NULL where either side has no match.</li>
+    <li><strong>CROSS JOIN.</strong> Every left row paired with every right row, with no condition. Its size is the product of the two row counts.</li>
+    <li><strong>SELF JOIN.</strong> A table joined to itself, using two aliases.</li>
+  </ul>
+
+  <h3>Inner join</h3>
+  <p>Query 5 lists each employee with the name of their department. Farah has no department, so she is absent. The Research department has no employees, so it is also absent:</p>
+  <pre class="code" data-lang="sql"><code>SELECT e.emp_name, d.dept_name
+FROM employees AS e
+INNER JOIN departments AS d ON d.dept_id = e.dept_id
+ORDER BY e.emp_name;</code></pre>
+  <p><strong>Query 5 result.</strong> Seven rows. Farah and the Research department do not appear.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>emp_name</th><th>dept_name</th></tr></thead>
+    <tbody>
+      <tr><td>Asha</td><td>Engineering</td></tr>
+      <tr><td>Ben</td><td>Engineering</td></tr>
+      <tr><td>Chen</td><td>Engineering</td></tr>
+      <tr><td>Dana</td><td>Sales</td></tr>
+      <tr><td>Eli</td><td>Sales</td></tr>
+      <tr><td>Gus</td><td>Marketing</td></tr>
+      <tr><td>Hana</td><td>Marketing</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Left join and counting the unmatched</h3>
+  <p>A left join is the tool for "all of the left side, with matches where they exist". Query 6 lists every department with its headcount. Research must still appear, with a count of zero. The count must be <code>COUNT(e.emp_id)</code>, not <code>COUNT(*)</code>, because <code>COUNT(*)</code> would count the one NULL-filled row that Research produces:</p>
+  <pre class="code" data-lang="sql"><code>SELECT d.dept_name,
+       COUNT(e.emp_id) AS headcount
+FROM departments AS d
+LEFT JOIN employees AS e ON e.dept_id = d.dept_id
+GROUP BY d.dept_id, d.dept_name
+ORDER BY d.dept_id;</code></pre>
+  <p><strong>Query 6 result.</strong> Research has zero, not one, because COUNT ignores the NULL from the unmatched row.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept_name</th><th>headcount</th></tr></thead>
+    <tbody>
+      <tr><td>Engineering</td><td>3</td></tr>
+      <tr><td>Sales</td><td>2</td></tr>
+      <tr><td>Marketing</td><td>2</td></tr>
+      <tr><td>Research</td><td>0</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>A condition on the right table in WHERE turns a LEFT JOIN into an INNER JOIN, because the NULL-filled rows fail the condition. For example, <code>LEFT JOIN employees e ... WHERE e.salary &gt; 60000</code> drops Research. Put that condition in the ON clause instead if you want to keep the left rows.</p></div>
+
+  <h3>Full outer join and the anti-join pattern</h3>
+  <p>A full outer join keeps unmatched rows from both sides. Adding a WHERE that asks for rows missing on either side finds all the mismatches in one query. This is the <em>anti-join</em> pattern: "rows in A that have no partner in B", and the same idea in the other direction. Query 7 finds an employee without a department and a department without employees:</p>
+  <pre class="code" data-lang="sql"><code>SELECT e.emp_name, d.dept_name
+FROM employees AS e
+FULL OUTER JOIN departments AS d ON d.dept_id = e.dept_id
+WHERE e.emp_id IS NULL OR d.dept_id IS NULL
+ORDER BY d.dept_name NULLS LAST;</code></pre>
+  <p><strong>Query 7 result.</strong> Two rows. Research has no employee, so its employee column is NULL. Farah has no department, so her department column is NULL.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>emp_name</th><th>dept_name</th></tr></thead>
+    <tbody>
+      <tr><td>NULL</td><td>Research</td></tr>
+      <tr><td>Farah</td><td>NULL</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Self join</h3>
+  <p>The <code>manager_id</code> column points to another row of employees. To show each employee with the manager's name, join the table to itself using two aliases, one for the employee and one for the manager. A LEFT JOIN keeps Asha, whose manager is NULL:</p>
+  <pre class="code" data-lang="sql"><code>SELECT e.emp_name AS employee,
+       m.emp_name AS manager
+FROM employees AS e
+LEFT JOIN employees AS m ON m.emp_id = e.manager_id
+ORDER BY e.emp_id;</code></pre>
+  <p><strong>Query 8 result.</strong> Eight rows, one per employee. Asha is the top of the hierarchy, so her manager is NULL.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>employee</th><th>manager</th></tr></thead>
+    <tbody>
+      <tr><td>Asha</td><td>NULL</td></tr>
+      <tr><td>Ben</td><td>Asha</td></tr>
+      <tr><td>Chen</td><td>Asha</td></tr>
+      <tr><td>Dana</td><td>Asha</td></tr>
+      <tr><td>Eli</td><td>Dana</td></tr>
+      <tr><td>Farah</td><td>Asha</td></tr>
+      <tr><td>Gus</td><td>Asha</td></tr>
+      <tr><td>Hana</td><td>Gus</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Write a query for employees who earn more than their manager. Answer: join employees to itself on <code>e.manager_id = m.emp_id</code> and filter with <code>e.salary &gt; m.salary</code>. On the sample data the result is empty, because no employee out-earns a manager.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>Give every table an alias and qualify every column with it. In a join, an unqualified column name can be ambiguous, and PostgreSQL reports an error rather than guessing.</p></div>
+  <details class="check"><summary>How many rows does a CROSS JOIN of the 8 employees and the 4 departments produce?</summary><div class="ans"><p>8 times 4, which is 32 rows. A cross join has no condition, so every employee is paired with every department.</p></div></details>
+  <details class="check"><summary>Why is Research missing from the inner join but present in the left join?</summary><div class="ans"><p>The inner join keeps only pairs with a matching employee, and Research has none, so it produces no rows. The left join keeps every department and fills the employee columns with NULL when there is no match.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Subqueries and set operations">
+  <h2>Subqueries, EXISTS versus IN, and set operations</h2>
+  <p>A <em>subquery</em> is a query nested inside another. It can return a single value, a single column, or a whole table, and where it sits decides what it may return:</p>
+  <ul>
+    <li><strong>Scalar subquery.</strong> Returns exactly one value, used like a constant, for example in a comparison.</li>
+    <li><strong>Column subquery.</strong> Returns one column, used with IN or ANY.</li>
+    <li><strong>Table subquery (derived table).</strong> Returns rows, used in the FROM clause, and must be given an alias.</li>
+    <li><strong>Correlated subquery.</strong> Refers to a column of the outer query, so it is re-evaluated for each outer row.</li>
+  </ul>
+
+  <h3>Query 9: a scalar subquery</h3>
+  <p>The average salary of all employees is 79500, because the eight salaries add up to 636000 and 636000 / 8 = 79500. The subquery computes that value once, and the outer query keeps the rows above it:</p>
+  <pre class="code" data-lang="sql"><code>SELECT emp_name, salary
+FROM employees
+WHERE salary &gt; (SELECT AVG(salary) FROM employees)
+ORDER BY emp_name;</code></pre>
+  <p><strong>Query 9 result.</strong> Only Asha, Ben and Chen earn more than 79500. Gus, at 72000, does not.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>emp_name</th><th>salary</th></tr></thead>
+    <tbody>
+      <tr><td>Asha</td><td>120000</td></tr>
+      <tr><td>Ben</td><td>95000</td></tr>
+      <tr><td>Chen</td><td>95000</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>EXISTS versus IN, and the NULL trap</h3>
+  <p>To find departments that have no employees, there are two common forms. <code>NOT EXISTS</code> asks, for each department, whether a matching employee row exists. <code>NOT IN</code> asks whether the department's id is missing from a list of ids. They look similar, but they behave differently when the list contains NULL.</p>
+  <p>Query 10 uses NOT EXISTS, and it is correct on this data. Research is the only department without employees:</p>
+  <pre class="code" data-lang="sql"><code>SELECT d.dept_name
+FROM departments AS d
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM employees AS e
+    WHERE e.dept_id = d.dept_id
+);</code></pre>
+  <p><strong>Query 10 result.</strong> One row.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept_name</th></tr></thead>
+    <tbody><tr><td>Research</td></tr></tbody>
+  </table></div>
+
+  <p>Now the same question written with NOT IN. It looks reasonable, and it returns nothing:</p>
+  <pre class="code" data-lang="sql"><code>SELECT dept_name
+FROM departments
+WHERE dept_id NOT IN (SELECT dept_id FROM employees);</code></pre>
+  <p><strong>Result.</strong> Zero rows. The subquery returns the dept_id of every employee, and Farah's dept_id is NULL. The test for Research becomes <code>4 NOT IN (1, 2, 3, NULL)</code>. Because the list contains NULL, the answer is UNKNOWN rather than TRUE, and the row is removed. NOT IN is safe only when the list cannot contain NULL.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>The NOT IN result is empty for every department, not only Research. A single NULL in the subquery silently empties the whole answer. Prefer NOT EXISTS for anti-joins, or add <code>WHERE dept_id IS NOT NULL</code> to the subquery.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>EXISTS asks "is there at least one matching row?" and handles NULL correctly, because a NULL in the inner table never matches anything. IN compares values, and a NULL in its list makes the comparison UNKNOWN.</p></div>
+
+  <h3>Set operations</h3>
+  <p>Set operations combine the results of two queries with the same number of columns and compatible types. They treat the results as sets of rows:</p>
+  <ul>
+    <li><strong>UNION</strong> returns rows from either query, with duplicates removed.</li>
+    <li><strong>UNION ALL</strong> returns all rows from both, duplicates included. It is faster, because it skips the duplicate check.</li>
+    <li><strong>INTERSECT</strong> returns rows that appear in both queries.</li>
+    <li><strong>EXCEPT</strong> returns rows from the first query that do not appear in the second.</li>
+  </ul>
+  <p>Two queries show the difference between UNION and UNION ALL. The first selects dept_id for employees earning at least 95000, which gives 1, 1 and 1 (Asha, Ben and Chen). The second selects dept_id for employees with a positive bonus, which gives 1, 1 and 2 (Asha, Chen and Eli):</p>
+  <pre class="code" data-lang="sql"><code>SELECT dept_id FROM employees WHERE salary &gt;= 95000
+UNION ALL
+SELECT dept_id FROM employees WHERE bonus &gt; 0
+ORDER BY 1;</code></pre>
+  <p><strong>Result with UNION ALL.</strong> Six rows, because nothing is removed:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept_id</th></tr></thead>
+    <tbody>
+      <tr><td>1</td></tr><tr><td>1</td></tr><tr><td>1</td></tr><tr><td>1</td></tr><tr><td>1</td></tr><tr><td>2</td></tr>
+    </tbody>
+  </table></div>
+  <p>Changing UNION ALL to UNION removes the duplicates, leaving the two distinct values 1 and 2.</p>
+
+  <p>Two more examples use the departments and employees tables. Each one takes the dept_id values from both tables and compares them:</p>
+  <pre class="code" data-lang="sql"><code>SELECT dept_id FROM departments
+EXCEPT
+SELECT dept_id FROM employees;</code></pre>
+  <p><strong>EXCEPT result.</strong> One row. The departments are 1, 2, 3 and 4. The employees hold 1, 2, 3 and NULL. Only 4 is missing from the employees list. The NULL does not matter here, because EXCEPT compares the rows of the second query for equality, and the value 4 is not equal to NULL or to any of the others.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept_id</th></tr></thead>
+    <tbody><tr><td>4</td></tr></tbody>
+  </table></div>
+  <pre class="code" data-lang="sql"><code>SELECT dept_id FROM departments
+INTERSECT
+SELECT dept_id FROM employees
+ORDER BY 1;</code></pre>
+  <p><strong>INTERSECT result.</strong> The dept_id values present in both tables are 1, 2 and 3. The NULL in employees matches nothing in departments, so it is not returned.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept_id</th></tr></thead>
+    <tbody><tr><td>1</td></tr><tr><td>2</td></tr><tr><td>3</td></tr></tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>A set operation needs the columns in the same order and with compatible types. Name the output columns in the first query, because the output takes its names from there.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between a correlated and a non-correlated subquery, and which one is re-run for each row? The correlated one refers to the outer query and is re-evaluated for each outer row. The non-correlated one runs once. Databases often rewrite correlated subqueries as joins to speed them up.</p></div>
+  <details class="check"><summary>Why does <code>NOT IN</code> return zero rows here, even though Research has no employees?</summary><div class="ans"><p>The list of dept_ids from employees includes NULL (Farah). For Research, the test becomes "4 is not equal to 1, 2, 3, or NULL", and a comparison with NULL is UNKNOWN, so the row is removed.</p></div></details>
+  <details class="check"><summary>How many rows does <code>SELECT dept_id FROM employees UNION ALL SELECT dept_id FROM departments</code> return?</summary><div class="ans"><p>Eight employee rows plus four department rows, which is 12. UNION ALL keeps duplicates, so the employee values 1, 2 and 3 and the NULL are kept as they are.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <details class="check"><summary>Name the SQL command families and give one example of each.</summary><div class="ans"><p>DDL: CREATE TABLE. DML: INSERT, UPDATE, DELETE. DQL: SELECT. DCL: GRANT. TCL: COMMIT.</p></div></details>
+  <details class="check"><summary>In what order do the clauses of a SELECT logically run?</summary><div class="ans"><p>FROM and JOIN, then WHERE, then GROUP BY, then HAVING, then SELECT, then DISTINCT, ORDER BY and LIMIT. This is why a WHERE cannot use a column alias from SELECT, but ORDER BY can.</p></div></details>
+  <details class="check"><summary>What does <code>WHERE bonus = NULL</code> return, and what should you write instead?</summary><div class="ans"><p>No rows, because a comparison with NULL is UNKNOWN. Write <code>WHERE bonus IS NULL</code>.</p></div></details>
+  <details class="check"><summary>What is the difference between WHERE and HAVING?</summary><div class="ans"><p>WHERE filters individual rows before grouping and cannot use aggregates. HAVING filters groups after grouping and can use aggregates such as COUNT(*) or AVG(salary).</p></div></details>
+  <details class="check"><summary>How does a LEFT JOIN differ from an INNER JOIN?</summary><div class="ans"><p>An inner join keeps only matching pairs. A left join keeps every row of the left table, filling the right-side columns with NULL when there is no match.</p></div></details>
+  <details class="check"><summary>How do you find rows in A that have no partner in B?</summary><div class="ans"><p>Use NOT EXISTS with a correlated subquery, or a LEFT JOIN from A to B with WHERE B.key IS NULL. Both handle NULL correctly. NOT IN is risky when the list can contain NULL.</p></div></details>
+  <details class="check"><summary>What is the difference between UNION and UNION ALL?</summary><div class="ans"><p>UNION removes duplicate rows from the combined result and must sort or hash to do so. UNION ALL keeps every row and is faster.</p></div></details>
+  <details class="check"><summary>Why is a correlated subquery potentially slow?</summary><div class="ans"><p>It refers to the outer row, so the engine may evaluate it once per outer row. Good indexes on the join columns, or a rewrite as a join, usually fix this.</p></div></details>
+  <details class="check"><summary>How do you find the second highest salary?</summary><div class="ans"><p>Use <code>SELECT MAX(salary) FROM employees WHERE salary &lt; (SELECT MAX(salary) FROM employees)</code>. On the sample data the answer is 95000, which is shared by Ben and Chen. Using DISTINCT or a window function (Day 19) handles ties explicitly.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: graphs with BFS and DFS</h2>
+  <p>A <em>graph</em> is a set of nodes (vertices) joined by edges. A grid can be a graph too: each cell is a node, and it is joined to its four neighbours (up, down, left and right). Many interview problems on grids are graph problems in disguise.</p>
+  <p>Two traversals visit every reachable node once:</p>
+  <ul>
+    <li><strong>Depth-first search (DFS)</strong> goes as deep as possible along one path before backtracking. It uses a stack, which can be the call stack of recursion or an explicit list. It suits "is it reachable" and "fill this region" questions.</li>
+    <li><strong>Breadth-first search (BFS)</strong> visits nodes in rings of increasing distance from the start. It uses a queue. It is the right tool for the fewest steps in an unweighted graph, because the first time a node is reached is always by a shortest path.</li>
+  </ul>
+  <p>Both need a <em>visited</em> set. Without it, a graph with a cycle sends the search around forever. Mark a node as visited when you add it to the stack or queue, not when you remove it, or the same node can be added many times.</p>
+  <p>The four problems today follow the same plan: a region fill (DFS), a copy of a graph (DFS or BFS with a map from original to copy), a multi-source BFS in time (BFS), and a shortest path between words (BFS).</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/flood-fill/">
+    <h3>Flood Fill (LeetCode 733)</h3>
+    <div class="statement"><p>You are given an image as a grid of colours, a starting cell <code>(sr, sc)</code> and a new colour. Change the starting cell's colour, and every cell connected to it through cells of the same original colour (up, down, left or right). For the image <code>[[1, 1, 1], [1, 1, 0], [1, 0, 1]]</code>, starting at row 1, column 1, with new colour 2, the result is <code>[[2, 2, 2], [2, 2, 0], [2, 0, 1]]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Only cells connected to the start, through cells of the original colour, change. Cells of other colours block the fill. If the new colour equals the old one, nothing needs to change.</li>
+      <li><strong>Brute force.</strong> Scan the whole grid, and for each cell check whether a path of matching colour leads back to the start. That is quadratic work in the number of cells.</li>
+      <li><strong>Find the waste.</strong> The connected region is found once by a traversal from the start. Each cell in the region is visited once, and the traversal never leaves the region.</li>
+      <li><strong>Optimise.</strong> Start a DFS with an explicit stack at the start cell. Record the old colour, paint the start, and then for each popped cell paint and push every neighbour whose colour equals the old colour. Painting before pushing marks the cell as visited. Each cell is handled once, so the work is O(rows times cols).</li>
+      <li><strong>Dry run.</strong> The start cell (1, 1) holds 1, so old is 1, and it is painted 2. Its neighbours (0, 1) and (1, 0) also hold 1, so they are painted and pushed. From those, the fill reaches (0, 0), (0, 2) and (2, 0). The cells (1, 2) and (2, 1) hold 0, so they block the fill. The cell (2, 2) holds 1, but both of its neighbours are 0, so it is not connected to the region and stays 1.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def flood_fill(image, sr, sc, color):
+    rows, cols = len(image), len(image[0])
+    old = image[sr][sc]
+    if old == color:                     # nothing to do, and avoids an endless loop
+        return image
+    image[sr][sc] = color
+    stack = [(sr, sc)]
+    while stack:
+        r, c = stack.pop()
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and image[nr][nc] == old:
+                image[nr][nc] = color    # paint before pushing, so it is visited once
+                stack.append((nr, nc))
+    return image
+
+
+image = [[1, 1, 1], [1, 1, 0], [1, 0, 1]]
+for row in flood_fill(image, 1, 1, 2):
+    print(row)</code></pre>
+    <pre class="output">[2, 2, 2]
+[2, 2, 0]
+[2, 0, 1]</pre>
+    <p class="cx">Time O(rows times cols) · Space O(rows times cols) in the worst case for the stack</p>
+    <div class="note trap"><p><span class="t">Trap</span>If the new colour equals the old colour and you skip the early return, the algorithm keeps finding cells of the "old" colour that it has just painted, and it never terminates. Always check this case first.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>A connected region on a grid is one DFS or BFS from a start cell. Mark cells when you push them so none is processed twice.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/clone-graph/">
+    <h3>Clone Graph (LeetCode 133)</h3>
+    <div class="statement"><p>Given a reference to a node in a connected undirected graph, return a deep copy of the whole graph. Each node has a value and a list of neighbours. The copy must have new node objects, with the same values and the same connections. For the graph where node 1 is joined to 2 and 4, node 2 to 1 and 3, node 3 to 2 and 4, and node 4 to 1 and 3, the copy has the same four connections.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A copy must not share any node with the original. The graph has cycles, so a naive recursive copy would loop forever. Each original node must map to exactly one copy.</li>
+      <li><strong>Brute force.</strong> Recursively copy each neighbour, creating a new node every time you reach one. This copies a node once for each path that leads to it, which is exponential in the worst case, and it never stops on a cycle.</li>
+      <li><strong>Find the waste.</strong> What is needed is a single copy per original node, and a way to find it when it is reached again. A dictionary from original node to copy does both.</li>
+      <li><strong>Optimise.</strong> Traverse the original graph with a stack. When a node is first seen, create its copy and store it in the dictionary. For each neighbour, create its copy if it has none yet, and add the copy of the neighbour to the copy of the current node. Every node is processed once, and every edge is added once from each side.</li>
+      <li><strong>Dry run.</strong> Start at node 1. Its copy is created. Neighbour 2 gets a copy and is pushed, and so does 4. Node 2 is processed: its neighbour 1 already has a copy, and 3 gets one. The dictionary holds all four copies by the time the stack is empty.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, val=0, neighbors=None):
+        self.val = val
+        self.neighbors = neighbors if neighbors is not None else []
+
+
+def clone_graph(node):
+    if node is None:
+        return None
+    copies = {node: Node(node.val)}          # original node -> its single copy
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        for nb in current.neighbors:
+            if nb not in copies:
+                copies[nb] = Node(nb.val)
+                stack.append(nb)
+            copies[current].neighbors.append(copies[nb])
+    return copies[node]
+
+
+def build(adj):
+    nodes = {v: Node(v) for v in adj}
+    for v, nbs in adj.items():
+        nodes[v].neighbors = [nodes[u] for u in nbs]
+    return nodes[1]
+
+
+def adjacency(start):
+    result = {}
+    seen = {start}
+    stack = [start]
+    while stack:
+        node = stack.pop()
+        result[node.val] = sorted(n.val for n in node.neighbors)
+        for n in node.neighbors:
+            if n not in seen:
+                seen.add(n)
+                stack.append(n)
+    return [result[v] for v in sorted(result)]
+
+
+graph = build({1: [2, 4], 2: [1, 3], 3: [2, 4], 4: [1, 3]})
+copy = clone_graph(graph)
+print(adjacency(copy))
+print(copy is graph)
+print(copy.neighbors[0] is graph.neighbors[0])</code></pre>
+    <pre class="output">[[2, 4], [1, 3], [2, 4], [1, 3]]
+False
+False</pre>
+    <p class="cx">Time O(V + E) · Space O(V) for the dictionary and the stack</p>
+    <div class="note trap"><p><span class="t">Trap</span>Checking <code>if nb not in copies</code> before creating the copy is essential. Creating a fresh copy each time you see a neighbour gives a graph that looks right at first but has duplicate nodes.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To copy any graph with cycles, keep a map from each original node to its copy. The map is both the visited set and the way to find the copy.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/rotting-oranges/">
+    <h3>Rotting Oranges (LeetCode 994)</h3>
+    <div class="statement"><p>A grid holds 0 for an empty cell, 1 for a fresh orange and 2 for a rotten one. Every minute, each fresh orange next to a rotten one (up, down, left or right) becomes rotten. Return the minimum number of minutes until no fresh orange is left, or -1 if some never rot. For <code>[[2, 1, 1], [1, 1, 0], [0, 1, 1]]</code> the answer is 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Rot spreads from every rotten orange at the same time, one ring per minute. The answer is the number of rings needed to reach the last fresh orange. If a fresh orange is not connected to any rotten one, the answer is -1. If there are no fresh oranges, the answer is 0.</li>
+      <li><strong>Brute force.</strong> Simulate minute by minute: each minute, scan the whole grid and rot every fresh orange next to a rotten one. Each minute costs a full scan, and there can be many minutes, so this is O(minutes times cells).</li>
+      <li><strong>Find the waste.</strong> The scan looks at every cell, but only the cells that rotted in the previous minute can spread rot further. Only those cells need to be visited.</li>
+      <li><strong>Optimise.</strong> Multi-source BFS. Put all initially rotten oranges in a queue at once. Process the queue one layer at a time: each layer is one minute. Each fresh orange that a rotten one reaches is marked rotten and added to the next layer. Count the layers, and track the number of fresh oranges so the answer is known at the end. Every cell enters the queue at most once, so the work is O(rows times cols).</li>
+      <li><strong>Dry run.</strong> For the example, the rotten orange at (0, 0) is the only source. Minute 1 rots (0, 1) and (1, 0). Minute 2 rots (0, 2) and (1, 1). Minute 3 rots (2, 1), because (1, 1) is rotten and (2, 1) is fresh. Cell (1, 2) is empty, so it never rots. Minute 4 rots (2, 2), which is reached from (2, 1). No fresh orange remains, so the answer is 4.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+def oranges_rotting(grid):
+    rows, cols = len(grid), len(grid[0])
+    grid = [row[:] for row in grid]          # work on a copy
+    queue = deque()
+    fresh = 0
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] == 2:
+                queue.append((r, c))
+            elif grid[r][c] == 1:
+                fresh += 1
+    minutes = 0
+    while queue and fresh:
+        for _ in range(len(queue)):          # one layer = one minute
+            r, c = queue.popleft()
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nr, nc = r + dr, c + dc
+                if 0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and grid[nr][nc] == 1:
+                    grid[nr][nc] = 2
+                    fresh -= 1
+                    queue.append((nr, nc))
+        minutes += 1
+    return minutes if fresh == 0 else -1
+
+
+print(oranges_rotting([[2, 1, 1], [1, 1, 0], [0, 1, 1]]))
+print(oranges_rotting([[2, 1, 1], [0, 1, 1], [1, 0, 1]]))
+print(oranges_rotting([[0, 2]]))</code></pre>
+    <pre class="output">4
+-1
+0</pre>
+    <p class="cx">Time O(rows times cols) · Space O(rows times cols)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Running one BFS per rotten orange and taking the maximum is wrong and slow. All rotten oranges must start together, so that the minutes are counted from the same moment.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When many sources spread at the same speed and you want the time until everything is reached, push all sources into the queue first and count BFS layers.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/word-ladder/">
+    <h3>Word Ladder (LeetCode 127)</h3>
+    <div class="statement"><p>Given a begin word, an end word and a list of words, find the length of the shortest transformation sequence from begin to end. Each step changes exactly one letter, and every intermediate word must be in the list. The end word must be in the list. Return 0 if no sequence exists. For begin "hit", end "cog" and the list hot, dot, dog, lot, log, cog, the answer is 5: hit, hot, dot, dog, cog.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Words are nodes, and two words are joined when they differ in exactly one letter. We want the shortest path, so the answer is the number of words on the path, counting both ends.</li>
+      <li><strong>Brute force.</strong> Try every ordering of the word list and check each one for valid steps. This is factorial in the number of words.</li>
+      <li><strong>Find the waste.</strong> Comparing every pair of words costs O(N squared) and checks many pairs that differ in more than one letter. Each word has at most L times 26 possible one-letter changes, where L is the word length. Generating those neighbours directly is much cheaper.</li>
+      <li><strong>Optimise.</strong> Breadth-first search from the begin word. The queue holds (word, steps). For each word, generate every one-letter change, keep the ones in the list that are not visited yet, mark them visited and enqueue them with steps plus one. The first time the end word is dequeued, its steps are the shortest. The cost is O(N times L times 26), which is fast enough.</li>
+      <li><strong>Dry run.</strong> Start with (hit, 1). Changing one letter of hit gives hot, so (hot, 2) is queued. From hot the words dot and lot are queued at 3. From dot the word dog is queued at 4. From dog the word cog is queued at 5, and it is dequeued at 5, which is the answer.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+def ladder_length(begin, end, word_list):
+    words = set(word_list)
+    if end not in words:
+        return 0
+    queue = deque([(begin, 1)])
+    visited = {begin}
+    while queue:
+        word, steps = queue.popleft()
+        if word == end:
+            return steps
+        for i in range(len(word)):
+            for ch in "abcdefghijklmnopqrstuvwxyz":
+                candidate = word[:i] + ch + word[i + 1:]
+                if candidate in words and candidate not in visited:
+                    visited.add(candidate)
+                    queue.append((candidate, steps + 1))
+    return 0
+
+
+print(ladder_length("hit", "cog", ["hot", "dot", "dog", "lot", "log", "cog"]))
+print(ladder_length("hit", "cog", ["hot", "dot", "dog", "lot", "log"]))</code></pre>
+    <pre class="output">5
+0</pre>
+    <p class="cx">Time O(N times L times 26) · Space O(N times L)</p>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>How would you speed this up? Build a map from each wildcard pattern, such as h*t, to the words that match it. Then each neighbour lookup is one dictionary access, and the total work drops because fewer candidates are generated.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Counting edges instead of words gives one less than the answer. The problem counts the words in the sequence, so the begin word counts as 1.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Shortest path in an unweighted graph is BFS. Whenever the neighbours of a node can be generated, you do not need to store the graph at all.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>DDL, DML, DQL, DCL, TCL</dt><dd>Command families: structure, rows, reads, permissions, transactions.</dd></div>
+    <div><dt>Logical clause order</dt><dd>FROM and JOIN, WHERE, GROUP BY, HAVING, SELECT, DISTINCT, ORDER BY, LIMIT.</dd></div>
+    <div><dt>NULL</dt><dd>Unknown or not applicable; not equal to anything, including NULL.</dd></div>
+    <div><dt>Three-valued logic</dt><dd>Conditions are TRUE, FALSE or UNKNOWN; WHERE keeps only TRUE.</dd></div>
+    <div><dt>IS NULL</dt><dd>The only correct test for a missing value.</dd></div>
+    <div><dt>COALESCE</dt><dd>Returns the first argument that is not NULL.</dd></div>
+    <div><dt>CASE</dt><dd>If-else inside a query; the first true WHEN wins.</dd></div>
+    <div><dt>Aggregate</dt><dd>A function such as COUNT, SUM, AVG, MIN or MAX that reduces many rows to one value.</dd></div>
+    <div><dt>GROUP BY</dt><dd>Splits rows into groups for aggregates.</dd></div>
+    <div><dt>HAVING</dt><dd>Filters groups after aggregation.</dd></div>
+    <div><dt>INNER JOIN</dt><dd>Keeps only matching pairs.</dd></div>
+    <div><dt>LEFT JOIN</dt><dd>Keeps all left rows, with NULL for missing right values.</dd></div>
+    <div><dt>FULL OUTER JOIN</dt><dd>Keeps unmatched rows from both sides.</dd></div>
+    <div><dt>CROSS JOIN</dt><dd>Every row paired with every row; size is the product of the two counts.</dd></div>
+    <div><dt>Self join</dt><dd>A table joined to itself using two aliases.</dd></div>
+    <div><dt>Anti-join</dt><dd>Rows in one table with no partner in another, found with NOT EXISTS or LEFT JOIN ... IS NULL.</dd></div>
+    <div><dt>Scalar subquery</dt><dd>A subquery that returns exactly one value.</dd></div>
+    <div><dt>Correlated subquery</dt><dd>A subquery that refers to the outer row.</dd></div>
+    <div><dt>EXISTS</dt><dd>TRUE when the subquery returns at least one row.</dd></div>
+    <div><dt>IN and NOT IN</dt><dd>Compare a value with a list; NOT IN is unsafe when the list contains NULL.</dd></div>
+    <div><dt>UNION and UNION ALL</dt><dd>Combine results; UNION removes duplicates.</dd></div>
+    <div><dt>INTERSECT and EXCEPT</dt><dd>Rows in both results, or rows in the first but not the second.</dd></div>
+    <div><dt>Graph</dt><dd>Nodes joined by edges; a grid is a graph whose edges join neighbouring cells.</dd></div>
+    <div><dt>DFS</dt><dd>Depth-first search: go deep first, using a stack or recursion.</dd></div>
+    <div><dt>BFS</dt><dd>Breadth-first search: visit rings of increasing distance, using a queue; finds shortest paths in unweighted graphs.</dd></div>
+    <div><dt>Visited set</dt><dd>Marks nodes already queued or stacked so none is processed twice.</dd></div>
+    <div><dt>Multi-source BFS</dt><dd>Start the BFS from many nodes at once; counts time from the same moment.</dd></div>
+    <div><dt>Deep copy of a graph</dt><dd>Copy each node once, using a map from original node to copy.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td>SELECT ... FROM ... WHERE</td><td>Choose columns and filter rows</td><td><code>SELECT emp_name FROM employees WHERE salary &gt; 70000;</code></td></tr>
+      <tr><td>IS NULL / IS NOT NULL</td><td>Test for a missing value</td><td><code>WHERE bonus IS NULL</code></td></tr>
+      <tr><td>COALESCE(a, b)</td><td>First argument that is not NULL</td><td><code>COALESCE(bonus, 0)</code> gives 0 for NULL</td></tr>
+      <tr><td>CASE WHEN ... END</td><td>If-else inside a query</td><td><code>CASE WHEN salary &gt;= 90000 THEN 'High' ELSE 'Other' END</code></td></tr>
+      <tr><td>GROUP BY ... HAVING</td><td>Group rows, then filter groups</td><td><code>GROUP BY dept_id HAVING COUNT(*) &gt;= 2</code></td></tr>
+      <tr><td>INNER / LEFT / FULL JOIN ... ON</td><td>Combine tables by a condition</td><td><code>FROM a LEFT JOIN b ON b.id = a.b_id</code></td></tr>
+      <tr><td>EXISTS / NOT EXISTS</td><td>Test whether a subquery returns any row</td><td><code>WHERE NOT EXISTS (SELECT 1 FROM e WHERE e.dept_id = d.dept_id)</code></td></tr>
+      <tr><td>UNION / UNION ALL / INTERSECT / EXCEPT</td><td>Set operations on results</td><td><code>SELECT dept_id FROM departments EXCEPT SELECT dept_id FROM employees</code></td></tr>
+      <tr><td>ROUND(x, 2)</td><td>Round to two decimal places</td><td><code>ROUND(AVG(salary), 2)</code></td></tr>
+      <tr><td>collections.deque</td><td>Queue with fast removal from the front (used for BFS)</td><td><code>queue.popleft()</code></td></tr>
+      <tr><td>flood_fill, clone_graph, oranges_rotting, ladder_length</td><td>The Python solutions to today's DSA problems</td><td>See the code blocks above</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 18?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 18 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-17.html"><small>Previous, day 17</small>DBMS 2: Transactions, concurrency, indexing</a><a class="next" href="day-19.html"><small>Next, day 19</small>SQL 2 + PostgreSQL + Django ORM</a></nav>
+</main><script src="assets/app.js"></script></body></html>

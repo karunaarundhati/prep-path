@@ -1,0 +1,822 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 5: OOP: principles, C++ OOP, SOLID, design patterns</title><meta name="description" content="Today is object-oriented design in practice. You will learn the four pillars of OOP, the difference between overloading and overriding, abstract classes versus interfaces, composition versus inheritance, how C++ builds objects and calls virtual functions (including the vtable and RAII), how Python, C++ and C compare on the same small task, the SOLID principles, and the design patterns interviewers name most often. The DSA topic is the sliding window, which keeps a moving range over an array and updates it one element at a time."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="5" data-key="5" data-noun="day" data-num="5" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>OOP: <em>principles, C++ OOP, SOLID, design patterns</em></h1>
+<p class="lede">Today is object-oriented design in practice. You will learn the four pillars of OOP, the difference between overloading and overriding, abstract classes versus interfaces, composition versus inheritance, how C++ builds objects and calls virtual functions (including the vtable and RAII), how Python, C++ and C compare on the same small task, the SOLID principles, and the design patterns interviewers name most often. The DSA topic is the sliding window, which keeps a moving range over an array and updates it one element at a time.</p>
+<div class="station"><b>5</b><span>Fri 6 Nov 2026 · Programming · DSA: Sliding window</span></div>
+<ul class="topics"><li>Four pillars</li><li>Overloading vs overriding</li><li>Abstract class vs interface</li><li>Composition vs inheritance</li><li>C++ objects, vtable, RAII</li><li>SOLID</li><li>Design patterns</li><li>Sliding window DSA</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Four pillars">
+  <h2>The four pillars of object-oriented programming</h2>
+  <p>Object-oriented programming (OOP) organizes a program around <em>objects</em>, which bundle data (their <em>state</em>) with the functions that act on that data (their <em>behaviour</em>). A <strong>class</strong> is the blueprint for objects, and an object is one instance of a class. Four ideas are called the pillars of OOP. Interviewers expect you to name them, define each one in a sentence, and give an example.</p>
+
+  <h3>Encapsulation</h3>
+  <p><strong>Encapsulation</strong> means hiding a class's data behind its functions. Outside code changes the state only through methods the class chooses to expose, so the class can check its own rules. A bank account that stores its balance in a private field can refuse a withdrawal larger than the balance. If the balance were public, any code could set it to any value.</p>
+
+  <h3>Abstraction</h3>
+  <p><strong>Abstraction</strong> means exposing what an object does and hiding how it does it. A caller that asks a <code>Notifier</code> to send a message does not need to know whether the message goes by email or by SMS. Abstraction is about the interface a caller sees. Encapsulation is about protecting the data behind that interface. The two work together, but they are not the same idea.</p>
+
+  <h3>Inheritance</h3>
+  <p><strong>Inheritance</strong> lets a new class (the <em>derived</em> or <em>child</em> class) reuse and extend an existing class (the <em>base</em> or <em>parent</em> class). The child gets the base's members and can add its own. The phrase to remember is "is-a": a dog is an animal, so <code>Dog</code> can inherit from <code>Animal</code>.</p>
+
+  <h3>Polymorphism</h3>
+  <p><strong>Polymorphism</strong> means one name or call that behaves differently depending on the object. The word comes from Greek for "many forms". Polymorphism is what lets a loop call <code>sound()</code> on a list of mixed animals and get "Woof" from a dog and "Meow" from a cat, without an <code>if</code> for each type. There are two kinds, compile-time (overloading) and run-time (overriding through virtual functions), and the next section compares them.</p>
+
+  <p>The example below uses all four pillars in one small C++ program. The base class <code>Animal</code> keeps its name private (encapsulation), declares a pure virtual <code>sound</code> function that describes what an animal does without saying how (abstraction), is inherited by <code>Dog</code> and <code>Cat</code> (inheritance), and is called through a pointer to the base (polymorphism).</p>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+#include &lt;memory&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+#include &lt;vector&gt;
+
+// Abstraction: callers only see this interface.
+class Animal {
+public:
+    explicit Animal(std::string name) : name_(std::move(name)) {}  // encapsulation: name_ is private
+    virtual ~Animal() = default;                                  // needed so deleting through a base pointer is safe
+    const std::string&amp; name() const { return name_; }
+    virtual std::string sound() const = 0;                        // pure virtual: each animal decides
+private:
+    std::string name_;
+};
+
+// Inheritance: Dog reuses name() and provides its own sound().
+class Dog : public Animal {
+public:
+    using Animal::Animal;                                         // inherit the constructor
+    std::string sound() const override { return "Woof"; }
+};
+
+class Cat : public Animal {
+public:
+    using Animal::Animal;
+    std::string sound() const override { return "Meow"; }
+};
+
+int main() {
+    // Polymorphism: one loop, different behaviour per object.
+    std::vector&lt;std::unique_ptr&lt;Animal&gt;&gt; zoo;
+    zoo.push_back(std::make_unique&lt;Dog&gt;("Rex"));
+    zoo.push_back(std::make_unique&lt;Cat&gt;("Tom"));
+    for (const auto&amp; a : zoo) {
+        std::cout &lt;&lt; a-&gt;name() &lt;&lt; " says " &lt;&lt; a-&gt;sound() &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+<pre class="output">Rex says Woof
+Tom says Meow</pre>
+
+  <p>The vector stores <code>std::unique_ptr</code> values, which own the animals and delete them automatically. The loop asks each animal for its sound through a pointer to <code>Animal</code>. The compiler picks <code>Dog::sound</code> or <code>Cat::sound</code> at run time, which is the behaviour that makes the program polymorphic.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Encapsulation protects data, abstraction hides details behind an interface, inheritance reuses a base class, and polymorphism lets one call dispatch to different code. Name them in that order and give one example each.</p></div>
+
+  <details class="check"><summary>What is the difference between encapsulation and abstraction?</summary><div class="ans"><p>Encapsulation hides the data of an object and protects it with methods that check its rules. Abstraction hides the details of how an operation is done and shows only what it does. A class can have one without the other, but good designs usually use both.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Overloading vs overriding">
+  <h2>Overloading versus overriding</h2>
+  <p>Both words describe having several functions with related behaviour, and they are the most confused pair of terms in OOP interviews. The difference is simple to state. <strong>Overloading</strong> means two or more functions in the same scope share a name but have different parameter lists. The compiler chooses between them when it compiles the call. This is compile-time polymorphism. <strong>Overriding</strong> means a derived class provides a new version of a function that the base class declared, with the same signature. The choice happens at run time when the function is virtual. This is run-time polymorphism.</p>
+
+  <h3>Overloading: same name, different parameters</h3>
+  <p>The compiler matches a call to the best overload by looking at the number and types of the arguments. An exact match is preferred to a conversion. The program below shows how the choice follows the argument type.</p>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+
+struct Printer {
+    void show(int x)    { std::cout &lt;&lt; "show(int) " &lt;&lt; x &lt;&lt; "\n"; }
+    void show(double x) { std::cout &lt;&lt; "show(double) " &lt;&lt; x &lt;&lt; "\n"; }
+};
+
+int main() {
+    Printer p;
+    p.show(3);      // exact match for int
+    p.show(2.5);    // exact match for double
+    return 0;
+}</code></pre>
+<pre class="output">show(int) 3
+show(double) 2.5</pre>
+
+  <p>Nothing about these calls depends on run-time objects. The compiler writes a direct call to the right function, so there is no runtime cost. Overloading is useful for constructors, arithmetic helpers and functions that do the same job on different types.</p>
+
+  <h3>Overriding: same signature, new behaviour</h3>
+  <p>Overriding requires three things: a base-class function declared <code>virtual</code>, a derived-class function with the same name, parameters and <code>const</code> qualifier, and, as good practice, the keyword <code>override</code>. The <code>override</code> keyword asks the compiler to check that a base function exists with that exact signature. A typo in the name then becomes a compile error instead of a silently new function.</p>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+
+struct Base {
+    virtual void hello() const { std::cout &lt;&lt; "Base hello\n"; }
+};
+
+struct Derived : Base {
+    void hello() const override { std::cout &lt;&lt; "Derived hello\n"; }
+};
+
+int main() {
+    Derived d;
+    Base &amp;r = d;       // a reference to the base part of d
+    r.hello();        // the object decides, not the reference type
+    d.hello();
+    return 0;
+}</code></pre>
+<pre class="output">Derived hello
+Derived hello</pre>
+
+  <p>Both calls print "Derived hello", even though <code>r</code> has type <code>Base &amp;</code>. Because <code>hello</code> is virtual, the call goes through a hidden pointer stored in the object, which names the derived version. That is the essence of overriding: the reference type chooses the name, and the actual object chooses the code.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>If you forget <code>virtual</code> in the base class, the call through a base reference runs the base version and prints "Base hello". Adding <code>override</code> in the derived class makes the compiler catch the mistake.</p></div>
+
+  <details class="check"><summary>A derived class declares void show(std::string) and the base has show(int). Is this overloading or overriding, and what changes for callers?</summary><div class="ans"><p>It is overloading, because the parameter lists differ and both functions are visible through the same class name in one scope. It is not overriding, because the signatures differ. A subtle point: if the derived class declares any <code>show</code>, the base <code>show</code> overloads are hidden inside the derived class unless you add <code>using Base::show;</code>.</p></div></details>
+
+  </section>
+
+<section class="unit" id="c3" data-title="Abstract vs interface">
+  <h2>Abstract classes versus interfaces</h2>
+  <p>An <strong>abstract class</strong> is a class that cannot be instantiated because it has at least one pure virtual function. A pure virtual function is declared with <code>= 0</code> and has no required implementation in the base class. An <strong>interface</strong> is a contract: a class that only declares functions and holds no data. In C++ there is no separate keyword for an interface. It is a convention, an abstract class with only pure virtual functions and a virtual destructor. Java and C# have a dedicated <code>interface</code> keyword, which you will meet on day 6.</p>
+
+  <p>The choice is about what you want to share. An abstract class can hold data and provide default code that derived classes inherit, so it fits closely related classes that share state. An interface holds no state, so it fits unrelated classes that need to offer the same ability, such as "can be saved" or "can be sent". A class in C++ can inherit from several interfaces but usually from only one class with data, which keeps the design simple.</p>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+#include &lt;string&gt;
+#include &lt;utility&gt;
+
+// Interface style: only pure virtual functions and a virtual destructor, no data.
+class Notifier {
+public:
+    virtual ~Notifier() = default;
+    virtual void send(const std::string &amp;msg) = 0;
+};
+
+// Abstract class with shared state and a default implementation.
+class Service {
+public:
+    explicit Service(std::string name) : name_(std::move(name)) {}
+    virtual ~Service() = default;
+    void start() { std::cout &lt;&lt; name_ &lt;&lt; " started\n"; }   // shared code, inherited as is
+    virtual void run() = 0;                                 // each service must provide this
+protected:
+    std::string name_;
+};
+
+class EmailNotifier : public Notifier {
+public:
+    void send(const std::string &amp;msg) override { std::cout &lt;&lt; "email: " &lt;&lt; msg &lt;&lt; "\n"; }
+};
+
+class Mailer : public Service {
+public:
+    Mailer() : Service("mailer") {}
+    void run() override { std::cout &lt;&lt; "mailer running\n"; }
+};
+
+int main() {
+    EmailNotifier n;
+    n.send("hello");
+    Mailer m;
+    m.start();
+    m.run();
+    // Notifier nope;   // compile error: Notifier has pure virtual functions only
+    return 0;
+}</code></pre>
+<pre class="output">email: hello
+mailer started
+mailer running</pre>
+
+  <p>Read the code for the roles. <code>Notifier</code> promises a capability and nothing else, so <code>EmailNotifier</code> and any future <code>SmsNotifier</code> can implement it independently. <code>Service</code> has real data (<code>name_</code>) and real code (<code>start</code>), so every service shares the same startup behaviour. The commented line would not compile, because an abstract class cannot be created as an object.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between an abstract class and an interface? Answer: an abstract class can hold state and default behaviour, and a class inherits it once. An interface holds only the contract, and a class can implement many of them.</p></div>
+
+  </section>
+
+<section class="unit" id="c4" data-title="Composition">
+  <h2>Composition versus inheritance</h2>
+  <p>Inheritance models "is-a". A <code>Square</code> is a shape, so it can inherit from <code>Shape</code>. Composition models "has-a". A car has an engine, so the car holds an engine object as a member. The usual advice, sometimes called "favour composition over inheritance", comes from the problems deep hierarchies cause. A derived class is tied to every decision of its base. When the base changes, the derived classes can break, and the child inherits behaviour it does not want.</p>
+
+  <p>Composition avoids that coupling. The outer object delegates work to its parts, and you can swap a part without touching the outer class. The example shows a car that uses an engine it owns.</p>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+
+class Engine {
+public:
+    void start() const { std::cout &lt;&lt; "engine started\n"; }
+};
+
+class Car {                     // composition: a Car HAS an Engine
+public:
+    void drive() const {
+        engine_.start();        // delegate the work to the part
+        std::cout &lt;&lt; "car driving\n";
+    }
+private:
+    Engine engine_;             // the engine is a member, owned by the car
+};
+
+int main() {
+    Car c;
+    c.drive();
+    return 0;
+}</code></pre>
+<pre class="output">engine started
+car driving</pre>
+
+  <p>If the car inherited from <code>Engine</code> instead, a car would be an engine, which is wrong, and it would expose every public method of <code>Engine</code> to callers of <code>Car</code>. With composition, <code>Car</code> decides what to expose. If a future car uses an electric motor, you change one member, not the whole class tree.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Ask whether you can say "is a" in a full sentence without it sounding odd. If not, use composition. Inheritance should be used for a true specialization, such as a <code>Dog</code> that behaves like any <code>Animal</code> everywhere.</p></div>
+
+  <details class="check"><summary>Why does composition usually lead to fewer breaking changes than inheritance?</summary><div class="ans"><p>A derived class inherits the base's behaviour and must keep working whenever the base changes. A class that uses another object through composition depends only on the public interface of that object, and it can keep the same interface while the internals change. Composition also makes it easy to swap parts at run time.</p></div></details>
+</section>
+<section class="unit" id="c5" data-title="C++ objects and RAII">
+  <h2>OOP in C++: constructors, virtual functions, vtable and RAII</h2>
+  <p>C++ adds classes to C, and the details of object creation and destruction are a favourite interview topic. This unit covers four ideas in order: the order in which constructors and destructors run, how a virtual call finds the right function, what a vtable is, and the RAII pattern that makes resource handling safe.</p>
+
+  <h3>Construction and destruction order</h3>
+  <p>When you create a derived object, the base part is constructed first, then the derived part. When the object is destroyed, the order is reversed: the derived part is destroyed first, then the base. This rule guarantees that a derived class can rely on its base being fully set up and that the base is still alive while the derived part cleans up. A destructor should be <code>virtual</code> in any class meant to be used as a base, so that deleting an object through a base pointer runs the derived destructor too.</p>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+
+struct Base {
+    Base()          { std::cout &lt;&lt; "Base ctor\n"; }
+    virtual ~Base() { std::cout &lt;&lt; "Base dtor\n"; }
+    virtual void who() const { std::cout &lt;&lt; "Base\n"; }
+    void call() const { who(); }    // calls through the virtual function
+};
+
+struct Derived : Base {
+    Derived()          { std::cout &lt;&lt; "Derived ctor\n"; }
+    ~Derived() override { std::cout &lt;&lt; "Derived dtor\n"; }
+    void who() const override { std::cout &lt;&lt; "Derived\n"; }
+};
+
+int main() {
+    {
+        Derived d;                 // constructed on the stack, destroyed at the closing brace
+        d.call();
+        Base &amp;b = d;
+        b.who();
+    }
+    std::cout &lt;&lt; "--\n";
+    Base *p = new Derived();       // heap object, destroyed with delete
+    delete p;                      // virtual destructor: the Derived destructor runs first
+    return 0;
+}</code></pre>
+<pre class="output">Base ctor
+Derived ctor
+Derived
+Derived
+Derived dtor
+Base dtor
+--
+Base ctor
+Derived ctor
+Derived dtor
+Base dtor</pre>
+
+  <p>Trace the first block. Creating <code>d</code> runs <code>Base ctor</code> and then <code>Derived ctor</code>. Both <code>d.call()</code> and <code>b.who()</code> print "Derived", because the virtual call finds <code>Derived::who</code>. Leaving the block destroys <code>d</code>, which runs <code>Derived dtor</code> and then <code>Base dtor</code>. The second block repeats the sequence on the heap. Without a virtual destructor, <code>delete p</code> would destroy only the <code>Base</code> part, which is undefined behaviour for a derived object.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Virtual functions do not reach into a base constructor or destructor. While the base constructor runs, the object is still a base object, so a virtual call there calls the base version. The same holds during destruction after the derived part is gone.</p></div>
+
+  <h3>Virtual functions and the vtable</h3>
+  <p>A <strong>vtable</strong> (virtual table) is a table of function addresses that the compiler creates for each class with virtual functions. Each object of such a class carries a hidden pointer, usually called the vptr, that points to its class's vtable. A virtual call such as <code>b.who()</code> works in three steps: read the vptr from the object, read the entry for <code>who</code> from the table, and call the address found there. The entry for <code>Derived</code> points to <code>Derived::who</code>, which is why the program prints "Derived".</p>
+  <p>The cost is one extra pointer per object and one extra indirect call per virtual call. A non-virtual call is resolved at compile time and has no such cost. The standard does not require a vtable, but nearly every mainstream compiler uses this design, and interviewers expect you to explain it.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How does a virtual function call work? Answer: each polymorphic object holds a pointer to its class's vtable, and the call reads the function address for that slot from the table, then calls it.</p></div>
+
+  <h3>RAII: tie a resource to an object's lifetime</h3>
+  <p><strong>RAII</strong> stands for "Resource Acquisition Is Initialization". The idea is that a resource such as a file, a lock, a socket or heap memory is acquired in a constructor and released in the destructor. Because C++ destroys local objects when a scope ends, even when an exception leaves the scope, the resource is always released. This removes the need for manual cleanup code on every exit path.</p>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+#include &lt;stdexcept&gt;
+
+class FileGuard {                      // RAII: acquire in the constructor, release in the destructor
+public:
+    explicit FileGuard(const char *name) : name_(name) {
+        std::cout &lt;&lt; "open " &lt;&lt; name_ &lt;&lt; "\n";
+    }
+    ~FileGuard() {
+        std::cout &lt;&lt; "close " &lt;&lt; name_ &lt;&lt; "\n";
+    }
+    FileGuard(const FileGuard &amp;) = delete;             // copying would close the file twice
+    FileGuard &amp;operator=(const FileGuard &amp;) = delete;
+private:
+    const char *name_;
+};
+
+void work(bool fail) {
+    FileGuard guard("data.txt");
+    if (fail) {
+        throw std::runtime_error("boom");   // the guard is still destroyed on the way out
+    }
+    std::cout &lt;&lt; "working\n";
+}
+
+int main() {
+    work(false);
+    try {
+        work(true);
+    } catch (const std::exception &amp;e) {
+        std::cout &lt;&lt; "caught " &lt;&lt; e.what() &lt;&lt; "\n";
+    }
+    return 0;
+}</code></pre>
+<pre class="output">open data.txt
+working
+close data.txt
+open data.txt
+close data.txt
+caught boom</pre>
+
+  <p>In the failing call, the exception unwinds <code>work</code>. The local <code>guard</code> is destroyed during unwinding, so "close data.txt" prints before the <code>catch</code> handler runs. The deleted copy operations express a rule: a resource owner must not be copied, because two owners would release the same resource twice. The standard library follows the same idea with <code>std::unique_ptr</code>, which owns heap memory and frees it automatically, and <code>std::lock_guard</code>, which holds a lock.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>RAII turns cleanup into destruction. If you find yourself writing a matching release call for every acquire, wrap the resource in a class instead.</p></div>
+
+  <details class="check"><summary>Why must the destructor of a base class be virtual when you delete through a base pointer?</summary><div class="ans"><p>Without a virtual destructor, <code>delete</code> on a base pointer calls only the base destructor, so the derived part is never cleaned up. Declaring the base destructor virtual makes the call go through the vtable to the derived destructor first, and then the base destructor runs.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Three languages">
+  <h2>Python, C++ and C side by side</h2>
+  <p>Comparing the same small task in three languages shows what each one adds. The task is to store a rectangle and compute its area. The three programs below print the same line, so the differences are in how each language expresses the idea.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+typedef struct { int w; int h; } Rect;
+
+int area(const Rect *r) {
+    return r-&gt;w * r-&gt;h;
+}
+
+int main(void) {
+    Rect r = {3, 4};
+    printf("area = %d\n", area(&amp;r));
+    return 0;
+}</code></pre>
+<pre class="output">area = 12</pre>
+
+<pre class="code" data-lang="cpp"><code>#include &lt;iostream&gt;
+
+class Rect {
+public:
+    Rect(int w, int h) : w_(w), h_(h) {}
+    int area() const { return w_ * h_; }
+private:
+    int w_, h_;
+};
+
+int main() {
+    Rect r(3, 4);
+    std::cout &lt;&lt; "area = " &lt;&lt; r.area() &lt;&lt; "\n";
+    return 0;
+}</code></pre>
+<pre class="output">area = 12</pre>
+
+<pre class="code" data-lang="python"><code>class Rect:
+    def __init__(self, w, h):
+        self.w = w
+        self.h = h
+
+    def area(self):
+        return self.w * self.h
+
+r = Rect(3, 4)
+print("area =", r.area())</code></pre>
+<pre class="output">area = 12</pre>
+
+  <p>The C version keeps data and functions apart. The struct holds the numbers, and <code>area</code> is a free function that receives a pointer. Nothing ties the function to the struct except the programmer's habit. The C++ version puts the function inside the class, and the fields are private, so the compiler enforces encapsulation. The Python version has the same shape as C++, but the fields are attributes that anyone can read and change, and types are checked only when the code runs.</p>
+
+  <div class="tablewrap"><table><thead><tr><th>Topic</th><th>C</th><th>C++</th><th>Python</th></tr></thead><tbody>
+    <tr><td>Types checked</td><td>At compile time, with implicit conversions</td><td>At compile time, strictly</td><td>At run time, by duck typing</td></tr>
+    <tr><td>Classes and methods</td><td>None: functions take a pointer to a struct</td><td>Yes, with access control</td><td>Yes, all attributes are public by convention</td></tr>
+    <tr><td>Inheritance and virtual calls</td><td>Manual, with function pointer tables</td><td>Built in, with the virtual keyword</td><td>Built in, every method can be overridden</td></tr>
+    <tr><td>Memory management</td><td>Manual with malloc and free</td><td>Manual, or RAII with smart pointers</td><td>Automatic, with garbage collection</td></tr>
+    <tr><td>Speed of compiled code</td><td>Very fast, close to the hardware</td><td>Very fast, with abstractions that cost little</td><td>Interpreted, slower for tight loops</td></tr>
+  </tbody></table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>In an interview, answer the comparison in three parts: how memory is managed, how the type system works, and how objects and polymorphism are built. Those three points cover most follow-up questions.</p></div>
+</section>
+<section class="unit" id="c7" data-title="SOLID">
+  <h2>SOLID principles</h2>
+  <p>SOLID is an acronym for five design principles, collected by Robert C. Martin. They describe how to split responsibilities so that code stays easy to change. The principles are guidelines, not laws, and applying them mechanically can add needless classes. Know what each one protects against, and be ready to say when you would break one on purpose.</p>
+
+  <ul>
+    <li><strong>S, Single Responsibility.</strong> A class should have one reason to change. An invoice class that both calculates totals and sends emails has two reasons to change.</li>
+    <li><strong>O, Open/Closed.</strong> Code should be open for extension and closed for modification. You add a new behaviour by writing new code, not by editing tested code.</li>
+    <li><strong>L, Liskov Substitution.</strong> A subtype must be usable wherever its base type is expected, without surprising the caller.</li>
+    <li><strong>I, Interface Segregation.</strong> Clients should not be forced to depend on methods they do not use. Several small interfaces beat one large one.</li>
+    <li><strong>D, Dependency Inversion.</strong> High-level code should depend on abstractions, and low-level details should depend on those abstractions too.</li>
+  </ul>
+
+  <h3>Open/Closed and Dependency Inversion in one example</h3>
+  <p>The example below computes the total area of a list of shapes. Adding a triangle must not require changing <code>total_area</code>, which is the open/closed idea. The report class depends on an abstract storage object rather than a specific file format, which is dependency inversion.</p>
+
+<pre class="code" data-lang="python"><code>from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self):
+        """Return the area as a number."""
+
+class Square(Shape):
+    def __init__(self, side):
+        self.side = side
+
+    def area(self):
+        return self.side * self.side
+
+class Circle(Shape):
+    def __init__(self, r):
+        self.r = r
+
+    def area(self):
+        return 3 * self.r * self.r      # 3 as a simple approximation of pi, for this demo
+
+def total_area(shapes):                 # never changes when a new shape is added
+    return sum(s.area() for s in shapes)
+
+class MemoryStore:
+    def __init__(self):
+        self.items = []
+
+    def save(self, text):
+        self.items.append(text)
+
+class Report:                           # depends on any object with a save method
+    def __init__(self, store):
+        self.store = store
+
+    def publish(self, shapes):
+        self.store.save("total=" + str(total_area(shapes)))
+
+print(total_area([Square(2), Circle(1)]))
+store = MemoryStore()
+Report(store).publish([Square(3)])
+print(store.items)</code></pre>
+<pre class="output">7
+['total=9']</pre>
+
+  <p>Look at the first print. <code>Square(2)</code> has area 4 and <code>Circle(1)</code> has area 3 in this demo, so the total is 7. The loop in <code>total_area</code> never mentions a concrete class. Add a <code>Triangle</code> that subclasses <code>Shape</code>, and the function works unchanged. That is open/closed in practice.</p>
+
+  <p>The second part shows dependency inversion. <code>Report</code> needs only something that has a <code>save</code> method. In a real program the store could write to a database, and the report code would not change. Tests can pass a <code>MemoryStore</code> instead. The dependency points at the abstraction (the method name and its meaning), not at the detail (the database).</p>
+
+  <h3>The other three principles</h3>
+  <p><strong>Single responsibility</strong> is easiest to see as a warning sign. If a class's methods fall into two groups that never call each other, such as "calculate tax" and "format a PDF", split the class. Each part can then change for its own reason without disturbing the other.</p>
+  <p><strong>Liskov substitution</strong> is the classic trap question. A <code>Square</code> that inherits from <code>Rectangle</code> and forces width and height to match breaks code that sets the width and expects the height to stay the same. The subtype changed an expectation the base promised. Ask whether a caller could tell the difference, and if so, the inheritance is wrong.</p>
+  <p><strong>Interface segregation</strong> means a <code>Printer</code> interface with <code>print</code>, <code>scan</code> and <code>fax</code> forces a simple printer to implement scanning it cannot do. Split the interface into <code>Printable</code> and <code>Scannable</code>, and each device implements only what it supports.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Name the SOLID principle that a class with two unrelated reasons to change breaks. Answer: Single Responsibility. Then say how you would split the class.</p></div>
+
+  <h2>Design patterns</h2>
+  <p>A <strong>design pattern</strong> is a named, reusable solution to a common design problem. Patterns come from the "Gang of Four" book and are grouped into creational (how objects are made), structural (how they are combined) and behavioural (how they interact). Interviewers rarely want a pattern recited. They want to hear the problem it solves and see a short example. Four patterns cover most questions: Strategy, Observer, Factory and Singleton.</p>
+
+  <h3>Strategy: swap an algorithm at run time</h3>
+  <p>Strategy puts each algorithm behind a common interface, and the context object uses whichever strategy it was given. The context never changes when you add a new algorithm.</p>
+
+<pre class="code" data-lang="python"><code>from abc import ABC, abstractmethod
+
+class DiscountStrategy(ABC):
+    @abstractmethod
+    def apply(self, price):
+        ...
+
+class NoDiscount(DiscountStrategy):
+    def apply(self, price):
+        return price
+
+class PercentOff(DiscountStrategy):
+    def __init__(self, percent):
+        self.percent = percent
+
+    def apply(self, price):
+        return price * (100 - self.percent) // 100
+
+class Checkout:
+    def __init__(self, strategy):
+        self.strategy = strategy
+
+    def total(self, price):
+        return self.strategy.apply(price)
+
+print(Checkout(NoDiscount()).total(200))
+print(Checkout(PercentOff(15)).total(200))</code></pre>
+<pre class="output">200
+170</pre>
+
+  <p>The checkout class holds a reference to a strategy and calls <code>apply</code> on it. Changing the discount means passing a different object. The arithmetic <code>price * (100 - self.percent) // 100</code> uses integers, so 200 with 15 percent off becomes 170 exactly. Without the integer division, Python would print a float such as 170.0.</p>
+
+  <h3>Observer: notify many listeners about one event</h3>
+  <p>Observer lets one object announce changes to any number of subscribers, without knowing who they are. A button fires "clicked", and a logger and a user interface both react. Subscribers can be added or removed at run time.</p>
+
+<pre class="code" data-lang="python"><code>class Button:
+    def __init__(self):
+        self._listeners = []
+
+    def subscribe(self, callback):
+        self._listeners.append(callback)
+
+    def click(self):
+        for callback in self._listeners:
+            callback("clicked")
+
+button = Button()
+button.subscribe(lambda event: print("logger got", event))
+button.subscribe(lambda event: print("ui got", event))
+button.click()</code></pre>
+<pre class="output">logger got clicked
+ui got clicked</pre>
+
+  <p>The listeners run in the order they subscribed. The button never imports the logger or the user interface, which keeps the two sides independent. This pattern underlies event handling in GUI toolkits and many message systems.</p>
+
+  <h3>Factory: create objects without naming their classes</h3>
+  <p>A factory is a function or method that returns an object, choosing the class from an input. Callers ask for "square" and get a square, without writing the class name in every place they create one. If a new shape is added, only the factory changes.</p>
+
+<pre class="code" data-lang="python"><code>class Square:
+    def __init__(self, side):
+        self.side = side
+
+    def area(self):
+        return self.side * self.side
+
+class Rectangle:
+    def __init__(self, w, h):
+        self.w = w
+        self.h = h
+
+    def area(self):
+        return self.w * self.h
+
+def create_shape(kind, *args):
+    shapes = {"square": Square, "rectangle": Rectangle}
+    if kind not in shapes:
+        raise ValueError("unknown shape: " + kind)
+    return shapes[kind](*args)
+
+print(create_shape("square", 4).area())
+print(create_shape("rectangle", 2, 5).area())</code></pre>
+<pre class="output">16
+10</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>A factory that uses a long if-else chain grows every time a class is added. A dictionary from names to classes, as above, keeps the lookup in one place and makes adding a shape a single line.</p></div>
+
+  <h3>Singleton: only one instance</h3>
+  <p>A singleton guarantees that a class has exactly one object, and gives every caller access to it. It is used for shared configuration or a connection pool. The pattern is often overused, because a single global object makes testing harder. In an interview, mention that risk along with the pattern.</p>
+
+<pre class="code" data-lang="python"><code>class Config:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+first = Config()
+second = Config()
+print(first is second)
+first.debug = True
+print(second.debug)</code></pre>
+<pre class="output">True
+True</pre>
+
+  <p><code>__new__</code> runs before <code>__init__</code> and creates the object. The first call stores the new object in a class attribute, and later calls return that same object. The two names <code>first</code> and <code>second</code> refer to one object, so the attribute set through one name is visible through the other.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What problem does Strategy solve? Answer: it removes a long if-else over algorithm types. Each algorithm lives in its own class behind one interface, and the context chooses one at run time.</p></div>
+
+  <details class="check"><summary>What is the difference between the Strategy and Factory patterns?</summary><div class="ans"><p>Strategy chooses behaviour for an object that already exists, by giving it a different algorithm object. Factory chooses which class to create. A factory produces the object; a strategy is the part an object uses to do its work.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question aloud in two or three sentences, then open the answer to compare. The model answers use the same vocabulary you will hear in interviews.</p>
+
+  <details class="check"><summary>Name the four pillars of OOP and give one example of each.</summary><div class="ans"><p>Encapsulation: a bank account keeps its balance private and changes it through deposit and withdraw. Abstraction: a caller asks a notifier to send a message and does not care about the transport. Inheritance: Dog extends Animal and reuses its name. Polymorphism: a loop calls sound on a mixed list and each object answers in its own way.</p></div></details>
+
+  <details class="check"><summary>What is the difference between overloading and overriding?</summary><div class="ans"><p>Overloading gives several functions in one scope the same name with different parameter lists, and the compiler chooses at compile time. Overriding gives a derived class its own version of a virtual base function with the same signature, and the object's actual type chooses at run time.</p></div></details>
+
+  <details class="check"><summary>What is an abstract class, and how does it differ from an interface in C++?</summary><div class="ans"><p>An abstract class has at least one pure virtual function, so it cannot be instantiated. It can hold data and shared code. An interface in C++ is a convention: an abstract class with only pure virtual functions and no data. A class can implement several interfaces, but usually inherits from one class with data.</p></div></details>
+
+  <details class="check"><summary>Why do we say favour composition over inheritance?</summary><div class="ans"><p>Inheritance couples a derived class to every behaviour of its base, so base changes can break children. Composition lets a class use parts through their public interfaces, and parts can be replaced without changing the outer class. Use inheritance only for a true is-a relationship.</p></div></details>
+
+  <details class="check"><summary>What is a vtable, and what does a virtual call do?</summary><div class="ans"><p>A vtable is a table of function addresses created for a class with virtual functions. Each object holds a pointer, the vptr, to its class's table. A virtual call reads the vptr, looks up the function's slot, and calls the address found there, so the derived version runs.</p></div></details>
+
+  <details class="check"><summary>Why should a base class destructor be virtual?</summary><div class="ans"><p>So that deleting a derived object through a base pointer runs the derived destructor. Without it, only the base part is cleaned up, which is undefined behaviour.</p></div></details>
+
+  <details class="check"><summary>What is RAII, and why does it matter for exceptions?</summary><div class="ans"><p>RAII ties a resource to an object: acquired in the constructor, released in the destructor. When an exception leaves a scope, C++ destroys the local objects, so the release still happens without extra cleanup code.</p></div></details>
+
+  <details class="check"><summary>State the Single Responsibility principle and show how a violation looks.</summary><div class="ans"><p>A class should have one reason to change. A violation is a class that computes an invoice total and also sends email, because a change to the email format and a change to the tax rule would both touch it. Split it into an invoice class and a mailer.</p></div></details>
+
+  <details class="check"><summary>Why is a Square that inherits from Rectangle a Liskov violation?</summary><div class="ans"><p>Code written for Rectangle assumes that setting the width leaves the height alone. A Square that forces width and height to match breaks that promise, so a caller that works with any Rectangle gets wrong results from a Square.</p></div></details>
+
+  <details class="check"><summary>When would you use the Strategy pattern?</summary><div class="ans"><p>When one object needs to perform an operation in several ways that can be chosen at run time, such as different discount rules or sort orders. Each way is a class behind a common interface, and the context calls it without knowing which one it has.</p></div></details>
+</section>
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: sliding window</h2>
+  <p>A <strong>sliding window</strong> is a contiguous range of an array or string, described by a left index and a right index. The right index moves forward to take in one element at a time. The left index moves forward only when the window breaks a rule, to remove elements until the rule holds again. Because each index moves forward and never back, the whole scan costs O(n), where a brute force search over all subarrays costs O(n^2) or more.</p>
+
+  <p>Sliding windows fit two kinds of question. A <em>fixed-size</em> window keeps the same length, and you slide it one step at a time. A <em>variable-size</em> window grows and shrinks, and you look for the longest or shortest window that satisfies a condition. The four problems today use both kinds, and the Hard problem uses the variable kind with a count of required characters.</p>
+
+  <div class="note key"><p><span class="t">Pattern to remember</span>When a problem asks for the longest, shortest, or best contiguous subarray or substring with a property, keep a window, grow the right end on every step, and shrink the left end only as needed to keep the window valid.</p></div>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/best-time-to-buy-and-sell-stock/">
+    <h3>Best Time to Buy and Sell Stock (LeetCode 121)</h3>
+    <div class="statement"><p>You are given a list of prices, where prices[i] is the price of a stock on day i. Choose one day to buy and a later day to sell, and return the largest profit. If no profit is possible, return 0. For [7, 1, 5, 3, 6, 4], buy on day 1 at price 1 and sell on day 4 at price 6, for a profit of 5.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The sell day must come after the buy day. Profit is the sell price minus the buy price, and the answer is never negative because doing nothing gives 0.</li>
+      <li><strong>Brute force.</strong> Try every pair of days where the sell day is after the buy day. That is O(n^2).</li>
+      <li><strong>Find the waste.</strong> For each sell day, the best buy day is the cheapest day seen before it. You do not need to compare with every earlier day, only with the cheapest one.</li>
+      <li><strong>Optimise.</strong> Keep a window with a left index for the buy day. Move right through the prices. If the price at right is lower than the price at left, the window restarts at right, because a cheaper buy day is always better. Otherwise, record the profit of selling at right. This is one pass with O(1) extra space.</li>
+      <li><strong>Dry run.</strong> Prices [7, 1, 5, 3, 6, 4], left = 0 (price 7). right = 1 (price 1) is lower, so left moves to 1. right = 2 (price 5): profit 4, best = 4. right = 3 (price 3): profit 2, best stays 4. right = 4 (price 6): profit 5, best = 5. right = 5 (price 4): profit 3, best stays 5. The answer is 5.</li>
+    </ol>
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>def max_profit(prices):
+    left = 0                                  # index of the buy day
+    best = 0
+    for right in range(1, len(prices)):       # right is the candidate sell day
+        if prices[right] &lt; prices[left]:
+            left = right                      # a cheaper buy day starts a new window
+        else:
+            best = max(best, prices[right] - prices[left])
+    return best
+
+print(max_profit([7, 1, 5, 3, 6, 4]))
+print(max_profit([7, 6, 4, 3, 1]))</code></pre>
+<pre class="output">5
+0</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Selling and buying on the same day is not allowed, so the loop starts at day 1. A common bug is to compute profit before comparing with the cheapest buy day, which can give a negative value that is wrongly kept as the best.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/longest-repeating-character-replacement/">
+    <h3>Longest Repeating Character Replacement (LeetCode 424)</h3>
+    <div class="statement"><p>You are given a string s and an integer k. In one operation you may replace any character with another uppercase letter, and you may do this up to k times. Return the length of the longest substring that can be made to contain one repeated letter. For "ABAB" with k = 2, replace the two B's to get "AAAA", so the answer is 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A substring can be fixed with k replacements when its length minus the count of its most frequent letter is at most k. Those other letters are the ones replaced.</li>
+      <li><strong>Brute force.</strong> Try every substring, count its letters and check the condition. That is O(n^3) with a naive count, or O(n^2 * 26) with incremental counts.</li>
+      <li><strong>Find the waste.</strong> Scanning all substrings repeats work. A window that moves right and shrinks from the left needs one count update per step.</li>
+      <li><strong>Optimise.</strong> Keep counts of letters inside the window and track the count of the most frequent letter, called most. Add the new right character. While the window length minus most is greater than k, remove the left character and move left. The answer is the largest window length seen. The trick that makes this O(n): most never has to decrease. A larger answer can only come from a larger most, so a stale value does not produce a wrong longer answer.</li>
+      <li><strong>Dry run.</strong> s = "AABABBA", k = 1. The window grows to "AABA" (length 4, most A = 3, 4 - 3 = 1 is at most 1), so the answer is at least 4. Adding "B" gives length 5 with most = 3, and 5 - 3 = 2 is more than 1, so left moves until the window is valid again. The best window length is 4.</li>
+    </ol>
+<pre class="code" data-lang="python"><code>def character_replacement(s, k):
+    counts = {}
+    left = 0
+    most = 0                                  # count of the most frequent letter seen in any window
+    best = 0
+    for right, ch in enumerate(s):
+        counts[ch] = counts.get(ch, 0) + 1
+        most = max(most, counts[ch])
+        while (right - left + 1) - most &gt; k:    # too many letters would need replacing
+            counts[s[left]] -= 1
+            left += 1
+        best = max(best, right - left + 1)
+    return best
+
+print(character_replacement("ABAB", 2))
+print(character_replacement("AABABBA", 1))
+print(character_replacement("AAAA", 0))</code></pre>
+<pre class="output">4
+4
+4</pre>
+    <p class="cx">Time O(n) · Space O(1), since the dictionary holds at most 26 letters</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a window has a rule about its most common element, track that element as the window moves. Shrinking only removes one character at a time, so one pass is enough.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/permutation-in-string/">
+    <h3>Permutation in String (LeetCode 567)</h3>
+    <div class="statement"><p>Given two strings s1 and s2, return True if s2 contains a permutation of s1, which means some substring of s2 has exactly the same letters with the same counts as s1, in any order. For s1 = "ab" and s2 = "eidbaooo", the answer is True, because "ba" is a permutation of "ab".</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A permutation has the same length and the same letter counts. So the target is a window of exactly len(s1) characters with matching counts.</li>
+      <li><strong>Brute force.</strong> For each start index in s2, take a substring of length len(s1), sort it, and compare with sorted s1. That is O(n * m log m).</li>
+      <li><strong>Find the waste.</strong> Sorting every window repeats work. Counts can be compared in constant time for lowercase letters, and neighbouring windows differ by one character on each side.</li>
+      <li><strong>Optimise.</strong> Keep a fixed-size window of len(s1) characters in s2 and a count array for it. Add the new character on the right and remove the character that leaves on the left. When the window counts equal the counts of s1, return True. Each step is O(26), so the total is O(26 * n).</li>
+      <li><strong>Dry run.</strong> s1 = "ab", counts a=1, b=1. s2 = "eidbaooo", window size 2. The windows are "ei", "id", "db", "ba". At "ba" the counts are a=1 and b=1, which match, so the answer is True.</li>
+    </ol>
+<pre class="code" data-lang="python"><code>def check_inclusion(s1, s2):
+    if len(s1) &gt; len(s2):
+        return False
+    need = [0] * 26
+    window = [0] * 26
+    for ch in s1:
+        need[ord(ch) - ord('a')] += 1
+    k = len(s1)
+    for i, ch in enumerate(s2):
+        window[ord(ch) - ord('a')] += 1          # the character entering on the right
+        if i &gt;= k:
+            window[ord(s2[i - k]) - ord('a')] -= 1   # the character leaving on the left
+        if i &gt;= k - 1 and window == need:
+            return True
+    return False
+
+print(check_inclusion("ab", "eidbaooo"))
+print(check_inclusion("ab", "eidboaoo"))
+print(check_inclusion("adc", "dcda"))</code></pre>
+<pre class="output">True
+False
+True</pre>
+    <p class="cx">Time O(26 · n) which is O(n) · Space O(1)</p>
+    <div class="note tip"><p><span class="t">Tip</span>Fixed-size windows are easy to get wrong at the boundary. The window is complete only when the index reaches k - 1, so the comparison must wait until then.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/minimum-window-substring/">
+    <h3>Minimum Window Substring (LeetCode 76)</h3>
+    <div class="statement"><p>Given strings s and t, return the shortest substring of s that contains every character of t, including repeats. If no such substring exists, return the empty string. For s = "ADOBECODEBANC" and t = "ABC", the answer is "BANC", because it is the shortest window holding one A, one B and one C.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Repeats matter: t = "AA" needs two A's in the window. The answer is the shortest valid window, and ties can be broken by the first one found. An empty answer is possible when s is too short or lacks a letter.</li>
+      <li><strong>Brute force.</strong> Try every start index and every end index, and check whether the substring contains t by counting letters. That is O(n^2) substrings, each checked in O(n) or more, so O(n^3) overall in the simple form.</li>
+      <li><strong>Find the waste.</strong> Re-counting letters for each substring repeats the same work. A window can carry a single number, called missing, for how many required letters it still lacks. That number changes by at most one per step.</li>
+      <li><strong>Optimise.</strong> Build need, the counts required by t. Move right and add each character to the window. A character that is still needed lowers missing by one. Once missing is 0, the window is valid: record it if it is the shortest so far, then move left to try a smaller one. Removing a needed character raises missing again. Each index enters and leaves the window once, so the time is O(len(s) + len(t)).</li>
+      <li><strong>Dry run.</strong> s = "ADOBECODEBANC", t = "ABC". need starts as A=1, B=1, C=1, and missing = 3. Moving right, the first valid window is "ADOBEC" (indexes 0 to 5), length 6. Shrinking from the left removes the A, which makes the window invalid again. Moving right, the window becomes valid once more at index 10 (the A), and shrinking from the left finds the window from index 9 to 12, which is "BANC", the shortest valid window with length 4. The answer is "BANC".</li>
+    </ol>
+
+<pre class="code" data-lang="python"><code>def min_window(s, t):
+    if not t or len(t) &gt; len(s):
+        return ""
+    need = {}
+    for ch in t:
+        need[ch] = need.get(ch, 0) + 1
+    missing = len(t)                          # how many required letters the window still lacks
+    best_start, best_len = 0, float("inf")
+    left = 0
+    for right, ch in enumerate(s):
+        if need.get(ch, 0) &gt; 0:
+            missing -= 1
+        need[ch] = need.get(ch, 0) - 1
+        while missing == 0:                   # the window is valid, try to shrink it
+            if right - left + 1 &lt; best_len:
+                best_start, best_len = left, right - left + 1
+            out = s[left]
+            need[out] += 1
+            if need[out] &gt; 0:                  # we removed a letter the window needs
+                missing += 1
+            left += 1
+    return "" if best_len == float("inf") else s[best_start:best_start + best_len]
+
+print(min_window("ADOBECODEBANC", "ABC"))
+print(min_window("a", "a"))
+print(min_window("a", "aa"))</code></pre>
+<pre class="output">BANC
+a
+
+</pre>
+    <p class="cx">Time O(len(s) + len(t)) · Space O(len(t)) for the counts</p>
+    <div class="note trap"><p><span class="t">Trap</span>The window must shrink only while it is valid. Shrinking an invalid window misses answers, and forgetting to update missing when you remove a character leaves the loop stuck in a wrong state.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For "shortest window that covers a requirement", keep a count of what is still missing. Expand right until the window is valid, then shrink left as far as possible while it stays valid.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this list to check your memory. Each entry is one idea from today, stated briefly.</p>
+  <dl>
+    <div><dt>Encapsulation</dt><dd>Hiding an object's data behind methods that enforce its rules.</dd></div>
+    <div><dt>Abstraction</dt><dd>Exposing what an object does and hiding how it does it.</dd></div>
+    <div><dt>Inheritance</dt><dd>A derived class reusing and extending a base class, for an is-a relationship.</dd></div>
+    <div><dt>Polymorphism</dt><dd>One call that behaves differently depending on the object it is made on.</dd></div>
+    <div><dt>Overloading</dt><dd>Same name, different parameter lists, chosen by the compiler.</dd></div>
+    <div><dt>Overriding</dt><dd>A derived class replacing a virtual base function with the same signature, chosen at run time.</dd></div>
+    <div><dt>Pure virtual function</dt><dd>A virtual function declared with = 0, which makes the class abstract.</dd></div>
+    <div><dt>Abstract class</dt><dd>A class with at least one pure virtual function, which cannot be instantiated.</dd></div>
+    <div><dt>Interface (C++)</dt><dd>A convention: an abstract class with only pure virtual functions and no data.</dd></div>
+    <div><dt>Composition</dt><dd>Building a class from parts it owns, for a has-a relationship.</dd></div>
+    <div><dt>Constructor order</dt><dd>The base part is constructed first, and destroyed last.</dd></div>
+    <div><dt>Virtual destructor</dt><dd>A base destructor marked virtual, so deleting through a base pointer cleans up the derived part.</dd></div>
+    <div><dt>vtable</dt><dd>A table of function addresses per class, reached through a hidden pointer in each object.</dd></div>
+    <div><dt>vptr</dt><dd>The hidden pointer in a polymorphic object that points to its class's vtable.</dd></div>
+    <div><dt>RAII</dt><dd>Acquiring a resource in a constructor and releasing it in the destructor.</dd></div>
+    <div><dt>Single Responsibility</dt><dd>A class should have one reason to change.</dd></div>
+    <div><dt>Open/Closed</dt><dd>Add behaviour by adding code, not by editing tested code.</dd></div>
+    <div><dt>Liskov Substitution</dt><dd>A subtype must work wherever its base type is expected.</dd></div>
+    <div><dt>Interface Segregation</dt><dd>Clients should not depend on methods they do not use.</dd></div>
+    <div><dt>Dependency Inversion</dt><dd>Depend on abstractions, not on concrete details.</dd></div>
+    <div><dt>Design pattern</dt><dd>A named, reusable solution to a common design problem.</dd></div>
+    <div><dt>Strategy</dt><dd>A family of interchangeable algorithms behind one interface.</dd></div>
+    <div><dt>Observer</dt><dd>One object notifies many subscribers when an event happens.</dd></div>
+    <div><dt>Factory</dt><dd>A function or method that creates objects and chooses their class.</dd></div>
+    <div><dt>Singleton</dt><dd>A class that allows exactly one instance, shared by all callers.</dd></div>
+    <div><dt>Sliding window</dt><dd>A contiguous range moved by two indexes, each moving forward only.</dd></div>
+    <div><dt>Fixed-size window</dt><dd>A window with constant length that slides one step at a time.</dd></div>
+    <div><dt>Variable-size window</dt><dd>A window that grows on the right and shrinks on the left to keep a rule true.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>virtual</code></td><td>Marks a member function for run-time dispatch.</td><td><code>virtual void run() = 0;</code></td></tr>
+    <tr><td><code>override</code></td><td>Asks the compiler to check that a function overrides a base virtual.</td><td><code>void run() override;</code></td></tr>
+    <tr><td><code>final</code></td><td>Stops further overriding or inheritance.</td><td><code>void run() final;</code></td></tr>
+    <tr><td><code>using Base::Base;</code></td><td>Inherits the base class constructors.</td><td><code>using Animal::Animal;</code></td></tr>
+    <tr><td><code>std::unique_ptr</code></td><td>Owns a heap object and deletes it automatically.</td><td><code>std::make_unique&lt;Dog&gt;("Rex")</code></td></tr>
+    <tr><td><code>ABC</code> and <code>@abstractmethod</code></td><td>Python's way to declare an abstract class.</td><td><code>class Shape(ABC):</code></td></tr>
+    <tr><td><code>__new__</code></td><td>Creates the object before <code>__init__</code> runs, used in singletons.</td><td><code>def __new__(cls): ...</code></td></tr>
+    <tr><td><code>dict.get</code></td><td>Reads a key with a default instead of raising an error.</td><td><code>counts.get(ch, 0)</code></td></tr>
+    <tr><td><code>enumerate</code></td><td>Yields the index and value of each item.</td><td><code>for i, ch in enumerate(s):</code></td></tr>
+    <tr><td><code>ord</code></td><td>Gives the code number of a character.</td><td><code>ord('c') - ord('a')</code> is 2</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 5?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 5 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-04.html"><small>Previous, day 4</small>C 2: Structs, build process, OOP in C</a><a class="next" href="day-06.html"><small>Next, day 6</small>Java essentials</a></nav>
+</main><script src="assets/app.js"></script></body></html>

@@ -1,0 +1,561 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 23: Git and GitHub</title><meta name="description" content="Today covers how Git stores history, the commands you use every day, how to undo and combine work safely, and how teams collaborate with branches, pull requests and automated tests. It also covers the software delivery lifecycle that frames all of this. Interviewers often ask you to explain what really happens inside Git, so this day goes beyond memorising commands."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="23" data-key="23" data-noun="day" data-num="23" data-track="cloud">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Git and GitHub</h1>
+<p class="lede">Today covers how Git stores history, the commands you use every day, how to undo and combine work safely, and how teams collaborate with branches, pull requests and automated tests. It also covers the software delivery lifecycle that frames all of this. Interviewers often ask you to explain what really happens inside Git, so this day goes beyond memorising commands.</p>
+<div class="station"><b>23</b><span>Tue 24 Nov 2026 · Cloud &amp; DevOps · DSA: Dynamic programming 1 (1D)</span></div>
+<ul class="topics"><li>Git internals: blobs, trees, commits, refs</li><li>Reset vs revert, merge vs rebase, interactive rebase</li><li>Conflicts, reflog and bisect</li><li>Git Flow, GitHub Flow, trunk-based development</li><li>Pull requests, code review, GitHub Actions running pytest</li><li>SDLC, Agile and Scrum</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Git internals">
+  <h2>How Git stores your work</h2>
+  <p><strong>Git</strong> is a version control system. It records snapshots of a project over time so you can compare, undo and combine changes. Most people learn Git as a list of commands, but interviewers want the model underneath, because the model explains every command's behaviour.</p>
+
+  <h3>Four kinds of object</h3>
+  <p>Git's storage is a key-value database. Each value is an <strong>object</strong>, and each key is the object's <strong>hash</strong>, a fingerprint of its contents. There are four object types:</p>
+  <ul>
+    <li><strong>Blob.</strong> The contents of one file. A blob stores the bytes only, not the file name.</li>
+    <li><strong>Tree.</strong> A directory. It lists names with a file mode and the hash of a blob (for a file) or another tree (for a subdirectory).</li>
+    <li><strong>Commit.</strong> A snapshot plus history. It points to one tree (the full project at that moment), to its parent commit or commits, and holds the author, committer and message.</li>
+    <li><strong>Tag.</strong> A named, optionally signed pointer to a commit, used for releases such as v1.2.0.</li>
+  </ul>
+  <p>Because a hash depends only on content, identical content is stored once. If you change one file, Git creates a new blob for it, a new tree for each directory on the path to it, and a new commit. Everything else is reused. That is why branching in Git is cheap: a branch is just a pointer.</p>
+
+  <h3>How a blob hash is computed</h3>
+  <p>Git computes the SHA-1 hash of a header followed by the content. The header is the word <code>blob</code>, a space, the byte length, and a zero byte. The program below repeats that calculation with <code>hashlib</code> and matches the value that <code>git hash-object</code> prints.</p>
+  <pre class="code" data-lang="python"><code>import hashlib
+
+def git_blob_hash(content: bytes) -&gt; str:
+    header = b"blob " + str(len(content)).encode() + b"\0"
+    return hashlib.sha1(header + content).hexdigest()
+
+print(git_blob_hash(b"hello\n"))
+print(git_blob_hash(b"hello\n") == git_blob_hash(b"hello\n"))
+print(git_blob_hash(b"hello"))</code></pre>
+  <pre class="output">ce013625030ba8dba906f756967f9e9ca394464a
+True
+b6fc4c620b67d95f953a5c1c1230aaab5db5a1b0</pre>
+  <p>The first hash is the one <code>echo hello | git hash-object --stdin</code> prints, because <code>echo</code> adds a newline. Removing the newline changes the content, so the hash changes completely. This is why Git can detect corruption: any change to stored bytes changes the key.</p>
+
+  <h3>Refs: names that point to commits</h3>
+  <p>A <strong>ref</strong> is a human-readable name that points to a commit. A <strong>branch</strong> is a ref under <code>refs/heads/</code> that moves forward when you commit. A <strong>tag</strong> is a ref that stays put. A <strong>remote-tracking branch</strong> such as <code>origin/main</code> records where a remote's branch was the last time you fetched. <strong>HEAD</strong> is special: it normally points to the current branch, so committing moves the branch that HEAD names. If HEAD points straight at a commit, you are in a <em>detached HEAD</em> state, and new commits can be lost unless you give them a branch name.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A commit is a snapshot, not a diff. Git stores whole trees and reuses unchanged blobs, and it computes the differences on demand.</p></div>
+
+  <h3>Looking inside a repository</h3>
+  <p>The commands below create a small repository, make two commits, and show the objects behind them. The commit flags <code>-q</code> only silence Git's progress messages. The output shows the commit messages, the object type of <code>HEAD</code>, and the tree that <code>HEAD</code> refers to.</p>
+  <pre class="code" data-lang="bash"><code>git init -q -b main demo
+cd demo
+echo hello &gt; greeting.txt
+git add greeting.txt
+git commit -q -m "Add greeting"
+echo "second line" &gt;&gt; greeting.txt
+git commit -q -am "Extend greeting"
+git log --format=%s
+git cat-file -t HEAD
+git ls-tree HEAD
+git cat-file -p HEAD~1:greeting.txt</code></pre>
+  <pre class="output">Extend greeting
+Add greeting
+commit
+100644 blob 27019c35b7067ec5703ab99bca6ec41593b8e38a	greeting.txt
+hello</pre>
+  <p><code>git cat-file -t</code> reports an object's type, and <code>git ls-tree</code> lists the entries of a tree. The hash shown for <code>greeting.txt</code> is the blob for the second version of the file, because <code>HEAD</code> is the newer commit. A commit object itself is a small text record. The layout below is illustrative, with placeholders where Git writes real hashes:</p>
+  <pre class="code" data-lang="text"><code>tree &lt;hash of the root tree&gt;
+parent &lt;hash of the previous commit&gt;
+author Ada &lt;ada@example.com&gt; 1767607200 +0000
+committer Ada &lt;ada@example.com&gt; 1767607200 +0000
+
+Extend greeting</code></pre>
+  <p>The parent line is what turns snapshots into history. Walking parent links backwards gives the log. A merge commit has two parent lines.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Saying Git stores differences between versions. It stores snapshots (trees and blobs), and it compresses and packs them later. Diffs are computed when you ask for them.</p></div>
+
+  <details class="check"><summary>What are the four Git object types, and what does each store?</summary><div class="ans"><p>A blob stores the contents of one file, with no name. A tree stores a directory: names, modes and the hashes of blobs or subtrees. A commit stores a pointer to a root tree, its parent commits, the author and committer, and the message. A tag stores a named pointer to another object, usually a commit, for releases.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Core commands">
+  <h2>The core commands and what each one changes</h2>
+  <p>A small set of commands covers almost all daily work. The table gives each one a single job. Read it as "what does this change?", because that question decides which command is safe to run.</p>
+  <div class="tablewrap"><table><thead><tr><th>Command</th><th>What it does</th><th>What it changes</th></tr></thead><tbody>
+  <tr><td><code>git clone URL</code></td><td>Copies a remote repository and its history</td><td>Creates a new local repository</td></tr>
+  <tr><td><code>git status</code></td><td>Shows staged, unstaged and untracked files</td><td>Nothing</td></tr>
+  <tr><td><code>git add FILE</code></td><td>Stages a file's current contents for the next commit</td><td>The index (the staging area)</td></tr>
+  <tr><td><code>git commit -m "msg"</code></td><td>Records the staged snapshot as a new commit</td><td>The current branch moves forward</td></tr>
+  <tr><td><code>git log</code></td><td>Shows the commit history from HEAD backwards</td><td>Nothing</td></tr>
+  <tr><td><code>git diff</code></td><td>Shows changes between two states, for example working tree and index</td><td>Nothing</td></tr>
+  <tr><td><code>git switch -c NAME</code></td><td>Creates a branch and switches to it</td><td>HEAD and the working files</td></tr>
+  <tr><td><code>git stash</code></td><td>Saves uncommitted work and restores a clean tree</td><td>A stash entry, then the working files</td></tr>
+  <tr><td><code>git fetch</code></td><td>Downloads new commits from a remote</td><td>Remote-tracking branches, not your branches</td></tr>
+  <tr><td><code>git pull</code></td><td>Fetches, then merges or rebases into the current branch</td><td>Your current branch</td></tr>
+  <tr><td><code>git push</code></td><td>Uploads your commits to a remote branch</td><td>The remote repository</td></tr>
+  <tr><td><code>git reset</code></td><td>Moves the current branch to another commit</td><td>History and possibly the index and working files</td></tr>
+  <tr><td><code>git revert</code></td><td>Creates a new commit that undoes an earlier commit</td><td>Adds a commit; history is kept</td></tr>
+  </tbody></table></div>
+  <p>Two of these deserve a careful look. <code>git pull</code> is really fetch plus merge (or rebase), so an unexpected merge commit often comes from it. <code>git reset</code> rewrites history, which is safe on a branch only you use and dangerous on a branch others have pulled.</p>
+
+  <h3>Reset versus revert</h3>
+  <p><strong>Reset</strong> moves a branch pointer. Its three common modes differ in how far they go. <code>--soft</code> moves the branch and leaves the staging area and working files alone. <code>--mixed</code> (the default) also resets the staging area. <code>--hard</code> also overwrites the working files, so uncommitted changes are lost. Reset is for undoing commits that have not been shared.</p>
+  <p><strong>Revert</strong> does not touch history. It creates a new commit whose change is the inverse of an earlier commit. Revert is for undoing commits that others may already have. Because it adds a commit, nobody's copy of the history breaks.</p>
+  <pre class="code" data-lang="bash"><code>echo "bug" &gt;&gt; greeting.txt
+git commit -q -am "Add bug"
+git revert --no-edit HEAD
+git log --format=%s</code></pre>
+  <pre class="output">Revert "Add bug"
+Add bug
+Extend greeting
+Add greeting</pre>
+  <p>The revert commit is a new commit that undoes "Add bug". The earlier commit is still in the log, so the history shows what happened and when it was undone. Reset, by contrast, would have removed "Add bug" from the log entirely.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"When do you use reset and when revert?" Reset when the commits are local and unshared. Revert when the commits are already on a shared branch, because revert never rewrites history that others may have.</p></div>
+
+  <h3>Merge versus rebase</h3>
+  <p>Both methods bring work from one branch into another, but they record the result differently. A <strong>merge</strong> joins two histories with a new commit that has two parents. The branch shape is kept, and nothing is rewritten. A <strong>rebase</strong> takes the commits of your branch, sets them aside, moves the branch to the tip of the target, and replays each commit on top. The replayed commits get new hashes, because their parent changed. The result is a straight line of history.</p>
+  <p>The commands below create a feature branch and a main branch that have each changed the same file in different places. The graph view shows the two lines of work.</p>
+  <pre class="code" data-lang="bash"><code>git switch -c feature
+echo "feature line" &gt;&gt; app.txt
+git commit -q -am "Feature change"
+git switch -q main
+echo "main line" &gt;&gt; app.txt
+git commit -q -am "Main change"
+git log --graph --format=%s --all</code></pre>
+  <pre class="output">* Feature change
+| * Main change
+|/
+* Base</pre>
+  <p>Now merge <code>main</code> into <code>feature</code>. Both branches appended a line at the same place, so Git cannot decide which text to keep. It stops and asks you to decide.</p>
+  <pre class="code" data-lang="bash"><code>git switch -q feature
+git merge main
+cat app.txt
+git merge --abort</code></pre>
+  <pre class="output">Auto-merging app.txt
+CONFLICT (content): Merge conflict in app.txt
+Automatic merge failed; fix conflicts and then commit the result.
+base
+<<<<<<< HEAD
+feature line
+=======
+main line
+>>>>>>> main</pre>
+  <p>The first three lines are Git's report. The block after <code>cat</code> is the conflicted file. Git wraps each conflict in markers: the text between the top marker and the <code>=======</code> line is from your current branch (HEAD), and the text between that line and the bottom marker is from the branch being merged. Finally, <code>git merge --abort</code> returns the branch to its state before the merge.</p>
+  <p>If you had used <code>git rebase main</code> instead, Git would have replayed "Feature change" on top of "Main change". It would hit the same conflict, and after you resolved it and ran <code>git rebase --continue</code>, the branch would show a straight line: Base, Main change, Feature change, with a new hash for the feature commit.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Rebasing a branch that other people have pulled. The rebased commits get new hashes, so their copies and yours disagree. Rebase private branches freely, and merge or revert once a branch is shared.</p></div>
+
+  <h3>Resolving conflicts</h3>
+  <p>A conflict means Git needs a human decision. Open each file, edit it into the final text you want, and delete all the marker lines. Then stage the file with <code>git add</code>. If you were merging, run <code>git commit</code> to finish. If you were rebasing, run <code>git rebase --continue</code> and repeat for each commit that conflicts. Use <code>git status</code> to see which files are still unmerged (they show as <code>UU</code> in short status). Tools such as VS Code and <code>git mergetool</code> make the editing easier, but the steps are the same.</p>
+
+  <h3>Interactive rebase: rewriting your own commits</h3>
+  <p><strong>Interactive rebase</strong> lets you edit a range of your own commits before sharing them. It opens a todo list in your editor, and you change the command word at the start of each line.</p>
+  <pre class="code" data-lang="text"><code>pick 3a1f2c9 Add login form
+squash 8b0e4d1 Fix typo in login form
+reword 5c7d9a2 Add tests
+drop 0e2f6b8 Debug print
+fixup 9d1c3e7 Tidy tests</code></pre>
+  <p>The command words mean: <code>pick</code> keeps a commit as it is, <code>reword</code> keeps it but changes the message, <code>edit</code> stops so you can amend it, <code>squash</code> merges it into the previous commit and keeps both messages, <code>fixup</code> merges it and discards its message, and <code>drop</code> removes it. Start one with <code>git rebase -i HEAD~5</code> to edit the last five commits. The hashes above are placeholders. Your editor shows real ones.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Interactive rebase is a way to rewrite a private history into a clean story before others see it. It is the same replay mechanism as ordinary rebase, with the todo list letting you choose what to replay.</p></div>
+
+  <details class="check"><summary>What is the difference between merge and rebase in the history they produce?</summary><div class="ans"><p>A merge keeps both histories and adds a merge commit with two parents, so the branch structure is visible. A rebase replays your commits on top of the target, so the history is linear, but the replayed commits get new hashes. Merge never rewrites commits, while rebase rewrites the commits it replays.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Recovery and bisect">
+  <h2>Recovery with reflog and finding bugs with bisect</h2>
+  <p>Git rarely loses work, but it is easy to lose track of it. Two tools cover the common disasters: the reflog, which remembers where HEAD and branches have been, and bisect, which finds the commit that introduced a bug.</p>
+
+  <h3>The reflog</h3>
+  <p>The <strong>reflog</strong> is a local journal of every change to HEAD and to branch tips: commits, resets, checkouts, merges and rebases. Entries are kept for a long time by default (about 90 days for reachable commits), so nearly every commit you have made recently can be recovered. Each entry is named <code>HEAD@{n}</code>, where 0 is the most recent. The commands below show the journal for the demo repository from earlier in this unit.</p>
+  <pre class="code" data-lang="bash"><code>git reflog --format="%gd %gs"</code></pre>
+  <pre class="output">HEAD@{0} revert: Revert "Add bug"
+HEAD@{1} commit: Add bug
+HEAD@{2} commit: Extend greeting
+HEAD@{3} commit (initial): Add greeting</pre>
+  <p>Suppose you ran <code>git reset --hard HEAD~1</code> by mistake and the "Add bug" commit disappeared from the branch. The commit still exists, and the reflog points to it. Recovering it is one command: <code>git reset --hard HEAD@{1}</code> (or create a branch at that entry with <code>git branch recovered HEAD@{1}</code>, which is safer when you are not sure).</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Assuming the reflog is shared. It lives only in your local clone. A fresh clone has no reflog for the old work, and a commit that nothing points to is eventually deleted by garbage collection.</p></div>
+
+  <h3>Bisect: binary search through history</h3>
+  <p><strong>Bisect</strong> finds the first bad commit with a binary search. You name one commit known to be good and one known to be bad. Git checks out the commit in the middle, you test it, and you mark it good or bad. Each answer halves the remaining range, so a history of 1,000 commits needs about 10 tests. That is the same idea as binary search on a sorted array, applied to history.</p>
+  <pre class="code" data-lang="bash"><code>git bisect start
+git bisect bad                 # the current commit shows the bug
+git bisect good v1.0           # this older tag did not have it
+git bisect run pytest          # let the test command decide each step
+git bisect reset               # return to the branch you started on</code></pre>
+  <p>With <code>git bisect run</code>, Git runs the command at each step. Exit code 0 means good, and a code from 1 to 127 (except 125, which means skip) means bad. This is why a test script works so well: pytest exits 0 when everything passes. The command lines above have no printed output because the result depends on your own project. Note that <code>git bisect</code> assumes the bug stayed in place once it appeared. A bug that comes and goes can mislead it.</p>
+
+  <details class="check"><summary>How do you recover a commit after a hard reset removed it?</summary><div class="ans"><p>Use <code>git reflog</code> to find the commit's entry, for example HEAD@{1}, then move the branch back to it with <code>git reset --hard HEAD@{1}</code> or create a new branch at that entry. The commit was not deleted; it only stopped being reachable from the branch, and the reflog still records it.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Branching and reviews">
+  <h2>Branching strategies, pull requests and code review</h2>
+  <p>Git tells you how to store and combine work. A <strong>branching strategy</strong> tells a team how to organise that work so many people can ship safely. Three strategies come up in interviews.</p>
+
+  <h3>Git Flow, GitHub Flow and trunk-based development</h3>
+  <ul>
+    <li><strong>Git Flow</strong> uses two long-lived branches: <code>main</code> holds released code, and <code>develop</code> collects finished features. Work happens on short-lived <code>feature/*</code> branches, releases are cut on <code>release/*</code> branches, and urgent fixes start from main on <code>hotfix/*</code> branches. It suits software with scheduled, versioned releases, such as installable products. Its cost is complexity and long-lived branches that drift apart.</li>
+    <li><strong>GitHub Flow</strong> has one long-lived branch, <code>main</code>, which is always deployable. Every change starts on a short-lived branch, goes through a pull request and review, and is merged to main. Main is deployed often. It suits web services with continuous delivery.</li>
+    <li><strong>Trunk-based development</strong> has everyone integrate into one trunk at least daily, using very short-lived branches or direct commits. Unfinished features are hidden behind <em>feature flags</em>, which are switches in code or config that turn behaviour on or off without a new deploy. It suits teams that want the smallest possible gap between code and integration, and it relies on strong automated tests.</li>
+  </ul>
+  <div class="tablewrap"><table><thead><tr><th>Strategy</th><th>Long-lived branches</th><th>Release style</th><th>Main risk</th></tr></thead><tbody>
+  <tr><td>Git Flow</td><td>main and develop</td><td>Scheduled, versioned releases</td><td>Merge overhead and drift</td></tr>
+  <tr><td>GitHub Flow</td><td>main only</td><td>Deploy from main often</td><td>Unfinished work must stay out of main or be guarded</td></tr>
+  <tr><td>Trunk-based</td><td>trunk only</td><td>Deploy from trunk many times a day</td><td>Needs fast tests and feature flags</td></tr>
+  </tbody></table></div>
+
+  <h3>Pull requests</h3>
+  <p>A <strong>pull request</strong> (PR) is a request to merge one branch into another, shown with its diff, discussion, and the results of automated checks. On GitHub, a PR is where review happens. A good PR is small (one idea, usually a few hundred changed lines or fewer), has a title that says what changes, and has a description that explains why. Repositories often protect <code>main</code> so that changes need an approving review and passing checks before the merge button works.</p>
+
+  <h3>Code review</h3>
+  <p>The purpose of review is to catch defects, spread knowledge, and keep the codebase consistent. Good review etiquette follows a few habits:</p>
+  <ul>
+    <li><strong>Review the code, not the person.</strong> Say "this function could return early" rather than "you wrote this badly".</li>
+    <li><strong>Say what kind of comment it is.</strong> Mark style preferences as optional, and mark real bugs as blocking.</li>
+    <li><strong>Ask questions when unsure.</strong> "Why do we need this retry?" is often more useful than a guess.</li>
+    <li><strong>Authors should explain the change</strong> in the description, and respond to every comment, either with a change or a reason.</li>
+  </ul>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Walk me through how you would ship a change under GitHub Flow." Answer: branch from main, commit in small steps, open a PR with a clear description, let CI run the tests, get a review, merge, and let the pipeline deploy main.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="GitHub Actions">
+  <h2>Automating checks with GitHub Actions</h2>
+  <p><strong>GitHub Actions</strong> runs automated workflows on GitHub's servers. A workflow is a YAML file in <code>.github/workflows/</code>. It names the events that start it (for example a push or a pull request), one or more jobs, and the steps inside each job. Each job runs on a fresh virtual machine called a runner. A step either runs a shell command with <code>run</code>, or uses a reusable action with <code>uses</code>. If any step fails, the job fails, and the pull request check turns red.</p>
+  <pre class="code" data-lang="yaml"><code>name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4          # download the repository
+      - uses: actions/setup-python@v5      # install Python
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: pytest -q                     # a failing test makes this step fail</code></pre>
+  <p>Read the workflow top to bottom. <code>on</code> says when it runs, <code>jobs.test</code> is the one job, and the steps run in order on the same runner. The <code>checkout</code> step is needed because the runner starts empty. The final step runs pytest, which exits with a non-zero code if any test fails.</p>
+  <p>A test file for that workflow is ordinary Python. pytest finds files named <code>test_*.py</code> and runs every function whose name starts with <code>test_</code>. A failing <code>assert</code> counts as a failure.</p>
+  <pre class="code" data-lang="python"><code># test_text_utils.py
+def slugify(text):
+    return "-".join(text.lower().split())
+
+def test_slugify_lowercases_and_joins_words():
+    assert slugify("Hello World") == "hello-world"
+
+def test_slugify_collapses_extra_spaces():
+    assert slugify("  Git   and  GitHub ") == "git-and-github"</code></pre>
+  <p>Run locally with <code>pytest -q</code>, and the same command runs in the workflow. The pytest summary includes timing, so this page does not show its output. The key habit is to run the same command locally and in CI, so a green local run means something.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Putting secrets such as API keys directly in the YAML file. Store them in the repository's secrets settings and reference them as <code>${{ secrets.NAME }}</code>.</p></div>
+</section>
+
+<section class="unit" id="c6" data-title="SDLC, Agile, Scrum">
+  <h2>How software gets built: SDLC, Agile and Scrum</h2>
+  <p>The <strong>software development life cycle</strong> (SDLC) is the set of stages a piece of software goes through: requirements (what is needed), design (how it will be structured), implementation (writing the code), testing (checking it), deployment (releasing it) and maintenance (fixing and changing it afterwards). Every process model is a different way of arranging these stages over time.</p>
+
+  <h3>Waterfall and Agile</h3>
+  <p><strong>Waterfall</strong> finishes each stage before starting the next. It is easy to plan and document, but it discovers mistakes late, when they are expensive to fix. <strong>Iterative and incremental</strong> models build the product in cycles, each one adding working functionality. <strong>Agile</strong> is a family of iterative methods based on the 2001 Agile Manifesto. Its four value statements prefer individuals and interactions over processes and tools, working software over comprehensive documentation, customer collaboration over contract negotiation, and responding to change over following a fixed plan. The items on the right still matter; the manifesto says the left items are valued more.</p>
+
+  <h3>Scrum in one page</h3>
+  <p><strong>Scrum</strong> is the most common Agile framework. It defines three roles, five events and three artifacts.</p>
+  <ul>
+    <li><strong>Roles.</strong> The <em>Product Owner</em> orders the work and decides what is valuable. The <em>Scrum Master</em> coaches the team and removes obstacles, and is not a project manager. The <em>Developers</em> build the increment.</li>
+    <li><strong>Events.</strong> The <em>Sprint</em> is a fixed time-box, usually one to four weeks, in which a usable increment is produced. Inside it: <em>Sprint Planning</em> chooses the work, the <em>Daily Scrum</em> is a short daily sync (about 15 minutes), the <em>Sprint Review</em> shows the increment to stakeholders, and the <em>Sprint Retrospective</em> asks how the team will work better next time.</li>
+    <li><strong>Artifacts.</strong> The <em>Product Backlog</em> is the ordered list of everything that might be done. The <em>Sprint Backlog</em> is the chosen items plus a plan for them. The <em>Increment</em> is the sum of completed work that meets the team's Definition of Done.</li>
+  </ul>
+  <p>Scrum's core rule is that scope is flexible within a Sprint, and time is fixed. If a Sprint looks at risk, the team negotiates the scope, not the date. Kanban is a related method that uses a board with work-in-progress limits instead of Sprints.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Agile is a set of values, and Scrum is one framework that puts them into practice with fixed roles, events and artifacts. Interviewers often test whether you know the difference.</p></div>
+
+  <details class="check"><summary>What is the difference between Waterfall and Agile?</summary><div class="ans"><p>Waterfall completes each SDLC stage before starting the next, so requirements are fixed early and changes are costly. Agile works in short cycles that each produce working software, collects feedback after every cycle, and accepts changing requirements. Agile trades up-front certainty for earlier feedback.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question in your own words first. Then open the model answer and compare.</p>
+
+  <details class="check"><summary>What is a Git blob, and why does Git use hashes for its keys?</summary><div class="ans"><p>A blob is the content of one file, stored with no name. Git uses a hash of the content (with a header) as the key. Equal content gets the same key and is stored once, and any change to the bytes changes the key, which makes corruption easy to detect.</p></div></details>
+
+  <details class="check"><summary>What does HEAD point to, and what is a detached HEAD?</summary><div class="ans"><p>HEAD normally points to the current branch, which in turn points to a commit, so committing moves the branch forward. A detached HEAD means HEAD points straight at a commit. New commits there are not on any branch, so create a branch before you switch away or they can be hard to find.</p></div></details>
+
+  <details class="check"><summary>When would you use git revert instead of git reset?</summary><div class="ans"><p>Use revert on commits that are already shared, because it adds a new commit that undoes the change and never rewrites history. Use reset for unshared local commits, where moving the branch pointer is safe and keeps the history tidy.</p></div></details>
+
+  <details class="check"><summary>Explain merge versus rebase to a teammate.</summary><div class="ans"><p>A merge combines two histories with a merge commit that has two parents, and keeps the branch structure. A rebase replays your commits onto a new base, giving a straight line of history with new hashes for the replayed commits. Rebase private work; merge or revert shared work.</p></div></details>
+
+  <details class="check"><summary>How would you recover a commit that you lost after a bad reset?</summary><div class="ans"><p>Run git reflog, find the entry for the commit (for example HEAD@{1}), and reset or branch to that entry. The reflog records recent positions of HEAD and branches locally, so the commit is still recoverable until garbage collection removes it.</p></div></details>
+
+  <details class="check"><summary>How does git bisect find a bug, and how many steps does it need?</summary><div class="ans"><p>You give a known bad commit and a known good commit, and bisect checks out the middle one. You or a script test it and mark it good or bad, which halves the range each time. For 1,000 commits it needs about 10 tests, since 2 to the power 10 is 1,024.</p></div></details>
+
+  <details class="check"><summary>Compare Git Flow, GitHub Flow and trunk-based development.</summary><div class="ans"><p>Git Flow uses long-lived main and develop branches with feature, release and hotfix branches, and suits scheduled releases. GitHub Flow uses one main branch, short-lived feature branches and pull requests, and deploys from main often. Trunk-based development has everyone integrate into one trunk at least daily and hides unfinished work behind feature flags.</p></div></details>
+
+  <details class="check"><summary>What makes a good pull request?</summary><div class="ans"><p>It is small, focused on one idea, has a clear title and a description that explains why, includes tests, and passes CI. Reviewers can then understand it in one sitting, which makes reviews faster and bugs easier to spot.</p></div></details>
+
+  <details class="check"><summary>What does a GitHub Actions workflow contain?</summary><div class="ans"><p>A YAML file in .github/workflows that defines triggers (on), one or more jobs with a runner (runs-on), and ordered steps. Each step runs a command with run or uses an action with uses. If a step fails, the job fails and the pull request check turns red.</p></div></details>
+
+  <details class="check"><summary>What is the difference between Scrum roles and Agile values?</summary><div class="ans"><p>Agile values, from the 2001 manifesto, are principles about how to work: collaboration, working software and responding to change. Scrum is a framework that applies those values with three roles (Product Owner, Scrum Master, Developers), five events and three artifacts. Agile is the philosophy, and Scrum is one concrete way to practise it.</p></div></details>
+
+  <details class="check"><summary>What does the Definition of Done do in Scrum?</summary><div class="ans"><p>It is the team's shared checklist for when a piece of work counts as finished, such as tested, reviewed, documented and deployable. It makes the Increment's quality visible and prevents unfinished work from being counted as done.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Dynamic programming, one dimension</h2>
+  <p><strong>Dynamic programming</strong> (DP) solves a problem by breaking it into smaller subproblems, solving each one once, and reusing the answers. It applies when a problem has <em>overlapping subproblems</em> (the same smaller question appears again and again) and <em>optimal substructure</em> (the best answer is built from the best answers to smaller parts). One-dimensional DP keeps one value per position, such as "ways to reach step i" or "best total up to house i".</p>
+
+  <h3>The five-step recipe</h3>
+  <ol>
+    <li><strong>State.</strong> Decide what <code>dp[i]</code> means in words, for example "the number of ways to climb i steps".</li>
+    <li><strong>Base cases.</strong> Fill in the smallest values you know directly.</li>
+    <li><strong>Recurrence.</strong> Write <code>dp[i]</code> in terms of earlier entries.</li>
+    <li><strong>Order.</strong> Compute entries so that each one's dependencies are already known (usually left to right).</li>
+    <li><strong>Answer.</strong> Read the result from the place the problem asks about, and check whether you need the whole table or only the last few entries.</li>
+  </ol>
+
+  <h3>Why memoisation matters</h3>
+  <p>The plain recursive Fibonacci function recomputes the same values many times. <strong>Memoisation</strong> stores each answer the first time it is computed. Bottom-up <strong>tabulation</strong> fills an array in order instead. Both give the same answers and both turn an exponential search into linear work. The demo below counts the calls to make the difference concrete.</p>
+  <pre class="code" data-lang="python"><code>from functools import lru_cache
+
+calls = 0
+
+def fib_naive(n):
+    global calls
+    calls += 1
+    if n &lt; 2:
+        return n
+    return fib_naive(n - 1) + fib_naive(n - 2)
+
+print(fib_naive(20), calls)
+
+calls = 0
+
+@lru_cache(maxsize=None)          # remember each answer the first time it is computed
+def fib_memo(n):
+    global calls
+    calls += 1
+    if n &lt; 2:
+        return n
+    return fib_memo(n - 1) + fib_memo(n - 2)
+
+print(fib_memo(20), calls)</code></pre>
+  <pre class="output">6765 21891
+6765 21</pre>
+  <p>Both versions return 6765, but the naive one makes 21,891 calls and the memoised one makes 21. The gap grows exponentially with n. The <code>@lru_cache</code> decorator from the standard library is a quick way to memoise a pure function.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Using global counters in production code. The demo uses them only to count calls. Real DP code keeps its state local and passes it explicitly.</p></div>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/climbing-stairs/">
+    <h3>Climbing Stairs (LeetCode 70)</h3>
+    <div class="statement"><p>You climb a staircase of n steps, one or two steps at a time. Count the distinct ways to reach the top. Example: n = 3 gives 3, because the ways are 1+1+1, 1+2 and 2+1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The last move is either a 1-step or a 2-step, so the question is about endings. Order matters: 1+2 and 2+1 count separately.</li>
+      <li><strong>Brute force.</strong> Recurse: ways(n) = ways(n-1) + ways(n-2). That is the Fibonacci recursion, which is exponential.</li>
+      <li><strong>Find the waste.</strong> ways(5) needs ways(4) and ways(3), and ways(4) also needs ways(3). The same values are recomputed.</li>
+      <li><strong>Optimise.</strong> Define dp[i] as the number of ways to reach step i. Base cases: dp[1] = 1, dp[2] = 2. Recurrence: dp[i] = dp[i-1] + dp[i-2]. Only the last two values are needed, so keep two variables instead of an array.</li>
+      <li><strong>Dry run.</strong> Start with prev = 1 (ways to reach 1) and curr = 2 (ways to reach 2). For step 3: new = 1 + 2 = 3. For step 4: new = 2 + 3 = 5. For step 5: new = 3 + 5 = 8. Answer 8.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def climb_stairs(n):
+    if n &lt;= 2:
+        return n                  # 1 step: one way. 2 steps: 1+1 or 2.
+    prev, curr = 1, 2             # ways to reach steps 1 and 2
+    for _ in range(3, n + 1):
+        prev, curr = curr, prev + curr   # ways(i) = ways(i-1) + ways(i-2)
+    return curr
+
+print(climb_stairs(2))
+print(climb_stairs(3))
+print(climb_stairs(5))
+print(climb_stairs(10))</code></pre>
+    <pre class="output">2
+3
+8
+89</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When dp[i] depends only on the last k values, keep k variables instead of a whole array.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/house-robber/">
+    <h3>House Robber (LeetCode 198)</h3>
+    <div class="statement"><p>Houses stand in a row, each holding some money. You may rob any set of houses, but you cannot rob two adjacent houses (the alarm would sound). Return the largest total you can steal. Example: <code>[2, 7, 9, 3, 1]</code> gives 12, by robbing houses 2, 9 and 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The only constraint is "no two adjacent". An empty row gives 0.</li>
+      <li><strong>Brute force.</strong> Try all subsets with no two neighbours and take the best. There are exponentially many, though fewer than all subsets.</li>
+      <li><strong>Find the waste.</strong> At house i you face a choice: skip it (and keep the best up to i-1), or rob it (add its money to the best up to i-2). Both sub-answers are reused across choices.</li>
+      <li><strong>Optimise.</strong> Let best(i) be the most you can get from houses 0 to i. Then best(i) = max(best(i-1), best(i-2) + nums[i]). Keep only the last two values.</li>
+      <li><strong>Dry run.</strong> On [2, 7, 9, 3, 1]: after 2, best is 2. After 7, best is max(2, 7) = 7. After 9, best is max(7, 2 + 9) = 11. After 3, best is max(11, 7 + 3) = 11. After 1, best is max(11, 11 + 1) = 12.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def rob(nums):
+    prev, curr = 0, 0            # best up to two houses back, and best up to the last house
+    for x in nums:
+        prev, curr = curr, max(curr, prev + x)   # skip x, or rob x and skip the last house
+    return curr
+
+print(rob([1, 2, 3, 1]))
+print(rob([2, 7, 9, 3, 1]))
+print(rob([2, 1, 1, 2]))
+print(rob([]))</code></pre>
+    <pre class="output">4
+12
+4
+0</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For "maximum with no two chosen neighbours", the recurrence is max(skip, take plus the value two back).</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/coin-change/">
+    <h3>Coin Change (LeetCode 322)</h3>
+    <div class="statement"><p>You have coins of several denominations, with unlimited copies of each. Return the fewest coins that add up to the amount, or -1 if it is impossible. Example: coins [1, 2, 5] and amount 11 give 3 (5 + 5 + 1).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Unlimited coins means the order of coins does not matter, but the number used does.</li>
+      <li><strong>Brute force.</strong> For the amount, try each coin first and recurse on the rest. The tree of choices is huge.</li>
+      <li><strong>Find the waste.</strong> The fewest coins for amount 7 is the same question no matter how we arrived at 7, so each amount needs solving once.</li>
+      <li><strong>Optimise.</strong> dp[a] is the fewest coins for amount a. dp[0] = 0. For each a, dp[a] = min over coins c with c at most a of dp[a - c] + 1. Use infinity to mark amounts that cannot be made.</li>
+      <li><strong>Dry run.</strong> Coins [2], amount 3. dp[0] = 0, dp[1] is infinity (no way), dp[2] = dp[0] + 1 = 1, dp[3] would need dp[1], which is infinity. Answer -1.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def coin_change(coins, amount):
+    INF = float("inf")
+    dp = [0] + [INF] * amount        # dp[a]: fewest coins for amount a
+    for value in range(1, amount + 1):
+        for coin in coins:
+            if coin &lt;= value and dp[value - coin] + 1 &lt; dp[value]:
+                dp[value] = dp[value - coin] + 1
+    return dp[amount] if dp[amount] != INF else -1
+
+print(coin_change([1, 2, 5], 11))
+print(coin_change([2], 3))
+print(coin_change([1], 0))
+print(coin_change([3, 7], 10))</code></pre>
+    <pre class="output">3
+-1
+0
+2</pre>
+    <p class="cx">Time O(amount × number of coins) · Space O(amount)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Using a greedy choice for coin change. Greedy fails for coins 1, 3 and 4 with amount 6 (it gives 3 coins, but 3 + 3 uses 2). The DP table is what makes the answer always correct.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For "fewest items to reach a total" with unlimited reuse, the recurrence is min over items of dp[total - item] + 1.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/longest-valid-parentheses/">
+    <h3>Longest Valid Parentheses (LeetCode 32)</h3>
+    <div class="statement"><p>Given a string made only of <code>(</code> and <code>)</code>, return the length of the longest substring that is a valid, balanced sequence. Example: <code>"()(()"</code> gives 2, because the longest balanced piece is "()". Example: <code>")()())"</code> gives 4, from "()()".</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A valid substring has equal opening and closing brackets, and no prefix has more closing brackets than opening ones. The substring must be contiguous.</li>
+      <li><strong>Brute force.</strong> Check every substring with a balance counter that goes up on <code>(</code> and down on <code>)</code>. A substring is valid if the balance never goes negative and ends at zero. That is O(n cubed) in total, which is too slow for long strings.</li>
+      <li><strong>Find the waste.</strong> Many substrings share the same ending. If we know the longest valid substring ending at each index, we can build the next one from it.</li>
+      <li><strong>Optimise.</strong> Let dp[i] be the length of the longest valid substring that ends at index i. Only a closing bracket can end a valid substring, so dp[i] matters only when s[i] is <code>)</code>. Two cases: if s[i-1] is <code>(</code>, the pair forms directly, so dp[i] = dp[i-2] + 2 (with dp[i-2] treated as 0 when i is small). If s[i-1] is <code>)</code>, look at the opening bracket that would match s[i], at index i - dp[i-1] - 1. If it is <code>(</code>, dp[i] = dp[i-1] + 2 plus whatever valid block sits just before that opening bracket.</li>
+      <li><strong>Dry run.</strong> On <code>"(()())"</code>: index 1 is <code>(</code>, skip. Index 2 is <code>)</code> after <code>(</code>, so dp[2] = 2. Index 3 is <code>(</code>, skip. Index 4 is <code>)</code> after <code>(</code>, so dp[4] = dp[2] + 2 = 4. Index 5 is <code>)</code> after <code>)</code>; its match is at index 5 - 4 - 1 = 0, which is <code>(</code>, so dp[5] = dp[4] + 2 = 6. The answer is 6.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def longest_valid_brute(s):
+    """Check every substring of even length with a balance counter. O(n cubed)."""
+    best = 0
+    n = len(s)
+    for i in range(n):
+        for j in range(i + 2, n + 1, 2):
+            balance = 0
+            ok = True
+            for ch in s[i:j]:
+                balance += 1 if ch == "(" else -1
+                if balance &lt; 0:          # a closing bracket with nothing to close
+                    ok = False
+                    break
+            if ok and balance == 0:
+                best = max(best, j - i)
+    return best
+
+def longest_valid(s):
+    """dp[i] is the length of the longest valid substring ending at index i."""
+    dp = [0] * len(s)
+    best = 0
+    for i in range(1, len(s)):
+        if s[i] == ")":
+            if s[i - 1] == "(":                          # the pair "()" closes right here
+                dp[i] = (dp[i - 2] if i &gt;= 2 else 0) + 2
+            elif i - dp[i - 1] - 1 &gt;= 0 and s[i - dp[i - 1] - 1] == "(":
+                start = i - dp[i - 1] - 1                # the opening bracket that matches s[i]
+                dp[i] = dp[i - 1] + 2 + (dp[start - 1] if start &gt;= 1 else 0)
+            best = max(best, dp[i])
+    return best
+
+for text in ["(()", ")()())", "", "()(()", "((()))()())(", "()()"]:
+    print(repr(text), longest_valid_brute(text), longest_valid(text))</code></pre>
+    <pre class="output">'(()' 2 2
+')()())' 4 4
+'' 0 0
+'()(()' 2 2
+'((()))()())(' 10 10
+'()()' 4 4</pre>
+    <p class="cx">Brute force: Time O(n cubed) · Space O(1). DP: Time O(n) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For substrings that end at each position, store the best answer ending there and build from the one before, using the matching bracket to jump back.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Revise from these one-line definitions. Each term is explained in the unit it names.</p>
+  <dl>
+    <div><dt>Blob</dt><dd>The stored contents of one file, identified by a hash of a header and the bytes.</dd></div>
+    <div><dt>Tree</dt><dd>A stored directory: names mapped to modes and the hashes of blobs or subtrees.</dd></div>
+    <div><dt>Commit</dt><dd>A snapshot that points to a root tree, its parent commits, the author and the message.</dd></div>
+    <div><dt>Tag</dt><dd>A named object that points to a commit, usually for a release.</dd></div>
+    <div><dt>Ref</dt><dd>A readable name for a commit, such as a branch, a tag or a remote-tracking branch.</dd></div>
+    <div><dt>HEAD</dt><dd>The reference to your current position, normally a branch.</dd></div>
+    <div><dt>Detached HEAD</dt><dd>HEAD pointing straight at a commit, so new commits belong to no branch.</dd></div>
+    <div><dt>Index (staging area)</dt><dd>The snapshot that the next commit will record, filled by git add.</dd></div>
+    <div><dt>Reset</dt><dd>Moves the current branch to another commit, rewriting history.</dd></div>
+    <div><dt>Revert</dt><dd>Creates a new commit that undoes an earlier one, keeping history.</dd></div>
+    <div><dt>Merge</dt><dd>Combines two histories with a commit that has two parents.</dd></div>
+    <div><dt>Rebase</dt><dd>Replays your commits onto a new base, producing new hashes and a straight history.</dd></div>
+    <div><dt>Interactive rebase</dt><dd>A rebase with a todo list, used to pick, reword, squash, fixup or drop your own commits.</dd></div>
+    <div><dt>Conflict</dt><dd>A place where Git cannot combine changes automatically, marked for a human to resolve.</dd></div>
+    <div><dt>Reflog</dt><dd>A local journal of where HEAD and branches pointed, used to recover lost commits.</dd></div>
+    <div><dt>Bisect</dt><dd>A binary search through commits to find the one that introduced a bug.</dd></div>
+    <div><dt>Git Flow</dt><dd>A branching model with main, develop, feature, release and hotfix branches.</dd></div>
+    <div><dt>GitHub Flow</dt><dd>One main branch, short-lived feature branches, pull requests, and frequent deploys from main.</dd></div>
+    <div><dt>Trunk-based development</dt><dd>Everyone integrates into one trunk at least daily, with feature flags for unfinished work.</dd></div>
+    <div><dt>Feature flag</dt><dd>A switch that turns a feature on or off without a new deploy.</dd></div>
+    <div><dt>Pull request</dt><dd>A request to merge a branch, with its diff, discussion and automated checks.</dd></div>
+    <div><dt>GitHub Actions workflow</dt><dd>A YAML file that runs jobs and steps on runners when events happen.</dd></div>
+    <div><dt>SDLC</dt><dd>Software development life cycle: requirements, design, implementation, testing, deployment, maintenance.</dd></div>
+    <div><dt>Agile</dt><dd>Iterative approaches guided by the 2001 Agile Manifesto values.</dd></div>
+    <div><dt>Scrum</dt><dd>An Agile framework with three roles, five events and three artifacts.</dd></div>
+    <div><dt>Sprint</dt><dd>A fixed time-box in Scrum, usually one to four weeks, that produces an Increment.</dd></div>
+    <div><dt>Dynamic programming</dt><dd>Solving a problem by solving overlapping subproblems once and reusing their answers.</dd></div>
+    <div><dt>Memoisation</dt><dd>Caching a function's answer the first time it is computed.</dd></div>
+    <div><dt>Tabulation</dt><dd>Filling a DP array bottom-up in an order where dependencies are already known.</dd></div>
+  </dl>
+
+  <h3>Commands and functions at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+    <tr><td><code>git commit -m</code></td><td>Records staged changes as a commit with a message</td><td><code>git commit -m "Fix login"</code></td></tr>
+    <tr><td><code>git log --format=%s</code></td><td>Prints one commit message per line</td><td><code>git log --format=%s</code></td></tr>
+    <tr><td><code>git cat-file -t</code></td><td>Shows an object's type</td><td><code>git cat-file -t HEAD</code></td></tr>
+    <tr><td><code>git reset --hard</code></td><td>Moves the branch and discards uncommitted changes</td><td><code>git reset --hard HEAD~1</code></td></tr>
+    <tr><td><code>git revert</code></td><td>Commits the inverse of an earlier commit</td><td><code>git revert --no-edit HEAD</code></td></tr>
+    <tr><td><code>git rebase -i</code></td><td>Opens a todo list to edit your commits</td><td><code>git rebase -i HEAD~3</code></td></tr>
+    <tr><td><code>git reflog</code></td><td>Lists recent positions of HEAD</td><td><code>git reflog --format="%gd %gs"</code></td></tr>
+    <tr><td><code>git bisect run</code></td><td>Runs a command at each step of a bisect</td><td><code>git bisect run pytest</code></td></tr>
+    <tr><td><code>hashlib.sha1</code></td><td>Computes the SHA-1 hash that Git uses for objects</td><td><code>hashlib.sha1(b"blob 6\0hello\n").hexdigest()</code></td></tr>
+    <tr><td><code>functools.lru_cache</code></td><td>Memoises a function's results</td><td><code>@lru_cache(maxsize=None)</code></td></tr>
+    <tr><td><code>float("inf")</code></td><td>A value bigger than any number, useful as "unreachable"</td><td><code>dp = [0] + [float("inf")] * n</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 23?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 23 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-22.html"><small>Previous, day 22</small>Backend engineering + Flask</a><a class="next" href="day-24.html"><small>Next, day 24</small>Software engineering practices and testing</a></nav>
+</main><script src="assets/app.js"></script></body></html>

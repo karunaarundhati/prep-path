@@ -1,0 +1,1227 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 19: SQL 2 + PostgreSQL + Django ORM</title><meta name="description" content="Today finishes SQL with the features interviewers probe most: window functions, recursive CTEs, query plans and indexes, then PostgreSQL specifics such as JSONB, upserts and MVCC. The last section covers Django, which sits on top of PostgreSQL and hides SQL behind its ORM. The DSA set adds topological sort and Dijkstra&#x27;s shortest path."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="19" data-key="19" data-noun="day" data-num="19" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>SQL 2 + PostgreSQL + Django ORM</h1>
+<p class="lede">Today finishes SQL with the features interviewers probe most: window functions, recursive CTEs, query plans and indexes, then PostgreSQL specifics such as JSONB, upserts and MVCC. The last section covers Django, which sits on top of PostgreSQL and hides SQL behind its ORM. The DSA set adds topological sort and Dijkstra&#x27;s shortest path.</p>
+<div class="station"><b>19</b><span>Fri 20 Nov 2026 · Databases · DSA: Graphs: topological sort, Dijkstra</span></div>
+<ul class="topics"><li>Window functions</li><li>CTEs and recursion</li><li>Views, triggers, procedures</li><li>Indexes and EXPLAIN</li><li>JSONB, upserts, DISTINCT ON</li><li>MVCC and VACUUM</li><li>Django ORM and N+1</li><li>Topological sort and Dijkstra</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Window functions">
+  <h2>Window functions: ranking and running totals</h2>
+  <p>
+    In the previous day you met <code>GROUP BY</code>, which collapses many rows into one row per group. A <strong>window function</strong> does something different. It looks at a set of related rows, called its <em>window</em>, and computes a value for each row, but it never collapses the rows. If you have 7 employees, a window function still returns 7 rows. Each row simply gets an extra column that depends on the rows around it.
+  </p>
+  <p>
+    Every window function is written with an <code>OVER</code> clause. The clause says which rows belong to the window. Two parts matter most. <code>PARTITION BY</code> splits the rows into independent groups, a bit like <code>GROUP BY</code> but without merging them. <code>ORDER BY</code> inside <code>OVER</code> sets the order of rows inside each partition, which matters for ranking and running totals.
+  </p>
+
+  <h3>The sample schema used in this day</h3>
+  <p>
+    Every SQL example on this page uses the same two tables. Run this once in a scratch database, and you can reproduce every result shown below.
+  </p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE departments (id int PRIMARY KEY, name text NOT NULL);
+CREATE TABLE employees (
+  id int PRIMARY KEY,
+  name text NOT NULL,
+  dept_id int REFERENCES departments(id),
+  manager_id int REFERENCES employees(id),
+  salary int NOT NULL
+);
+INSERT INTO departments VALUES (1,'Engineering'),(2,'Sales'),(3,'HR');
+INSERT INTO employees VALUES
+ (1,'Asha',1,NULL,150000), (2,'Ben',1,1,120000), (3,'Chen',1,1,120000),
+ (4,'Dana',2,1,90000), (5,'Eli',2,4,70000), (6,'Farah',3,1,65000), (7,'Gus',1,2,95000);</code></pre>
+  <pre class="output">CREATE TABLE
+CREATE TABLE
+INSERT 0 3
+INSERT 0 7</pre>
+  <p>The <code>employees</code> table after those inserts looks like this:</p>
+  <div class="tablewrap"><table><thead><tr><th>id</th><th>name</th><th>dept_id</th><th>manager_id</th><th>salary</th></tr></thead><tbody>
+    <tr><td>1</td><td>Asha</td><td>1</td><td>NULL</td><td>150000</td></tr>
+    <tr><td>2</td><td>Ben</td><td>1</td><td>1</td><td>120000</td></tr>
+    <tr><td>3</td><td>Chen</td><td>1</td><td>1</td><td>120000</td></tr>
+    <tr><td>4</td><td>Dana</td><td>2</td><td>1</td><td>90000</td></tr>
+    <tr><td>5</td><td>Eli</td><td>2</td><td>4</td><td>70000</td></tr>
+    <tr><td>6</td><td>Farah</td><td>3</td><td>1</td><td>65000</td></tr>
+    <tr><td>7</td><td>Gus</td><td>1</td><td>2</td><td>95000</td></tr>
+  </tbody></table></div>
+
+  <h3>Ranking inside each department</h3>
+  <p>
+    Suppose you want each employee's position by salary inside their own department. There are three ranking functions, and they differ only when two rows tie. Ben and Chen both earn 120000, so the tie is useful for seeing the difference.
+  </p>
+  <ul>
+    <li><code>ROW_NUMBER()</code> numbers the rows 1, 2, 3, and so on. Ties still get different numbers. To make the result deterministic, add a unique column such as <code>id</code> as a tiebreaker.</li>
+    <li><code>RANK()</code> gives tied rows the same number, then skips the next numbers. Two rows tied for 2nd place are both 2, and the next row is 4.</li>
+    <li><code>DENSE_RANK()</code> gives tied rows the same number, but does not skip. Two rows tied for 2nd are both 2, and the next row is 3.</li>
+  </ul>
+  <pre class="code" data-lang="sql"><code>SELECT name, dept_id, salary,
+  ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC, id) AS row_num,
+  RANK()       OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rnk,
+  DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS dense_rnk
+FROM employees
+ORDER BY dept_id, salary DESC, id;</code></pre>
+  <pre class="output"> name  | dept_id | salary | row_num | rnk | dense_rnk
+-------+---------+--------+---------+-----+-----------
+ Asha  |       1 | 150000 |       1 |   1 |         1
+ Ben   |       1 | 120000 |       2 |   2 |         2
+ Chen  |       1 | 120000 |       3 |   2 |         2
+ Gus   |       1 |  95000 |       4 |   4 |         3
+ Dana  |       2 |  90000 |       1 |   1 |         1
+ Eli   |       2 |  70000 |       2 |   2 |         2
+ Farah |       3 |  65000 |       1 |   1 |         1
+(7 rows)</pre>
+  <p>
+    Read the Engineering rows. Ben and Chen tie at 120000. <code>RANK</code> gives both a 2 and then jumps to 4 for Gus. <code>DENSE_RANK</code> gives both a 2 and then gives Gus a 3. <code>ROW_NUMBER</code> gives them 2 and 3 only because we added <code>id</code> as a tiebreaker. Without it, the order of tied rows is not guaranteed.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>Without a unique tiebreaker, <code>ROW_NUMBER() OVER (ORDER BY salary DESC)</code> can give tied rows either number, and the answer can change between runs. Always add a unique column such as <code>id</code> when you need a stable result.</p></div>
+
+  <h3>Running totals and the window frame</h3>
+  <p>
+    A <strong>running total</strong> adds up the values seen so far. Any aggregate function (<code>SUM</code>, <code>AVG</code>, <code>COUNT</code>, <code>MIN</code>, <code>MAX</code>) becomes a window function when you add <code>OVER</code>. The part of the partition that the function sees for each row is called the <em>frame</em>.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT name, salary,
+       SUM(salary) OVER (ORDER BY id) AS running_total
+FROM employees
+ORDER BY id;</code></pre>
+  <pre class="output"> name  | salary | running_total
+-------+--------+---------------
+ Asha  | 150000 |        150000
+ Ben   | 120000 |        270000
+ Chen  | 120000 |        390000
+ Dana  |  90000 |        480000
+ Eli   |  70000 |        550000
+ Farah |  65000 |        615000
+ Gus   |  95000 |        710000
+(7 rows)</pre>
+  <p>
+    Here there is no <code>PARTITION BY</code>, so the window is the whole table. Because there is an <code>ORDER BY</code>, the default frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. In plain words: from the first row up to the current row, including every row that ties with the current row on the <code>ORDER BY</code> value.
+  </p>
+  <p>
+    That "including ties" part is easy to miss. Here is the running sum ordered by salary alone, for the three rows with salary of at least 120000.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT name, salary,
+       SUM(salary) OVER (ORDER BY salary) AS running
+FROM employees
+WHERE salary &gt;= 120000
+ORDER BY salary, name;</code></pre>
+  <pre class="output"> name | salary | running
+------+--------+---------
+ Ben  | 120000 |  240000
+ Chen | 120000 |  240000
+ Asha | 150000 |  390000
+(3 rows)</pre>
+  <p>
+    Ben and Chen are tied on salary, so they are peers. Both see the same frame, which includes both salaries, so both show 240000. Only after the tied rows does the sum move on to 390000. If you want a strict row by row running total instead, write <code>ROWS UNBOUNDED PRECEDING</code>, which counts physical rows and ignores peers. Then the tied rows get different totals, which is why a tiebreaker is needed again.
+  </p>
+  <div class="note key"><p><span class="t">Key idea</span>A window function computes a value for every row from a window of related rows, and never removes rows. The default frame with <code>ORDER BY</code> is <code>RANGE</code>, so tied rows share the same running value.</p></div>
+
+  <h3>Looking at neighbours: LAG and LEAD</h3>
+  <p>
+    <code>LAG(column)</code> reads the value from the previous row in the window, and <code>LEAD(column)</code> reads the value from the next row. They are useful for comparing a row with its neighbour, for example to find salary changes between consecutive records. When there is no previous or next row, the result is <code>NULL</code>.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT name, salary,
+       LAG(salary)  OVER (ORDER BY id) AS prev_salary,
+       LEAD(salary) OVER (ORDER BY id) AS next_salary
+FROM employees
+ORDER BY id;</code></pre>
+  <pre class="output"> name  | salary | prev_salary | next_salary
+-------+--------+-------------+-------------
+ Asha  | 150000 |             |      120000
+ Ben   | 120000 |      150000 |      120000
+ Chen  | 120000 |      120000 |       90000
+ Dana  |  90000 |      120000 |       70000
+ Eli   |  70000 |       90000 |       65000
+ Farah |  65000 |       70000 |       95000
+ Gus   |  95000 |       65000 |
+(7 rows)</pre>
+  <p>
+    Asha has no previous row, so <code>prev_salary</code> is empty (NULL). Gus has no next row, so <code>next_salary</code> is empty.
+  </p>
+
+  <h3>Average per group without collapsing the rows</h3>
+  <p>
+    A common interview task is "show each employee next to the average salary of their department". A <code>GROUP BY</code> query would return one row per department and lose the names. A window function keeps the names and adds the average. <code>ROUND</code> keeps the output readable.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT name, dept_id,
+       ROUND(AVG(salary) OVER (PARTITION BY dept_id)) AS dept_avg
+FROM employees
+ORDER BY id;</code></pre>
+  <pre class="output"> name  | dept_id | dept_avg
+-------+---------+----------
+ Asha  |       1 |   121250
+ Ben   |       1 |   121250
+ Chen  |       1 |   121250
+ Dana  |       2 |    80000
+ Eli   |       2 |    80000
+ Farah |       3 |    65000
+ Gus   |       1 |   121250
+(7 rows)</pre>
+  <p>
+    The Engineering average is (150000 + 120000 + 120000 + 95000) / 4 = 485000 / 4 = 121250, which is the value every Engineering row shows.
+  </p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between <code>GROUP BY</code> and a window function? <code>GROUP BY</code> reduces many rows to one row per group. A window function keeps every row and adds a value computed from its group or neighbours.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>Window functions run after <code>WHERE</code>, <code>GROUP BY</code> and <code>HAVING</code>. You cannot use a window function inside a <code>WHERE</code> clause. To filter on a window result, wrap the query in a subquery or a CTE and filter in the outer query, as the top-N example in the next unit shows.</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="CTEs and classic queries">
+  <h2>Common table expressions and the classic interview queries</h2>
+  <p>
+    A <strong>common table expression</strong>, or CTE, is a named query defined with <code>WITH</code>. Think of it as a temporary result you can refer to by name in the main query. CTEs make long queries readable, because each step gets a name instead of being nested inside the one before it.
+  </p>
+
+  <h3>Plain CTEs</h3>
+  <p>
+    The next query first computes the total salary per department, then joins that result to the departments table to show the names.
+  </p>
+  <pre class="code" data-lang="sql"><code>WITH dept_totals AS (
+  SELECT dept_id, SUM(salary) AS total
+  FROM employees
+  GROUP BY dept_id
+)
+SELECT d.name, t.total
+FROM dept_totals t
+JOIN departments d ON d.id = t.dept_id
+ORDER BY t.total DESC;</code></pre>
+  <pre class="output">    name     | total
+-------------+--------
+ Engineering | 485000
+ Sales       | 160000
+ HR          |  65000
+(3 rows)</pre>
+  <p>
+    In PostgreSQL 12 and later, a CTE that is used only once is usually folded into the main query, much like a subquery. A CTE used several times is computed once and stored. You can force either behaviour with <code>MATERIALIZED</code> or <code>NOT MATERIALIZED</code>. For readability, the more important point is that the query now reads top to bottom: first the totals, then the names.
+  </p>
+
+  <h3>Recursive CTEs: walking a tree</h3>
+  <p>
+    A <strong>recursive CTE</strong> refers to itself. It is the standard tool for hierarchies such as an organisation chart, folder trees, or bills of materials. A recursive CTE has two parts joined by <code>UNION ALL</code>.
+  </p>
+  <ol>
+    <li><strong>The anchor member.</strong> A query that returns the starting rows, for example the employee with no manager.</li>
+    <li><strong>The recursive member.</strong> A query that joins the CTE to the table to find the next level down. PostgreSQL runs it repeatedly, feeding in the rows produced by the previous round, until a round produces no new rows.</li>
+  </ol>
+  <p>
+    Here, the anchor is the employee with <code>manager_id IS NULL</code>, which is Asha. Each round finds the people who report to the people found in the previous round. The <code>depth</code> column counts the levels, and the <code>path</code> column builds a readable chain of names.
+  </p>
+  <pre class="code" data-lang="sql"><code>WITH RECURSIVE chain AS (
+  -- anchor: the top of the tree
+  SELECT id, name, manager_id, 0 AS depth, name::text AS path
+  FROM employees
+  WHERE manager_id IS NULL
+  UNION ALL
+  -- recursive member: the direct reports of the rows found so far
+  SELECT e.id, e.name, e.manager_id, c.depth + 1, c.path || ' &gt; ' || e.name
+  FROM employees e
+  JOIN chain c ON e.manager_id = c.id
+)
+SELECT depth, name, path
+FROM chain
+ORDER BY depth, id;</code></pre>
+  <pre class="output"> depth | name  |       path
+-------+-------+-------------------
+     0 | Asha  | Asha
+     1 | Ben   | Asha &gt; Ben
+     1 | Chen  | Asha &gt; Chen
+     1 | Dana  | Asha &gt; Dana
+     1 | Farah | Asha &gt; Farah
+     2 | Eli   | Asha &gt; Dana &gt; Eli
+     2 | Gus   | Asha &gt; Ben &gt; Gus
+(7 rows)</pre>
+  <p>
+    Walk the rounds. Round 0 returns Asha. Round 1 finds everyone whose <code>manager_id</code> is 1 (Ben, Chen, Dana, Farah). Round 2 finds everyone whose manager is one of those four (Eli reports to Dana, Gus reports to Ben). Round 3 finds nobody, so the recursion stops.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>A recursive CTE that follows a cycle, such as A reports to B and B reports to A, never stops. Use <code>UNION</code> instead of <code>UNION ALL</code> if duplicate rows should be dropped, or add a depth limit such as <code>WHERE depth &lt; 20</code> in the recursive member.</p></div>
+
+  <h3>Classic question: the second highest salary</h3>
+  <p>
+    The question "find the second highest salary" looks simple, but it hides a trap. If two people share the highest salary, "the second row when sorted" is not the second highest value. There are three standard answers.
+  </p>
+  <p><strong>Approach 1: a subquery for the maximum below the maximum.</strong> Find the largest salary, then find the largest salary that is smaller than it.</p>
+  <pre class="code" data-lang="sql"><code>SELECT MAX(salary) AS second_highest
+FROM employees
+WHERE salary &lt; (SELECT MAX(salary) FROM employees);</code></pre>
+  <pre class="output"> second_highest
+----------------
+         120000
+(1 row)</pre>
+  <p><strong>Approach 2: skip duplicates with OFFSET.</strong> Remove repeated values with <code>DISTINCT</code>, sort from highest to lowest, skip the first value, and take one.</p>
+  <pre class="code" data-lang="sql"><code>SELECT DISTINCT salary
+FROM employees
+ORDER BY salary DESC
+OFFSET 1 LIMIT 1;</code></pre>
+  <pre class="output"> salary
+--------
+ 120000
+(1 row)</pre>
+  <p><strong>Approach 3: DENSE_RANK.</strong> Rank the salaries with no gaps and keep rank 2. Because tied salaries share a rank, several rows can have rank 2, so <code>LIMIT 1</code> is needed.</p>
+  <pre class="code" data-lang="sql"><code>SELECT salary
+FROM (
+  SELECT salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS r
+  FROM employees
+) ranked
+WHERE r = 2
+LIMIT 1;</code></pre>
+  <pre class="output"> salary
+--------
+ 120000
+(1 row)</pre>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why not <code>ORDER BY salary DESC LIMIT 1 OFFSET 1</code>? Because it counts rows, not distinct values. Our data happens to work, since the second row is Ben at 120000. But if two people shared the top salary of 150000, the second row would repeat 150000, which is not the second highest value.</p></div>
+
+  <h3>Top N per group</h3>
+  <p>
+    "Show the top two earners in each department" is another classic. The window approach numbers the rows inside each department, then the outer query keeps rows numbered 1 or 2. It needs a subquery because window functions cannot appear in <code>WHERE</code>.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT dept_id, name, salary
+FROM (
+  SELECT dept_id, name, salary,
+         ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC, id) AS rn
+  FROM employees
+) t
+WHERE rn &lt;= 2
+ORDER BY dept_id, rn;</code></pre>
+  <pre class="output"> dept_id | name  | salary
+---------+-------+--------
+       1 | Asha  | 150000
+       1 | Ben   | 120000
+       2 | Dana  |  90000
+       2 | Eli   |  70000
+       3 | Farah |  65000
+(5 rows)</pre>
+  <p>
+    Note that HR has only one employee, so it returns one row. A <code>LATERAL</code> join is an alternative. It runs a small query once for each row of the outer table, which is efficient when an index supports the inner query.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT d.name AS dept, top.name, top.salary
+FROM departments d
+CROSS JOIN LATERAL (
+  SELECT name, salary
+  FROM employees e
+  WHERE e.dept_id = d.id
+  ORDER BY salary DESC, id
+  LIMIT 2
+) top
+ORDER BY d.id, top.salary DESC;</code></pre>
+  <pre class="output">    dept     | name  | salary
+-------------+-------+--------
+ Engineering | Asha  | 150000
+ Engineering | Ben   | 120000
+ Sales       | Dana  |  90000
+ Sales       | Eli   |  70000
+ HR          | Farah |  65000
+(5 rows)</pre>
+  <div class="note key"><p><span class="t">Key idea</span>Second highest, top N per group, and running totals are all solved by one tool: a window function computed in a subquery, filtered in the outer query.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="Views, triggers, procedures">
+  <h2>Views, procedures and triggers</h2>
+  <p>
+    These three objects store SQL inside the database. Each solves a different problem, and interviewers often ask you to explain when to use which.
+  </p>
+
+  <h3>Views: a saved query that looks like a table</h3>
+  <p>
+    A <strong>view</strong> is a named query. Querying the view runs the saved query. Views hide complexity, give a stable interface when the underlying tables change, and can restrict which columns a user sees. A view stores no data of its own, so it always shows current values. A <strong>materialized view</strong> is different: it stores the query result, so reading it is fast, but you must run <code>REFRESH MATERIALIZED VIEW</code> to update it.
+  </p>
+  <pre class="code" data-lang="sql"><code>CREATE VIEW dept_summary AS
+SELECT d.name AS dept, COUNT(e.id) AS headcount, SUM(e.salary) AS payroll
+FROM departments d
+LEFT JOIN employees e ON e.dept_id = d.id
+GROUP BY d.name;
+
+SELECT * FROM dept_summary ORDER BY dept;</code></pre>
+  <pre class="output">CREATE VIEW
+    dept     | headcount | payroll
+-------------+-----------+---------
+ Engineering |         4 |  485000
+ HR          |         1 |   65000
+ Sales       |         2 |  160000
+(3 rows)</pre>
+  <p>
+    The view uses <code>LEFT JOIN</code>, so a department with no employees would still appear with a headcount of 0 and a payroll of NULL. Simple views on one table can also be used for <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code>. Views built on joins and aggregates are generally read only.
+  </p>
+
+  <h3>Triggers: code that runs on every change</h3>
+  <p>
+    A <strong>trigger</strong> runs a function automatically when a row is inserted, updated or deleted. In PostgreSQL, a trigger calls a function written to return the special type <code>trigger</code>. Inside that function, <code>NEW</code> holds the row after the change and <code>OLD</code> holds the row before it. A typical use is an audit log. The example below records every salary change.
+  </p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE salary_log (
+  id serial PRIMARY KEY,
+  emp_id int,
+  old_salary int,
+  new_salary int,
+  changed_at timestamptz DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION log_salary() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.salary IS DISTINCT FROM OLD.salary THEN
+    INSERT INTO salary_log (emp_id, old_salary, new_salary)
+    VALUES (OLD.id, OLD.salary, NEW.salary);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_salary
+AFTER UPDATE ON employees
+FOR EACH ROW EXECUTE FUNCTION log_salary();
+
+UPDATE employees SET salary = 72000 WHERE name = 'Eli';
+SELECT emp_id, old_salary, new_salary FROM salary_log ORDER BY id;</code></pre>
+  <pre class="output">CREATE TABLE
+CREATE FUNCTION
+CREATE TRIGGER
+UPDATE 1
+ emp_id | old_salary | new_salary
+--------+------------+------------
+      5 |      70000 |      72000
+(1 row)</pre>
+  <p>
+    The function checks <code>IS DISTINCT FROM</code> rather than <code>&lt;&gt;</code> because <code>IS DISTINCT FROM</code> treats NULL correctly. A comparison such as <code>NULL &lt;&gt; 5</code> gives NULL, not true, so it would skip the logging. <code>IS DISTINCT FROM</code> returns true when the values differ, including when one of them is NULL. The trigger fires after the update, so <code>RETURN NEW</code> is what the statement would have stored. For a <code>BEFORE</code> trigger, returning <code>NEW</code> lets you change the row before it is written.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>Triggers are hidden logic. A developer who updates a salary may not know a row was also written to another table. Keep triggers small, document them, and prefer explicit application code when the behaviour is complex.</p></div>
+
+  <h3>Stored procedures: CALL and transactions</h3>
+  <p>
+    A <strong>stored procedure</strong> is a named block of procedural code that you run with <code>CALL</code>. Unlike a function, which is used inside a query and returns a value, a procedure is run as a statement and can control transactions. In PostgreSQL, procedures were added in version 11. The procedure below gives a raise to everyone in one department.
+  </p>
+  <pre class="code" data-lang="sql"><code>CREATE OR REPLACE PROCEDURE give_raise(p_dept int, p_pct numeric)
+LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE employees
+  SET salary = ROUND(salary * (1 + p_pct / 100))
+  WHERE dept_id = p_dept;
+END;
+$$;
+
+CALL give_raise(3, 10);
+SELECT name, salary FROM employees WHERE dept_id = 3;</code></pre>
+  <pre class="output">CREATE PROCEDURE
+CALL
+ name  | salary
+-------+--------
+ Farah |  71500
+(1 row)</pre>
+  <p>
+    Farah's salary was 65000. A 10 percent raise gives 65000 * 1.10 = 71500. Because the procedure runs in the caller's transaction, the same trigger we just wrote also logs the change to <code>salary_log</code>.
+  </p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Function or procedure? A function returns a value and can be used inside <code>SELECT</code>. A procedure is called with <code>CALL</code>, returns no value, and can contain <code>COMMIT</code> or <code>ROLLBACK</code>.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="Indexes and EXPLAIN">
+  <h2>Indexes, query plans and EXPLAIN ANALYZE</h2>
+  <p>
+    An <strong>index</strong> is a separate data structure that lets the database find rows without reading the whole table. Without an index, PostgreSQL reads every row of the table, which is called a <strong>sequential scan</strong>. An index is like the index at the back of a book. It costs extra disk space and slows down writes, because every insert and update must also update the index, but it makes selective reads much faster.
+  </p>
+  <p>
+    You can see which access path the database chooses with <code>EXPLAIN</code>. It shows the <strong>query plan</strong>: the steps the planner intends to take, with cost and row estimates. The planner uses statistics collected by <code>ANALYZE</code> to decide between options.
+  </p>
+
+  <h3>The index types you need to know</h3>
+  <ul>
+    <li><strong>B-tree</strong> is the default. It keeps values sorted in a balanced tree and supports equality, ranges (<code>&gt;</code>, <code>BETWEEN</code>) and sorting. Use it for most columns, including primary and foreign keys.</li>
+    <li><strong>GIN</strong> (generalized inverted index) maps each element inside a value to the rows that contain it. It suits JSONB containment (<code>@&gt;</code>), array membership and full-text search. It is larger and slower to update than B-tree, but very fast for "contains" questions.</li>
+    <li><strong>BRIN</strong> (block range index) stores only the minimum and maximum value for each group of physical pages. It is tiny, and it works well when the column's values follow the physical order of the table, such as an append-only timestamp. It works poorly when the values are scattered randomly across the table.</li>
+    <li><strong>Partial index</strong> is any index with a <code>WHERE</code> clause. It indexes only the rows you query often, which keeps the index small. A partial index is used only when the query's own <code>WHERE</code> clause implies the index condition.</li>
+  </ul>
+  <p>
+    The next statements create one of each type on a table called <code>events</code>. The table has 20000 rows with an integer <code>id</code> primary key, a <code>user_id</code> from 0 to 49, a <code>ts</code> timestamp that increases by one minute per row, and a <code>meta</code> JSONB column.
+  </p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE events AS
+SELECT g AS id,
+       (g % 50) AS user_id,
+       'click' AS kind,
+       '2026-01-01'::timestamptz + g * interval '1 minute' AS ts,
+       CASE WHEN g % 10 = 0 THEN '{"plan":"pro","region":"eu"}'
+            ELSE '{"plan":"free"}' END::jsonb AS meta
+FROM generate_series(1, 20000) g;
+
+ALTER TABLE events ADD PRIMARY KEY (id);
+CREATE INDEX events_user_idx ON events (user_id);
+CREATE INDEX events_ts_brin ON events USING brin (ts);
+CREATE INDEX events_meta_gin ON events USING gin (meta);
+CREATE INDEX events_pro_partial ON events (user_id) WHERE kind = 'purchase';
+ANALYZE events;</code></pre>
+  <pre class="output">SELECT 20000
+ALTER TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ANALYZE</pre>
+
+  <h3>Reading a query plan</h3>
+  <p>
+    Put <code>EXPLAIN</code> in front of any query to see its plan. Start with the innermost, most indented line, because that is the first thing the database does. Each line has three numbers in <code>cost=start..total rows=estimate width=bytes</code>. The cost is an abstract unit used only to compare plans, not milliseconds. The row estimate is the planner's guess, and a bad estimate is often the reason for a bad plan.
+  </p>
+  <pre class="code" data-lang="sql"><code>EXPLAIN SELECT * FROM events WHERE id = 500;</code></pre>
+  <pre class="output">                                QUERY PLAN
+---------------------------------------------------------------------------
+ Index Scan using events_pkey on events  (cost=0.29..8.30 rows=1 width=44)
+   Index Cond: (id = 500)
+(2 rows)</pre>
+  <p>
+    One row out of 20000 is very selective, so the planner uses the primary key index and reads one row. Now look at a condition that matches many rows, such as <code>user_id = 7</code>, which matches about 400 rows.
+  </p>
+  <pre class="code" data-lang="sql"><code>EXPLAIN SELECT * FROM events WHERE user_id = 7;</code></pre>
+  <pre class="output">                                   QUERY PLAN
+--------------------------------------------------------------------------------
+ Bitmap Heap Scan on events  (cost=7.39..204.39 rows=400 width=44)
+   Recheck Cond: (user_id = 7)
+   -&gt;  Bitmap Index Scan on events_user_idx  (cost=0.00..7.29 rows=400 width=0)
+         Index Cond: (user_id = 7)
+(4 rows)</pre>
+  <p>
+    Now the planner uses a <strong>bitmap scan</strong>. It first uses the index to collect the locations of the matching rows, then reads those table pages in physical order. This is a middle path between one-row index lookups and a full sequential scan.
+  </p>
+  <p>
+    The GIN index is picked for the JSONB containment operator, and the BRIN index for a narrow time range. The partial index is picked only when the query repeats the partial index's condition.
+  </p>
+  <pre class="code" data-lang="sql"><code>EXPLAIN SELECT * FROM events WHERE meta @&gt; '{"plan":"pro"}';
+EXPLAIN SELECT * FROM events WHERE ts &gt;= '2026-01-10' AND ts &lt; '2026-01-11';
+EXPLAIN SELECT * FROM events WHERE kind = 'purchase' AND user_id = 7;</code></pre>
+  <pre class="output">                                    QUERY PLAN
+----------------------------------------------------------------------------------
+ Bitmap Heap Scan on events  (cost=35.79..252.79 rows=2000 width=44)
+   Recheck Cond: (meta @&gt; '{"plan": "pro"}'::jsonb)
+   -&gt;  Bitmap Index Scan on events_meta_gin  (cost=0.00..35.29 rows=2000 width=0)
+         Index Cond: (meta @&gt; '{"plan": "pro"}'::jsonb)
+(4 rows)
+
+                                                                   QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on events  (cost=12.39..354.39 rows=1440 width=44)
+   Recheck Cond: ((ts &gt;= '2026-01-10 00:00:00+00'::timestamp with time zone) AND (ts &lt; '2026-01-11 00:00:00+00'::timestamp with time zone))
+   -&gt;  Bitmap Index Scan on events_ts_brin  (cost=0.00..12.03 rows=10000 width=0)
+         Index Cond: ((ts &gt;= '2026-01-10 00:00:00+00'::timestamp with time zone) AND (ts &lt; '2026-01-11 00:00:00+00'::timestamp with time zone))
+(4 rows)
+
+                                    QUERY PLAN
+----------------------------------------------------------------------------------
+ Index Scan using events_pro_partial on events  (cost=0.12..8.14 rows=1 width=44)
+   Index Cond: (user_id = 7)
+(2 rows)</pre>
+  <p>
+    The last plan is the one to study. The query asks for <code>kind = 'purchase'</code>, which is exactly the partial index's condition, so the planner can use <code>events_pro_partial</code>. If the query had asked for <code>kind = 'click'</code>, the partial index would be ignored.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>An index is not used just because it exists. A function on the column, such as <code>WHERE LOWER(name) = 'asha'</code>, cannot use a plain index on <code>name</code>. Either index the expression (<code>CREATE INDEX ON employees (LOWER(name))</code>) or compare the column directly.</p></div>
+
+  <h3>EXPLAIN ANALYZE: the plan plus reality</h3>
+  <p>
+    <code>EXPLAIN</code> only estimates. <code>EXPLAIN ANALYZE</code> actually runs the query and adds the real time, the real row counts and the number of loops. When an estimate and the real count differ by a large factor, the planner was working from bad statistics, and running <code>ANALYZE</code> on the table is often the fix.
+  </p>
+  <pre class="code" data-lang="sql"><code>EXPLAIN ANALYZE SELECT * FROM events WHERE id = 500;</code></pre>
+  <pre class="output">                                                     QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------
+ Index Scan using events_pkey on events  (cost=0.29..8.30 rows=1 width=44) (actual time=0.035..0.036 rows=1 loops=1)
+   Index Cond: (id = 500)
+ Planning Time: 0.021 ms
+ Execution Time: 0.042 ms
+(4 rows)</pre>
+  <p>
+    The timing values change from run to run and from machine to machine, so treat the numbers as an example. The useful part is the structure: the estimated rows (<code>rows=1</code>) match the actual rows (<code>rows=1</code>), so the statistics are good.
+  </p>
+  <div class="note key"><p><span class="t">Key idea</span><code>EXPLAIN</code> shows the plan the planner chose. <code>EXPLAIN ANALYZE</code> runs the query and shows what really happened. Because it executes the statement, wrap an <code>UPDATE</code> or <code>DELETE</code> in a transaction and roll it back when you only want to see the plan.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why might the planner ignore an index? Because a sequential scan can be cheaper when the query returns a large share of the table, when the estimate is wrong, or when the column has a function applied to it. An index is a tool the planner weighs against the alternatives, not a rule.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="PostgreSQL features">
+  <h2>PostgreSQL features worth knowing</h2>
+  <p>
+    Standard SQL covers most of what you need, but PostgreSQL adds features that interviewers like to ask about. They fall into four groups: storing and querying JSON, writing rows and getting them back in one step, inserting or updating in one statement, and vector similarity for AI applications.
+  </p>
+
+  <h3>JSONB: JSON stored in binary form</h3>
+  <p>
+    PostgreSQL has two JSON types. <code>json</code> stores the text exactly as written. <code>jsonb</code> stores a decomposed binary form, which is slower to write but faster to query, and it supports indexes. Use <code>jsonb</code> in almost every case.
+  </p>
+  <ul>
+    <li><code>-&gt;</code> returns a JSON value (still JSON, so strings keep their quotes).</li>
+    <li><code>-&gt;&gt;</code> returns the value as plain text.</li>
+    <li><code>@&gt;</code> tests containment: does the left side contain the right side?</li>
+    <li><code>?</code> tests whether a key exists at the top level.</li>
+  </ul>
+  <pre class="code" data-lang="sql"><code>SELECT id, meta-&gt;&gt;'plan' AS plan, meta-&gt;'region' AS region
+FROM events
+WHERE id IN (10, 11)
+ORDER BY id;</code></pre>
+  <pre class="output"> id | plan | region
+----+------+--------
+ 10 | pro  | "eu"
+ 11 | free |
+(2 rows)</pre>
+  <p>
+    Row 10 has a region key, so <code>meta-&gt;'region'</code> returns the JSON string <code>"eu"</code>, with quotes. Row 11 has no region key, so the result is NULL, which psql shows as an empty cell.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT id, meta
+FROM events
+WHERE meta ? 'region' AND id &lt;= 20
+ORDER BY id;
+
+SELECT COUNT(*) FROM events WHERE meta @&gt; '{"plan":"pro"}';</code></pre>
+  <pre class="output"> id |              meta
+----+---------------------------------
+ 10 | {"plan": "pro", "region": "eu"}
+ 20 | {"plan": "pro", "region": "eu"}
+(2 rows)
+
+ count
+-------
+  2000
+(1 row)</pre>
+  <p>
+    Every tenth row has the <code>pro</code> plan, so 20000 / 10 = 2000 rows match the containment test.
+  </p>
+
+  <h3>RETURNING: get the new row back in one statement</h3>
+  <p>
+    Without <code>RETURNING</code>, you would insert a row and then query it again to learn its generated id. <code>RETURNING</code> returns the affected rows directly from <code>INSERT</code>, <code>UPDATE</code> or <code>DELETE</code>. It saves a round trip to the database and avoids a race where another session changes the row in between.
+  </p>
+  <h3>ON CONFLICT: upsert in one statement</h3>
+  <p>
+    An <strong>upsert</strong> means "insert the row, or update it if it already exists". PostgreSQL does this with <code>INSERT ... ON CONFLICT</code>. The conflict target is a unique or primary key column. <code>DO NOTHING</code> skips the row when there is a conflict. <code>DO UPDATE</code> changes the existing row, and <code>EXCLUDED</code> refers to the row that was proposed for insertion.
+  </p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE products (sku text PRIMARY KEY, name text, stock int NOT NULL);
+
+INSERT INTO products VALUES ('A1', 'Pen', 10) RETURNING sku, stock;
+
+INSERT INTO products (sku, name, stock) VALUES ('A1', 'Pen', 5)
+ON CONFLICT (sku) DO UPDATE
+  SET stock = products.stock + EXCLUDED.stock
+RETURNING sku, name, stock;
+
+INSERT INTO products (sku, name, stock) VALUES ('B2', 'Ink', 3)
+ON CONFLICT (sku) DO NOTHING RETURNING sku;
+
+INSERT INTO products (sku, name, stock) VALUES ('B2', 'Ink', 3)
+ON CONFLICT (sku) DO NOTHING RETURNING sku;
+
+SELECT * FROM products ORDER BY sku;</code></pre>
+  <pre class="output">CREATE TABLE
+ sku | stock
+-----+-------
+ A1  |    10
+(1 row)
+
+INSERT 0 1
+ sku | name | stock
+-----+------+-------
+ A1  | Pen  |    15
+(1 row)
+
+INSERT 0 1
+ sku
+-----
+ B2
+(1 row)
+
+INSERT 0 1
+ sku
+-----
+(0 rows)
+
+INSERT 0 0
+ sku | name | stock
+-----+------+-------
+ A1  | Pen  |    15
+ B2  | Ink  |     3
+(2 rows)</pre>
+  <p>
+    The second insert found an existing <code>A1</code>, so instead of failing with a duplicate key error it added 5 to the stock, giving 15. The third and fourth statements show <code>DO NOTHING</code>. The first of them inserted <code>B2</code>. The second found it already present, so it returned no rows and the command tag reads <code>INSERT 0 0</code>.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>The command tag <code>INSERT 0 1</code> means one row was inserted (the 0 is an old, unused field). With <code>ON CONFLICT DO UPDATE</code>, the tag still says <code>INSERT</code> even though an existing row was changed, so check the <code>RETURNING</code> output or the data instead of the tag.</p></div>
+
+  <h3>DISTINCT ON: the first row per group</h3>
+  <p>
+    <code>DISTINCT ON (column)</code> keeps only the first row for each value of the listed column, where "first" means the first row in the <code>ORDER BY</code>. It is a PostgreSQL shortcut for "the top row per group". It must match the leading <code>ORDER BY</code> expression.
+  </p>
+  <pre class="code" data-lang="sql"><code>SELECT DISTINCT ON (dept_id) dept_id, name, salary
+FROM employees
+ORDER BY dept_id, salary DESC, id;</code></pre>
+  <pre class="output"> dept_id | name  | salary
+---------+-------+--------
+       1 | Asha  | 150000
+       2 | Dana  |  90000
+       3 | Farah |  65000
+(3 rows)</pre>
+  <div class="note tip"><p><span class="t">Tip</span>For "top one per group", <code>DISTINCT ON</code> is shorter than a window query. For "top two" or "top N", use <code>ROW_NUMBER</code> or <code>LATERAL</code>, because <code>DISTINCT ON</code> only keeps one row per group.</p></div>
+
+  <h3>pgvector: similarity search for embeddings</h3>
+  <p>
+    An <strong>embedding</strong> is a list of numbers, a vector, that represents the meaning of a piece of text, an image or a product. Two similar things have vectors that point in similar directions. The <code>pgvector</code> extension adds a <code>vector</code> type, distance operators and approximate indexes to PostgreSQL, so you can store embeddings next to your normal data and search them with SQL. It is an extension, so it must be installed on the server and enabled per database with <code>CREATE EXTENSION vector;</code>.
+  </p>
+  <ul>
+    <li><code>&lt;-&gt;</code> is Euclidean (L2) distance. Smaller means closer.</li>
+    <li><code>&lt;=&gt;</code> is cosine distance, which compares direction and ignores length. Many text embedding models are designed for cosine similarity.</li>
+    <li><code>CREATE INDEX ... USING hnsw</code> builds an approximate nearest neighbour index. It trades a little accuracy for much faster search on large tables.</li>
+  </ul>
+  <pre class="code" data-lang="sql"><code>CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE docs (id bigserial PRIMARY KEY, body text, embedding vector(3));
+
+-- the five nearest documents to a query embedding, by cosine distance
+SELECT id, body
+FROM docs
+ORDER BY embedding &lt;=&gt; '[0.1, 0.9, 0.2]'
+LIMIT 5;</code></pre>
+  <p>
+    This example has no output block because it needs the pgvector extension, which is not part of a default install. In real use the embedding comes from a model, and the vector dimension (3 here) must match that model.
+  </p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why store embeddings in PostgreSQL instead of a dedicated vector database? Because you keep transactions, joins with normal tables and one backup strategy. A dedicated vector database can scale further and offers more index tuning, so the choice depends on data size and query load.</p></div>
+</section>
+
+<section class="unit" id="c6" data-title="MVCC and VACUUM">
+  <h2>MVCC and VACUUM: how PostgreSQL handles concurrent work</h2>
+  <p>
+    Many people use the database at once. One session reads a report while another updates a salary. PostgreSQL lets them work without blocking each other for ordinary reads, using a technique called <strong>MVCC</strong>, which stands for multi-version concurrency control. The idea is simple: an <code>UPDATE</code> never overwrites a row in place. It writes a new version of the row and marks the old version as no longer current. Each transaction sees the versions that were current when it started.
+  </p>
+  <p>
+    Consider a three-row table. Watch where each row physically lives, using the hidden <code>ctid</code> column. The <code>ctid</code> is a row's physical address, written as (page, position). Do not use it in application code, because it changes.
+  </p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE tv (id int, v text);
+INSERT INTO tv VALUES (1,'a'), (2,'b'), (3,'c');
+SELECT ctid, id, v FROM tv ORDER BY id;
+
+UPDATE tv SET v = 'B' WHERE id = 2;
+SELECT ctid, id, v FROM tv ORDER BY id;
+
+DELETE FROM tv WHERE id = 1;
+SELECT ctid, id, v FROM tv ORDER BY id;
+
+VACUUM ANALYZE tv;</code></pre>
+  <pre class="output">CREATE TABLE
+INSERT 0 3
+ ctid  | id | v
+-------+----+---
+ (0,1) |  1 | a
+ (0,2) |  2 | b
+ (0,3) |  3 | c
+(3 rows)
+
+UPDATE 1
+ ctid  | id | v
+-------+----+---
+ (0,1) |  1 | a
+ (0,4) |  2 | B
+ (0,3) |  3 | c
+(3 rows)
+
+DELETE 1
+ ctid  | id | v
+-------+----+---
+ (0,4) |  2 | B
+ (0,3) |  3 | c
+(2 rows)
+
+VACUUM</pre>
+  <p>
+    The <code>UPDATE</code> moved row 2 from position (0,2) to a new position (0,4). The old version of row 2 is still on the page, but it is dead: no transaction that starts now can see it. The <code>DELETE</code> marks row 1 as dead in the same way, so it disappears from the results. Those dead versions still occupy space until something removes them.
+  </p>
+  <p>
+    Why does this matter for concurrency? Because a reader keeps seeing its own old version of a row while a writer creates a new one, neither waits for the other. Readers do not block writers, and writers do not block readers, for ordinary <code>SELECT</code> and <code>UPDATE</code> statements. Writers can still block each other when they change the same row, and locks are needed for those cases.
+  </p>
+
+  <h3>VACUUM: cleaning up dead row versions</h3>
+  <p>
+    <strong>VACUUM</strong> finds dead row versions that no active transaction can still need, and makes their space reusable for future rows. It also updates the visibility map and protects against transaction ID wraparound, a rare but serious failure when PostgreSQL's internal transaction counter runs out of room. <strong>ANALYZE</strong> refreshes the statistics the planner uses, as you saw with <code>EXPLAIN</code>. <code>VACUUM ANALYZE</code> does both.
+  </p>
+  <ul>
+    <li><strong>Autovacuum</strong> runs VACUUM and ANALYZE in the background, based on how many rows have changed. In most systems you leave it on and tune it only when a busy table needs it.</li>
+    <li><strong>Plain VACUUM</strong> makes space reusable inside the table but usually does not shrink the file. It does not block normal reads and writes.</li>
+    <li><strong>VACUUM FULL</strong> rewrites the whole table into a new file and returns space to the operating system. It takes an exclusive lock, which blocks reads and writes while it runs.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>A long-running transaction holds back VACUUM. While an old transaction is open, the dead row versions it might still need cannot be removed, so tables grow and queries slow down. Keep transactions short, and never leave one open while you wait for user input.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>MVCC means an update writes a new row version instead of overwriting the old one. Readers see a consistent snapshot without blocking writers, and VACUUM later removes the dead versions.</p></div>
+</section>
+
+<section class="unit" id="c7" data-title="Django framework">
+  <h2>Django: the framework that sits on PostgreSQL</h2>
+  <p>
+    <strong>Django</strong> is a Python web framework. It bundles a database layer (the ORM), an admin site, a URL router, form handling and a template language, so you can build a complete application with few outside libraries. Django does not run queries itself. It translates Python code into SQL and sends it to a database such as PostgreSQL. Django code in this unit cannot be run inside a single script, because it needs a project. Read it as a guide to what each file does, and check the behaviour with <code>python manage.py shell</code> once you have a project.
+  </p>
+
+  <h3>MTV: Model, Template, View</h3>
+  <p>
+    Django uses the <strong>MTV</strong> pattern, which is a variation of MVC. The <strong>Model</strong> defines the data and talks to the database. The <strong>Template</strong> is the HTML with placeholders that gets filled in. The <strong>View</strong> is a Python function or class that receives a request, asks the models for data, and returns a response. The URL configuration decides which view handles which address. The name "view" in Django means the controller in MVC terms, which surprises many people coming from other frameworks.
+  </p>
+
+  <h3>Project versus app</h3>
+  <p>
+    A <strong>project</strong> is the whole website and its settings, created with <code>django-admin startproject</code>. An <strong>app</strong> is a self-contained feature, such as a blog or a billing module, created with <code>python manage.py startapp</code> inside the project. A project lists its apps in <code>INSTALLED_APPS</code>. A reusable app can be moved into another project.
+  </p>
+  <pre class="code" data-lang="bash"><code>django-admin startproject mysite
+cd mysite
+python manage.py startapp blog
+python manage.py runserver</code></pre>
+  <p>
+    The project settings connect Django to PostgreSQL. This block is the part of <code>mysite/settings.py</code> that matters for the database. It reads the password from an environment variable so that it is not stored in the code.
+  </p>
+  <pre class="code" data-lang="python"><code>import os
+
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "blog",
+]
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "prep",
+        "USER": "prep_user",
+        "PASSWORD": os.environ["DB_PASSWORD"],
+        "HOST": "localhost",
+        "PORT": "5432",
+    }
+}</code></pre>
+  <p>
+    Django needs a PostgreSQL driver package, such as <code>psycopg</code>, installed in the same Python environment. The engine name is the only line that tells Django which SQL dialect to produce.
+  </p>
+
+  <h3>Models: Python classes that become tables</h3>
+  <p>
+    A <strong>model</strong> is a class that subclasses <code>models.Model</code>. Each class attribute that is a field becomes a column. Django creates the table, the primary key (an <code>id</code> column is added automatically), and the foreign key constraints from these definitions. A <code>ForeignKey</code> creates a column that points at another table. <code>related_name</code> sets the name you use to go backwards, from an author to their books.
+  </p>
+  <pre class="code" data-lang="python"><code>from django.db import models
+
+
+class Author(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+
+class Book(models.Model):
+    title = models.CharField(max_length=200)
+    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name="books")
+    published = models.DateField(null=True, blank=True)
+    meta = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["title"]</code></pre>
+  <p>
+    <code>models.JSONField</code> is stored as <code>jsonb</code> on PostgreSQL, so the JSON containment and indexing you learned earlier are available. <code>on_delete=models.CASCADE</code> means that deleting an author also deletes their books. Other options such as <code>PROTECT</code> stop the delete instead.
+  </p>
+
+  <h3>Migrations: versioned schema changes</h3>
+  <p>
+    A <strong>migration</strong> is a Python file that records one change to the schema, such as adding a column. You never edit the database by hand. Django compares your models with the migration history, writes a new migration file, and applies it. Migration files are committed to version control so that every developer and the production server make the same changes in the same order.
+  </p>
+  <pre class="code" data-lang="bash"><code>python manage.py makemigrations blog   # write a migration file from model changes
+python manage.py migrate              # apply pending migrations to the database
+python manage.py sqlmigrate blog 0001 # show the SQL a migration will run
+python manage.py createsuperuser      # create an admin login</code></pre>
+  <div class="note trap"><p><span class="t">Trap</span>When you rename a field in a model, <code>makemigrations</code> asks whether you renamed it. If you answer no, Django drops the old column and adds a new one, which loses the data. Answer yes so the migration renames the column instead.</p></div>
+
+  <h3>QuerySets: lazy, chainable queries</h3>
+  <p>
+    <code>Book.objects</code> is a <strong>manager</strong>, the entry point for queries on the model. Calling <code>filter()</code>, <code>exclude()</code> or <code>order_by()</code> returns a <strong>QuerySet</strong>. A QuerySet describes a query but does not run it. It runs when you iterate over it, call <code>len()</code>, convert it with <code>list()</code>, or call a method that returns a single value such as <code>get()</code>, <code>count()</code> or <code>first()</code>. Because it is lazy, you can keep adding conditions without running several queries.
+  </p>
+  <pre class="code" data-lang="python"><code># Nothing is sent to PostgreSQL yet: this only builds the query.
+recent = Book.objects.filter(published__year__gte=2000).order_by("-published")
+
+# The SQL runs now, when the loop starts.
+for book in recent:
+    print(book.title, book.author.name)
+
+# count() runs its own COUNT query, which is much cheaper than loading rows.
+total = Book.objects.filter(author__name__startswith="L").count()
+
+# get() returns one object, or raises Book.DoesNotExist or Book.MultipleObjectsReturned.
+one = Book.objects.get(pk=1)</code></pre>
+  <p>
+    Notice <code>author__name__startswith</code>. Double underscores cross relationships and apply lookups. Django turns <code>author__name__startswith="L"</code> into a join with <code>WHERE name LIKE 'L%'</code>. The query <code>published__year__gte</code> becomes a comparison on the year part of the date.
+  </p>
+  <p>
+    For aggregates, use <code>aggregate()</code> for a single value over the whole queryset, and <code>annotate()</code> to add a computed value to each row:
+  </p>
+  <pre class="code" data-lang="python"><code>from django.db.models import Count
+
+# one dictionary for the whole queryset, for example {'n': 42}
+Book.objects.aggregate(n=Count("id"))
+
+# one object per author, each with a books_count attribute
+Author.objects.annotate(books_count=Count("books"))</code></pre>
+
+  <h3>The N+1 problem and select_related versus prefetch_related</h3>
+  <p>
+    The <strong>N+1 problem</strong> is the most common performance bug in ORM code. You run one query to load N objects, then one more query for each object to fetch a related object. The total is N+1 queries when you need one query. It hides easily, because each individual line of code looks innocent.
+  </p>
+  <pre class="code" data-lang="python"><code># N+1: one query for all books, then one query per book to load its author.
+for book in Book.objects.all():
+    print(book.title, book.author.name)
+
+# Fixed with select_related: one query with a SQL JOIN.
+for book in Book.objects.select_related("author"):
+    print(book.title, book.author.name)
+
+# Fixed with prefetch_related: two queries, one for books and one for all their authors.
+for author in Author.objects.prefetch_related("books"):
+    print(author.name, [b.title for b in author.books.all()])</code></pre>
+  <p>
+    The two fixes do different jobs. <code>select_related</code> follows a <code>ForeignKey</code> or <code>OneToOneField</code> forward, and does it with a single SQL JOIN. <code>prefetch_related</code> handles relationships that point many ways, such as the reverse side of a foreign key (author to books) and many-to-many fields. It runs one extra query with an <code>IN</code> condition and joins the results in Python.
+  </p>
+  <div class="note key"><p><span class="t">Key idea</span>Use <code>select_related</code> for "one" relationships (book to author) because it uses one JOIN. Use <code>prefetch_related</code> for "many" relationships (author to books) because it uses a second query instead of a huge join.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>Find N+1 bugs in tests. Django's <code>TestCase.assertNumQueries(n)</code> fails when a block runs a different number of queries than expected, so you can lock in the fixed behaviour.</p></div>
+
+  <h3>The admin site</h3>
+  <p>
+    Django's <strong>admin</strong> is a ready-made interface for creating, reading, updating and deleting model rows. You register a model with a small configuration class. The admin only needs the models, and it generates the forms, the list page and the search.
+  </p>
+  <pre class="code" data-lang="python"><code>from django.contrib import admin
+from .models import Author, Book
+
+
+@admin.register(Book)
+class BookAdmin(admin.ModelAdmin):
+    list_display = ("title", "author", "published")
+    list_filter = ("published",)
+    search_fields = ("title", "author__name")
+
+
+admin.site.register(Author)</code></pre>
+  <p>
+    <code>list_display</code> sets the columns on the list page. <code>list_filter</code> adds a filter sidebar. <code>search_fields</code> adds a search box, and the double underscore lets it search through the author's name.
+  </p>
+
+  <h3>Django REST Framework basics</h3>
+  <p>
+    <strong>Django REST Framework</strong>, usually called DRF, is a library that turns models into JSON APIs. A <strong>serializer</strong> converts model objects to and from JSON, and validates incoming data. A <strong>ViewSet</strong> groups the list, create, retrieve, update and delete actions for one model. A <strong>router</strong> generates the URLs.
+  </p>
+  <pre class="code" data-lang="python"><code># blog/serializers.py and blog/views.py, combined here for reading
+from rest_framework import serializers, viewsets
+from rest_framework.routers import DefaultRouter
+from .models import Book
+
+
+class BookSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source="author.name", read_only=True)
+
+    class Meta:
+        model = Book
+        fields = ["id", "title", "author", "author_name", "published"]
+
+
+class BookViewSet(viewsets.ModelViewSet):
+    queryset = Book.objects.select_related("author").order_by("id")
+    serializer_class = BookSerializer
+
+
+# urls.py: the router creates /books/ and /books/<id>/ for us
+router = DefaultRouter()
+router.register("books", BookViewSet)
+urlpatterns = router.urls</code></pre>
+  <p>
+    The <code>queryset</code> uses <code>select_related</code> because the serializer reads <code>author.name</code>. Without it, listing 100 books would run 101 queries, which is the N+1 problem again. The response for a request to <code>GET /books/</code> looks like this, using invented sample data:
+  </p>
+  <h4>Response</h4>
+  <pre class="code" data-lang="json"><code>[
+  {
+    "id": 1,
+    "title": "Book One",
+    "author": 1,
+    "author_name": "Lena Park",
+    "published": "2001-05-14"
+  }
+]</code></pre>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why does DRF use <code>select_related</code> in the viewset? The serializer reads a field from the related author for each book. Joining the author in the same query means the list endpoint makes one database round trip instead of one per book.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>Django's migrations, QuerySets and admin all sit on the same ORM. When a Django question is hard, try the same idea in plain SQL. The <code>filter</code> becomes a <code>WHERE</code>, <code>select_related</code> becomes a <code>JOIN</code>, and <code>count()</code> becomes <code>COUNT(*)</code>.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Test yourself before reading the answers. Each answer is a complete reply you could give in an interview.</p>
+  <details class="check"><summary>What is a window function, and how does it differ from GROUP BY?</summary><div class="ans"><p>A window function computes a value for each row using a set of related rows defined by <code>OVER</code>, and it keeps every row in the result. <code>GROUP BY</code> collapses the rows into one row per group, so detail columns are lost. For example, <code>AVG(salary) OVER (PARTITION BY dept_id)</code> adds the department average to every employee row, while <code>GROUP BY dept_id</code> returns one row per department.</p></div></details>
+  <details class="check"><summary>What is the difference between ROW_NUMBER, RANK and DENSE_RANK?</summary><div class="ans"><p>All three number rows inside a partition. <code>ROW_NUMBER</code> gives every row a unique number, even ties, so its order among ties is arbitrary unless you add a tiebreaker. <code>RANK</code> gives ties the same number and then skips numbers, so 2, 2, 4. <code>DENSE_RANK</code> gives ties the same number without skipping, so 2, 2, 3.</p></div></details>
+  <details class="check"><summary>How do you find the second highest salary, and what is the trap?</summary><div class="ans"><p>Use the maximum of the salaries that are less than the overall maximum, or use <code>DISTINCT</code> with <code>ORDER BY salary DESC OFFSET 1 LIMIT 1</code>, or <code>DENSE_RANK() = 2</code> with a <code>LIMIT 1</code>. The trap is ties. If two people share the top salary, "the second row" is still the top salary, so you must work with distinct values or dense ranks.</p></div></details>
+  <details class="check"><summary>What is a recursive CTE, and what makes it stop?</summary><div class="ans"><p>A recursive CTE is a <code>WITH RECURSIVE</code> query made of an anchor member and a recursive member joined by <code>UNION ALL</code>. The recursive member refers to the CTE itself, and PostgreSQL repeats it, feeding in the rows from the previous round. It stops when a round returns no new rows. Cycles in the data can make it run forever, so guard against them with <code>UNION</code> or a depth limit.</p></div></details>
+  <details class="check"><summary>What is the difference between a view, a materialized view and a table?</summary><div class="ans"><p>A view is a saved query with no data of its own, so it always reflects current table contents. A materialized view stores the query result, so reads are fast, but it is stale until you run <code>REFRESH MATERIALIZED VIEW</code>. A table stores data directly and is written to by <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code>.</p></div></details>
+  <details class="check"><summary>What is the difference between EXPLAIN and EXPLAIN ANALYZE?</summary><div class="ans"><p><code>EXPLAIN</code> shows the plan the planner chose, with estimated costs and rows, without running the query. <code>EXPLAIN ANALYZE</code> runs the query and adds the actual time, rows and loops. Because it executes the statement, use it on <code>UPDATE</code> or <code>DELETE</code> only inside a transaction you roll back.</p></div></details>
+  <details class="check"><summary>When would you choose a B-tree, a GIN, or a BRIN index?</summary><div class="ans"><p>B-tree is the default for equality, ranges and sorting, and it suits most columns. GIN suits values with many elements, such as JSONB containment with <code>@&gt;</code>, arrays and full-text search. BRIN suits very large tables where a column follows the physical row order, such as an append-only timestamp, because it is tiny but only useful when the data is correlated with the physical order.</p></div></details>
+  <details class="check"><summary>What is MVCC, and why does PostgreSQL need VACUUM?</summary><div class="ans"><p>MVCC (multi-version concurrency control) makes an update write a new row version instead of overwriting the old one, so readers keep a consistent snapshot without blocking writers. The old versions become dead once no transaction needs them. VACUUM removes dead versions so their space can be reused, updates the visibility map and protects against transaction ID wraparound.</p></div></details>
+  <details class="check"><summary>What does INSERT ... ON CONFLICT do, and what does EXCLUDED refer to?</summary><div class="ans"><p>It inserts a row, but if a unique or primary key conflict occurs, it either does nothing (<code>DO NOTHING</code>) or updates the existing row (<code>DO UPDATE</code>). Inside the <code>DO UPDATE</code> clause, <code>EXCLUDED</code> refers to the row that was proposed for insertion, so you can write <code>stock = products.stock + EXCLUDED.stock</code>.</p></div></details>
+  <details class="check"><summary>What is the N+1 problem, and how do select_related and prefetch_related fix it?</summary><div class="ans"><p>N+1 means one query loads N objects, then one query per object loads a related object. <code>select_related</code> fixes it for forward foreign keys and one-to-one fields by using a single SQL JOIN. <code>prefetch_related</code> fixes it for reverse foreign keys and many-to-many fields by running one extra query with an <code>IN</code> condition and joining in Python.</p></div></details>
+  <details class="check"><summary>Why should you change a Django database schema with migrations instead of by hand?</summary><div class="ans"><p>Migrations are versioned files that record each change, so every developer and every environment applies the same changes in the same order. Editing the database by hand leaves the migration history out of step with the models, which breaks deployments and makes the schema impossible to reproduce.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: topological sort and Dijkstra's algorithm</h2>
+  <p>
+    Today's patterns both work on graphs, which are collections of nodes joined by edges. A <strong>directed</strong> graph has edges with a direction, such as "course B must come before course A". A <strong>weighted</strong> graph gives each edge a cost, such as the time a message takes to travel along a link.
+  </p>
+  <p>
+    <strong>Topological sort</strong> orders the nodes of a directed graph so that every edge points forward. It is possible only when the graph has no cycle. The standard method is Kahn's algorithm: count the incoming edges of each node, then repeatedly take a node with no incoming edges left, output it, and remove its outgoing edges.
+  </p>
+  <p>
+    <strong>Dijkstra's algorithm</strong> finds the shortest distance from one source node to every other node when all edge weights are zero or positive. It always settles the unsettled node with the smallest known distance, using a min-heap to find it quickly. Once a node is settled, its distance never changes, because any other path would have to go through a node that is already at least as far away.
+  </p>
+  <p>
+    Python's <code>heapq</code> module provides a binary min-heap on a plain list. <code>heapq.heappush(heap, item)</code> adds an item, and <code>heapq.heappop(heap)</code> removes and returns the smallest. Tuples compare by their first element, so <code>(distance, node)</code> pairs come out in distance order.
+  </p>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/course-schedule-ii/">
+    <h3>Course Schedule II (LeetCode 210)</h3>
+    <div class="statement"><p>There are <code>numCourses</code> courses labelled 0 to numCourses-1. Each pair <code>[a, b]</code> in <code>prerequisites</code> means you must take course b before course a. Return an order in which you can finish all courses, or an empty list if it is impossible. Example: <code>numCourses = 4</code>, <code>prerequisites = [[1,0],[2,0],[3,1],[3,2]]</code> gives one valid answer, <code>[0,1,2,3]</code>. Example: <code>numCourses = 2</code>, <code>prerequisites = [[1,0],[0,1]]</code> gives <code>[]</code> because each course waits for the other.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Treat each prerequisite as a directed edge from b to a. The answer is a topological order, where every edge goes from an earlier course to a later one. If the graph has a cycle, no order exists, so return an empty list. A course with no prerequisites can go first.</li>
+      <li><strong>Brute force.</strong> Try every permutation of the courses and check each one against the prerequisites. With n courses there are n! permutations, which is far too many for n of 2000.</li>
+      <li><strong>Find the waste.</strong> The brute force keeps rebuilding the same answer from scratch. What we really need is to know, at each moment, which courses have all their prerequisites finished.</li>
+      <li><strong>Optimise.</strong> Keep an <code>indegree</code> count for each course, which is the number of prerequisites still unfinished. Put every course with indegree 0 in a queue. Pop one, add it to the answer, and for each course that depends on it, subtract one from its indegree. When a course's indegree reaches 0, it joins the queue. If the answer ends up with all n courses, the order is valid. Otherwise a cycle blocked some courses forever. This is O(V + E) time.</li>
+      <li><strong>Dry run.</strong> Use <code>numCourses = 4</code> with <code>[[1,0],[2,0],[3,1],[3,2]]</code>. The starting indegrees are 0:0, 1:1, 2:1, 3:2.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Step</th><th>Queue before pop</th><th>Pop</th><th>Indegree changes</th><th>Order so far</th></tr></thead><tbody>
+      <tr><td>1</td><td>[0]</td><td>0</td><td>1: 1 to 0 (push 1). 2: 1 to 0 (push 2).</td><td>[0]</td></tr>
+      <tr><td>2</td><td>[1, 2]</td><td>1</td><td>3: 2 to 1.</td><td>[0, 1]</td></tr>
+      <tr><td>3</td><td>[2]</td><td>2</td><td>3: 1 to 0 (push 3).</td><td>[0, 1, 2]</td></tr>
+      <tr><td>4</td><td>[3]</td><td>3</td><td>No outgoing edges.</td><td>[0, 1, 2, 3]</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+def find_order(num_courses, prerequisites):
+    graph = [[] for _ in range(num_courses)]
+    indegree = [0] * num_courses
+    for course, prereq in prerequisites:
+        graph[prereq].append(course)
+        indegree[course] += 1
+
+    queue = deque(c for c in range(num_courses) if indegree[c] == 0)
+    order = []
+    while queue:
+        c = queue.popleft()
+        order.append(c)
+        for nxt in graph[c]:
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                queue.append(nxt)
+
+    return order if len(order) == num_courses else []
+
+
+print(find_order(2, [[1, 0]]))
+print(find_order(4, [[1, 0], [2, 0], [3, 1], [3, 2]]))
+print(find_order(2, [[1, 0], [0, 1]]))
+print(find_order(1, []))</code></pre>
+    <pre class="output">[0, 1]
+[0, 1, 2, 3]
+[]
+[0]</pre>
+    <p class="cx">Time O(V + E) · Space O(V + E)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you see "X must happen before Y" or "order these tasks with dependencies", think topological sort with Kahn's algorithm. Count incoming edges, process the zeros, and check the count at the end to detect cycles.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/network-delay-time/">
+    <h3>Network Delay Time (LeetCode 743)</h3>
+    <div class="statement"><p>A network has <code>n</code> nodes labelled 1 to n. Each entry <code>[u, v, w]</code> in <code>times</code> is a directed link: a signal from u reaches v after w time units. A signal starts at node <code>k</code>. Return the time at which every node has received the signal, or -1 if some node never receives it. Example: <code>times = [[2,1,1],[2,3,1],[3,4,1]]</code>, <code>n = 4</code>, <code>k = 2</code> gives 2, because the signal reaches node 4 via 2 to 3 to 4 at time 2.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> We need the shortest-path distance from k to every node, then the largest of those distances. If any node is unreachable, return -1. All weights are positive, so Dijkstra applies.</li>
+      <li><strong>Brute force.</strong> Explore every path from k with depth-first search, record the arrival time at each node, and keep the minimum. The number of paths can grow exponentially in a dense graph.</li>
+      <li><strong>Find the waste.</strong> The same node is reached again and again through different paths, and every path is explored even when a shorter one has already been found.</li>
+      <li><strong>Optimise.</strong> Dijkstra fixes the order. Always pop the unsettled node with the smallest distance, settle it, and relax its outgoing edges by pushing new candidate distances onto the heap. A node popped a second time is ignored. Stop when no more nodes can be reached. The answer is the largest settled distance, or -1 if fewer than n nodes were settled. Time is O(E log E) with a heap.</li>
+      <li><strong>Dry run.</strong> Start at node 2 with distance 0. Settling 2 pushes (1, 1) and (3, 1). Settling 1 finds nothing new. Settling 3 pushes (4, 2). Settling 4 finishes. The largest distance is 2.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Step</th><th>Heap before pop</th><th>Settle</th><th>Pushed</th><th>Distances settled</th></tr></thead><tbody>
+      <tr><td>1</td><td>(0, 2)</td><td>node 2 at 0</td><td>(1, 1), (1, 3)</td><td>2: 0</td></tr>
+      <tr><td>2</td><td>(1, 1), (1, 3)</td><td>node 1 at 1</td><td>none</td><td>2: 0, 1: 1</td></tr>
+      <tr><td>3</td><td>(1, 3)</td><td>node 3 at 1</td><td>(2, 4)</td><td>2: 0, 1: 1, 3: 1</td></tr>
+      <tr><td>4</td><td>(2, 4)</td><td>node 4 at 2</td><td>none</td><td>all 4 nodes, max = 2</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+
+
+def network_delay_time(times, n, k):
+    graph = {i: [] for i in range(1, n + 1)}
+    for u, v, w in times:
+        graph[u].append((v, w))
+
+    dist = {}                      # settled nodes and their final distances
+    heap = [(0, k)]                # (distance so far, node)
+    while heap:
+        d, node = heapq.heappop(heap)
+        if node in dist:           # a shorter route was already settled
+            continue
+        dist[node] = d
+        for nxt, w in graph[node]:
+            if nxt not in dist:
+                heapq.heappush(heap, (d + w, nxt))
+
+    if len(dist) &lt; n:
+        return -1
+    return max(dist.values())
+
+
+print(network_delay_time([[2, 1, 1], [2, 3, 1], [3, 4, 1]], 4, 2))
+print(network_delay_time([[1, 2, 1]], 2, 1))
+print(network_delay_time([[1, 2, 1]], 2, 2))</code></pre>
+    <pre class="output">2
+1
+-1</pre>
+    <p class="cx">Time O(E log E) · Space O(V + E)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you see "shortest time or distance from one source with positive weights", think Dijkstra: a min-heap of (distance, node), settle each node once, and skip stale heap entries.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/swim-in-rising-water/">
+    <h3>Swim in Rising Water (LeetCode 778)</h3>
+    <div class="statement"><p>You are given an n by n grid of elevations. At time t, the water level is t, and you can stand on any cell whose elevation is at most t. You start at the top-left cell (0, 0) and want to reach the bottom-right cell (n-1, n-1). You can move up, down, left or right, and you can move instantly between cells at any time. Return the smallest t that makes the trip possible. Example: <code>[[0,2],[1,3]]</code> gives 3. You have to wait until the water reaches 3 to enter the cell with elevation 3, because the only route goes through it.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The answer is a bottleneck: the highest elevation on the path you choose, minimised over all paths. The start cell is already occupied at time grid[0][0], so the answer is at least that. The grid has n squared cells, so n can be up to about 50.</li>
+      <li><strong>Brute force.</strong> For each time t from grid[0][0] upward, run a breadth-first search from (0, 0) that only enters cells with elevation at most t. The first t that reaches (n-1, n-1) is the answer. This is simple and correct, but it may repeat the whole search for up to n squared values of t.</li>
+      <li><strong>Find the waste.</strong> Each time step redoes the search from scratch. Most of the cells explored at time t were already explored at time t minus 1. The search should instead remember how cheap each cell is to reach.</li>
+      <li><strong>Optimise.</strong> Define the cost of a path as its highest elevation so far. Use a Dijkstra-style search that always expands the cell with the smallest path cost. The cost can only stay the same or rise as you walk, so the first time we pop the bottom-right cell, its cost is the best possible. Each cell is pushed at most once if we mark it as seen when it is pushed, which is valid because pops come out in nondecreasing cost order. This gives O(n squared log n) time.</li>
+      <li><strong>Dry run.</strong> On <code>[[0,2],[1,3]]</code>, start with (0, 0, cost 0). Push (0, 1) with cost max(0, 2) = 2, and (1, 0) with cost max(0, 1) = 1. Pop (1, 0) at cost 1. Push (1, 1) with cost max(1, 3) = 3. Pop (0, 1) at cost 2, which finds nothing new because (1, 1) is already seen. Pop (1, 1) at cost 3 and return 3.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Step</th><th>Heap before pop (cost, row, col)</th><th>Pop</th><th>Pushed</th></tr></thead><tbody>
+      <tr><td>1</td><td>(0, 0, 0)</td><td>(0, 0) cost 0</td><td>(2, 0, 1) and (1, 1, 0)</td></tr>
+      <tr><td>2</td><td>(1, 1, 0), (2, 0, 1)</td><td>(1, 0) cost 1</td><td>(3, 1, 1)</td></tr>
+      <tr><td>3</td><td>(2, 0, 1), (3, 1, 1)</td><td>(0, 1) cost 2</td><td>none, (1, 1) already seen</td></tr>
+      <tr><td>4</td><td>(3, 1, 1)</td><td>(1, 1) cost 3, the target</td><td>return 3</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+import heapq
+
+grid_a = [[0, 2], [1, 3]]
+grid_b = [[0, 1, 2, 3, 4], [24, 23, 22, 21, 5], [12, 13, 14, 15, 16],
+          [11, 17, 18, 19, 20], [10, 9, 8, 7, 6]]
+
+
+# Brute force: try each time t and check reachability with BFS.
+def swim_brute_force(grid):
+    n = len(grid)
+    t = grid[0][0]
+    while True:
+        seen = {(0, 0)}
+        queue = deque([(0, 0)])
+        while queue:
+            r, c = queue.popleft()
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nr, nc = r + dr, c + dc
+                if 0 &lt;= nr &lt; n and 0 &lt;= nc &lt; n and (nr, nc) not in seen and grid[nr][nc] &lt;= t:
+                    seen.add((nr, nc))
+                    queue.append((nr, nc))
+        if (n - 1, n - 1) in seen:
+            return t
+        t += 1
+
+
+# Optimised: Dijkstra where the cost of a path is its highest elevation.
+def swim_in_water(grid):
+    n = len(grid)
+    heap = [(grid[0][0], 0, 0)]          # (cost so far, row, col)
+    seen = {(0, 0)}
+    while heap:
+        t, r, c = heapq.heappop(heap)
+        if r == n - 1 and c == n - 1:
+            return t
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nr, nc = r + dr, c + dc
+            if 0 &lt;= nr &lt; n and 0 &lt;= nc &lt; n and (nr, nc) not in seen:
+                seen.add((nr, nc))
+                heapq.heappush(heap, (max(t, grid[nr][nc]), nr, nc))
+    return -1
+
+
+print(swim_brute_force(grid_a))
+print(swim_brute_force(grid_b))
+print(swim_in_water(grid_a))
+print(swim_in_water(grid_b))</code></pre>
+    <pre class="output">3
+16
+3
+16</pre>
+    <p class="cx">Brute force: time O(n^4) · Optimised: time O(n^2 log n) · Space O(n^2)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Do not treat the cost as a sum. Here the cost of a path is the largest value on it, so each step uses <code>max(t, grid[nr][nc])</code>, not <code>t + grid[nr][nc]</code>. Using a sum solves a different problem and gives wrong answers.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need the path that minimises its worst step (a bottleneck), run Dijkstra with the combining rule changed from addition to max. Another route to the same answer is a binary search on t combined with a reachability check.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Window function</dt><dd>A function with an OVER clause that computes a value for each row from a related set of rows, without removing rows.</dd></div>
+    <div><dt>PARTITION BY</dt><dd>Splits the rows of a window into independent groups, without collapsing them.</dd></div>
+    <div><dt>Frame</dt><dd>The subset of a partition that an aggregate window function sees for the current row.</dd></div>
+    <div><dt>RANK and DENSE_RANK</dt><dd>Rank functions where ties share a number; RANK skips numbers after ties, DENSE_RANK does not.</dd></div>
+    <div><dt>LAG and LEAD</dt><dd>Window functions that read a value from the previous or next row in the window.</dd></div>
+    <div><dt>CTE</dt><dd>A named query defined with WITH that the main query can refer to by name.</dd></div>
+    <div><dt>Recursive CTE</dt><dd>A CTE that refers to itself, used to walk trees and hierarchies, with an anchor and a recursive member.</dd></div>
+    <div><dt>Second highest pattern</dt><dd>Use the maximum below the maximum, or DISTINCT with OFFSET, or DENSE_RANK equal to 2.</dd></div>
+    <div><dt>Top N per group</dt><dd>Number rows with ROW_NUMBER inside each group in a subquery, then keep rank 1 to N, or use LATERAL with LIMIT.</dd></div>
+    <div><dt>View</dt><dd>A saved query that runs each time it is read and stores no data of its own.</dd></div>
+    <div><dt>Materialized view</dt><dd>A view that stores its result and must be refreshed to reflect changes.</dd></div>
+    <div><dt>Trigger</dt><dd>A function that runs automatically before or after a row is inserted, updated or deleted.</dd></div>
+    <div><dt>Stored procedure</dt><dd>A named block of code run with CALL, which returns no value and can control transactions.</dd></div>
+    <div><dt>EXPLAIN</dt><dd>Shows the plan the planner would use, with estimated costs and rows, without running the query.</dd></div>
+    <div><dt>EXPLAIN ANALYZE</dt><dd>Runs the query and shows actual times and row counts beside the estimates.</dd></div>
+    <div><dt>Sequential scan</dt><dd>Reading every row of a table, used when no index helps or most rows are needed.</dd></div>
+    <div><dt>B-tree index</dt><dd>The default index type, for equality, ranges and sorting.</dd></div>
+    <div><dt>GIN index</dt><dd>An index for values with many elements, such as JSONB containment and arrays.</dd></div>
+    <div><dt>BRIN index</dt><dd>A very small index that works when column values follow the physical row order.</dd></div>
+    <div><dt>Partial index</dt><dd>An index built only on rows matching a WHERE condition, used when a query implies that condition.</dd></div>
+    <div><dt>JSONB</dt><dd>PostgreSQL's binary JSON type, which supports indexing and containment operators.</dd></div>
+    <div><dt>RETURNING</dt><dd>A clause that returns the rows changed by INSERT, UPDATE or DELETE in the same statement.</dd></div>
+    <div><dt>Upsert</dt><dd>Insert a row, or update the existing row if it conflicts, using INSERT ... ON CONFLICT.</dd></div>
+    <div><dt>DISTINCT ON</dt><dd>PostgreSQL clause that keeps the first row for each listed value, according to ORDER BY.</dd></div>
+    <div><dt>pgvector</dt><dd>An extension that stores embedding vectors and searches them by distance inside PostgreSQL.</dd></div>
+    <div><dt>MVCC</dt><dd>Multi-version concurrency control: updates write new row versions so readers and writers do not block each other.</dd></div>
+    <div><dt>VACUUM</dt><dd>Removes dead row versions so their space can be reused, and protects against transaction ID wraparound.</dd></div>
+    <div><dt>Django MTV</dt><dd>Model, Template, View: Django's pattern, where the view is the controller in MVC terms.</dd></div>
+    <div><dt>Project and app</dt><dd>A project is the whole site and its settings; an app is one reusable feature inside it.</dd></div>
+    <div><dt>Migration</dt><dd>A versioned file that applies one schema change, so every environment changes in the same order.</dd></div>
+    <div><dt>QuerySet</dt><dd>A lazy description of a database query that runs when iterated, counted or evaluated.</dd></div>
+    <div><dt>N+1 problem</dt><dd>One query for N objects followed by one query per object for a related value.</dd></div>
+    <div><dt>select_related</dt><dd>Loads a forward foreign key or one-to-one field in the same query using a SQL JOIN.</dd></div>
+    <div><dt>prefetch_related</dt><dd>Loads many-side relationships in a second query and joins them in Python.</dd></div>
+    <div><dt>Django REST Framework</dt><dd>A library that builds JSON APIs from serializers, viewsets and routers.</dd></div>
+    <div><dt>Topological sort</dt><dd>An ordering of a directed acyclic graph where every edge points forward; Kahn's algorithm builds it with indegree counts.</dd></div>
+    <div><dt>Dijkstra's algorithm</dt><dd>Shortest paths from one source with non-negative weights, using a min-heap to settle the closest node next.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td>OVER (PARTITION BY ... ORDER BY ...)</td><td>Defines the window for a window function</td><td><code>SUM(salary) OVER (PARTITION BY dept_id)</code></td></tr>
+      <tr><td>ROW_NUMBER()</td><td>Unique sequence number inside the window</td><td><code>ROW_NUMBER() OVER (ORDER BY id)</code></td></tr>
+      <tr><td>RANK() / DENSE_RANK()</td><td>Rank with gaps / rank without gaps</td><td><code>DENSE_RANK() OVER (ORDER BY salary DESC)</code></td></tr>
+      <tr><td>LAG(col) / LEAD(col)</td><td>Value from previous / next row</td><td><code>LAG(salary) OVER (ORDER BY id)</code></td></tr>
+      <tr><td>WITH RECURSIVE</td><td>Recursive common table expression</td><td><code>WITH RECURSIVE c AS (... UNION ALL ...)</code></td></tr>
+      <tr><td>CREATE VIEW / CREATE MATERIALIZED VIEW</td><td>Saved query / stored result</td><td><code>REFRESH MATERIALIZED VIEW v;</code></td></tr>
+      <tr><td>CREATE TRIGGER ... EXECUTE FUNCTION</td><td>Runs a trigger function on row changes</td><td><code>AFTER UPDATE ON employees FOR EACH ROW EXECUTE FUNCTION f();</code></td></tr>
+      <tr><td>CALL</td><td>Runs a stored procedure</td><td><code>CALL give_raise(3, 10);</code></td></tr>
+      <tr><td>EXPLAIN / EXPLAIN ANALYZE</td><td>Shows the plan / runs and shows actual numbers</td><td><code>EXPLAIN ANALYZE SELECT ...;</code></td></tr>
+      <tr><td>CREATE INDEX ... USING</td><td>Builds a B-tree (default), GIN, BRIN or hash index</td><td><code>CREATE INDEX ON events USING gin (meta);</code></td></tr>
+      <tr><td>-&gt; and -&gt;&gt;</td><td>JSONB field as JSON / as text</td><td><code>meta -&gt;&gt; 'plan'</code></td></tr>
+      <tr><td>@&gt; and ?</td><td>JSONB containment / key exists</td><td><code>meta @&gt; '{"plan":"pro"}'</code></td></tr>
+      <tr><td>RETURNING</td><td>Returns changed rows from INSERT, UPDATE or DELETE</td><td><code>INSERT ... RETURNING id;</code></td></tr>
+      <tr><td>ON CONFLICT DO UPDATE</td><td>Upsert on a unique key, with EXCLUDED for the proposed row</td><td><code>ON CONFLICT (sku) DO UPDATE SET stock = EXCLUDED.stock;</code></td></tr>
+      <tr><td>DISTINCT ON (col)</td><td>First row per value, by ORDER BY</td><td><code>SELECT DISTINCT ON (dept_id) * FROM employees ORDER BY dept_id, salary DESC;</code></td></tr>
+      <tr><td>VACUUM / ANALYZE</td><td>Remove dead row versions / refresh planner statistics</td><td><code>VACUUM ANALYZE tv;</code></td></tr>
+      <tr><td>select_related</td><td>Django: JOIN a forward relation in one query</td><td><code>Book.objects.select_related("author")</code></td></tr>
+      <tr><td>prefetch_related</td><td>Django: second query for many-side relations</td><td><code>Author.objects.prefetch_related("books")</code></td></tr>
+      <tr><td>filter / exclude / order_by</td><td>Django: chainable, lazy query methods</td><td><code>Book.objects.filter(published__year=2001)</code></td></tr>
+      <tr><td>makemigrations / migrate</td><td>Django: write and apply schema migrations</td><td><code>python manage.py migrate</code></td></tr>
+      <tr><td>heapq.heappush / heappop</td><td>Python: add to and remove the smallest item of a heap</td><td><code>heapq.heappush(h, (3, 'a'))</code></td></tr>
+      <tr><td>collections.deque</td><td>Python: fast append and popleft for queues</td><td><code>q = deque([0]); q.popleft()</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 19?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 19 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-18.html"><small>Previous, day 18</small>SQL 1: Queries, joins, aggregation, subqueries</a><a class="next" href="day-20.html"><small>Next, day 20</small>NoSQL: MongoDB, Redis, CAP, vector DBs</a></nav>
+</main><script src="assets/app.js"></script></body></html>

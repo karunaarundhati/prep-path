@@ -1,0 +1,772 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 20: NoSQL: MongoDB, Redis, CAP, vector DBs</title><meta name="description" content="Today covers the NoSQL side of the data world: when a non-relational store is the right tool, the CAP and PACELC trade-offs that interviewers always raise, the five families of NoSQL databases including vector databases, MongoDB and Redis in practice, and consistent hashing. The DSA set moves to union-find and minimum spanning trees."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="20" data-key="20" data-noun="day" data-num="20" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>NoSQL: <em>MongoDB, Redis, CAP, vector DBs</em></h1>
+<p class="lede">Today covers the NoSQL side of the data world: when a non-relational store is the right tool, the CAP and PACELC trade-offs that interviewers always raise, the five families of NoSQL databases including vector databases, MongoDB and Redis in practice, and consistent hashing. The DSA set moves to union-find and minimum spanning trees.</p>
+<div class="station"><b>20</b><span>Sat 21 Nov 2026 · Databases · DSA: Union-find and MST</span></div>
+<ul class="topics"><li>SQL vs NoSQL and BASE</li><li>CAP and PACELC</li><li>Five NoSQL families and vector DBs</li><li>MongoDB schema and aggregation</li><li>Redis types and caching</li><li>Consistent hashing</li><li>Choosing a database</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="SQL vs NoSQL and BASE">
+  <h2>SQL versus NoSQL, and the BASE model</h2>
+  <p>
+    A <strong>relational database</strong> stores data in tables with fixed columns, connects tables with keys, and answers questions with SQL. Its main promise is <strong>ACID</strong>: transactions are atomic, consistent, isolated and durable, so an application can reason about data as if one thing happens at a time. You met this promise in the DBMS days.
+  </p>
+  <p>
+    <strong>NoSQL</strong> is a loose name for databases that do not use the relational model as their core. The name is usually read as "not only SQL", because many of these systems offer their own query languages. What they have in common is a set of design choices made for different goals:
+  </p>
+  <ul>
+    <li><strong>Horizontal scale.</strong> Data is split across many machines, so capacity grows by adding servers rather than buying one bigger server. Joins across machines are slow, so NoSQL designs avoid them.</li>
+    <li><strong>Flexible schema.</strong> Each record can have its own shape. Adding a field to some records does not require a migration of the whole table.</li>
+    <li><strong>Access patterns first.</strong> You design the data around the questions the application asks. In SQL you normalise first and write queries later. In NoSQL you often store the data in the shape it will be read.</li>
+    <li><strong>Relaxed guarantees.</strong> Many NoSQL systems give up some consistency or transactions in exchange for availability and speed. The next sections explain that trade-off.</li>
+  </ul>
+
+  <h3>BASE: the relaxed counterpart of ACID</h3>
+  <p>
+    <strong>BASE</strong> is the name given to the philosophy behind many distributed NoSQL systems. It stands for three ideas:
+  </p>
+  <ul>
+    <li><strong>Basically Available.</strong> The system keeps responding, even when some nodes are down. The response might be older data or a partial result.</li>
+    <li><strong>Soft state.</strong> The state of the system can change over time, even without new input, because replicas are still catching up with each other.</li>
+    <li><strong>Eventually consistent.</strong> If no new writes arrive, all replicas eventually hold the same value. "Eventually" can mean milliseconds or seconds, and during that window readers may see different values.</li>
+  </ul>
+  <p>
+    Take a counter of likes on a post. If one replica records a like and another has not received it yet, a reader who asks the second replica sees one fewer like for a short time. Nobody is harmed, and a few seconds later the numbers agree. A bank balance does not tolerate that kind of delay, which is why banks use ACID systems.
+  </p>
+  <div class="note key"><p><span class="t">Key idea</span>ACID trades availability for correctness; BASE trades immediate correctness for availability and scale. Neither is better in general. The question is what your data can tolerate.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Is NoSQL faster than SQL? Not in general. A single-machine SQL database with the right indexes is often faster than a poorly used NoSQL cluster. NoSQL wins when the data must be spread across many machines and the access pattern is known in advance.</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="CAP and PACELC">
+  <h2>CAP and PACELC: the trade-offs every interviewer asks about</h2>
+  <p>
+    The <strong>CAP theorem</strong>, proposed by Eric Brewer and later proved by Gilbert and Lynch, says that a distributed data store cannot guarantee all three of these properties at the same time:
+  </p>
+  <ul>
+    <li><strong>Consistency (C).</strong> Every read returns the most recent write, or an error. Here C means one single up-to-date view of the data, a property usually called linearizability. It is a different idea from the C in ACID.</li>
+    <li><strong>Availability (A).</strong> Every request received by a working node gets a non-error response, although the data may be stale.</li>
+    <li><strong>Partition tolerance (P).</strong> The system keeps working when the network drops or delays messages between nodes.</li>
+  </ul>
+  <p>
+    Network partitions happen in real data centres, so P is not optional for a distributed system. That leaves a choice when a partition occurs: keep answering and risk stale data (AP), or refuse some requests to keep data consistent (CP). "CA" is only possible on a single machine, where there is no partition to tolerate.
+  </p>
+  <p>
+    Here is a small simulation of the choice. Two replicas, A and B, hold a value. The network between them is broken, so a write to A cannot reach B. In AP mode the write is accepted and B serves an old value. In CP mode the write is refused.
+  </p>
+  <pre class="code" data-lang="python"><code>class Replica:
+    def __init__(self, name):
+        self.name = name
+        self.value = "v0"
+        self.other = None
+
+
+class Cluster:
+    def __init__(self, mode):
+        self.mode = mode              # "CP" or "AP"
+        self.partitioned = False
+        self.a = Replica("A")
+        self.b = Replica("B")
+        self.a.other = self.b
+        self.b.other = self.a
+
+    def write(self, replica, value):
+        if self.partitioned and self.mode == "CP":
+            raise RuntimeError("write refused: cannot reach the other replica")
+        replica.value = value
+        if not self.partitioned:
+            replica.other.value = value    # copy to the other replica
+        return "ok"
+
+    def read(self, replica):
+        return replica.value
+
+
+ap = Cluster("AP")
+ap.partitioned = True
+print(ap.write(ap.a, "v1"))
+print("read from A:", ap.read(ap.a))
+print("read from B:", ap.read(ap.b))
+
+cp = Cluster("CP")
+cp.partitioned = True
+try:
+    cp.write(cp.a, "v1")
+except RuntimeError as e:
+    print("error:", e)
+print("read from B after refusal:", cp.read(cp.b))</code></pre>
+  <pre class="output">ok
+read from A: v1
+read from B: v0
+error: write refused: cannot reach the other replica
+read from B after refusal: v0</pre>
+  <p>
+    Read the output carefully. In AP mode the write succeeded on A, and B still says <code>v0</code>. That is the stale read that AP accepts. In CP mode the write was refused, so no replica changed and the system never showed two different values. The price is that the user gets an error. Real systems are more subtle than this two-replica model, but the decision is the same.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>CAP says nothing about behaviour when the network is healthy. Many candidates say "NoSQL is AP, SQL is CP", which is too simple. Most systems are configurable, and the same database can behave differently per request.</p></div>
+
+  <h3>PACELC: the part CAP leaves out</h3>
+  <p>
+    CAP only describes what happens during a partition, and partitions are rare. Daniel Abadi proposed <strong>PACELC</strong> to cover the normal case as well. It reads: <em>if</em> there is a Partition, choose Availability or Consistency; <em>Else</em>, when the system is running normally, choose Latency or Consistency.
+  </p>
+  <p>
+    The "else" part captures a real trade-off. To keep copies consistent, a write must wait for other replicas to confirm it, which adds latency. A system that replies as soon as one copy has the write is faster but may serve stale reads from another copy. So a system is described by two pairs, such as PA/EL (available during partitions, low latency normally) or PC/EC (consistent always, slower normally).
+  </p>
+  <div class="tablewrap"><table><thead><tr><th>Use case</th><th>Likely choice</th><th>Why</th></tr></thead><tbody>
+    <tr><td>Bank transfer between two accounts</td><td>PC/EC</td><td>A stale balance can allow overdrafts or double spending, so refusing requests is better than being wrong.</td></tr>
+    <tr><td>Shopping cart</td><td>PA/EL</td><td>Losing a cart item is annoying but tolerable. Staying up and fast matters more.</td></tr>
+    <tr><td>Social media like counter</td><td>PA/EL</td><td>A count that is a few seconds old is fine. Responding quickly is the goal.</td></tr>
+    <tr><td>Seat booking for a flight</td><td>PC/EC during booking</td><td>Two people must not be sold the same seat. Systems often lock or use a single authority for each seat.</td></tr>
+  </tbody></table></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Explain CAP in one sentence with an example. During a network partition, a system must either refuse some requests to keep all replicas consistent, or answer from possibly stale replicas. A bank refuses; a shopping cart answers.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="Five NoSQL families">
+  <h2>The five families of NoSQL, including vector databases</h2>
+  <p>
+    "NoSQL" covers several different data models. Each family is built for a shape of data and a set of queries. Choosing well starts with knowing what each family is good at, and what it does badly.
+  </p>
+  <div class="tablewrap"><table><thead><tr><th>Family</th><th>Data model</th><th>Typical query</th><th>Examples</th><th>Weak at</th></tr></thead><tbody>
+    <tr><td>Key-value</td><td>A key maps to an opaque value (a string, a blob, or a small structure)</td><td>Get or set by exact key</td><td>Redis, DynamoDB, Riak</td><td>Querying by anything other than the key</td></tr>
+    <tr><td>Document</td><td>A key maps to a nested document, usually JSON-like</td><td>Filter by fields inside the document</td><td>MongoDB, Couchbase</td><td>Many-to-many joins across collections</td></tr>
+    <tr><td>Wide-column</td><td>Rows identified by a key, with groups of columns that vary per row</td><td>Scan a row range or partition, write very fast</td><td>Cassandra, HBase, Bigtable</td><td>Ad hoc queries and changing access patterns</td></tr>
+    <tr><td>Graph</td><td>Nodes and edges, both with properties</td><td>Traverse relationships, such as friends of friends</td><td>Neo4j, Amazon Neptune</td><td>Bulk aggregation over all rows</td></tr>
+    <tr><td>Vector</td><td>Fixed-length arrays of numbers (embeddings) with an index for similarity</td><td>Find the nearest vectors to a query vector</td><td>Pinecone, Weaviate, Milvus, Qdrant, Chroma, and pgvector inside PostgreSQL</td><td>Exact matching, transactions across many records</td></tr>
+  </tbody></table></div>
+  <p>
+    Start with one question: "How do I usually find the data?" If the answer is always "by a single key", a key-value store is the simplest fit. If the answer is "by fields inside an object", a document store fits. If you walk relationships, use a graph. Wide-column stores fit very large write-heavy workloads where you know the partition key in advance. Vector stores fit similarity search.
+  </p>
+
+  <h3>Vector databases and similarity search</h3>
+  <p>
+    An <strong>embedding</strong> is a list of numbers that represents the meaning of an item. A language model turns a sentence into a vector with, for example, 768 or 1536 numbers. Items with similar meanings get vectors that point in similar directions. A <strong>vector database</strong> stores these vectors and answers "which stored vectors are closest to this query vector?" That is the core of semantic search and of retrieval for chatbots (RAG).
+  </p>
+  <p>
+    The usual similarity measure is <strong>cosine similarity</strong>. It is the cosine of the angle between two vectors: 1 means the same direction, 0 means unrelated, and -1 means opposite. It ignores the length of a vector, so a long document and a short one about the same topic still match. The next program ranks four toy three-number vectors against a query, using only the standard library.
+  </p>
+  <pre class="code" data-lang="python"><code>import math
+
+docs = {
+    "cats are small pets": [0.9, 0.1, 0.0],
+    "kittens purr a lot": [0.7, 0.3, 0.1],
+    "stock prices fell today": [0.0, 0.2, 0.9],
+    "the market closed higher": [0.1, 0.1, 0.8],
+}
+
+
+def cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    return dot / (norm_a * norm_b)
+
+
+query = [0.85, 0.15, 0.05]   # the embedding of "pet kittens"
+
+ranked = sorted(docs.items(), key=lambda kv: cosine(query, kv[1]), reverse=True)
+for text, vec in ranked:
+    print(f"{cosine(query, vec):.3f}  {text}")</code></pre>
+  <pre class="output">0.996  cats are small pets
+0.971  kittens purr a lot
+0.199  the market closed higher
+0.094  stock prices fell today</pre>
+  <p>
+    The two pet sentences score about 0.97 and 0.99, and the two finance sentences score under 0.2. The ranking is the search result. This program compares the query with every stored vector, which is fine for thousands of items. For millions of items, vector databases use <strong>approximate nearest neighbour</strong> indexes such as HNSW (a layered graph of links between vectors) or IVF (clusters of vectors). They accept a small chance of missing the true nearest neighbour in exchange for much faster search.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>Every vector in one index must come from the same embedding model and have the same dimension. Mixing models gives scores that look numeric but mean nothing.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why not just use a vector database for everything? Vector stores are weak at exact matching, filtering by many fields, and transactions. Most applications keep their normal data in a relational or document database and add vector search next to it, or use pgvector to keep both in PostgreSQL.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="MongoDB">
+  <h2>MongoDB: document design and the aggregation pipeline</h2>
+  <p>
+    <strong>MongoDB</strong> is a document database. It stores <strong>documents</strong>, which are JSON-like objects written in a binary form called BSON, inside <strong>collections</strong>. A collection is roughly the equivalent of a table, but its documents do not need identical fields. Every document has an <code>_id</code> field that acts as its primary key; if you do not provide one, MongoDB generates a unique value. A single document can be at most 16 MB.
+  </p>
+
+  <h3>Design: embed or reference</h3>
+  <p>
+    The central modelling decision is whether related data lives inside one document (<strong>embedding</strong>) or in separate documents linked by an id (<strong>referencing</strong>). Here is the same order in both styles.
+  </p>
+  <pre class="code" data-lang="json"><code>// Embedded: one read returns the order and its items
+{
+  "_id": 101,
+  "customer": "Ana",
+  "status": "paid",
+  "items": [
+    { "sku": "pen", "qty": 2, "price": 3 },
+    { "sku": "pad", "qty": 1, "price": 5 }
+  ]
+}
+
+// Referenced: the order points at a customer document in another collection
+{ "_id": 101, "customer_id": 7, "status": "paid" }</code></pre>
+  <p>
+    Embed when the child data is read together with the parent, belongs to one parent only, and has a bounded size. Reference when the same data is shared by many parents, changes often on its own, or can grow without limit. An order's line items are a classic embedding case. A product's list of every review ever written is a referencing case, because it grows without limit and would push the document toward the 16 MB limit.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>An array that grows forever, such as all the comments on a popular post stored in the post document, slowly makes every read and write of that document more expensive. Keep arrays bounded, or move the unbounded part into its own collection.</p></div>
+
+  <h3>Queries and indexes</h3>
+  <p>
+    The MongoDB shell, <code>mongosh</code>, uses JavaScript syntax. A filter is a JSON object, and operators start with <code>$</code>. Note that the examples in this unit are not run here, because they need a MongoDB server. The aggregation example later has its output shown as a JSON result instead.
+  </p>
+  <pre class="code" data-lang="javascript"><code>db.orders.insertMany([
+  { customer: "Ana", items: [{ sku: "pen", qty: 2, price: 3 }, { sku: "pad", qty: 1, price: 5 }], status: "paid" },
+  { customer: "Ben", items: [{ sku: "pen", qty: 1, price: 3 }], status: "paid" },
+  { customer: "Ana", items: [{ sku: "ink", qty: 1, price: 7 }], status: "refunded" }
+])
+
+// find: a filter object, then a projection (1 keeps a field, 0 removes it)
+db.orders.find({ "items.sku": "pen" }, { customer: 1, status: 1, _id: 0 })
+
+// an index on the fields used together in filters
+db.orders.createIndex({ customer: 1, status: 1 })</code></pre>
+  <p>
+    The <code>find</code> filter <code>"items.sku": "pen"</code> uses dot notation to reach inside the embedded array. MongoDB matches a document if any element of the array matches. Without an index, that filter scans every order.
+  </p>
+
+  <h3>The aggregation pipeline</h3>
+  <p>
+    An <strong>aggregation pipeline</strong> is a list of stages. Each stage receives the documents produced by the previous stage, transforms them, and passes the result on. It plays the role of SQL's <code>WHERE</code>, <code>GROUP BY</code>, <code>ORDER BY</code> and joins, combined into one ordered list. The most-used stages are:
+  </p>
+  <ul>
+    <li><code>$match</code> filters documents, like <code>WHERE</code>. Put it first so later stages handle less data.</li>
+    <li><code>$unwind</code> turns an array into one document per element, so each item can be grouped.</li>
+    <li><code>$group</code> groups documents by a key and computes totals such as <code>$sum</code>, <code>$avg</code> or <code>$count</code>, like <code>GROUP BY</code>.</li>
+    <li><code>$sort</code>, <code>$project</code> and <code>$limit</code> order, reshape and cap the output.</li>
+    <li><code>$lookup</code> joins another collection, which is the closest equivalent of a SQL <code>JOIN</code>. Use it sparingly.</li>
+  </ul>
+  <p>
+    The pipeline below computes revenue and units per customer for paid orders only. It runs against the three orders inserted above.
+  </p>
+  <pre class="code" data-lang="javascript"><code>db.orders.aggregate([
+  { $match: { status: "paid" } },
+  { $unwind: "$items" },
+  { $group: {
+      _id: "$customer",
+      revenue: { $sum: { $multiply: ["$items.qty", "$items.price"] } },
+      units: { $sum: "$items.qty" }
+  } },
+  { $sort: { revenue: -1 } }
+])</code></pre>
+  <h4>Result</h4>
+  <pre class="code" data-lang="json"><code>[
+  { "_id": "Ana", "revenue": 11, "units": 3 },
+  { "_id": "Ben", "revenue": 3, "units": 1 }
+]</code></pre>
+  <p>
+    Walk through the numbers. The refunded order is removed by <code>$match</code>. Ana's first order has two pens at 3 (6) and one pad at 5 (5), so her revenue is 11 and she bought 3 units. Ben has one pen at 3, so his revenue is 3 and his units are 1. <code>$sort</code> puts the larger revenue first.
+  </p>
+  <div class="note key"><p><span class="t">Key idea</span>Put <code>$match</code> first. Filtering early lets MongoDB use an index and reduces the work for every later stage.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between MongoDB and PostgreSQL with JSONB? Both store documents. MongoDB is built around documents, sharding and a flexible pipeline. PostgreSQL gives you ACID transactions across many tables, joins and mature SQL tooling, plus JSONB when some fields are flexible.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="Redis and caching">
+  <h2>Redis: data types, commands and caching patterns</h2>
+  <p>
+    <strong>Redis</strong> is an in-memory key-value store that also offers rich data types. Keeping data in RAM makes reads and writes very fast, typically well under a millisecond on one server. Redis executes each command atomically on one main thread, so two clients never see a half-finished command. Redis can write snapshots to disk (RDB) and log every write (AOF) so that data survives a restart, but its main role is speed.
+  </p>
+
+  <h3>The data types</h3>
+  <p>
+    The value stored under a key can be one of several structures, and each has its own commands:
+  </p>
+  <ul>
+    <li><strong>Strings</strong> hold text, numbers or binary data. Use them for counters (<code>INCR</code>), cached pages and tokens.</li>
+    <li><strong>Hashes</strong> are field-value maps inside one key, like a small object. Use them for a user profile.</li>
+    <li><strong>Lists</strong> are ordered sequences that push and pop at either end. Use them for simple queues.</li>
+    <li><strong>Sets</strong> are unordered collections of unique members. Use them for tags or "has this user already done X?" checks.</li>
+    <li><strong>Sorted sets</strong> keep members ordered by a numeric score. Use them for leaderboards and time-ordered indexes.</li>
+  </ul>
+  <p>
+    Redis also has bitmaps, HyperLogLog (approximate unique counts) and streams (append-only logs), which are beyond this day.
+  </p>
+  <div class="tablewrap"><table><thead><tr><th>Command</th><th>Reply</th><th>What it shows</th></tr></thead><tbody>
+    <tr><td><code>SET user:1:name "Ana"</code></td><td><code>OK</code></td><td>Store a string under a key</td></tr>
+    <tr><td><code>GET user:1:name</code></td><td><code>"Ana"</code></td><td>Read it back</td></tr>
+    <tr><td><code>SET session:9 "abc" EX 60</code></td><td><code>OK</code></td><td>Store with a 60 second expiry (TTL)</td></tr>
+    <tr><td><code>TTL session:9</code></td><td>A number from 60 down to 0</td><td>Seconds left before the key expires; -1 means no expiry, -2 means the key does not exist</td></tr>
+    <tr><td><code>INCR page:views</code></td><td><code>1</code> on the first call</td><td>Atomic increment; creates the key at 0 if missing</td></tr>
+    <tr><td><code>HSET user:1 name Ana plan pro</code></td><td><code>2</code></td><td>Set two fields in a hash; the reply counts new fields</td></tr>
+    <tr><td><code>HGET user:1 plan</code></td><td><code>"pro"</code></td><td>Read one field</td></tr>
+    <tr><td><code>LPUSH queue:jobs job1</code></td><td><code>1</code></td><td>Push to the left end of a list; the reply is the new length</td></tr>
+    <tr><td><code>RPOP queue:jobs</code></td><td><code>"job1"</code></td><td>Pop from the right end: together with LPUSH this is a FIFO queue</td></tr>
+    <tr><td><code>SADD tags:post1 python redis</code></td><td><code>2</code></td><td>Add members to a set; the reply counts new members</td></tr>
+    <tr><td><code>SISMEMBER tags:post1 redis</code></td><td><code>1</code></td><td>Membership test: 1 is yes, 0 is no</td></tr>
+    <tr><td><code>ZADD leaderboard 100 ana 80 ben</code></td><td><code>2</code></td><td>Add scored members to a sorted set</td></tr>
+    <tr><td><code>ZRANGE leaderboard 0 -1 WITHSCORES</code></td><td>ben 80, then ana 100</td><td>All members in ascending score order</td></tr>
+  </tbody></table></div>
+  <p>
+    The replies above assume each key is new when the command runs. The point of the table is the shape of each command, not the exact timing of TTL values.
+  </p>
+
+  <h3>Expiry and eviction</h3>
+  <p>
+    A key with a TTL is deleted automatically after the time runs out. Memory is limited, so Redis also has an <strong>eviction policy</strong> that decides what to remove when it is full. Common policies include <code>allkeys-lru</code> (remove the least recently used key), <code>allkeys-lfu</code> (remove the least frequently used key), and <code>noeviction</code> (refuse new writes instead). For a cache, an LRU-style policy is the usual choice.
+  </p>
+
+  <h3>Caching patterns</h3>
+  <p>
+    A <strong>cache</strong> keeps a copy of data that is expensive to fetch, so most requests skip the slow database. The main patterns differ in who loads the cache and when writes reach the database:
+  </p>
+  <ul>
+    <li><strong>Cache-aside</strong> (lazy loading). The application checks the cache first. On a miss it reads the database and stores the result. This is the most common pattern.</li>
+    <li><strong>Write-through.</strong> Every write goes to the cache and the database together, so the cache is never stale, at the cost of slower writes.</li>
+    <li><strong>Write-behind.</strong> Writes go to the cache and are saved to the database later in batches. Fast, but data can be lost if the cache fails before the batch is saved.</li>
+  </ul>
+  <p>
+    The next program simulates cache-aside with a fake database and a fake clock, so the output is fixed. It counts how many times the database is read.
+  </p>
+  <pre class="code" data-lang="python"><code>class FakeDB:
+    def __init__(self):
+        self.rows = {"user:1": "Ana", "user:2": "Ben"}
+        self.reads = 0
+
+    def get(self, key):
+        self.reads += 1
+        return self.rows.get(key)
+
+
+class Cache:
+    def __init__(self):
+        self.store = {}        # key -&gt; (value, expires_at)
+        self.now = 0           # a fake clock, in seconds
+
+    def get(self, key):
+        item = self.store.get(key)
+        if item is None:
+            return None
+        value, expires_at = item
+        if self.now &gt;= expires_at:
+            del self.store[key]
+            return None
+        return value
+
+    def set(self, key, value, ttl):
+        self.store[key] = (value, self.now + ttl)
+
+
+def get_user(key, cache, db):
+    value = cache.get(key)
+    if value is not None:
+        return value, "hit"
+    value = db.get(key)
+    if value is not None:
+        cache.set(key, value, ttl=10)
+    return value, "miss"
+
+
+db = FakeDB()
+cache = Cache()
+print(get_user("user:1", cache, db))
+print(get_user("user:1", cache, db))
+cache.now = 11                 # more than the 10 second TTL has passed
+print(get_user("user:1", cache, db))
+print("database reads:", db.reads)</code></pre>
+  <pre class="output">('Ana', 'miss')
+('Ana', 'hit')
+('Ana', 'miss')
+database reads: 2</pre>
+  <p>
+    The first call misses and loads from the database. The second call hits the cache, so the database is not touched. After the TTL expires, the third call misses again. Two database reads served three requests.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>Cache-aside can serve stale data after a write unless you delete or update the cached key when the database changes. A common fix is to delete the key after each write and let the next read reload it.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>A popular key that expires can cause a <strong>cache stampede</strong>: many requests miss at the same moment and all hit the database. Mitigations are a lock so only one request reloads the key, random jitter added to TTLs so keys do not expire together, or refreshing the value before it expires.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why is Redis not a replacement for your primary database? It keeps data in memory, so the dataset must fit in RAM, and its durability settings trade speed for safety. It is excellent as a cache, a session store and a set of counters next to a durable database.</p></div>
+</section>
+
+<section class="unit" id="c6" data-title="Consistent hashing">
+  <h2>Consistent hashing: spreading keys across servers</h2>
+  <p>
+    A cache or a sharded database has many servers, and every key must be assigned to one of them. The simplest rule is <code>server = hash(key) % N</code>, where N is the number of servers. It works until N changes. If you add a fourth server, the modulus changes from 3 to 4, and almost every key maps to a different server. A cache that loses almost all its keys at once sends a flood of requests to the database.
+  </p>
+  <p>
+    <strong>Consistent hashing</strong> fixes this. Imagine a ring of positions from 0 up to a very large number. Hash each server's name to a point on the ring. Hash each key to a point too. A key belongs to the first server found going clockwise from its point. When a server is added, it takes over only the keys between it and the server before it on the ring. Roughly 1 out of N keys moves, instead of nearly all of them.
+  </p>
+  <p>
+    One server per ring point gives an uneven spread, because random points can cluster. The standard fix is <strong>virtual nodes</strong>: each real server is hashed to many points, often 100 or more, so its share averages out. The program below builds a ring of 3 servers with 100 virtual nodes each, places 1000 keys, then adds a fourth server and counts the keys that moved. For comparison it does the same count with plain modulo.
+  </p>
+  <pre class="code" data-lang="python"><code>import bisect
+import hashlib
+
+
+def h(text):
+    return int(hashlib.md5(text.encode()).hexdigest(), 16)
+
+
+class Ring:
+    def __init__(self, nodes, virtual=100):
+        self.points = []
+        for node in nodes:
+            for i in range(virtual):
+                self.points.append((h(f"{node}#{i}"), node))
+        self.points.sort()
+        self.keys = [p for p, _ in self.points]
+
+    def node_for(self, key):
+        i = bisect.bisect(self.keys, h(key)) % len(self.keys)
+        return self.points[i][1]
+
+
+keys = [f"key{i}" for i in range(1000)]
+
+ring3 = Ring(["A", "B", "C"])
+counts = {}
+for k in keys:
+    n = ring3.node_for(k)
+    counts[n] = counts.get(n, 0) + 1
+print("ring of 3:", dict(sorted(counts.items())))
+
+ring4 = Ring(["A", "B", "C", "D"])
+moved = sum(1 for k in keys if ring3.node_for(k) != ring4.node_for(k))
+print("keys moved by consistent hashing:", moved)
+
+modulo_moved = sum(1 for k in keys if h(k) % 3 != h(k) % 4)
+print("keys moved by hash modulo N:", modulo_moved)</code></pre>
+  <pre class="output">ring of 3: {'A': 303, 'B': 361, 'C': 336}
+keys moved by consistent hashing: 269
+keys moved by hash modulo N: 748</pre>
+  <p>
+    Read the three numbers. Consistent hashing spreads the keys fairly evenly, with counts between 303 and 361 for 1000 keys. When the fourth server arrives, 269 keys move. Those are the keys the new server takes over, which is about one quarter of the total, the fair share for a server joining a ring of four. Plain modulo moves 748 keys, about three quarters, because nearly every key's remainder changes.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>Never use Python's built-in <code>hash()</code> to place keys on servers. For strings it is randomised for every new Python process, so two servers would disagree about where a key lives. Use a stable hash such as MD5, SHA-1, MurmurHash or xxHash, as the program does.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Where is consistent hashing used? Caches such as memcached clients, sharded databases such as Cassandra and DynamoDB (through its partitioning scheme), and load balancers that need sticky routing. The idea is the same in each: adding or removing a node should move only a fair share of the keys.</p></div>
+</section>
+
+<section class="unit" id="c7" data-title="Choosing a database">
+  <h2>Choosing a database: a practical method</h2>
+  <p>
+    Interviewers often ask "which database would you use here?" A strong answer is a method, not a brand name. Ask these questions in order:
+  </p>
+  <ol>
+    <li><strong>What questions will the data answer?</strong> Lookups by key, filters on many fields, relationship traversals, or similarity search each point to a different family.</li>
+    <li><strong>Do writes need transactions across several records?</strong> If yes, a relational database or a transactional store is the safe default.</li>
+    <li><strong>How much consistency is needed during failures?</strong> Use the CAP and PACELC reasoning from earlier to decide between refusing requests and serving stale ones.</li>
+    <li><strong>How big is the data, and how fast does it grow?</strong> Millions of rows on one machine rarely need a distributed database. Billions of writes per day usually do.</li>
+    <li><strong>What latency does the user need?</strong> Sub-millisecond reads often mean an in-memory store in front of the main database.</li>
+    <li><strong>What does the team already run and operate?</strong> A well-known database run well beats an exotic one run badly.</li>
+  </ol>
+  <div class="tablewrap"><table><thead><tr><th>Scenario</th><th>First choice</th><th>Reason</th></tr></thead><tbody>
+    <tr><td>Orders, payments, accounts</td><td>Relational (PostgreSQL)</td><td>ACID transactions across tables, joins, constraints</td></tr>
+    <tr><td>Product catalogue with varied attributes</td><td>Document (MongoDB) or PostgreSQL with JSONB</td><td>Each product has different fields; read as whole documents</td></tr>
+    <tr><td>Session store, rate-limit counters, leaderboards</td><td>Redis</td><td>Very fast counters, expiry, sorted sets</td></tr>
+    <tr><td>Billions of time-stamped sensor readings</td><td>Wide-column (Cassandra)</td><td>Huge write volume, queries by device and time range</td></tr>
+    <tr><td>Friend suggestions, fraud rings</td><td>Graph (Neo4j)</td><td>Queries follow relationships several steps deep</td></tr>
+    <tr><td>Semantic search over documents</td><td>Vector index (pgvector or a vector database)</td><td>Nearest-neighbour search on embeddings</td></tr>
+  </tbody></table></div>
+  <p>
+    Most real systems use more than one of these at once. This is sometimes called <strong>polyglot persistence</strong>: PostgreSQL holds orders, Redis caches hot data, and a vector index serves search. Each store does the job it is best at.
+  </p>
+  <div class="note trap"><p><span class="t">Trap</span>Choosing a NoSQL database for scale you do not yet have is a common mistake. Start with PostgreSQL, which handles JSON, full-text search and vectors. Move a workload to a specialised store when measurements show a real need, not when a blog post sounds exciting.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Pick the database from the queries, the consistency needs and the scale, then state the trade-off out loud. Interviewers grade the reasoning, not the brand.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each one aloud before opening it. The model answers are written the way you would say them in an interview.</p>
+  <details class="check"><summary>Give one reason to choose NoSQL and one reason to stay with SQL.</summary><div class="ans"><p>NoSQL suits data that must spread across many machines with a flexible shape and a known access pattern, such as session data at large scale. SQL is the better choice when data has many relationships and needs multi-record ACID transactions, such as orders and payments.</p></div></details>
+  <details class="check"><summary>What does BASE stand for, and how does it differ from ACID?</summary><div class="ans"><p>BASE stands for Basically Available, Soft state and Eventually consistent. ACID promises that each transaction is correct before anyone else sees it. BASE accepts that replicas may disagree for a while, so the system keeps responding during failures and converges later.</p></div></details>
+  <details class="check"><summary>Explain CAP in one sentence, with an example of each choice.</summary><div class="ans"><p>When a network partition splits the nodes, a distributed system must either refuse some requests to keep data consistent (CP), as a bank transfer should, or keep answering with possibly stale data (AP), as a shopping cart can.</p></div></details>
+  <details class="check"><summary>What does PACELC add to CAP?</summary><div class="ans"><p>PACELC covers the normal case, when there is no partition. Else, the system chooses between latency and consistency, because waiting for replicas to confirm writes costs time. It describes a system with two pairs, such as PA/EL or PC/EC.</p></div></details>
+  <details class="check"><summary>Name the five families of NoSQL databases, with one example each.</summary><div class="ans"><p>Key-value (Redis), document (MongoDB), wide-column (Cassandra), graph (Neo4j), and vector (Pinecone, Milvus, or pgvector for similarity search on embeddings).</p></div></details>
+  <details class="check"><summary>What is cosine similarity, and why do vector databases use approximate indexes?</summary><div class="ans"><p>Cosine similarity is the cosine of the angle between two vectors, so 1 means the same direction and it ignores vector length. Exact search compares the query with every vector, which is slow for millions of items. Approximate indexes such as HNSW or IVF find near neighbours much faster, accepting a small chance of missing the true nearest one.</p></div></details>
+  <details class="check"><summary>When do you embed related data in MongoDB, and when do you reference it?</summary><div class="ans"><p>Embed when the child data is read with its parent, belongs to one parent, and has a bounded size, such as order line items. Reference when data is shared by many parents, changes independently, or grows without limit, because embedded arrays that grow forever make documents slow and can hit the 16 MB limit.</p></div></details>
+  <details class="check"><summary>What is cache-aside, and how do you stop the cache from serving stale data?</summary><div class="ans"><p>In cache-aside the application checks the cache first, and on a miss it reads the database and stores the result with a TTL. To avoid stale data, delete or update the cached key whenever the database row changes, and keep TTLs short for data that changes often.</p></div></details>
+  <details class="check"><summary>Why does consistent hashing move fewer keys than hash modulo N when a server is added?</summary><div class="ans"><p>With modulo, the divisor changes, so nearly every key's server changes. With consistent hashing, keys sit on a ring and a key belongs to the next server clockwise, so a new server takes over only the keys in its arc, about 1 out of N. Virtual nodes give each server many ring positions so the arcs, and therefore the load, are spread evenly.</p></div></details>
+  <details class="check"><summary>What is union-find, and what two problems does it solve most often?</summary><div class="ans"><p>Union-find keeps disjoint sets and supports find (which set does this element belong to?) and union (merge two sets). With path compression and union by rank, each operation is effectively constant time. It is used to detect cycles in an undirected graph and inside Kruskal's algorithm for minimum spanning trees.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: union-find and minimum spanning trees</h2>
+  <p>
+    <strong>Union-find</strong>, also called disjoint set union, tracks which items belong to the same group. Its two operations are <code>find(x)</code>, which returns a representative of the group containing x, and <code>union(a, b)</code>, which merges the groups of a and b. Two optimisations make it almost constant time: <strong>path compression</strong>, which points every node visited during <code>find</code> straight at the root, and <strong>union by rank</strong>, which attaches the shorter tree under the taller one. The combined cost is effectively constant per operation.
+  </p>
+  <p>
+    A <strong>spanning tree</strong> of a connected graph touches every node using exactly n minus 1 edges, with no cycle. A <strong>minimum spanning tree</strong> (MST) is one whose total edge weight is as small as possible. <strong>Kruskal's algorithm</strong> builds one by sorting all edges by weight and adding each edge that joins two different groups, skipping any edge that would close a cycle. Union-find is the tool that answers "are these two nodes already connected?" quickly. <strong>Prim's algorithm</strong> is the other standard method. It grows one tree from a start node and always adds the cheapest edge that leaves the tree, using a heap.
+  </p>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/redundant-connection/">
+    <h3>Redundant Connection (LeetCode 684)</h3>
+    <div class="statement"><p>A graph started as a tree on nodes 1 to n, and then one extra edge was added. The extra edge makes exactly one cycle. Each edge <code>[a, b]</code> connects two nodes in both directions. Return an edge that can be removed to leave a tree. If several edges could be removed, return the one that appears last in the input. Example: <code>[[1,2],[1,3],[2,3]]</code> gives <code>[2,3]</code>, because the cycle 1, 2, 3 contains the edges [1,2], [1,3] and [2,3], and [2,3] is the last one in the input.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The graph is undirected and has exactly one cycle. Any edge on that cycle can be removed. The tie-break is the last in the input order.</li>
+      <li><strong>Brute force.</strong> Try removing each edge, starting from the last, and check whether the remaining graph is connected and has no cycle. Each check is a graph traversal, so the total work is O(n squared) in the worst case.</li>
+      <li><strong>Find the waste.</strong> Each check starts from scratch, and most of the work repeats the same connectivity questions.</li>
+      <li><strong>Optimise.</strong> Process the edges in input order and merge their endpoints in union-find. The first edge whose endpoints are already in the same group closes the cycle. That edge is the answer. All other edges of the cycle appeared earlier, so this edge is the last one on the cycle, which is exactly the tie-break the problem asks for. Time is O(n) with near-constant union-find operations.</li>
+      <li><strong>Dry run.</strong> On <code>[[1,2],[1,3],[2,3]]</code>: union(1,2) joins two groups. union(1,3) joins a third node. union(2,3) finds that 2 and 3 are already in one group, so [2,3] is returned.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Edge</th><th>Groups before</th><th>Action</th></tr></thead><tbody>
+      <tr><td>[1,2]</td><td>{1} {2} {3}</td><td>union: {1,2} {3}</td></tr>
+      <tr><td>[1,3]</td><td>{1,2} {3}</td><td>union: {1,2,3}</td></tr>
+      <tr><td>[2,3]</td><td>{1,2,3}</td><td>same group already: cycle found, return [2,3]</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class DSU:
+    def __init__(self, n):
+        self.parent = list(range(n))
+        self.rank = [0] * n
+
+    def find(self, x):
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]   # path halving
+            x = self.parent[x]
+        return x
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return False                                    # already connected: a cycle
+        if self.rank[ra] &lt; self.rank[rb]:
+            ra, rb = rb, ra
+        self.parent[rb] = ra
+        if self.rank[ra] == self.rank[rb]:
+            self.rank[ra] += 1
+        return True
+
+
+def find_redundant_connection(edges):
+    dsu = DSU(len(edges) + 1)              # nodes are 1-based, so index 0 is unused
+    for u, v in edges:
+        if not dsu.union(u, v):
+            return [u, v]
+
+
+print(find_redundant_connection([[1, 2], [1, 3], [2, 3]]))
+print(find_redundant_connection([[1, 2], [2, 3], [3, 4], [1, 4], [1, 5]]))</code></pre>
+    <pre class="output">[2, 3]
+[1, 4]</pre>
+    <p class="cx">Time O(n α(n)) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you see "find the edge that creates a cycle" in an undirected graph, process the edges in order with union-find and return the first edge whose endpoints are already connected.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/min-cost-to-connect-all-points/">
+    <h3>Min Cost to Connect All Points (LeetCode 1584)</h3>
+    <div class="statement"><p>You are given n points <code>[x, y]</code> on a plane. The cost of connecting two points is their Manhattan distance, <code>|xi - xj| + |yi - yj|</code>. Return the minimum total cost to connect all points, so that any point can reach any other through connections. Example: <code>[[0,0],[2,2],[3,10],[5,2],[7,0]]</code> gives 20. Example: <code>[[3,12],[-2,5],[-4,1]]</code> gives 18.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Every pair of points can be connected, so the graph is complete. Connecting all points at the lowest cost means choosing a set of n minus 1 edges that forms a tree with the smallest total weight. That is a minimum spanning tree.</li>
+      <li><strong>Brute force.</strong> Try every set of n minus 1 edges, check that it connects all points without a cycle, and keep the cheapest. With n up to 1000 there are far too many sets to try.</li>
+      <li><strong>Find the waste.</strong> Most sets are obviously bad, because they use an expensive edge when a cheap one would connect the same points.</li>
+      <li><strong>Optimise.</strong> Kruskal's algorithm. Build all pairwise edges with their Manhattan costs, sort them by cost, and walk through them. Add an edge when its two points are in different union-find groups, and stop after n minus 1 edges. Sorting dominates, so the time is O(n squared log n) for the roughly n squared over 2 edges.</li>
+      <li><strong>Dry run.</strong> On <code>[[3,12],[-2,5],[-4,1]]</code>, the costs are: points 1 and 2 cost |-2+4| + |5-1| = 6; points 0 and 1 cost |3+2| + |12-5| = 12; points 0 and 2 cost |3+4| + |12-1| = 18. Sorted: 6, 12, 18. Take 6 (joins 1 and 2), take 12 (joins 0 to them, now all connected), stop. Total 18.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Edge (cost)</th><th>Same group?</th><th>Action</th><th>Running total</th></tr></thead><tbody>
+      <tr><td>1-2 (6)</td><td>no</td><td>join</td><td>6</td></tr>
+      <tr><td>0-1 (12)</td><td>no</td><td>join, all three points connected</td><td>18</td></tr>
+      <tr><td>0-2 (18)</td><td>yes</td><td>skip (not needed)</td><td>18</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class DSU:
+    def __init__(self, n):
+        self.parent = list(range(n))
+        self.rank = [0] * n
+
+    def find(self, x):
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return False
+        if self.rank[ra] &lt; self.rank[rb]:
+            ra, rb = rb, ra
+        self.parent[rb] = ra
+        if self.rank[ra] == self.rank[rb]:
+            self.rank[ra] += 1
+        return True
+
+
+def min_cost_connect_points(points):
+    n = len(points)
+    edges = []
+    for i in range(n):
+        xi, yi = points[i]
+        for j in range(i + 1, n):
+            xj, yj = points[j]
+            edges.append((abs(xi - xj) + abs(yi - yj), i, j))
+    edges.sort()                           # cheapest edges first
+
+    dsu = DSU(n)
+    total = 0
+    joined = 0
+    for cost, i, j in edges:
+        if dsu.union(i, j):                # different groups: safe to add
+            total += cost
+            joined += 1
+            if joined == n - 1:
+                break
+    return total
+
+
+print(min_cost_connect_points([[0, 0], [2, 2], [3, 10], [5, 2], [7, 0]]))
+print(min_cost_connect_points([[3, 12], [-2, 5], [-4, 1]]))</code></pre>
+    <pre class="output">20
+18</pre>
+    <p class="cx">Time O(n² log n) · Space O(n²) for the edge list</p>
+    <div class="note trap"><p><span class="t">Trap</span>Kruskal needs the edges sorted by cost, not by position. Sorting the tuples <code>(cost, i, j)</code> does that, because Python compares tuples element by element.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you must connect everything at minimum total cost, think minimum spanning tree: sort the edges, use union-find to skip cycles, and stop at n minus 1 edges.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/redundant-connection-ii/">
+    <h3>Redundant Connection II (LeetCode 685)</h3>
+    <div class="statement"><p>A rooted tree on nodes 1 to n was built, where each directed edge <code>[u, v]</code> goes from parent u to child v, and then one extra directed edge was added. The result is no longer a rooted tree. Remove one edge so that it becomes a rooted tree again: one root, and every other node has exactly one parent. If several answers exist, return the one that appears last in the input. Example: <code>[[1,2],[1,3],[2,3]]</code> gives <code>[2,3]</code>, because node 3 has two parents, 1 and 2. Example: <code>[[1,2],[2,3],[3,4],[4,1],[1,5]]</code> gives <code>[4,1]</code>, because the edges form a cycle 1 to 2 to 3 to 4 to 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> There are two possible faults, and they can occur together. A node can have two parents, or the directed edges can form a cycle. A cycle with no double parent can only be broken by removing an edge on the cycle. A double parent can only be fixed by removing one of its two incoming edges.</li>
+      <li><strong>Brute force.</strong> Try removing each edge from last to first, and check whether the rest is a rooted tree. A check is valid when no node has two parents and the undirected graph has no cycle. The first edge that passes is the answer. This costs O(n squared) with union-find checks.</li>
+      <li><strong>Find the waste.</strong> Only the edges touching the faults can be the answer. Checking every edge repeats the same cycle work.</li>
+      <li><strong>Optimise.</strong> First scan for a node with two parents. If one exists, call the earlier incoming edge <code>cand1</code> and the later one <code>cand2</code>. Then run union-find over all edges except <code>cand2</code>. If that produces no cycle, removing <code>cand2</code> is valid, so return it. If it does produce a cycle, the cycle must include <code>cand1</code>, so remove <code>cand1</code>. If no node has two parents, the only fault is a cycle, and the edge that closes it in union-find is the answer.</li>
+      <li><strong>Dry run.</strong> On <code>[[1,2],[1,3],[2,3]]</code>, node 3 has two parents: cand1 is [1,3] and cand2 is [2,3]. Skip [2,3] and union [1,2] and [1,3]. No cycle appears, so return cand2, [2,3].</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Step</th><th>Work</th><th>Result</th></tr></thead><tbody>
+      <tr><td>1</td><td>Scan for a second parent</td><td>Node 3 gets parents 1 then 2. cand1 = [1,3], cand2 = [2,3].</td></tr>
+      <tr><td>2</td><td>Union [1,2], skip cand2, union [1,3]</td><td>No cycle formed.</td></tr>
+      <tr><td>3</td><td>No cycle, so the fault is the double parent</td><td>Return cand2 = [2,3].</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class DSU:
+    def __init__(self, n):
+        self.parent = list(range(n))
+        self.rank = [0] * n
+
+    def find(self, x):
+        while self.parent[x] != x:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return False
+        if self.rank[ra] &lt; self.rank[rb]:
+            ra, rb = rb, ra
+        self.parent[rb] = ra
+        if self.rank[ra] == self.rank[rb]:
+            self.rank[ra] += 1
+        return True
+
+
+def find_redundant_directed(edges):
+    n = len(edges)
+    parent = [0] * (n + 1)
+    cand1 = cand2 = None
+    for u, v in edges:
+        if parent[v] == 0:
+            parent[v] = u                  # first parent of v
+        else:
+            cand1 = [parent[v], v]         # the earlier edge into v
+            cand2 = [u, v]                 # the later edge into v
+
+    dsu = DSU(n + 1)
+    for u, v in edges:
+        if cand2 is not None and [u, v] == cand2:
+            continue                       # pretend cand2 was never added
+        if not dsu.union(u, v):            # a cycle appeared
+            return cand1 if cand1 is not None else [u, v]
+    return cand2
+
+
+def redundant_brute(edges):
+    n = len(edges)
+    for skip in range(n - 1, -1, -1):      # last edge first
+        indeg = [0] * (n + 1)
+        dsu = DSU(n + 1)
+        ok = True
+        for i, (u, v) in enumerate(edges):
+            if i == skip:
+                continue
+            indeg[v] += 1
+            if indeg[v] &gt; 1 or not dsu.union(u, v):
+                ok = False
+                break
+        if ok:
+            return list(edges[skip])
+    return None
+
+
+print(find_redundant_directed([[1, 2], [1, 3], [2, 3]]))
+print(find_redundant_directed([[1, 2], [2, 3], [3, 4], [4, 1], [1, 5]]))
+print(redundant_brute([[1, 2], [1, 3], [2, 3]]))
+print(redundant_brute([[1, 2], [2, 3], [3, 4], [4, 1], [1, 5]]))</code></pre>
+    <pre class="output">[2, 3]
+[4, 1]
+[2, 3]
+[4, 1]</pre>
+    <p class="cx">Brute force: time O(n² α(n)) · Optimised: time O(n α(n)) · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Do not treat the problem as undirected. In the directed version the direction matters: a node with two parents is a fault even when the undirected graph has no cycle, and a cycle among directed edges is a fault even when every node has one parent.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Directed tree repair is two cases. Look for a node with two incoming edges first, then use union-find to decide which of its edges to remove. Test any answer with a brute-force checker on small random inputs before trusting it.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>NoSQL</dt><dd>A family of databases built for horizontal scale, flexible schemas and known access patterns, often with relaxed guarantees.</dd></div>
+    <div><dt>ACID</dt><dd>Atomicity, consistency, isolation and durability: the transaction guarantees of relational systems.</dd></div>
+    <div><dt>BASE</dt><dd>Basically available, soft state, eventually consistent: the relaxed model behind many distributed NoSQL systems.</dd></div>
+    <div><dt>Eventual consistency</dt><dd>Replicas converge to the same value if no new writes arrive; readers may see old values meanwhile.</dd></div>
+    <div><dt>CAP theorem</dt><dd>During a network partition, a distributed system must give up either consistency or availability.</dd></div>
+    <div><dt>PACELC</dt><dd>Extends CAP: during a partition choose availability or consistency; otherwise choose latency or consistency.</dd></div>
+    <div><dt>Linearizability</dt><dd>The strongest single-object consistency: every read sees the most recent completed write.</dd></div>
+    <div><dt>Key-value store</dt><dd>Maps a key to a value; fast lookups by key, weak at other queries. Example: Redis.</dd></div>
+    <div><dt>Document store</dt><dd>Stores JSON-like documents and queries fields inside them. Example: MongoDB.</dd></div>
+    <div><dt>Wide-column store</dt><dd>Rows with flexible column groups, built for very large write volumes. Example: Cassandra.</dd></div>
+    <div><dt>Graph database</dt><dd>Stores nodes and edges and traverses relationships efficiently. Example: Neo4j.</dd></div>
+    <div><dt>Vector database</dt><dd>Stores embeddings and finds the nearest vectors to a query, usually with an approximate index.</dd></div>
+    <div><dt>Embedding</dt><dd>A list of numbers that represents the meaning of an item so that similar items get similar vectors.</dd></div>
+    <div><dt>Cosine similarity</dt><dd>The cosine of the angle between two vectors; 1 means the same direction and length is ignored.</dd></div>
+    <div><dt>Approximate nearest neighbour</dt><dd>Search that returns close matches quickly, accepting a small chance of missing the exact nearest item.</dd></div>
+    <div><dt>Embedding in MongoDB</dt><dd>Storing related data inside one document, good for data read together and bounded in size.</dd></div>
+    <div><dt>Referencing in MongoDB</dt><dd>Storing related data in separate documents linked by an id, good for shared or unbounded data.</dd></div>
+    <div><dt>Aggregation pipeline</dt><dd>A list of stages where each stage transforms the output of the previous one, as in MongoDB.</dd></div>
+    <div><dt>Redis data types</dt><dd>Strings, hashes, lists, sets and sorted sets, each with its own commands.</dd></div>
+    <div><dt>TTL</dt><dd>Time to live: the number of seconds after which a Redis key expires automatically.</dd></div>
+    <div><dt>Eviction policy</dt><dd>The rule for choosing which keys to remove when memory is full, such as least recently used.</dd></div>
+    <div><dt>Cache-aside</dt><dd>The application checks the cache, and on a miss loads from the database and stores the result.</dd></div>
+    <div><dt>Write-through</dt><dd>Every write goes to the cache and the database together, keeping the cache fresh.</dd></div>
+    <div><dt>Write-behind</dt><dd>Writes go to the cache first and reach the database later in batches; fast but risks data loss.</dd></div>
+    <div><dt>Cache stampede</dt><dd>Many requests miss a popular key at once and overload the database.</dd></div>
+    <div><dt>Consistent hashing</dt><dd>Places servers and keys on a ring so that adding a server moves only about 1 out of N keys.</dd></div>
+    <div><dt>Virtual nodes</dt><dd>Several ring positions per physical server, which spread the keys evenly.</dd></div>
+    <div><dt>Polyglot persistence</dt><dd>Using several database types in one system, each for the job it does best.</dd></div>
+    <div><dt>Union-find</dt><dd>A structure for disjoint sets with find and union, nearly constant time with path compression and union by rank.</dd></div>
+    <div><dt>Spanning tree</dt><dd>A subset of edges that connects all nodes with no cycle, using n minus 1 edges.</dd></div>
+    <div><dt>Minimum spanning tree</dt><dd>A spanning tree with the smallest possible total edge weight.</dd></div>
+    <div><dt>Kruskal's algorithm</dt><dd>Sort edges by weight and add each edge that joins two different groups.</dd></div>
+    <div><dt>Prim's algorithm</dt><dd>Grow one tree from a start node by always adding the cheapest edge leaving the tree.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td>SET key value EX seconds (Redis)</td><td>Stores a string with an expiry</td><td><code>SET session:9 "abc" EX 60</code></td></tr>
+      <tr><td>GET, INCR (Redis)</td><td>Reads a string, increments a counter</td><td><code>INCR page:views</code></td></tr>
+      <tr><td>HSET, HGET (Redis)</td><td>Writes and reads hash fields</td><td><code>HSET user:1 plan pro</code></td></tr>
+      <tr><td>LPUSH, RPOP (Redis)</td><td>Pushes to the left and pops from the right of a list</td><td><code>LPUSH queue:jobs job1</code></td></tr>
+      <tr><td>SADD, SISMEMBER (Redis)</td><td>Adds to a set and tests membership</td><td><code>SISMEMBER tags:post1 redis</code></td></tr>
+      <tr><td>ZADD, ZRANGE (Redis)</td><td>Adds scored members and reads them in score order</td><td><code>ZRANGE leaderboard 0 -1 WITHSCORES</code></td></tr>
+      <tr><td>insertMany (MongoDB)</td><td>Inserts several documents</td><td><code>db.orders.insertMany([{ customer: "Ana" }])</code></td></tr>
+      <tr><td>find (MongoDB)</td><td>Filters documents, with an optional projection</td><td><code>db.orders.find({ status: "paid" }, { _id: 0 })</code></td></tr>
+      <tr><td>createIndex (MongoDB)</td><td>Builds an index on one or more fields</td><td><code>db.orders.createIndex({ customer: 1 })</code></td></tr>
+      <tr><td>$match, $unwind, $group, $sort (MongoDB)</td><td>Pipeline stages: filter, expand arrays, group, order</td><td><code>{ $match: { status: "paid" } }</code></td></tr>
+      <tr><td>math.sqrt (Python)</td><td>Square root, used for vector length</td><td><code>math.sqrt(9)</code> gives 3.0</td></tr>
+      <tr><td>hashlib.md5 (Python)</td><td>A stable hash of bytes, safe across processes</td><td><code>hashlib.md5(b"key").hexdigest()</code></td></tr>
+      <tr><td>bisect.bisect (Python)</td><td>Finds the insertion point in a sorted list</td><td><code>bisect.bisect([10, 20, 30], 15)</code> gives 1</td></tr>
+      <tr><td>sorted with key (Python)</td><td>Sorts items by a computed value</td><td><code>sorted(docs.items(), key=lambda kv: score(kv[1]), reverse=True)</code></td></tr>
+      <tr><td>DSU.find and DSU.union (custom)</td><td>Find the group representative and merge two groups</td><td><code>dsu.union(1, 2)</code> returns False if already joined</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 20?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 20 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-19.html"><small>Previous, day 19</small>SQL 2 + PostgreSQL + Django ORM</a><a class="next" href="day-21.html"><small>Next, day 21</small>Sunday: Aptitude, review, Mock 3, resume and HR</a></nav>
+</main><script src="assets/app.js"></script></body></html>

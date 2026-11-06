@@ -1,0 +1,593 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 38: Deep learning + computer vision</title><meta name="description" content="Today covers deep learning and computer vision: how a neural network computes and learns through backpropagation, how optimizers and regularization make training work in practice, how convolutional networks read images, how sequence models and Transformers handle text, and how generative models create new data. Interviewers test whether you can explain the mechanism behind each building block, not just name it."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="38" data-key="38" data-noun="day" data-num="38" data-track="ai">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Deep learning + computer vision</h1>
+<p class="lede">Today covers deep learning and computer vision: how a neural network computes and learns through backpropagation, how optimizers and regularization make training work in practice, how convolutional networks read images, how sequence models and Transformers handle text, and how generative models create new data. Interviewers test whether you can explain the mechanism behind each building block, not just name it.</p>
+<div class="station"><b>38</b><span>Wed 9 Dec 2026 · AI &amp; ML · DSA: Revisit weakest patterns</span></div>
+<ul class="topics"><li>Backpropagation and activations</li><li>Optimizers and regularization</li><li>CNNs, detection and segmentation</li><li>RNN, LSTM, GRU, attention and Transformers</li><li>Generative models: VAE, GAN, diffusion</li><li>PyTorch training loop</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Backprop">
+  <h2>Neural networks and backpropagation</h2>
+  <p>A <strong>neural network</strong> is a chain of simple functions. Each <strong>neuron</strong> multiplies its inputs by weights, adds a bias, and passes the sum through a non-linear <strong>activation function</strong>. Stacking neurons in <strong>layers</strong> lets the network build complicated shapes out of simple pieces. Without the non-linearity, any stack of layers would collapse into one linear function, so the activation is essential.</p>
+  <p>Training has two halves. The <strong>forward pass</strong> computes the prediction from the input and the <strong>loss</strong> measures how wrong it is. The <strong>backward pass</strong> (backpropagation) computes how much each weight contributed to the loss, and gradient descent then moves each weight a small step in the direction that reduces the loss. Backpropagation is nothing more than the <strong>chain rule</strong> of calculus applied from the output back to the input, reusing intermediate results so that every gradient is computed in one backward sweep.</p>
+
+  <h3>Common activation functions</h3>
+  <p>The activation must be non-linear and must have a useful derivative. The three you must know are these. The <strong>sigmoid</strong> squashes any value into (0, 1), and its derivative is s(1 - s), which is at most 0.25. The <strong>tanh</strong> squashes values into (-1, 1), with derivative 1 - tanh squared. The <strong>ReLU</strong> (rectified linear unit) outputs max(0, z), with derivative 1 for positive inputs and 0 for negative ones. ReLU is cheap to compute and its gradient does not shrink for large positive inputs, which is why it became the default for hidden layers.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Sigmoid and tanh saturate: for large inputs their derivative is almost zero. Multiply many such small derivatives in a deep network and the gradient vanishes, so the early layers barely learn. This is the <em>vanishing gradient</em> problem.</p></div>
+
+  <h3>Backpropagation on a tiny network, step by step</h3>
+  <p>The network below has one input x, one hidden neuron h = sigmoid(w1 x + b1), and one output y = w2 h + b2. The loss is L = 0.5 (y - t) squared, where t is the target. The forward pass computes the numbers from left to right. The backward pass then applies the chain rule from right to left, multiplying local derivatives. The code also checks one gradient numerically by nudging w1 by a tiny amount and measuring how the loss changes. If the analytic and numeric answers agree, the backward pass is right. This check, called <em>gradient checking</em>, is how careful engineers debug custom layers.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def sigmoid(z):
+    return 1 / (1 + math.exp(-z))
+
+x, t = 1.0, 1.0            # input and target
+w1, b1 = 0.5, 0.0
+w2, b2 = -1.0, 0.5
+
+def forward(w1, b1, w2, b2):
+    z1 = w1 * x + b1
+    h = sigmoid(z1)
+    y = w2 * h + b2
+    loss = 0.5 * (y - t) ** 2
+    return z1, h, y, loss
+
+# Backward pass: chain rule from the loss back to each parameter
+z1, h, y, loss = forward(w1, b1, w2, b2)
+dL_dy = y - t                  # derivative of 0.5 (y - t) squared
+dL_dw2 = dL_dy * h
+dL_db2 = dL_dy
+dL_dh = dL_dy * w2
+dh_dz1 = h * (1 - h)           # derivative of the sigmoid
+dL_dz1 = dL_dh * dh_dz1
+dL_dw1 = dL_dz1 * x
+dL_db1 = dL_dz1
+
+print(f"loss={loss:.4f}")
+print(f"gradients: w1={dL_dw1:.4f} b1={dL_db1:.4f} w2={dL_dw2:.4f} b2={dL_db2:.4f}")
+
+# Gradient check: nudge w1 slightly up and down and measure the change in loss
+eps = 1e-6
+numeric = (forward(w1 + eps, b1, w2, b2)[3] - forward(w1 - eps, b1, w2, b2)[3]) / (2 * eps)
+print(f"numeric dL/dw1={numeric:.4f}")</code></pre>
+  <pre class="output">loss=0.6300
+gradients: w1=0.2638 b1=0.2638 w2=-0.6987 b2=-1.1225
+numeric dL/dw1=0.2638</pre>
+  <p>Read the chain of multiplications in the code once more. The gradient for w1 is dL/dy times dy/dh times dh/dz1 times dz1/dw1, which is (y - t) times w2 times h(1 - h) times x. Every factor was already computed in the forward pass or is a simple local derivative, so the backward pass costs only a small constant factor more than the forward pass.</p>
+
+  <h3>Initialization: why not start every weight at zero</h3>
+  <p>If all weights in a layer start at the same value, every neuron in that layer computes the same output and receives the same gradient, so they never become different. This is the <strong>symmetry problem</strong>. Random small values break the symmetry. The scale matters too. If weights are too large, activations saturate. If too small, signals and gradients shrink layer by layer. <strong>Xavier (Glorot)</strong> initialization scales weights by the number of inputs and outputs, and is suited to sigmoid and tanh. <strong>He</strong> initialization uses the number of inputs only, with a factor adjusted for ReLU, because ReLU zeroes half of its inputs.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why can't we train a deep network with all zero weights? Every neuron in a layer would compute the same thing and get the same gradient, so the layer would behave like a single neuron no matter how long training runs.</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="Optimizers">
+  <h2>Optimizers and regularization</h2>
+  <p>Plain <strong>stochastic gradient descent</strong> (SGD) updates each weight by w = w - learning rate times gradient. The gradient is estimated on a small random <strong>mini-batch</strong> of examples rather than the whole dataset, which is cheaper and adds useful noise. The learning rate is the most important setting. Too large and the updates overshoot and diverge. Too small and training crawls.</p>
+  <p><strong>Momentum</strong> keeps a running velocity: v = beta v + gradient, then w = w - learning rate times v. The velocity accumulates steps that point the same way, so the optimizer speeds up along long shallow valleys and damps zig-zagging. <strong>Adam</strong> (adaptive moment estimation) keeps two running averages, of the gradient (the first moment m) and of its square (the second moment v). It divides each step by the square root of v, so parameters with large, noisy gradients take smaller steps. The averages start at zero, so Adam corrects them with the factors 1 - beta raised to the step count. Adam is the usual default because it works with little tuning.</p>
+  <p>The code minimizes the simple function f(w) = (w - 3) squared, whose minimum is at w = 3, and reports where each optimizer is after 20 steps. The gradient is 2(w - 3).</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def grad(w):
+    return 2 * (w - 3)       # derivative of f(w) = (w - 3) squared
+
+def run_sgd(steps=20, lr=0.1):
+    w = 0.0
+    for _ in range(steps):
+        w -= lr * grad(w)
+    return w
+
+def run_momentum(steps=20, lr=0.1, beta=0.9):
+    w, v = 0.0, 0.0
+    for _ in range(steps):
+        v = beta * v + grad(w)
+        w -= lr * v
+    return w
+
+def run_adam(steps=20, lr=0.1, b1=0.9, b2=0.999, eps=1e-8):
+    w, m, v = 0.0, 0.0, 0.0
+    for t in range(1, steps + 1):
+        g = grad(w)
+        m = b1 * m + (1 - b1) * g
+        v = b2 * v + (1 - b2) * g * g
+        m_hat = m / (1 - b1 ** t)
+        v_hat = v / (1 - b2 ** t)
+        w -= lr * m_hat / (math.sqrt(v_hat) + eps)
+    return w
+
+print(f"SGD      after 20 steps: w={run_sgd():.3f}")
+print(f"momentum after 20 steps: w={run_momentum():.3f}")
+print(f"Adam     after 20 steps: w={run_adam():.3f}")</code></pre>
+  <pre class="output">SGD      after 20 steps: w=2.965
+momentum after 20 steps: w=4.048
+Adam     after 20 steps: w=1.881</pre>
+  <p>The output shows three different behaviours. Plain SGD is still approaching the minimum after 20 steps, because each step covers a fixed fraction of the remaining distance. Momentum has overshot: its velocity carried it past 3 to about 4.05, and with beta = 0.9 it swings back only slowly. Adam moves by roughly the learning rate on each step early in training, whatever the gradient size, so after 20 steps of size 0.1 it is at 1.88. No optimizer wins every problem. Changing the number of steps or the learning rate changes the ranking, which is why you tune on your own problem rather than trusting a single comparison.</p>
+
+  <h3>Dropout</h3>
+  <p><strong>Dropout</strong> randomly sets a fraction p of a layer's activations to zero during each training step. The network cannot rely on any single neuron, so it learns more redundant features, which reduces overfitting. At test time dropout is switched off. Most frameworks use <em>inverted dropout</em>: the surviving activations are multiplied by 1 / (1 - p) during training, so the expected value stays the same and no rescaling is needed at test time. The example uses a fixed mask so the output is repeatable. A real layer draws a new random mask at every step.</p>
+  <pre class="code" data-lang="python"><code>activations = [0.8, 1.5, -0.4, 2.0]
+p_drop = 0.25
+mask = [1, 0, 1, 1]               # 0 means this unit is dropped in this training step
+scale = 1 / (1 - p_drop)          # keeps the expected output unchanged
+dropped = [a * m * scale for a, m in zip(activations, mask)]
+print("training output:", [round(v, 3) for v in dropped])
+print("test output:", activations)</code></pre>
+  <pre class="output">training output: [1.067, 0.0, -0.533, 2.667]
+test output: [0.8, 1.5, -0.4, 2.0]</pre>
+
+  <h3>Batch normalization</h3>
+  <p><strong>Batch normalization</strong> standardizes each feature across the mini-batch: subtract the batch mean, divide by the batch standard deviation (with a tiny epsilon for safety), then apply a learned scale gamma and shift beta. This keeps the inputs of each layer in a stable range, which allows larger learning rates and speeds training. At test time the layer uses running averages collected during training rather than the statistics of the test batch, so the output for one example does not depend on the other examples in its batch.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+batch = [1.0, 2.0, 3.0, 4.0]
+mean = sum(batch) / len(batch)
+var = sum((x - mean) ** 2 for x in batch) / len(batch)
+eps = 1e-5
+normed = [(x - mean) / math.sqrt(var + eps) for x in batch]
+print("mean", mean, "var", var)
+print("normalized:", [round(v, 3) for v in normed])</code></pre>
+  <pre class="output">mean 2.5 var 1.25
+normalized: [-1.342, -0.447, 0.447, 1.342]</pre>
+
+  <h3>Weight decay and early stopping</h3>
+  <p><strong>Weight decay</strong> adds a penalty lambda times the squared size of the weights to the loss. Its gradient is lambda times w, so every update shrinks the weights slightly toward zero. Smaller weights make a simpler, smoother function. With most optimizers the step is w = w - learning rate times (gradient of the loss + lambda w). <strong>Early stopping</strong> watches the validation loss and stops training when it stops improving, keeping the weights from the best epoch. Both techniques trade a little training accuracy for better generalization.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Forgetting to switch modes. In PyTorch, dropout and batch norm behave differently in <code>model.train()</code> and <code>model.eval()</code>. Evaluating in training mode gives noisy, lower scores that look like a bad model.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Dropout, weight decay and early stopping all reduce variance. Batch normalization mainly makes optimization easier, and it also has a mild regularizing effect.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="Vision">
+  <h2>Convolutional networks, detection and segmentation</h2>
+  <p>A fully connected layer treats every pixel as an unrelated number, so it needs enormous numbers of weights and forgets that nearby pixels belong together. A <strong>convolutional neural network</strong> (CNN) fixes this with two ideas. The first is <strong>local connectivity</strong>: each output looks at a small patch of the input. The second is <strong>weight sharing</strong>: the same small set of weights, called a <strong>kernel</strong> or filter, slides across the whole image. A kernel that detects vertical edges finds them everywhere with the same parameters.</p>
+  <p>A <strong>convolution</strong> multiplies the kernel by the patch under it, adds the products, and writes one number to the output (a <em>feature map</em>). Strictly this is cross-correlation, since the kernel is not flipped, but deep learning libraries call it convolution and so will you. The next code applies a 2 by 2 edge kernel to a 4 by 4 image, then applies max pooling. Pooling takes the largest value in each small window, which shrinks the map and gives a little tolerance to small shifts.</p>
+  <pre class="code" data-lang="python"><code>def conv2d(image, kernel):
+    # Valid convolution: no padding, stride 1, so the output is smaller than the input
+    kh, kw = len(kernel), len(kernel[0])
+    out_h = len(image) - kh + 1
+    out_w = len(image[0]) - kw + 1
+    out = []
+    for i in range(out_h):
+        row = []
+        for j in range(out_w):
+            total = 0
+            for a in range(kh):
+                for b in range(kw):
+                    total += image[i + a][j + b] * kernel[a][b]
+            row.append(total)
+        out.append(row)
+    return out
+
+def max_pool(fmap, size=2, stride=2):
+    out = []
+    for i in range(0, len(fmap) - size + 1, stride):
+        row = []
+        for j in range(0, len(fmap[0]) - size + 1, stride):
+            window = [fmap[i + a][j + b] for a in range(size) for b in range(size)]
+            row.append(max(window))
+        out.append(row)
+    return out
+
+image = [[1, 2, 3, 0],
+         [4, 5, 6, 1],
+         [7, 8, 9, 2],
+         [0, 1, 2, 3]]
+edge = [[1, 0],
+        [0, -1]]
+print("feature map:", conv2d(image, edge))
+print("pooled image:", max_pool(image))</code></pre>
+  <pre class="output">feature map: [[-4, -4, 2], [-4, -4, 4], [6, 6, 6]]
+pooled image: [[5, 6], [8, 9]]</pre>
+  <p>The output size follows a formula you should be able to recite. With input width n, kernel size k, padding p and stride s, the output width is floor((n + 2p - k) / s) + 1. A 4 by 4 input with a 2 by 2 kernel, no padding and stride 1 gives (4 + 0 - 2) / 1 + 1 = 3, which matches the 3 by 3 feature map above. Padding with zeros keeps the spatial size, and a stride of 2 halves it.</p>
+  <p>Stacking convolutions grows the <strong>receptive field</strong>, the region of the original image that influences one output. Two 3 by 3 convolutions in a row see a 5 by 5 region with fewer weights than one 5 by 5 kernel, and each layer adds non-linearity. Early layers learn edges and colours, middle layers learn textures and parts, and deep layers respond to whole objects.</p>
+
+  <h3>Transfer learning</h3>
+  <p>Training a large CNN from scratch needs millions of labelled images. <strong>Transfer learning</strong> starts from a network already trained on a large dataset, such as ImageNet, and adapts it to a new task. The usual recipe is to remove the final classification layer, freeze the early layers (they learn general edges and textures), and train a new head for the new classes. With more data, you can unfreeze some of the later layers and fine-tune them with a small learning rate. Freezing means the optimizer does not update those weights.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Early convolutional layers learn generic features that transfer across tasks. Later layers are more specific, so they are the ones to retrain first.</p></div>
+
+  <h3>Object detection: boxes and overlap</h3>
+  <p><strong>Object detection</strong> outputs a box and a class for each object. Detectors such as the YOLO and Faster R-CNN families differ in how they propose boxes, but they share two evaluation tools. The first is the <strong>intersection over union</strong> (IoU): the overlap area of two boxes divided by the area of their union. A detection usually counts as correct when its IoU with a ground-truth box is at least 0.5. The second is <strong>non-maximum suppression</strong> (NMS). A detector often produces many overlapping boxes for one object, so NMS keeps the highest-scoring box, removes every other box that overlaps it too much, and repeats for the next highest score.</p>
+  <pre class="code" data-lang="python"><code>def iou(a, b):
+    # boxes are (x1, y1, x2, y2) with x1 &lt; x2 and y1 &lt; y2
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    return inter / (area_a + area_b - inter)
+
+def nms(boxes, scores, threshold=0.5):
+    order = sorted(range(len(boxes)), key=lambda i: scores[i], reverse=True)
+    keep = []
+    for i in order:
+        if all(iou(boxes[i], boxes[j]) &lt;= threshold for j in keep):
+            keep.append(i)
+    return keep
+
+print(round(iou((0, 0, 2, 2), (1, 1, 3, 3)), 3))
+boxes = [(0, 0, 10, 10), (1, 1, 10, 10), (20, 20, 30, 30)]
+scores = [0.9, 0.8, 0.7]
+print("kept:", nms(boxes, scores))</code></pre>
+  <pre class="output">0.143
+kept: [0, 2]</pre>
+  <p>The two boxes in the example that overlap heavily share 81 of their 119 combined square units, an IoU of about 0.68, so the lower-scoring one is suppressed. The third box is far away and survives.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Mean average precision (mAP) is computed per class, then averaged over classes, at one or several IoU thresholds. Because mAP averages per-class scores, one rare class with a poor score pulls the whole number down, even when the common classes look excellent.</p></div>
+
+  <h3>Segmentation</h3>
+  <p><strong>Semantic segmentation</strong> labels every pixel with a class, such as road, car or sky, but does not separate two cars of the same class. <strong>Instance segmentation</strong> also separates individual objects, so two cars get two masks. <strong>Panoptic segmentation</strong> combines both. Segmentation networks usually follow an encoder-decoder shape. The encoder shrinks the image to capture context, and the decoder upsamples back to full resolution. <strong>Skip connections</strong> copy high-resolution features from the encoder to the decoder so that the exact boundaries survive the shrinking.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why does a segmentation network need skip connections? Pooling throws away precise location information. The decoder can rebuild the coarse shape but not the sharp edges unless it receives the early, high-resolution features directly.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="Sequences">
+  <h2>Sequence models: RNN, LSTM, GRU, attention and Transformers</h2>
+  <p>Text, speech and time series are sequences, and the order matters. A <strong>recurrent neural network</strong> (RNN) handles a sequence one step at a time and keeps a <strong>hidden state</strong> h as its memory. At each step it combines the current input with the previous hidden state: h_t = tanh(W_h h_(t-1) + W_x x_t + b). Because the same weights are reused at every step, an RNN can process sequences of any length. The code below shows the idea with single numbers so that every step can be checked by hand.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+w_h, w_x, b = 0.5, 1.0, 0.0
+inputs = [1.0, 0.0, -1.0]
+h = 0.0
+for t, x_t in enumerate(inputs, start=1):
+    h = math.tanh(w_h * h + w_x * x_t + b)
+    print(f"step {t}: x={x_t} h={h:.4f}")</code></pre>
+  <pre class="output">step 1: x=1.0 h=0.7616
+step 2: x=0.0 h=0.3634
+step 3: x=-1.0 h=-0.6741</pre>
+  <p>Each step multiplies the old memory by w_h = 0.5 and adds new information. The first input (1.0) still influences step 3, but more weakly, and the influence of step 1 halves every step. Over long sequences, gradients computed by backpropagation through time shrink in the same way, which is the vanishing gradient problem again. Long-range dependencies are therefore hard for plain RNNs.</p>
+  <p>An <strong>LSTM</strong> (long short-term memory) adds a separate <strong>cell state</strong> c that can carry information across many steps, and three <strong>gates</strong> that are sigmoids between 0 and 1. The forget gate decides how much of the old cell to keep, the input gate decides how much new information to write, and the output gate decides how much of the cell to expose as the hidden state. Because the cell is updated by addition rather than repeated squashing, gradients flow more easily. A <strong>GRU</strong> (gated recurrent unit) is a lighter version with two gates (update and reset) and no separate cell state. It is faster and often performs about as well.</p>
+
+  <h3>Attention</h3>
+  <p><strong>Attention</strong> lets each position look at all other positions directly instead of passing information step by step. For each token we compute a <strong>query</strong> (what am I looking for), a <strong>key</strong> (what do I contain) and a <strong>value</strong> (what do I hand over). The score between a query and a key is their dot product, scaled by the square root of the key dimension to stop the scores growing with dimension. A softmax turns the scores into weights that sum to 1, and the output is the weighted sum of the values. This is <strong>scaled dot-product attention</strong>: softmax(Q K transposed / square root of d) V.</p>
+  <p>The code below works through three tokens with two-dimensional vectors. Each row of the output shows the weights a token gives to all three tokens, and the blended vector it receives.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def softmax(xs):
+    m = max(xs)                                  # subtract the max for numerical stability
+    exps = [math.exp(x - m) for x in xs]
+    total = sum(exps)
+    return [e / total for e in exps]
+
+Q = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+K = [[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+V = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+d = len(Q[0])
+
+for i, q in enumerate(Q):
+    scores = [sum(qa * ka for qa, ka in zip(q, k)) / math.sqrt(d) for k in K]
+    weights = softmax(scores)
+    out = [sum(w * v[c] for w, v in zip(weights, V)) for c in range(len(V[0]))]
+    print(f"token {i}: weights={[round(w, 3) for w in weights]} output={[round(o, 3) for o in out]}")</code></pre>
+  <pre class="output">token 0: weights=[0.401, 0.198, 0.401] output=[3.0, 4.0]
+token 1: weights=[0.198, 0.401, 0.401] output=[3.407, 4.407]
+token 2: weights=[0.248, 0.248, 0.503] output=[3.51, 4.51]</pre>
+  <p>Token 0's query has a dot product of 1 with the first and third keys and 0 with the second, so those two keys get the same larger weight, 0.401 each, and the middle key gets 0.198. Its output, [3.0, 4.0], is the weighted blend 0.401 times [1, 2] plus 0.198 times [3, 4] plus 0.401 times [5, 6]. Nothing in attention itself knows about order, which is the next point.</p>
+
+  <h3>Positional encoding and the Transformer</h3>
+  <p>A <strong>Transformer</strong> has no recurrence, so it needs another way to know the order of tokens. The original design adds a <strong>positional encoding</strong> to each token embedding: sine and cosine waves of different frequencies, where position pos and dimension pair i get sin(pos / 10000 to the power 2i/d) and cos of the same angle. Each position therefore has a unique pattern, and nearby positions have similar patterns. Many modern models learn positional embeddings or use rotary variants, but the idea is the same.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def positional_encoding(pos, d_model):
+    pe = []
+    for i in range(d_model // 2):
+        angle = pos / (10000 ** (2 * i / d_model))
+        pe.append(math.sin(angle))
+        pe.append(math.cos(angle))
+    return pe
+
+for pos in range(3):
+    print(pos, [round(v, 3) for v in positional_encoding(pos, 4)])</code></pre>
+  <pre class="output">0 [0.0, 1.0, 0.0, 1.0]
+1 [0.841, 0.54, 0.01, 1.0]
+2 [0.909, -0.416, 0.02, 1.0]</pre>
+  <p>A Transformer block combines these pieces. <strong>Multi-head attention</strong> runs several attention operations in parallel, each with its own projection matrices, so different heads can track different relationships (for example, subject and verb, or a pronoun and its noun). The heads are concatenated and projected back. A <strong>feed-forward network</strong> then processes each position separately. Each sub-layer is wrapped in a <strong>residual connection</strong> (adding its input back) followed by <strong>layer normalization</strong>, which keeps the scale of activations stable. The <strong>encoder</strong> stacks such blocks over the whole input. The <strong>decoder</strong> adds <em>masked</em> self-attention, so a position cannot see future tokens during generation, and cross-attention over the encoder output. Encoder-only models such as BERT and decoder-only models such as GPT-style language models are both built from these blocks.</p>
+  <p>The cost of full attention grows with the square of the sequence length, because every token scores every other token. That quadratic cost is the reason long-context models need special tricks, a topic that returns on day 39 with the KV cache.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Saying that a Transformer "remembers" the sequence like an RNN. It has no hidden state carried step by step. It sees all positions at once, and the order comes only from the positional encoding.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why divide the dot product by the square root of the key dimension? For large dimensions the dot products have large variance, which pushes the softmax into a region where almost all weight goes to one key and gradients nearly vanish. Scaling keeps the scores in a comfortable range.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="Generative">
+  <h2>Generative models: VAE, GAN and diffusion</h2>
+  <p>A <strong>generative model</strong> learns the distribution of the training data so that it can produce new samples that look like it. Three families matter in interviews. They differ in how they learn, and each has characteristic strengths and failure modes.</p>
+
+  <h3>Variational autoencoders (VAE)</h3>
+  <p>An <strong>autoencoder</strong> squeezes an input through a narrow bottleneck and reconstructs it. A <strong>variational autoencoder</strong> makes the bottleneck probabilistic. The encoder outputs a mean mu and a standard deviation sigma for each latent dimension, and a latent code z is sampled from that Gaussian. Sampling directly would block gradients, so the <strong>reparameterization trick</strong> writes z = mu + sigma times eps, where eps is standard normal noise. The randomness now lives in eps, and gradients can flow through mu and sigma.</p>
+  <p>The training objective is the <strong>evidence lower bound</strong> (ELBO), which has two terms. The <em>reconstruction term</em> rewards outputs that match the input. The <em>KL divergence</em> term pulls each latent Gaussian toward a standard normal N(0, 1). The pull keeps the latent space smooth and full, so that random samples from N(0, 1) decode to plausible outputs. For one dimension, the KL term has the closed form -0.5 (1 + log sigma squared - mu squared - sigma squared).</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def kl_to_standard_normal(mu, sigma):
+    # closed form for one latent dimension: KL(N(mu, sigma squared) || N(0, 1))
+    return -0.5 * (1 + math.log(sigma ** 2) - mu ** 2 - sigma ** 2)
+
+print(round(kl_to_standard_normal(0.0, 0.5), 4))
+print(round(kl_to_standard_normal(0.5, 0.8), 4))</code></pre>
+  <pre class="output">0.3181
+0.1681</pre>
+  <p>The first line is a Gaussian with the right mean but too narrow a spread, so it pays a penalty. The second is shifted and slightly narrow, so it pays a smaller one. A perfect match, mu = 0 and sigma = 1, would give exactly zero.</p>
+  <div class="note trap"><p><span class="t">Trap</span>VAE samples are often blurry. The reconstruction loss averages over many plausible outputs, which favours smooth averages. A VAE is good for structured latent spaces and interpolation, not for the sharpest images.</p></div>
+
+  <h3>Generative adversarial networks (GAN)</h3>
+  <p>A <strong>GAN</strong> trains two networks against each other. The <strong>generator</strong> turns random noise into fake samples. The <strong>discriminator</strong> tries to tell real samples from fake ones and outputs D(x), the probability that x is real. The discriminator is trained to push D toward 1 on real data and toward 0 on fakes. The generator is trained to fool it. The loss values below show the two sides with one example each. In practice, the generator usually minimizes -log D(G(z)) (the non-saturating loss), which gives strong gradients early in training when the discriminator easily wins.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+d_real = 0.9   # discriminator's probability that a real image is real
+d_fake = 0.2   # discriminator's probability that a generated image is real
+
+d_loss = -math.log(d_real) - math.log(1 - d_fake)
+g_loss = -math.log(d_fake)
+print(f"discriminator loss={d_loss:.4f}")
+print(f"generator loss={g_loss:.4f}")</code></pre>
+  <pre class="output">discriminator loss=0.3285
+generator loss=1.6094</pre>
+  <p>GANs can produce very sharp images, but training is unstable. The two networks may oscillate instead of converging, and the generator may collapse onto a few outputs that fool the discriminator, a failure called <strong>mode collapse</strong>. Remedies include careful architectures, label smoothing, and a gradient penalty (as in WGAN-GP), but none removes the balancing problem entirely.</p>
+
+  <h3>Diffusion models</h3>
+  <p>A <strong>diffusion model</strong> learns to reverse a gradual noising process. The forward process adds a little Gaussian noise at each of many small steps until the data becomes pure noise. A closed form lets us jump straight to any step t: x_t = square root of alpha-bar_t times x_0 plus square root of (1 - alpha-bar_t) times noise, where alpha-bar_t is the product of (1 - beta) over the steps so far, and beta is the schedule of noise amounts. The network is trained to predict the noise that was added, given the noisy image and the step. Generation starts from pure noise and removes a little predicted noise at each step, which gradually reveals an image. Diffusion models are slower to sample than GANs, but they train stably and cover the data distribution well, which is why they dominate image generation.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+betas = [0.1, 0.2, 0.3]     # noise added at each step (real schedules use hundreds of steps)
+alpha_bar = 1.0
+x0 = 2.0                    # the clean value
+noise = 1.0                 # one fixed sample of standard normal noise
+for t, beta in enumerate(betas, start=1):
+    alpha_bar *= (1 - beta)
+    x_t = math.sqrt(alpha_bar) * x0 + math.sqrt(1 - alpha_bar) * noise
+    print(f"t={t}: alpha_bar={alpha_bar:.3f} x_t={x_t:.3f}")</code></pre>
+  <pre class="output">t=1: alpha_bar=0.900 x_t=2.214
+t=2: alpha_bar=0.720 x_t=2.226
+t=3: alpha_bar=0.504 x_t=2.124</pre>
+</section>
+
+<section class="unit" id="c6" data-title="PyTorch">
+  <h2>Writing a PyTorch training loop</h2>
+  <p><strong>PyTorch</strong> is the most common deep learning framework. Its core object is the <strong>tensor</strong>, an array that can live on a GPU and records the operations applied to it, so that <code>loss.backward()</code> can compute every gradient automatically. A model is a class derived from <code>nn.Module</code> with learnable layers. A training loop repeats the same five steps for every mini-batch: forward pass, loss, clear old gradients, backward pass, optimizer step. This code uses PyTorch, which is not part of this lesson's runner, so it has no output block. Read it for the order of the steps.</p>
+  <pre class="code" data-lang="python"><code>import torch
+import torch.nn as nn
+
+model = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(28 * 28, 128),
+    nn.ReLU(),
+    nn.Dropout(0.2),
+    nn.Linear(128, 10),
+)
+loss_fn = nn.CrossEntropyLoss()                 # applies softmax internally, takes raw logits
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+
+def train_one_epoch(loader):
+    model.train()                               # dropout and batch norm use training behaviour
+    total = 0.0
+    for images, labels in loader:
+        logits = model(images)                  # 1. forward pass
+        loss = loss_fn(logits, labels)          # 2. compute the loss
+        optimizer.zero_grad()                   # 3. clear gradients from the previous step
+        loss.backward()                         # 4. backpropagate
+        optimizer.step()                        # 5. update the weights
+        total += loss.item()
+    return total / len(loader)
+
+def evaluate(loader):
+    model.eval()                                # dropout off, batch norm uses running statistics
+    correct = 0
+    with torch.no_grad():                       # no gradients needed when only measuring
+        for images, labels in loader:
+            preds = model(images).argmax(dim=1)
+            correct += (preds == labels).sum().item()
+    return correct / len(loader.dataset)</code></pre>
+  <p>Three details cause most beginner bugs. First, <code>zero_grad</code> is needed because PyTorch accumulates gradients by default, so skipping it adds old gradients to new ones. Second, <code>nn.CrossEntropyLoss</code> expects raw scores (logits), so the model should not end with a softmax when you use it. Third, <code>model.eval()</code> and <code>torch.no_grad()</code> are separate ideas: eval mode changes layer behaviour, while no_grad saves memory and time by not building the graph.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Every training loop is the same five steps. Learn the order once and you can read any framework's code.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What happens if you forget optimizer.zero_grad()? The gradients from every previous batch add up, so each update uses the wrong direction and training usually diverges or stalls.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before opening it. Name the mechanism, give one example, and state the trade-off.</p>
+  <details class="check"><summary>What does backpropagation compute, and why is it efficient?</summary><div class="ans"><p>It computes the gradient of the loss with respect to every weight by applying the chain rule from the output back to the input. Intermediate results from the forward pass are reused, so all gradients come from one backward sweep, at a cost similar to a small constant multiple of the forward pass.</p></div></details>
+  <details class="check"><summary>Why do we need non-linear activation functions?</summary><div class="ans"><p>Without them, a stack of linear layers is equivalent to a single linear layer, so the network could not represent curved boundaries or complex functions. Non-linearities such as ReLU let depth add expressive power.</p></div></details>
+  <details class="check"><summary>What is the vanishing gradient problem, and how do we reduce it?</summary><div class="ans"><p>In deep or recurrent networks, repeated multiplication of small derivatives (for example sigmoid derivatives, at most 0.25) makes gradients tiny in early layers, so they barely learn. Remedies include ReLU activations, careful initialization, residual connections, batch normalization, and gated units such as LSTM.</p></div></details>
+  <details class="check"><summary>Adam or SGD with momentum: when would you choose each?</summary><div class="ans"><p>Adam is a strong default with little tuning, especially for transformers and sparse gradients. SGD with momentum often reaches slightly better final accuracy on image classification when its learning rate schedule is tuned carefully. Either way, tune the learning rate first.</p></div></details>
+  <details class="check"><summary>What is the difference between dropout and weight decay?</summary><div class="ans"><p>Dropout randomly zeroes activations during training so no unit can be relied on alone. Weight decay adds a penalty on the size of the weights, shrinking them each step. Dropout acts on activations and is switched off at test time; weight decay acts on parameters throughout.</p></div></details>
+  <details class="check"><summary>Why does a CNN use small kernels with weight sharing?</summary><div class="ans"><p>Local connectivity matches the fact that nearby pixels are related, and sharing one kernel across positions makes the detector translation-equivariant with far fewer parameters than a fully connected layer. Stacking small kernels still grows the receptive field.</p></div></details>
+  <details class="check"><summary>What does intersection over union measure, and how does NMS use it?</summary><div class="ans"><p>IoU is the overlap area of two boxes divided by the area of their union. NMS keeps the highest-scoring box and removes the other boxes whose IoU with it exceeds a threshold, so each object is reported once.</p></div></details>
+  <details class="check"><summary>Why do Transformers need positional encodings?</summary><div class="ans"><p>Self-attention treats its input as a set: permuting the tokens permutes the outputs in the same way, so it has no built-in sense of order. Positional encodings add position information to each token embedding.</p></div></details>
+  <details class="check"><summary>What is the reparameterization trick in a VAE?</summary><div class="ans"><p>Instead of sampling z from N(mu, sigma squared) directly, which blocks gradients, the model computes z = mu + sigma times eps with eps drawn from N(0, 1). The randomness is moved into a fixed input, so gradients flow through mu and sigma.</p></div></details>
+  <details class="check"><summary>What is mode collapse in a GAN?</summary><div class="ans"><p>The generator produces only a few kinds of output (or one), because those outputs fool the current discriminator. Diversity is lost. It is a sign that the two networks are unbalanced or that the training dynamics have failed.</p></div></details>
+  <details class="check"><summary>How does a diffusion model generate an image?</summary><div class="ans"><p>It starts from pure noise and repeatedly applies a learned denoiser, which predicts the noise that was added at that step and removes part of it. After many steps, a clean image remains. Training teaches the network to predict added noise at random steps of the forward process.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: revisit the weakest patterns</h2>
+  <p>Today is a review day. The DSA slot targets the patterns that learners most often get wrong, which are usually the ones where the reasoning is subtle rather than the code. Three of them recur in interviews. <strong>Binary search</strong> is more than finding a value in a sorted list. It is a way to keep a shrinking range that always contains the answer. <strong>Heaps</strong> give the k-th smallest or largest element without sorting everything. <strong>Breadth-first search</strong> finds the fewest moves in an unweighted graph, and it must remember visited states, or it loops forever.</p>
+  <p>For binary search, the reliable habit is to state an invariant. Decide what the range [lo, hi] always contains, and make each update keep that statement true. The loop <code>while lo &lt; hi</code> then ends with lo = hi, which is the answer. Use <code>hi = mid</code> when mid itself might be the answer, and <code>lo = mid + 1</code> when mid is definitely not.</p>
+  <div class="note key"><p><span class="t">Pattern to remember</span>When a sorted or partly sorted array must be searched for a position, keep the answer inside [lo, hi] at every step. When the goal is the fewest moves through states, use BFS with a visited set.</p></div>
+
+  <h3>Problem 1: Find Minimum in Rotated Sorted Array (LeetCode 153)</h3>
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/">
+    <h3>Find Minimum in Rotated Sorted Array (LeetCode 153)</h3>
+    <div class="statement"><p>An array sorted in ascending order with distinct values was rotated between 1 and n times, so [0, 1, 2, 4, 5, 6, 7] might become [4, 5, 6, 7, 0, 1, 2]. Return the minimum element in O(log n) time. For [3, 4, 5, 1, 2] the answer is 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The rotation point is the minimum. The array is sorted on each side of it. Values are distinct, which keeps the reasoning simple.</li>
+      <li><strong>Brute force.</strong> Scan every element and keep the smallest. That is O(n) and ignores the sorted structure.</li>
+      <li><strong>Find the waste.</strong> The sorted structure tells us where the minimum is. Compare the middle with the rightmost element. If the middle is greater than the right end, the drop (and so the minimum) lies to the right of the middle. Otherwise the middle could itself be the minimum, or it lies on the left part.</li>
+      <li><strong>Optimise.</strong> Binary search with the invariant that the minimum is always inside [lo, hi]. When nums[mid] &gt; nums[hi], set lo = mid + 1. Otherwise set hi = mid, keeping mid. The loop stops with lo = hi on the minimum.</li>
+      <li><strong>Dry run.</strong> Trace [4, 5, 6, 7, 0, 1, 2] in the table below.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def find_min(nums):
+    lo, hi = 0, len(nums) - 1
+    while lo &lt; hi:
+        mid = (lo + hi) // 2
+        if nums[mid] &gt; nums[hi]:
+            lo = mid + 1          # the minimum is strictly to the right of mid
+        else:
+            hi = mid              # mid might be the minimum, so keep it in range
+    return nums[lo]
+
+print(find_min([3, 4, 5, 1, 2]))
+print(find_min([4, 5, 6, 7, 0, 1, 2]))
+print(find_min([11, 13, 15, 17]))</code></pre>
+    <pre class="output">1
+0
+11</pre>
+    <p class="cx">Time O(log n) · Space O(1)</p>
+    <p>Dry run on [4, 5, 6, 7, 0, 1, 2]. The right end is 2 throughout.</p>
+    <div class="tablewrap"><table><thead><tr><th>lo</th><th>hi</th><th>mid</th><th>nums[mid]</th><th>Compare with nums[hi]=2</th><th>Update</th></tr></thead><tbody><tr><td>0</td><td>6</td><td>3</td><td>7</td><td>7 &gt; 2, so the drop is to the right</td><td>lo = 4</td></tr><tr><td>4</td><td>6</td><td>5</td><td>1</td><td>1 is not greater than 2</td><td>hi = 5</td></tr><tr><td>4</td><td>5</td><td>4</td><td>0</td><td>0 is not greater than 1</td><td>hi = 4</td></tr></tbody></table></div>
+    <p>The range is now [4, 4] and the answer is nums[4] = 0.</p>
+    <div class="note trap"><p><span class="t">Trap</span>Using <code>nums[mid] &gt; nums[lo]</code> instead. With duplicates it cannot tell which side holds the drop. This version is correct for distinct values, and the duplicate variant (LeetCode 154) needs an extra step.</p></div>
+  </article>
+
+  <h3>Problem 2: Kth Smallest Element in a Sorted Matrix (LeetCode 378)</h3>
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/kth-smallest-element-in-a-sorted-matrix/">
+    <h3>Kth Smallest Element in a Sorted Matrix (LeetCode 378)</h3>
+    <div class="statement"><p>Given an n by n matrix whose rows and columns are each sorted in ascending order, return the k-th smallest value counted with repetition. For the matrix [[1, 5, 9], [10, 11, 13], [12, 13, 15]] the 8th smallest value is 13, because the sorted values are 1, 5, 9, 10, 11, 12, 13, 13, 15.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Only the k-th value is needed, not the whole order. Repeats count separately.</li>
+      <li><strong>Brute force.</strong> Flatten the matrix, sort it, and read index k - 1. That is O(n^2 log n) time and O(n^2) space.</li>
+      <li><strong>Find the waste.</strong> Sorting everything is more than we need. Each row is already sorted, so the candidates for the next smallest value are the heads of the rows.</li>
+      <li><strong>Optimise.</strong> Put the first element of each row into a min-heap. Pop the smallest, and push the element to its right in the same row. Each pop gives the next smallest value in order, so after k pops we have the answer. This is the same idea as merging sorted lists. The cost is O(k log n) for the pops after an O(n) heap start.</li>
+      <li><strong>Dry run.</strong> The heap holds (value, row, column) triples. Pop 1 gives 1 from row 0, which pushes 5. Pops then give 5, 9, 10, 11, 12, 13, and the 8th pop gives 13.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+
+def kth_smallest(matrix, k):
+    n = len(matrix)
+    # heap entries are (value, row, column); start with the first element of each row
+    heap = [(matrix[r][0], r, 0) for r in range(min(n, k))]
+    heapq.heapify(heap)
+    value = None
+    for _ in range(k):
+        value, r, c = heapq.heappop(heap)
+        if c + 1 &lt; n:
+            heapq.heappush(heap, (matrix[r][c + 1], r, c + 1))
+    return value
+
+matrix = [[1, 5, 9],
+          [10, 11, 13],
+          [12, 13, 15]]
+print(kth_smallest(matrix, 8))
+print(kth_smallest(matrix, 1))
+print(kth_smallest(matrix, 9))</code></pre>
+    <pre class="output">13
+1
+15</pre>
+    <p class="cx">Time O(n + k log n) · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting that the heap only needs min(n, k) starting rows. Pushing all n rows is still correct, but it wastes effort. Also, do not return the value of the last pushed element; return the value of the k-th pop.</p></div>
+  </article>
+
+  <h3>Problem 3: Sliding Puzzle (LeetCode 773)</h3>
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/sliding-puzzle/">
+    <h3>Sliding Puzzle (LeetCode 773)</h3>
+    <div class="statement"><p>A 2 by 3 board holds the tiles 1 to 5 and an empty square written as 0. A move slides a tile that is next to the empty square into it. Return the fewest moves needed to reach the solved board [[1, 2, 3], [4, 5, 0]], or -1 if it is impossible. The board [[1, 2, 3], [4, 0, 5]] needs 1 move. The board [[1, 2, 3], [5, 4, 0]] can never be solved, so the answer is -1. The board [[4, 1, 2], [5, 0, 3]] needs 5 moves.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each board is a state, and each move is an edge to a neighbouring state. We need the shortest path in an unweighted graph from the start state to the goal state. Some states are unreachable.</li>
+      <li><strong>Brute force.</strong> A depth-first search over all move sequences. Without a visited set it cycles forever, because sliding a tile back and forth returns to the same board. Even with a visited set, depth-first search does not guarantee the fewest moves.</li>
+      <li><strong>Find the waste.</strong> The same boards appear again through different move orders. There are only 6 factorial, or 720, possible arrangements of six symbols, so the state space is small.</li>
+      <li><strong>Optimise.</strong> Use breadth-first search over states. Store each board as a string of six characters, and keep a set of visited strings. BFS explores all boards one move away before any two moves away, so the first time it reaches the goal, the move count is the minimum. The neighbours of the empty square depend only on its position, so a fixed adjacency table gives the moves.</li>
+      <li><strong>Dry run.</strong> For [[1, 2, 3], [4, 0, 5]] the string is "123405". The empty square is at index 4, whose neighbours are indices 1, 3 and 5. Sliding the 5 at index 5 into index 4 gives "123450", which is the goal after one step.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+def sliding_puzzle(board):
+    start = "".join(str(x) for row in board for x in row)
+    goal = "123450"
+    # neighbours of each index in the 2 by 3 board, read row by row
+    adj = {0: [1, 3], 1: [0, 2, 4], 2: [1, 5], 3: [0, 4], 4: [1, 3, 5], 5: [2, 4]}
+    queue = deque([(start, 0)])
+    seen = {start}
+    while queue:
+        state, moves = queue.popleft()
+        if state == goal:
+            return moves
+        zero = state.index("0")
+        for nxt in adj[zero]:
+            chars = list(state)
+            chars[zero], chars[nxt] = chars[nxt], chars[zero]   # slide a tile into the gap
+            new_state = "".join(chars)
+            if new_state not in seen:
+                seen.add(new_state)
+                queue.append((new_state, moves + 1))
+    return -1
+
+print(sliding_puzzle([[1, 2, 3], [4, 0, 5]]))
+print(sliding_puzzle([[1, 2, 3], [5, 4, 0]]))
+print(sliding_puzzle([[4, 1, 2], [5, 0, 3]]))</code></pre>
+    <pre class="output">1
+-1
+5</pre>
+    <p class="cx">Time O(720 x 6) in the worst case for this board size · Space O(720)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Fewest moves in an unweighted graph means BFS. Turn the problem state into a hashable value (here a string), store visited states, and stop at the first time the goal is dequeued.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Marking a state as visited when it is enqueued, not when it is dequeued, is the standard BFS habit, and it is what the code does. Marking on dequeue can enqueue the same state several times and waste memory.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read these one-line definitions aloud until each one can be explained with an example.</p>
+  <dl>
+    <div><dt>Neuron</dt><dd>A weighted sum of inputs plus a bias, passed through an activation function.</dd></div>
+    <div><dt>Activation function</dt><dd>A non-linear function such as sigmoid, tanh or ReLU applied to a neuron's sum.</dd></div>
+    <div><dt>Backpropagation</dt><dd>Applying the chain rule from the loss back through the network to get every gradient.</dd></div>
+    <div><dt>Gradient checking</dt><dd>Comparing an analytic gradient with a numerical estimate from a tiny change in one weight.</dd></div>
+    <div><dt>Vanishing gradient</dt><dd>Gradients that shrink toward zero through many layers, so early layers barely learn.</dd></div>
+    <div><dt>Symmetry problem</dt><dd>Identical starting weights make neurons compute and learn the same thing.</dd></div>
+    <div><dt>Momentum</dt><dd>An optimizer that accumulates a velocity from past gradients to speed up consistent directions.</dd></div>
+    <div><dt>Adam</dt><dd>An optimizer that scales each step by running averages of the gradient and its square.</dd></div>
+    <div><dt>Mini-batch</dt><dd>A small random subset of the data used for one gradient estimate.</dd></div>
+    <div><dt>Dropout</dt><dd>Randomly zeroing activations during training to reduce reliance on any one unit.</dd></div>
+    <div><dt>Batch normalization</dt><dd>Standardizing each feature over a mini-batch, then applying a learned scale and shift.</dd></div>
+    <div><dt>Weight decay</dt><dd>A penalty on the squared size of the weights that shrinks them at each step.</dd></div>
+    <div><dt>Early stopping</dt><dd>Halting training when validation loss stops improving and keeping the best weights.</dd></div>
+    <div><dt>Convolution</dt><dd>Sliding a small kernel over the input and summing the products at each position.</dd></div>
+    <div><dt>Feature map</dt><dd>The output grid produced by applying one kernel across an image.</dd></div>
+    <div><dt>Pooling</dt><dd>Taking the maximum or average over small windows to shrink a feature map.</dd></div>
+    <div><dt>Receptive field</dt><dd>The region of the original input that influences one output value.</dd></div>
+    <div><dt>Transfer learning</dt><dd>Reusing a pretrained network, freezing early layers and training a new head.</dd></div>
+    <div><dt>Intersection over union</dt><dd>Overlap area of two boxes divided by the area of their union.</dd></div>
+    <div><dt>Non-maximum suppression</dt><dd>Keeping the highest-scoring box for each object and removing overlapping duplicates.</dd></div>
+    <div><dt>Semantic vs instance segmentation</dt><dd>Labelling pixels by class, versus also separating each object.</dd></div>
+    <div><dt>Skip connection</dt><dd>A direct link that carries early features forward to restore fine detail.</dd></div>
+    <div><dt>RNN</dt><dd>A network that updates a hidden state one step at a time with shared weights.</dd></div>
+    <div><dt>LSTM and GRU</dt><dd>Gated recurrent cells that control what to keep and what to write, easing long-range learning.</dd></div>
+    <div><dt>Attention</dt><dd>Weights each value by the match between a query and a key, then sums the values.</dd></div>
+    <div><dt>Scaled dot-product attention</dt><dd>softmax(Q K transposed divided by the square root of d) times V.</dd></div>
+    <div><dt>Positional encoding</dt><dd>Sine and cosine patterns added to embeddings so the model knows token order.</dd></div>
+    <div><dt>Residual connection</dt><dd>Adding a sub-layer's input back to its output, which keeps gradients flowing.</dd></div>
+    <div><dt>Autoencoder and VAE</dt><dd>Encoder and decoder through a bottleneck; a VAE samples a latent Gaussian and adds a KL term.</dd></div>
+    <div><dt>Reparameterization trick</dt><dd>Writing a sample as mu plus sigma times noise so gradients can flow.</dd></div>
+    <div><dt>GAN</dt><dd>A generator and discriminator trained against each other.</dd></div>
+    <div><dt>Mode collapse</dt><dd>A GAN generator producing only a few kinds of output.</dd></div>
+    <div><dt>Diffusion model</dt><dd>A network trained to predict the noise removed from a sample, used to denoise from pure noise.</dd></div>
+    <div><dt>Binary search invariant</dt><dd>A statement that the answer always stays inside the current range [lo, hi].</dd></div>
+    <div><dt>Min-heap</dt><dd>A structure that returns the smallest stored item in logarithmic time.</dd></div>
+    <div><dt>BFS</dt><dd>Breadth-first search, which finds the fewest edges in an unweighted graph.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td>math.tanh</td><td>Hyperbolic tangent, squashes to (-1, 1)</td><td><code>math.tanh(0)</code> gives 0.0</td></tr>
+    <tr><td>math.exp</td><td>e raised to a power, used in sigmoid and softmax</td><td><code>math.exp(1)</code> gives 2.718...</td></tr>
+    <tr><td>math.sqrt</td><td>Square root, used for scaling and standard deviations</td><td><code>math.sqrt(4)</code> gives 2.0</td></tr>
+    <tr><td>max and min with key</td><td>Largest or smallest item, optionally by a key</td><td><code>max([1, 5, 3], key=lambda v: -v)</code> gives 1</td></tr>
+    <tr><td>sorted with reverse</td><td>Sorts a copy, optionally descending</td><td><code>sorted([2, 9, 4], reverse=True)</code> gives [9, 4, 2]</td></tr>
+    <tr><td>enumerate with start</td><td>Pairs each item with an index</td><td><code>list(enumerate("ab", start=1))</code> gives [(1, 'a'), (2, 'b')]</td></tr>
+    <tr><td>collections.deque</td><td>Double-ended queue with O(1) pops from the left</td><td><code>q = deque([1]); q.popleft()</code> gives 1</td></tr>
+    <tr><td>heapq.heapify and heappush and heappop</td><td>Build a min-heap, add an item, remove the smallest</td><td><code>heapq.heappop(h)</code> returns the smallest item</td></tr>
+    <tr><td>itertools.permutations</td><td>All orderings of the items</td><td><code>len(list(permutations("abc")))</code> gives 6</td></tr>
+    <tr><td>functools.lru_cache</td><td>Caches a function's results (memoization)</td><td><code>@lru_cache(maxsize=None)</code> above a recursive function</td></tr>
+    <tr><td>str.index</td><td>Position of the first occurrence of a character</td><td><code>"123405".index("0")</code> gives 4</td></tr>
+    <tr><td>torch.nn.Linear</td><td>Fully connected layer with weights and bias (PyTorch)</td><td><code>nn.Linear(784, 128)</code></td></tr>
+    <tr><td>model.train and model.eval</td><td>Switch dropout and batch norm between training and inference behaviour</td><td><code>model.eval()</code> before measuring accuracy</td></tr>
+    <tr><td>torch.no_grad</td><td>Disables gradient tracking inside a block</td><td><code>with torch.no_grad(): preds = model(x)</code></td></tr>
+    <tr><td>optimizer.zero_grad and backward and step</td><td>Clear gradients, compute them, then update weights (PyTorch)</td><td><code>loss.backward(); optimizer.step()</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 38?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 38 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-37.html"><small>Previous, day 37</small>Machine learning + Explainable AI</a><a class="next" href="day-39.html"><small>Next, day 39</small>Generative AI, NLP, LLMs, RAG, LLM security</a></nav>
+</main><script src="assets/app.js"></script></body></html>

@@ -1,0 +1,931 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 22: Backend engineering + Flask</title><meta name="description" content="Today follows one web request from the moment it reaches your server to the moment the response leaves it, then covers the parts every backend needs: data access, safe passwords, sessions and tokens, background work, and operations. The last unit builds a real Flask app. Interviewers care less about tool names and more about whether you can explain the trade-offs clearly."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="22" data-key="22" data-noun="day" data-num="22" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Backend engineering + Flask</h1>
+<p class="lede">Today follows one web request from the moment it reaches your server to the moment the response leaves it, then covers the parts every backend needs: data access, safe passwords, sessions and tokens, background work, and operations. The last unit builds a real Flask app. Interviewers care less about tool names and more about whether you can explain the trade-offs clearly.</p>
+<div class="station"><b>22</b><span>Mon 23 Nov 2026 · Web · DSA: Greedy</span></div>
+<ul class="topics"><li>Request lifecycle and layered architecture</li><li>ORMs, the N+1 problem, migrations, Redis caching</li><li>Password hashing, sessions vs JWT, refresh tokens, RBAC</li><li>Background jobs, retries, idempotency, WebSockets, S3 presigned uploads</li><li>Logging, health checks, twelve-factor app</li><li>Flask: app factory, blueprints, Jinja, WSGI vs ASGI</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Request lifecycle">
+  <h2>How a request travels through a backend</h2>
+  <p>A <strong>backend</strong> is the part of an application that runs on a server, away from the user's browser or phone. It receives requests, decides what to do, reads or writes data, and sends back a response. Almost every backend interview starts from the same picture, so learn it first.</p>
+
+  <h3>The request lifecycle, step by step</h3>
+  <p>A <strong>request</strong> is a message from a client (a browser, a mobile app, another service) asking for something, for example <code>GET /api/users/42</code>. A <strong>response</strong> is the message that comes back, usually with a status code such as <code>200 OK</code> or <code>404 Not Found</code>. Between the two, a typical request passes through these stages:</p>
+  <ol>
+    <li><strong>Network and proxy.</strong> The request reaches a reverse proxy or load balancer (for example nginx or a cloud load balancer). It may terminate TLS (the HTTPS encryption), enforce limits, and pick one of several identical app servers.</li>
+    <li><strong>Application server.</strong> A process such as gunicorn (Python) or Node.js parses the raw bytes into a request object and hands it to your framework.</li>
+    <li><strong>Middleware.</strong> Small functions that run before the handler, one after another. Typical jobs: parse JSON, check the session cookie, log the request, add CORS headers. Middleware can stop a request early, for example returning <code>401 Unauthorized</code> when there is no valid login.</li>
+    <li><strong>Routing.</strong> The framework matches the method and path (<code>GET</code> and <code>/api/users/42</code>) to one handler function, and extracts path variables such as <code>42</code>.</li>
+    <li><strong>Handler (controller).</strong> The function validates the input, calls the business logic, and builds the result.</li>
+    <li><strong>Data access.</strong> The handler asks the database or a cache for data. This is often the slowest step, so most performance work happens here.</li>
+    <li><strong>Serialisation and response.</strong> The result (a Python dict, a Java object) is turned into text, usually JSON, and given headers such as <code>Content-Type: application/json</code>.</li>
+    <li><strong>Logging and clean-up.</strong> The request is logged with its status and duration, and per-request resources such as database connections are released.</li>
+  </ol>
+  <p>If you can narrate these eight steps for any framework, you can answer most "what happens when a request arrives" questions.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The handler should be the thin middle of the request. Parsing, auth and logging happen around it, and storage happens below it.</p></div>
+
+  <h3>Layered architecture and MVC</h3>
+  <p><strong>MVC</strong> stands for Model, View, Controller. The <em>model</em> holds data and the rules about it, the <em>view</em> renders output (an HTML page or a JSON document), and the <em>controller</em> receives the request, asks the model for data, and picks the view. MVC is mostly about separating presentation from data. Web frameworks such as Django, Rails and Spring MVC all use some version of it.</p>
+  <p><strong>Layered architecture</strong> goes one step further and splits the backend into horizontal layers, each one talking only to the layer directly below it:</p>
+  <ul>
+    <li><strong>Presentation (routes and controllers).</strong> Parses HTTP input, checks the shape of the data, returns HTTP output.</li>
+    <li><strong>Service (business logic).</strong> Rules such as "a user cannot place an order above their credit limit". It knows nothing about HTTP, so the same rule can be called from a web route, a background job or a test.</li>
+    <li><strong>Repository or data access.</strong> The only code that writes SQL or calls the ORM. If the team later changes databases, only this layer changes.</li>
+  </ul>
+  <p>A common mistake is a route that contains SQL, pricing rules and email sending all at once. It works on day one and becomes hard to test by month three.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Putting business rules inside route handlers. Move the rule into a service function that takes plain arguments and returns plain values, then call that function from the route.</p></div>
+
+  <h3>Express and Spring Boot in one minute each</h3>
+  <p><strong>Express</strong> is a minimal web framework for Node.js (JavaScript on the server). Its central idea is <em>middleware</em>: <code>app.use</code> adds a step that runs for every request, and <code>app.get</code> adds a route. Each handler receives a request object and a response object and must send exactly one response.</p>
+  <pre class="code" data-lang="javascript"><code>const express = require("express");
+
+const app = express();
+app.use(express.json());                 // middleware: parse JSON request bodies
+
+app.get("/health", (req, res) => {       // route: GET /health
+  res.json({ status: "ok" });            // send a JSON response with status 200
+});
+
+app.listen(3000, () => console.log("listening on 3000"));</code></pre>
+  <p><strong>Spring Boot</strong> is a Java framework. It uses <em>dependency injection</em>, which means a class declares what it needs (for example a repository) and the framework creates and passes those objects in, instead of the class building them itself. Annotations describe roles: <code>@RestController</code> marks a class that handles web requests, <code>@GetMapping</code> maps a method to a path, and <code>@Service</code> and <code>@Repository</code> mark the business and data layers.</p>
+  <pre class="code" data-lang="java"><code>import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class HealthController {
+
+    @GetMapping("/health")
+    public String health() {
+        return "ok";
+    }
+}</code></pre>
+  <p>Both examples are shown without printed output because they need a running server to produce any. In an interview you do not need to memorise their syntax. You need to say that both use middleware or annotations to plug code into the request lifecycle, and that both support the layered style above.</p>
+
+  <details class="check"><summary>What are the main stages of a request in a typical backend?</summary><div class="ans"><p>The request reaches a reverse proxy or load balancer, then an application server, then middleware (parsing, auth, logging), then routing to a handler. The handler calls the service layer and the data layer, the result is serialised into a response, and the request is logged before the response is sent.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Data and caching">
+  <h2>Data access: ORMs, migrations and caching</h2>
+  <p>Most backend bugs and slow endpoints come from data access. This unit covers three ideas that interviewers ask about constantly: the ORM and the N+1 problem, migrations that change a live schema safely, and caching with Redis.</p>
+
+  <h3>ORMs and the N+1 problem</h3>
+  <p>An <strong>ORM</strong> (object-relational mapper) lets you work with database rows as objects. SQLAlchemy (Python), Django ORM (Python), Hibernate or JPA (Java) and Prisma or Sequelize (JavaScript) are common examples. The ORM writes the SQL for you, which saves time but hides the number of queries it runs.</p>
+  <p>The <strong>N+1 problem</strong> is the most common ORM performance bug. Suppose you want every author and their books. The naive code does this:</p>
+  <ol>
+    <li>Run one query to get the N authors.</li>
+    <li>For each author, run one more query to get that author's books.</li>
+  </ol>
+  <p>That is 1 + N queries, which is why it is called N+1. With 1,000 authors you send 1,001 round trips to the database, and each round trip costs network time. The fix is to fetch everything in one query (a <code>JOIN</code>) or in two queries (one for authors, one for all their books using <code>IN</code>). ORMs provide this as <em>eager loading</em>. SQLAlchemy has <code>joinedload</code> and <code>selectinload</code>. Django has <code>select_related</code> (for single-valued relations, using a JOIN) and <code>prefetch_related</code> (for many-valued relations, using a second query).</p>
+  <p>The program below uses Python's built-in <code>sqlite3</code> module so you can count the queries directly. It builds a small database in memory, runs the N+1 pattern, then runs one JOIN. A <code>LEFT JOIN</code> keeps authors who have no books; an ordinary <code>JOIN</code> would drop them.</p>
+  <pre class="code" data-lang="python"><code>import sqlite3
+
+db = sqlite3.connect(":memory:")          # a database that lives only in RAM
+db.executescript("""
+CREATE TABLE author (id INTEGER PRIMARY KEY, name TEXT);
+CREATE TABLE book (id INTEGER PRIMARY KEY, author_id INTEGER, title TEXT);
+INSERT INTO author VALUES (1, 'Ada'), (2, 'Brian'), (3, 'Chen');
+INSERT INTO book VALUES (1, 1, 'Notes'), (2, 2, 'Compilers'), (3, 3, 'Networks'), (4, 1, 'Proofs');
+""")
+
+query_count = 0
+
+def run(sql, params=()):
+    """Run one SQL statement and count it."""
+    global query_count
+    query_count += 1
+    return db.execute(sql, params).fetchall()
+
+# The N+1 pattern: one query for the authors, then one query per author.
+authors = run("SELECT id, name FROM author")
+for author_id, name in authors:
+    books = run("SELECT title FROM book WHERE author_id = ?", (author_id,))
+    print(name, [title for (title,) in books])
+print("queries with N+1:", query_count)
+
+# The fix: one JOIN returns every author and book pair in a single query.
+query_count = 0
+rows = run("""SELECT author.name, book.title
+              FROM author LEFT JOIN book ON book.author_id = author.id
+              ORDER BY author.id, book.id""")
+print("rows from the JOIN:", len(rows))
+print("queries with JOIN:", query_count)</code></pre>
+  <pre class="output">Ada ['Notes', 'Proofs']
+Brian ['Compilers']
+Chen ['Networks']
+queries with N+1: 4
+rows from the JOIN: 4
+queries with JOIN: 1</pre>
+  <p>Read the output carefully. The N+1 version made 4 queries for 3 authors: one for the list and one per author. The JOIN made one query and returned 4 rows, one per author and book pair. Fewer queries is usually the win, and the result holds the same data.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Counting rows as a proxy for queries. A JOIN can return many rows, and that is fine. The problem is the number of round trips, so count statements, not rows.</p></div>
+
+  <h3>Migrations: changing the schema safely</h3>
+  <p>A <strong>schema</strong> is the structure of your database: tables, columns, types and indexes. A <strong>migration</strong> is a versioned script that changes the schema, such as adding a column. Migrations let every developer and every server move the database through the same sequence of changes. Tools include Alembic (used with SQLAlchemy and Flask-Migrate), Django's built-in migrations, and Flyway or Liquibase for Java.</p>
+  <p>Each migration has a version number, and the database records which version it has reached. Starting the app runs only the migrations that have not been applied yet. The program below stores the version in SQLite's <code>user_version</code> field, a small integer the database keeps for the application.</p>
+  <ul>
+    <li><strong>Never edit a migration that has already run.</strong> Add a new one instead. Other machines already applied the old version.</li>
+    <li><strong>Make changes backward compatible.</strong> When a column is renamed, add the new column, copy the data, switch the code, then drop the old column in a later release. This lets old and new app versions run during a deploy.</li>
+    <li><strong>Be careful with large tables.</strong> Some <code>ALTER TABLE</code> statements lock the table for a long time. Add nullable columns first, then backfill in batches.</li>
+  </ul>
+  <pre class="code" data-lang="python"><code>import sqlite3
+
+MIGRATIONS = [
+    # version 1: the first table
+    "CREATE TABLE user (id INTEGER PRIMARY KEY, email TEXT NOT NULL)",
+    # version 2: a new column with a default, so existing rows stay valid
+    "ALTER TABLE user ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1",
+    # version 3: a unique index so two users cannot share an email
+    "CREATE UNIQUE INDEX idx_user_email ON user (email)",
+]
+
+def migrate(db):
+    """Apply every migration newer than the version stored in the database."""
+    current = db.execute("PRAGMA user_version").fetchone()[0]
+    print("starting at version", current)
+    for version in range(current, len(MIGRATIONS)):
+        db.execute(MIGRATIONS[version])
+        db.execute(f"PRAGMA user_version = {version + 1}")
+        print("applied", version + 1)
+    db.commit()
+
+db = sqlite3.connect(":memory:")
+migrate(db)      # first run: applies versions 1, 2 and 3
+migrate(db)      # second run: nothing left to do
+print(db.execute("PRAGMA table_info(user)").fetchall())</code></pre>
+  <pre class="output">starting at version 0
+applied 1
+applied 2
+applied 3
+starting at version 3
+[(0, 'id', 'INTEGER', 0, None, 1), (1, 'email', 'TEXT', 1, None, 0), (2, 'is_active', 'INTEGER', 1, '1', 0)]</pre>
+  <p>The second call prints "starting at version 3" and then does nothing, which is what makes migrations safe to run on every deploy. Each line of the table information is a tuple: column id, name, type, whether it is NOT NULL, default value, and whether it is part of the primary key.</p>
+
+  <h3>Caching with Redis</h3>
+  <p>A <strong>cache</strong> stores the result of expensive work so the next request can skip it. <strong>Redis</strong> is an in-memory key-value store, often used as a shared cache across many app servers. Its values can carry a <strong>TTL</strong> (time to live), after which Redis deletes them automatically.</p>
+  <p>The most common pattern is <strong>cache-aside</strong>, sometimes called lazy loading. The application owns the logic:</p>
+  <ol>
+    <li>On a read, look in the cache first.</li>
+    <li>On a hit, return the cached value.</li>
+    <li>On a miss, read the database, store the result in the cache with a TTL, and return it.</li>
+    <li>On a write, update the database and then delete (invalidate) the cached key, so the next read loads fresh data.</li>
+  </ol>
+  <p>Deleting on write is usually safer than updating the cache, because two writers racing to update the cache can leave a stale value behind. The sketch below replaces Redis with a dict so it runs with no server. The method names match the idea, not a specific client library.</p>
+  <pre class="code" data-lang="python"><code>class FakeCache:
+    """Stands in for Redis: a dict of key to value (expiry is not simulated)."""
+    def __init__(self):
+        self.data = {}
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def set(self, key, value, ttl_seconds):
+        self.data[key] = value          # real Redis also remembers the TTL
+
+    def delete(self, key):
+        self.data.pop(key, None)
+
+DB = {42: {"id": 42, "name": "Grace"}}  # pretend this is the database table
+db_reads = 0
+
+def load_user_from_db(user_id):
+    global db_reads
+    db_reads += 1
+    return DB.get(user_id)
+
+cache = FakeCache()
+
+def get_user(user_id):
+    key = f"user:{user_id}"
+    cached = cache.get(key)
+    if cached is not None:              # cache hit
+        return cached
+    user = load_user_from_db(user_id)   # cache miss
+    if user is not None:
+        cache.set(key, user, ttl_seconds=300)
+    return user
+
+def update_user(user_id, name):
+    DB[user_id]["name"] = name
+    cache.delete(f"user:{user_id}")     # invalidate, so the next read refills it
+
+print(get_user(42)["name"])
+print(get_user(42)["name"])
+print("db reads so far:", db_reads)
+update_user(42, "Grace Hopper")
+print(get_user(42)["name"])
+print("db reads so far:", db_reads)</code></pre>
+  <pre class="output">Grace
+Grace
+db reads so far: 1
+Grace Hopper
+db reads so far: 2</pre>
+  <p>The first two reads cost one database read in total: the first was a miss and the second was a hit. After the update, the cache entry was deleted, so the next read was a miss and went back to the database. Real systems add more care: a TTL bounds how stale a value can get, and many keys expiring at the same moment can cause a <em>cache stampede</em>, where many requests hit the database together. Adding a little random jitter to each TTL is a common fix.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"How do you keep a cache consistent with the database?" Answer with cache-aside, invalidate on write rather than update, use a TTL as a safety net, and accept that a short window of staleness is the price of speed.</p></div>
+
+  <details class="check"><summary>Why does the N+1 pattern get slower as data grows?</summary><div class="ans"><p>Each extra row in the parent list adds one more query, so the number of round trips grows in step with the data. Each round trip also has latency, so the total time is roughly the number of queries multiplied by the cost of one round trip. A single JOIN or a two-query IN lookup keeps the number of round trips constant as the list grows.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Auth and sessions">
+  <h2>Authentication and authorisation</h2>
+  <p><strong>Authentication</strong> answers "who are you?". <strong>Authorisation</strong> answers "what are you allowed to do?". Mixing them up is a classic interview slip, so keep them apart in your head: a login proves identity, and every later request still needs its own permission check.</p>
+
+  <h3>Password hashing: never store the password</h3>
+  <p>You must never store a user's password as plain text, and you should not store it with a fast hash such as plain SHA-256 either. A <strong>hash</strong> is a one-way function: you can compute the hash from the password, but not the password from the hash. A <strong>salt</strong> is a random value, unique per user, mixed in before hashing. The salt stops two users with the same password from getting the same stored value, and it defeats precomputed lookup tables called rainbow tables.</p>
+  <p>The second requirement is that hashing should be <em>slow</em>. An attacker who steals the database will try billions of guesses, so each guess should cost real CPU time. The standard choices are:</p>
+  <ul>
+    <li><strong>Argon2id</strong> (the winner of the 2015 Password Hashing Competition). It is the recommended choice for new systems. It is memory-hard, which makes GPU attacks expensive.</li>
+    <li><strong>bcrypt</strong>. Widely deployed, with a tunable cost factor. It silently uses only the first 72 bytes of the password, which is a trap for very long passphrases.</li>
+    <li><strong>PBKDF2</strong> and <strong>scrypt</strong>. PBKDF2 is the one most often required by compliance rules, and Python ships it in the standard library.</li>
+  </ul>
+  <p>The program below uses PBKDF2 from the standard library so it runs with no installs. In real code the salt must come from <code>secrets.token_bytes(16)</code> or a library. This demo uses a fixed salt only so the output is repeatable. Verification recomputes the hash from the same salt and compares the results with <code>hmac.compare_digest</code>, which takes the same time whether the strings match early or late. A plain <code>==</code> can leak information through timing.</p>
+  <pre class="code" data-lang="python"><code>import hashlib
+import hmac
+
+ITERATIONS = 100_000
+
+def hash_password(password, salt):
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, ITERATIONS)
+    return salt.hex() + "$" + digest.hex()          # store salt and hash together
+
+def verify_password(password, stored):
+    salt_hex, digest_hex = stored.split("$")
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), ITERATIONS)
+    return hmac.compare_digest(digest.hex(), digest_hex)
+
+salt = bytes(range(16))            # fixed only so this demo is repeatable
+stored = hash_password("correct horse", salt)
+print(len(stored))
+print(verify_password("correct horse", stored))
+print(verify_password("wrong guess", stored))</code></pre>
+  <pre class="output">97
+True
+False</pre>
+  <p>The stored value is 97 characters: 32 hex characters for the 16-byte salt, one separator, and 64 hex characters for the 32-byte SHA-256 output. The number 97 is a useful sanity check when you explain the format.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Using a general-purpose hash such as MD5 or SHA-256 alone for passwords. They are designed to be fast, which is exactly wrong here. Use Argon2id, bcrypt, scrypt or PBKDF2 through a well-tested library.</p></div>
+
+  <h3>Sessions versus JWT</h3>
+  <p>After a successful login, the server must remember that the user is logged in. There are two common designs.</p>
+  <p>A <strong>server-side session</strong> stores the user's state on the server, keyed by a random session ID. The browser holds only that ID, usually in a cookie. The cookie should be marked <code>HttpOnly</code> (JavaScript cannot read it), <code>Secure</code> (sent only over HTTPS) and <code>SameSite</code> (limits cross-site sending, which helps against CSRF). Logging out is easy: delete the session on the server. The cost is that every server must reach the same session store, usually Redis or a database.</p>
+  <p>A <strong>JWT</strong> (JSON Web Token, pronounced "jot") is a self-contained token. It has three parts separated by dots: a header that names the signing algorithm, a payload of claims such as the user ID and expiry time, and a signature. The server signs the first two parts with a secret key and checks the signature on each request, without a database lookup. That is the big advantage: the token is <em>stateless</em>. The disadvantages are that a JWT cannot be revoked before it expires unless you add a block list, and that its payload is only base64url-encoded, which anyone can decode. Never put secrets in a JWT.</p>
+  <p>The program below builds a toy HS256 token (HMAC with SHA-256) using only the standard library, so you can see exactly what the three parts are. Production code should use a maintained library such as PyJWT, which also checks expiry and the algorithm.</p>
+  <pre class="code" data-lang="python"><code>import base64
+import hashlib
+import hmac
+import json
+
+SECRET = b"demo-secret"
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+def make_token(claims):
+    header = {"alg": "HS256", "typ": "JWT"}
+    h = b64url(json.dumps(header, separators=(",", ":"), sort_keys=True).encode())
+    p = b64url(json.dumps(claims, separators=(",", ":"), sort_keys=True).encode())
+    sig = hmac.new(SECRET, f"{h}.{p}".encode(), hashlib.sha256).digest()
+    return f"{h}.{p}.{b64url(sig)}"
+
+def check_token(token):
+    h, p, s = token.split(".")
+    expected = b64url(hmac.new(SECRET, f"{h}.{p}".encode(), hashlib.sha256).digest())
+    if not hmac.compare_digest(s, expected):
+        return None                      # signature does not match: reject
+    padded = p + "=" * (-len(p) % 4)     # restore the padding base64 needs
+    return json.loads(base64.urlsafe_b64decode(padded))
+
+token = make_token({"sub": "user-7", "role": "admin"})
+print(token)
+print(check_token(token))
+tampered = token[:-2] + ("AA" if token[-2:] != "AA" else "BB")
+print(check_token(tampered))</code></pre>
+  <pre class="output">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJzdWIiOiJ1c2VyLTcifQ.rjdoKTRUBgmGe1OKEWmUOKlXEny4OlVl5EuygCbZbxU
+{'role': 'admin', 'sub': 'user-7'}
+None</pre>
+  <p>The first line is the token. The second line shows the decoded payload, and the tampered copy fails the signature check and returns <code>None</code>. The payload is readable by anyone, so the signature protects integrity (nobody can change it) but not confidentiality (nobody can read it). That is why sensitive data does not belong in a JWT.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Session or JWT?" A strong answer: sessions when you need instant revocation and have a shared store; JWTs when you need stateless verification across many services and accept that revocation waits for expiry. Many systems use short-lived JWTs plus a revocable refresh token.</p></div>
+
+  <h3>Refresh tokens</h3>
+  <p>Because a JWT cannot be revoked easily, teams keep it short-lived, for example 15 minutes. That creates a usability problem: users would have to log in again every quarter hour. A <strong>refresh token</strong> solves this. It is a long-lived credential (days or weeks) that the client exchanges for a new access token when the short one expires. Unlike the access token, the refresh token is stored server-side or in a revocable form, so it can be cancelled.</p>
+  <p>The important defence is <strong>rotation with reuse detection</strong>. Each time a refresh token is used, the server issues a new refresh token and marks the old one as used. Refresh tokens belong to a <em>family</em> that started at login. If a token that was already used comes back, someone has probably copied it, so the server revokes the whole family and the user must log in again. The program below simulates this with a dict.</p>
+  <pre class="code" data-lang="python"><code>import itertools
+
+class AuthStore:
+    def __init__(self):
+        self.ids = itertools.count(1)       # simple counter for readable IDs
+        self.refresh = {}                   # token -> (user, family, used?)
+        self.revoked_families = set()
+
+    def login(self, user):
+        family = next(self.ids)             # a new family starts at login
+        token = f"rt-{next(self.ids)}"
+        self.refresh[token] = (user, family, False)
+        return token
+
+    def rotate(self, token):
+        if token not in self.refresh:
+            return None, "unknown token"
+        user, family, used = self.refresh[token]
+        if family in self.revoked_families:
+            return None, "family revoked"
+        if used:
+            # a token that was already used came back: treat it as stolen
+            self.revoked_families.add(family)
+            return None, "reuse detected, family revoked"
+        self.refresh[token] = (user, family, True)     # mark the old token used
+        new_token = f"rt-{next(self.ids)}"
+        self.refresh[new_token] = (user, family, False)
+        return new_token, "ok"
+
+store = AuthStore()
+t1 = store.login("ada")
+t2, msg = store.rotate(t1)          # normal refresh: succeeds
+print(msg, t2)
+_, msg = store.rotate(t1)           # replay the old token: detected
+print(msg)
+_, msg = store.rotate(t2)           # the newer token is now dead too
+print(msg)</code></pre>
+  <pre class="output">ok rt-3
+reuse detected, family revoked
+family revoked</pre>
+  <p>The first refresh works and returns <code>rt-3</code>. Replaying <code>rt-2</code> is detected because it was already used, which revokes the whole family, so even the legitimate newest token <code>rt-3</code> stops working. This trade-off is intentional: when in doubt, the server signs the user out.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Storing refresh tokens in local storage, where any script on the page can read them. Prefer an HttpOnly, Secure cookie that is sent only to the refresh endpoint.</p></div>
+
+  <h3>RBAC: role-based access control</h3>
+  <p><strong>RBAC</strong> (role-based access control) grants permissions to roles, and gives roles to users. A user who holds the role <code>editor</code> can do everything that role allows. The key design rule is to check a <em>permission</em> in your code, not a role name. Writing <code>if role == "admin"</code> all over the codebase makes every new role a rewrite. Writing <code>if can(user, "article:delete")</code> keeps the rule in one table.</p>
+  <p>Two principles go with RBAC. <strong>Least privilege</strong> means each role gets only the permissions it needs. <strong>Deny by default</strong> means a missing entry means no access. Some systems add ABAC (attribute-based access control), which also looks at things like ownership ("this user may edit only their own posts"). The code below shows the basic RBAC table.</p>
+  <pre class="code" data-lang="python"><code>ROLE_PERMISSIONS = {
+    "viewer": {"article:read"},
+    "editor": {"article:read", "article:write"},
+    "admin": {"article:read", "article:write", "article:delete", "user:manage"},
+}
+
+def can(user_roles, permission):
+    """True if any of the user's roles grants the permission (deny by default)."""
+    return any(permission in ROLE_PERMISSIONS.get(role, set()) for role in user_roles)
+
+def delete_article(user_roles, article_id):
+    if not can(user_roles, "article:delete"):
+        return f"403 Forbidden: article {article_id}"
+    return f"200 OK: deleted article {article_id}"
+
+print(can(["viewer"], "article:read"))
+print(can(["editor"], "article:delete"))
+print(delete_article(["editor"], 9))
+print(delete_article(["editor", "admin"], 9))</code></pre>
+  <pre class="output">True
+False
+403 Forbidden: article 9
+200 OK: deleted article 9</pre>
+  <p>Notice the difference between the two status codes. <code>401 Unauthorized</code> means "I do not know who you are" (missing or invalid login). <code>403 Forbidden</code> means "I know who you are, and you may not do this." The editor is authenticated but lacks the permission, so the answer is 403.</p>
+
+  <details class="check"><summary>What is the difference between 401 and 403?</summary><div class="ans"><p>401 Unauthorized means the request has no valid authentication, so the client should log in and try again. 403 Forbidden means the server knows who the caller is, but that caller is not allowed to perform this action. Repeating the same request with the same identity will keep failing with 403.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Async work and uploads">
+  <h2>Background jobs, retries, idempotency and uploads</h2>
+  <p>A web request should finish quickly, usually well under a second. Anything slow or unreliable, such as sending an email, resizing an image, or calling a flaky payment provider, should not hold the user's request open. This unit covers how to move that work out of the request path and how to make it safe to repeat.</p>
+
+  <h3>Background jobs</h3>
+  <p>A <strong>background job</strong> is a unit of work that runs outside the request. The web handler does three things: validate the input, save a record of what must happen (a job message), and return a response such as <code>202 Accepted</code>, which means "received, will process later". A separate <strong>worker</strong> process takes jobs from a <strong>queue</strong> and runs them. Common tools are Celery (Python, often with Redis or RabbitMQ as the broker), RQ, Sidekiq (Ruby), and BullMQ (Node.js).</p>
+  <p>Jobs should be small, carry only IDs rather than large objects, and be safe to run more than once. That last point leads straight to the next section, because most queue systems deliver each job <em>at least once</em>, not exactly once.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Passing a whole database object in the job message. By the time the worker runs, the object may be stale or deleted. Pass the ID and load fresh data inside the job.</p></div>
+
+  <h3>Retries and exponential backoff</h3>
+  <p>Networks fail, and so do other services. A <strong>retry</strong> repeats an operation after a failure. Retry only <em>transient</em> errors (timeouts, HTTP 503, connection resets). Retrying a validation error, or a 400 Bad Request, will fail forever. The usual schedule is <strong>exponential backoff</strong>: wait a little, then double the wait each time, with a cap so the wait never becomes absurd. Many systems add <strong>jitter</strong>, a random amount, so thousands of clients do not all retry at the same moment and overload the service again.</p>
+  <p>The function below computes the delays without any randomness, so you can read them directly.</p>
+  <pre class="code" data-lang="python"><code>def backoff_delays(attempts, base=0.5, cap=8.0):
+    """Seconds to wait before each retry: base, 2x base, 4x base, ... up to cap."""
+    return [min(cap, base * 2 ** n) for n in range(attempts)]
+
+print(backoff_delays(6))</code></pre>
+  <pre class="output">[0.5, 1.0, 2.0, 4.0, 8.0, 8.0]</pre>
+  <p>The delays grow 0.5, 1, 2, 4, then reach the cap of 8 seconds and stay there. Without the cap, the sixth wait would be 16 seconds and the tenth would be over eight minutes, which is rarely what a user wants.</p>
+
+  <h3>Idempotency: safe to repeat</h3>
+  <p>An operation is <strong>idempotent</strong> if doing it twice has the same effect as doing it once. Reading data is naturally idempotent. Charging a card is not. Suppose the client sends "charge 25 dollars", the server charges the card, but the response is lost in the network. The client retries, and the customer is charged twice. The standard fix is an <strong>idempotency key</strong>: the client generates a unique key per logical operation and sends it in a header such as <code>Idempotency-Key</code>. The server stores the result under that key, and any retry with the same key returns the stored result instead of acting again.</p>
+  <pre class="code" data-lang="python"><code>class PaymentService:
+    def __init__(self):
+        self.results = {}       # idempotency key to the response we already sent
+        self.charges = 0
+
+    def charge(self, amount_cents, idempotency_key):
+        if idempotency_key in self.results:
+            return self.results[idempotency_key]     # replay: no second charge
+        self.charges += 1
+        response = {"status": "charged", "amount": amount_cents, "charge_no": self.charges}
+        self.results[idempotency_key] = response
+        return response
+
+svc = PaymentService()
+print(svc.charge(2500, "key-abc"))
+print(svc.charge(2500, "key-abc"))     # the client retried after a timeout
+print("total charges:", svc.charges)</code></pre>
+  <pre class="output">{'status': 'charged', 'amount': 2500, 'charge_no': 1}
+{'status': 'charged', 'amount': 2500, 'charge_no': 1}
+total charges: 1</pre>
+  <p>The second call returns the first response unchanged and the charge counter stays at 1. In production the key store must be durable (a database table with a unique constraint is typical), and the key must be checked and the result saved atomically, or two concurrent requests with the same key can both slip through.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"How do you make a retried payment safe?" Use an idempotency key stored with the result, return the stored result on replay, retry only transient errors with exponential backoff and jitter, and enforce uniqueness in the database so concurrent duplicates cannot both succeed.</p></div>
+
+  <h3>WebSockets for real-time updates</h3>
+  <p>HTTP is request then response: the server cannot speak first. A <strong>WebSocket</strong> is a long-lived connection, started as an ordinary HTTP request with an <code>Upgrade</code> header, that then stays open so either side can send messages at any time. It suits chat, live dashboards and multiplayer games. The URL scheme is <code>wss://</code> over TLS, the equivalent of <code>https://</code>.</p>
+  <p>Simpler options are often enough. Polling asks the server every few seconds. Server-Sent Events (SSE) keep one stream open from server to browser only. Use WebSockets when the client must also send frequent messages. Scaling is the hard part: a message sent to a user connected to server A must reach server B if that user is connected there. Teams solve this with a pub/sub layer such as Redis, so that any server can publish a message and every server holding a relevant connection delivers it.</p>
+  <p>A typical message is just JSON on the open connection. The shape below is only an example of a message your own protocol might use:</p>
+  <pre class="code" data-lang="json"><code>{"type": "chat.message", "room": "general", "text": "Build passed"}</code></pre>
+
+  <h3>File uploads to S3 with presigned URLs</h3>
+  <p>Amazon S3 is object storage for files. If a user uploads a 200 MB video through your API server, the bytes flow through your server twice (in and out to S3), which ties up memory and bandwidth. A <strong>presigned URL</strong> avoids that. Your server checks the user is allowed to upload, then asks S3 for a URL that contains a signature and an expiry time. The client uploads straight to S3 with an HTTP PUT to that URL. The URL works only for that object, for that method, until it expires.</p>
+  <pre class="code" data-lang="python"><code>import boto3
+
+s3 = boto3.client("s3")
+upload_url = s3.generate_presigned_url(
+    ClientMethod="put_object",
+    Params={"Bucket": "my-uploads", "Key": "avatars/user-7.png", "ContentType": "image/png"},
+    ExpiresIn=300,          # the URL stops working after 5 minutes
+)
+# Return upload_url to the client. The client sends a PUT with the same Content-Type.</code></pre>
+  <p>This snippet needs the <code>boto3</code> package and AWS credentials, so it has no printed output here. The design points matter more than the call. Keep expiry short, restrict the key prefix to the user's own folder, and check the file type and size after the upload (for example in an S3 event that triggers a job), because the presigned URL itself does not inspect the file.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Trusting the client's file name or content type. The client chooses both. Generate the object key on the server and verify the real content after upload.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="Operations">
+  <h2>Operating the service: logging, health checks and twelve-factor</h2>
+  <p>A backend that works on your laptop is not yet a backend that works in production. This unit covers the habits that keep a service observable and easy to deploy.</p>
+
+  <h3>Logging</h3>
+  <p>A <strong>log</strong> is a record of events written as the program runs. Use the standard <code>logging</code> module rather than <code>print</code>, because logging gives you levels, names and handlers. The levels, from least to most severe, are <code>DEBUG</code>, <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code> and <code>CRITICAL</code>. A logger drops any message below its level, which is why the debug line below does not appear.</p>
+  <p>In production, prefer <strong>structured logs</strong>: one JSON object per line, with fields such as request ID, user ID and duration. Log aggregation tools can then filter by field. Always include a request or correlation ID so you can follow one request across services. Never log passwords, tokens, or full card numbers.</p>
+  <pre class="code" data-lang="python"><code>import io
+import logging
+
+stream = io.StringIO()                     # capture output in memory for the demo
+handler = logging.StreamHandler(stream)
+handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+log = logging.getLogger("orders")
+log.setLevel(logging.INFO)                 # DEBUG messages are dropped
+log.addHandler(handler)
+log.propagate = False                      # do not also send to the root logger
+
+log.debug("cache lookup for order 7")
+log.info("order %s created", 7)
+log.warning("payment provider slow: %d ms", 2300)
+log.error("could not send receipt for order %s", 7)
+print(stream.getvalue(), end="")</code></pre>
+  <pre class="output">INFO orders: order 7 created
+WARNING orders: payment provider slow: 2300 ms
+ERROR orders: could not send receipt for order 7</pre>
+  <p>Notice that the arguments are passed separately (<code>"order %s created", 7</code>) rather than formatted with an f-string. The logger formats the message only if the level is enabled, which saves work on busy paths.</p>
+
+  <h3>Health checks</h3>
+  <p>A <strong>health check</strong> is an endpoint that tells an orchestrator or load balancer whether an instance is working. Keep two separate ones:</p>
+  <ul>
+    <li><strong>Liveness</strong> answers "is the process stuck or crashed?". It should be cheap and should not check external services. If it fails, the orchestrator restarts the instance.</li>
+    <li><strong>Readiness</strong> answers "can this instance serve traffic right now?". It may check the database and cache. If it fails, the load balancer stops sending requests to this instance, but it is not restarted.</li>
+  </ul>
+  <p>Kubernetes has both as probes (<code>livenessProbe</code> and <code>readinessProbe</code>). Mixing them up is a real incident pattern: if liveness checks the database, a short database outage causes every instance to restart at once.</p>
+  <pre class="code" data-lang="python"><code>def check_database():
+    return True                  # pretend a "SELECT 1" succeeded
+
+def liveness():
+    return {"status": "alive"}, 200
+
+def readiness(checks):
+    results = {name: fn() for name, fn in checks.items()}
+    ok = all(results.values())
+    return {"status": "ready" if ok else "not ready", "checks": results}, (200 if ok else 503)
+
+print(liveness())
+print(readiness({"database": check_database, "cache": lambda: False}))</code></pre>
+  <pre class="output">({'status': 'alive'}, 200)
+({'status': 'not ready', 'checks': {'database': True, 'cache': False}}, 503)</pre>
+  <p>The readiness result uses <code>503 Service Unavailable</code> because one dependency (the cache) failed, so the instance should be taken out of rotation until it recovers.</p>
+
+  <h3>The twelve-factor app</h3>
+  <p>The <strong>twelve-factor app</strong> is a set of principles, written by engineers at Heroku, for building cloud-ready services. Interviewers use it as a checklist, so know the list and the reason behind the important ones:</p>
+  <ol>
+    <li><strong>Codebase.</strong> One repository per app, many deploys (dev, staging, production).</li>
+    <li><strong>Dependencies.</strong> Declare every dependency explicitly (requirements.txt, package.json, pom.xml) and never rely on system-wide packages.</li>
+    <li><strong>Config.</strong> Store config, including secrets and per-environment URLs, in environment variables, not in code.</li>
+    <li><strong>Backing services.</strong> Treat the database, cache and queue as attached resources identified by a URL in config. Swapping one should need no code change.</li>
+    <li><strong>Build, release, run.</strong> Keep the three stages separate. A release is a build plus config, and it is immutable.</li>
+    <li><strong>Processes.</strong> Run the app as stateless processes. Anything that must persist goes to a backing service, not to local memory or disk.</li>
+    <li><strong>Port binding.</strong> The app exports its own HTTP service on a port, rather than relying on an external server being injected.</li>
+    <li><strong>Concurrency.</strong> Scale out by running more processes of each type (web, worker).</li>
+    <li><strong>Disposability.</strong> Start fast and shut down gracefully, handling the termination signal and finishing in-flight work.</li>
+    <li><strong>Dev/prod parity.</strong> Keep development, staging and production as similar as possible.</li>
+    <li><strong>Logs.</strong> Treat logs as event streams written to stdout, and let the platform route them.</li>
+    <li><strong>Admin processes.</strong> Run one-off tasks such as migrations as separate processes using the same codebase and config.</li>
+  </ol>
+  <p>Factor 3 (config in the environment) explains why the Flask example later reads its database URL from the environment rather than hard-coding it, and why secrets never belong in git.</p>
+
+  <details class="check"><summary>What is the difference between a liveness and a readiness check?</summary><div class="ans"><p>Liveness asks whether the process is alive and should be restarted if it is stuck. Readiness asks whether the instance can currently serve traffic, which may depend on the database or cache. A failed readiness check removes the instance from the load balancer without restarting it, which is the right response to a temporary dependency outage.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Flask">
+  <h2>Flask: a small framework that you assemble yourself</h2>
+  <p><strong>Flask</strong> is a Python micro-framework. "Micro" does not mean small in capability. It means Flask supplies the routing, request and response handling, and templating, and leaves the database, authentication and forms to extensions you choose. It is built on Werkzeug (a library of WSGI tools for requests, routing and the development server) and Jinja2 (the template engine). The official documentation is at flask.palletsprojects.com.</p>
+
+  <h3>The request lifecycle inside Flask</h3>
+  <p>The WSGI server calls your Flask app with the raw request. Flask creates a <em>request context</em> that holds the current request, matches the URL to a view function, and runs any before-request hooks and middleware. The view returns a value, which Flask converts into a response: a string becomes an HTML body, a dict becomes JSON, and a tuple such as <code>(body, 201)</code> sets the status. After-request hooks run, then teardown code releases per-request resources such as database sessions.</p>
+
+  <h3>The application factory</h3>
+  <p>A small app can create <code>app = Flask(__name__)</code> at the top of one file. Real projects use an <strong>application factory</strong>: a function named <code>create_app</code> that builds and returns a configured app. This lets tests create an app with a test configuration, lets you run several configurations side by side, and avoids circular imports, because extensions are created first and bound to an app later. The layout below uses Flask-SQLAlchemy, which connects the SQLAlchemy ORM to Flask.</p>
+  <pre class="code" data-lang="python"><code># app/extensions.py
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()              # created once, attached to an app later</code></pre>
+  <pre class="code" data-lang="python"><code># app/__init__.py
+import os
+from flask import Flask
+from .extensions import db
+
+def create_app(config_overrides=None):
+    app = Flask(__name__)
+    app.config.from_mapping(
+        # read secrets and URLs from the environment (twelve-factor, factor 3)
+        SECRET_KEY=os.environ.get("SECRET_KEY", "dev-only-change-me"),
+        SQLALCHEMY_DATABASE_URI=os.environ.get("DATABASE_URL", "sqlite:///app.db"),
+    )
+    if config_overrides:
+        app.config.update(config_overrides)   # tests pass their own values here
+    db.init_app(app)                          # bind the extension to this app
+
+    from .users import users_bp               # imported here to avoid circular imports
+    app.register_blueprint(users_bp, url_prefix="/api/users")
+    return app</code></pre>
+  <p>Each line matters. <code>from_mapping</code> sets configuration keys. <code>os.environ.get</code> reads an environment variable and falls back to a development default, which is safe only for local runs. <code>db.init_app(app)</code> connects the extension to this specific app object. The import of the blueprint sits inside the function so the models and routes can import <code>db</code> without loading a half-built app.</p>
+
+  <h3>Routing, requests and responses</h3>
+  <p>A <strong>route</strong> maps a URL pattern and HTTP method to a view function. Flask uses <em>converters</em> in angle brackets: <code>&lt;int:user_id&gt;</code> matches only digits and passes an integer to your function, and <code>&lt;uuid:id&gt;</code> and <code>&lt;path:file&gt;</code> also exist. The short decorators <code>@bp.get</code>, <code>@bp.post</code>, <code>@bp.put</code> and <code>@bp.delete</code> are shortcuts for <code>route</code> with a fixed method.</p>
+  <p>The <code>request</code> object gives you query parameters (<code>request.args</code>), form fields (<code>request.form</code>), JSON bodies (<code>request.get_json()</code>) and headers (<code>request.headers</code>). <code>jsonify</code> builds a JSON response, and <code>abort(404)</code> stops the view and returns an error response right away. Here is a blueprint with two routes:</p>
+  <pre class="code" data-lang="python"><code># app/users.py
+from flask import Blueprint, abort, jsonify, request
+from .extensions import db
+from .models import User
+
+users_bp = Blueprint("users", __name__)
+
+@users_bp.get("/&lt;int:user_id&gt;")
+def get_user(user_id):
+    user = db.session.get(User, user_id)     # look up by primary key
+    if user is None:
+        abort(404)                           # stop here and return 404 Not Found
+    return jsonify(id=user.id, email=user.email)
+
+@users_bp.post("/")
+def create_user():
+    data = request.get_json()                # parsed JSON body, or None
+    user = User(email=data["email"])
+    db.session.add(user)
+    db.session.commit()
+    return jsonify(id=user.id, email=user.email), 201   # 201 Created</code></pre>
+  <p>The model used above is a small class. Flask-SQLAlchemy maps each class to a table, so <code>User</code> becomes the <code>user</code> table:</p>
+  <pre class="code" data-lang="python"><code># app/models.py
+from .extensions import db
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)</code></pre>
+  <p>A client that calls <code>GET /api/users/1</code> for an existing user would receive a JSON body like this:</p>
+  <p><strong>Response</strong></p>
+  <pre class="code" data-lang="json"><code>{"id": 1, "email": "ada@example.com"}</code></pre>
+  <p>A request for a missing ID returns status 404. Real APIs usually add a custom error handler so every error has the same JSON shape.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Calling <code>request.get_json()</code> without checking the content type or the required keys. A missing key raises an error and produces a 500 response. Validate the input and return 400 Bad Request with a clear message instead.</p></div>
+
+  <h3>Blueprints and templates</h3>
+  <p>A <strong>blueprint</strong> is a group of routes, error handlers and static files that can be registered on an app, optionally under a URL prefix. The example above used <code>url_prefix="/api/users"</code>, so <code>@users_bp.get("/&lt;int:user_id&gt;")</code> becomes <code>/api/users/&lt;int:user_id&gt;</code>. Blueprints let each feature live in its own module and keep <code>create_app</code> short.</p>
+  <p>For server-rendered pages, Flask uses <strong>Jinja2</strong> templates. <code>render_template</code> loads a file and fills in variables. Jinja escapes output by default in HTML templates, so a value containing a script tag is displayed as text rather than run. That automatic escaping is a key protection against cross-site scripting (XSS).</p>
+  <pre class="code" data-lang="html"><code>&lt;!-- templates/users.html --&gt;
+&lt;h1&gt;Hello, {{ name }}!&lt;/h1&gt;
+{% for post in posts %}
+  &lt;p&gt;{{ post.title }}&lt;/p&gt;
+{% endfor %}</code></pre>
+  <p>The view would call <code>render_template("users.html", name=name, posts=posts)</code>. The variables are plain Python values, and the template never runs database queries itself.</p>
+
+  <h3>Extensions and the usual companions</h3>
+  <p>Flask stays small by delegating. The common companions are <strong>Flask-SQLAlchemy</strong> (ORM integration), <strong>Flask-Migrate</strong> (Alembic migrations driven from the command line), <strong>Flask-Login</strong> (session-based login state), <strong>Flask-JWT-Extended</strong> (JWT issuing and checking), <strong>Flask-WTF</strong> (forms with CSRF protection) and <strong>Flask-CORS</strong> (cross-origin headers). Each one follows the same pattern as <code>db</code> above: create the object, then bind it to an app with an <code>init_app</code> call.</p>
+
+  <h3>WSGI versus ASGI</h3>
+  <p><strong>WSGI</strong> (Web Server Gateway Interface) is the standard contract between a Python web app and a server. The app is a callable that receives the environment and a start-response function, and returns the body. WSGI is synchronous: one request occupies one worker until it finishes. Flask, classic Django and Bottle are WSGI apps, served by gunicorn or uWSGI. A typical production command looks like <code>gunicorn "app:create_app()"</code>, which calls the factory and serves the result.</p>
+  <p><strong>ASGI</strong> (Asynchronous Server Gateway Interface) is the successor. It supports async code and long-lived connections such as WebSockets, because the app can await I/O instead of blocking a worker. FastAPI and Starlette are ASGI frameworks, served by uvicorn. Django 3.0 and later can also run as ASGI.</p>
+  <p>Flask 2.0 and later accept <code>async def</code> view functions, but Flask is still a WSGI app. Async views need the asgiref package and run through a bridge, so you gain little for I/O-heavy work, and the server still handles one request per worker. Say this precisely in an interview: async views in Flask do not make Flask an ASGI framework.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>WSGI is the synchronous contract between app and server. ASGI is the asynchronous one, and it is what you need for WebSockets and high-concurrency I/O.</p></div>
+
+  <h3>Flask, Django and FastAPI compared</h3>
+  <p>Interviewers often ask you to choose. Here is the short comparison to memorise, with the trade-off behind each row.</p>
+  <div class="tablewrap"><table><thead><tr><th>Aspect</th><th>Flask</th><th>Django</th><th>FastAPI</th></tr></thead><tbody>
+  <tr><td>Style</td><td>Micro-framework; you pick each part</td><td>Full-stack, batteries included</td><td>API-first, built on type hints</td></tr>
+  <tr><td>Interface</td><td>WSGI (sync by default)</td><td>WSGI, with ASGI support</td><td>ASGI (async first)</td></tr>
+  <tr><td>ORM and migrations</td><td>Not built in (Flask-SQLAlchemy and Flask-Migrate are common)</td><td>Built-in ORM and migrations</td><td>Not built in (SQLAlchemy is common)</td></tr>
+  <tr><td>Admin site</td><td>Not built in</td><td>Built-in admin</td><td>Not built in</td></tr>
+  <tr><td>Input validation</td><td>Manual, or an extension such as Flask-WTF</td><td>Forms and model validation</td><td>Pydantic models, checked automatically</td></tr>
+  <tr><td>API documentation</td><td>Via an extension</td><td>Via an extension such as Django REST framework</td><td>OpenAPI and Swagger UI generated automatically</td></tr>
+  <tr><td>Best fit</td><td>Small services, prototypes, when you want full control</td><td>Large products with admin, auth and a relational database</td><td>JSON APIs, high concurrency, typed code</td></tr>
+  </tbody></table></div>
+  <p>None of these is "best". A small internal tool suits Flask. A content site with a staff admin suits Django. A public JSON API with many concurrent clients suits FastAPI. Being able to justify the choice is what the interviewer is looking for.</p>
+
+  <details class="check"><summary>Why does Flask use an application factory?</summary><div class="ans"><p>A factory creates a fresh, configured app on each call. Tests can pass a test configuration, several apps can run with different settings, and extensions are created at import time but bound to an app later with init_app. This avoids circular imports and global state that is hard to reset between tests.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Read each question aloud, answer it in your own words, then open the model answer to check. Aim for a clear answer in under a minute.</p>
+
+  <details class="check"><summary>Walk me through what happens when a client sends GET /api/users/42.</summary><div class="ans"><p>The request reaches a load balancer, which forwards it to an app server such as gunicorn. The framework runs middleware (for example, reading the session or token), matches the path to the user handler, and extracts 42. The handler calls the service layer, which asks the repository for user 42, probably checking a Redis cache first. The result is serialised to JSON with a 200 status, the request is logged, and the response travels back through the load balancer.</p></div></details>
+
+  <details class="check"><summary>What is the N+1 problem and how do you fix it?</summary><div class="ans"><p>N+1 is running one query to load a list and then one extra query per item to load a related object. It makes the number of round trips grow with the data. Fix it with eager loading: a JOIN (SQLAlchemy joinedload, Django select_related) or a second query with IN (selectinload, prefetch_related).</p></div></details>
+
+  <details class="check"><summary>How do you run a schema change on a live database with no downtime?</summary><div class="ans"><p>Use a versioned migration and keep it backward compatible. Add the new nullable column first, deploy code that writes to both old and new, backfill the data in batches, switch reads to the new column, and drop the old column in a later release. Old and new code can run side by side during the deploy.</p></div></details>
+
+  <details class="check"><summary>Why should you hash passwords with Argon2 or bcrypt instead of SHA-256?</summary><div class="ans"><p>SHA-256 is designed to be fast, so an attacker with a stolen database can test billions of guesses per second. Argon2id, bcrypt and PBKDF2 are deliberately slow, have a tunable cost, and include a per-user salt. Argon2id is memory-hard, which also makes GPU attacks expensive.</p></div></details>
+
+  <details class="check"><summary>Compare sessions and JWTs. When would you choose each?</summary><div class="ans"><p>A server-side session keeps state on the server and gives the client an opaque ID in a cookie, so revocation is immediate, but every server needs access to the session store. A JWT is a signed, self-contained token that any service can verify without a lookup, which suits many services, but it cannot be revoked before expiry without extra work. Choose sessions for a single web app that needs instant logout, and JWTs for stateless APIs across services, usually with short expiry and refresh tokens.</p></div></details>
+
+  <details class="check"><summary>What is refresh token rotation and why does it help?</summary><div class="ans"><p>Each refresh issues a new refresh token and invalidates the old one. If an old token is presented again, the server assumes it was stolen and revokes the whole family of tokens, forcing a fresh login. This limits the damage of a leaked refresh token, which is long-lived and therefore dangerous.</p></div></details>
+
+  <details class="check"><summary>What does RBAC mean, and why check permissions rather than role names?</summary><div class="ans"><p>Role-based access control assigns permissions to roles and roles to users. Checking a permission such as article:delete keeps the rule in one table, so adding a role means editing data rather than every route. Combine it with least privilege and deny by default.</p></div></details>
+
+  <details class="check"><summary>How do you make an API endpoint safe to retry?</summary><div class="ans"><p>Make it idempotent. The client sends an idempotency key, the server stores the result under that key in a table with a unique constraint, and a repeat with the same key returns the stored result without acting again. Retries should use exponential backoff with jitter, and only for transient errors.</p></div></details>
+
+  <details class="check"><summary>Why should a web request not send an email directly?</summary><div class="ans"><p>Sending email is slow and can fail, and the user should not wait for it or see an error because of it. The request should save a job record and return 202 Accepted, and a worker sends the email and retries on failure. The job must be idempotent because queues usually deliver at least once.</p></div></details>
+
+  <details class="check"><summary>What is the difference between liveness and readiness?</summary><div class="ans"><p>Liveness tells the orchestrator whether to restart the process. Readiness tells the load balancer whether to send traffic to it. Keep liveness cheap and independent of external services, so a database outage removes instances from rotation rather than restarting them all.</p></div></details>
+
+  <details class="check"><summary>What is WSGI and why does ASGI matter?</summary><div class="ans"><p>WSGI is the synchronous interface between a Python app and its server, so one worker handles one request at a time. ASGI is the asynchronous interface that supports WebSockets and long-lived connections efficiently. Flask is WSGI even though it accepts async views.</p></div></details>
+
+  <details class="check"><summary>What is the difference between eager and lazy loading?</summary><div class="ans"><p>Lazy loading fetches related data only when the code first touches it, which is the cause of N+1 when it happens inside a loop. Eager loading fetches the related data up front in the same query or one extra query. Lazy loading is a sensible default for rarely used relations, and eager loading is the fix when a loop needs them.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Greedy algorithms</h2>
+  <p>A <strong>greedy algorithm</strong> builds the answer step by step and, at each step, makes the choice that looks best right now, then never reconsiders it. It is fast because it avoids exploring alternatives. Its risk is that a locally best choice can be globally wrong. Greedy works only when the problem has the <em>greedy-choice property</em>: some optimal solution begins with the greedy choice.</p>
+
+  <h3>When greedy works, and when it fails</h3>
+  <p>The usual way to justify a greedy idea is an <strong>exchange argument</strong>. Suppose an optimal solution makes a different choice at some step. Show that you can swap in the greedy choice without making the solution worse. Repeat the swap until the optimal solution matches the greedy one.</p>
+  <p>Coin change shows the difference clearly. With US coins (1, 5, 10, 25), taking the largest coin first gives the minimum number of coins, so greedy works. With the coins 1, 3 and 4, and an amount of 6, the greedy choice 4 + 1 + 1 uses three coins, but 3 + 3 uses two. Here is a runnable check that shows both results.</p>
+  <pre class="code" data-lang="python"><code>def greedy_coins(coins, amount):
+    """Take as many of the largest coin as possible, then the next, and so on."""
+    count = 0
+    for coin in sorted(coins, reverse=True):
+        count += amount // coin      # how many of this coin fit
+        amount %= coin               # what is left over
+    return count if amount == 0 else None
+
+print(greedy_coins([1, 3, 4], 6))          # greedy: 4 + 1 + 1
+print(greedy_coins([1, 5, 10, 25], 63))    # greedy is optimal for these coins</code></pre>
+  <pre class="output">3
+6</pre>
+  <p>The first answer, 3, is not the minimum for coins 1, 3, 4 (the true minimum is 2). Greedy is only a heuristic there, and dynamic programming (the next day's topic) is the tool that always finds the minimum. For the interview, the rule is: if you can state an exchange argument, greedy is a valid answer; if you cannot, check a counterexample before you commit.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Assuming greedy is correct because the first example worked. Try a small counterexample such as coins 1, 3, 4 and amount 6 before you rely on the idea.</p></div>
+
+  <h3>Common greedy shapes</h3>
+  <ul>
+    <li><strong>Sort, then scan.</strong> Sorting creates the order that makes the greedy choice obvious (assign-cookies).</li>
+    <li><strong>Track a reach.</strong> Keep the farthest point you can get to so far, and extend it as you scan (jump-game-ii).</li>
+    <li><strong>Record the last occurrence.</strong> Decide the end of a segment as soon as you pass the last occurrence of every character in it (partition-labels).</li>
+    <li><strong>Fuel or budget with a heap.</strong> When you run short, undo an earlier decision by taking the best option you passed (minimum-number-of-refueling-stops).</li>
+  </ul>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/assign-cookies/">
+    <h3>Assign Cookies (LeetCode 455)</h3>
+    <div class="statement"><p>Each child has a greed factor (the smallest cookie size they will accept), and each cookie has a size. Give each child at most one cookie so that as many children as possible are content. Example: greed factors <code>[1, 2, 3]</code> and cookie sizes <code>[1, 1]</code> give 1, because only the first child can take a size-1 cookie.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Maximise the number of satisfied children. A cookie can only satisfy a child whose greed factor it meets or beats. Each child and each cookie is used at most once.</li>
+      <li><strong>Brute force.</strong> Try every matching of children to cookies and keep the best. There are too many matchings to list, so this is exponential in the worst case.</li>
+      <li><strong>Find the waste.</strong> The brute force treats every pairing as equally worth exploring. But a small cookie is useless to a greedy child, and a big cookie is wasted on a child who would have accepted a small one.</li>
+      <li><strong>Optimise.</strong> Sort both lists. Serve the least greedy child first, with the smallest cookie that satisfies them. Exchange argument: if a cookie satisfies this child, giving them the smallest such cookie is never worse, because a bigger cookie would only be more useful to a greedier child. Two pointers then do the whole job in one pass.</li>
+      <li><strong>Dry run.</strong> Sorted greed <code>[1, 2, 3]</code>, sorted sizes <code>[1, 1]</code>. The child pointer starts at the first child (greed 1). Cookie 1 satisfies greed 1, so the pointer moves to the second child (greed 2). The next cookie, 1, is smaller than 2, so no match. Answer 1.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def find_content_children(greed, sizes):
+    greed = sorted(greed)              # least demanding child first
+    sizes = sorted(sizes)              # smallest cookie first
+    child = 0                          # index of the child we are trying to satisfy
+    for size in sizes:
+        if child &lt; len(greed) and size &gt;= greed[child]:
+            child += 1                 # this cookie satisfies that child, move on
+    return child
+
+print(find_content_children([1, 2, 3], [1, 1]))
+print(find_content_children([1, 2], [1, 2, 3]))
+print(find_content_children([10, 9, 8, 7], [5, 6, 7, 8]))</code></pre>
+    <pre class="output">1
+2
+2</pre>
+    <p class="cx">Time O(n log n) for sorting · Space O(1) extra, apart from the sort</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When matching two lists to maximise pairs, sort both and match the smallest that works.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/jump-game-ii/">
+    <h3>Jump Game II (LeetCode 45)</h3>
+    <div class="statement"><p>You start at index 0 of an array. Each value <code>nums[i]</code> is the maximum jump length from index i. Return the minimum number of jumps needed to reach the last index. You can always reach the end. Example: <code>[2, 3, 1, 1, 4]</code> gives 2 (jump from index 0 to 1, then from 1 to the last index).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Jumps are at most the stated length, and you want the fewest. The array is guaranteed to be reachable.</li>
+      <li><strong>Brute force.</strong> Recursion: from each index, try every jump length and take the minimum. It revisits the same indices again and again.</li>
+      <li><strong>Find the waste.</strong> Think in levels. After one jump you can reach some range of indices. After two jumps you reach a larger range. The question is how far the next level extends.</li>
+      <li><strong>Optimise.</strong> Track two values while scanning: <code>current_end</code>, the end of the range reachable with the jumps counted so far, and <code>farthest</code>, the farthest index reachable from anything seen so far. When you reach <code>current_end</code>, you must jump once more, and the new range ends at <code>farthest</code>. This is a breadth-first search in disguise, done with two integers.</li>
+      <li><strong>Dry run.</strong> On <code>[2, 3, 0, 1, 4]</code>: at index 0, farthest becomes 2, and the index equals current_end (0), so jumps becomes 1 and current_end becomes 2. At index 1, farthest becomes 4. At index 2, farthest stays 4, and the index equals current_end (2), so jumps becomes 2 and current_end becomes 4. The loop stops before the last index, so the answer is 2.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def jump(nums):
+    jumps = 0
+    current_end = 0          # last index reachable with the jumps counted so far
+    farthest = 0             # farthest index reachable from any index seen so far
+    for i in range(len(nums) - 1):      # no need to jump from the last index
+        farthest = max(farthest, i + nums[i])
+        if i == current_end:            # the current range is used up
+            jumps += 1
+            current_end = farthest
+    return jumps
+
+print(jump([2, 3, 1, 1, 4]))
+print(jump([2, 3, 0, 1, 4]))
+print(jump([1]))</code></pre>
+    <pre class="output">2
+2
+0</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need the fewest steps and each step opens a range, track the end of the current range and the farthest point, and count a step only when you reach the end of the range.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/partition-labels/">
+    <h3>Partition Labels (LeetCode 763)</h3>
+    <div class="statement"><p>Split a string into as many parts as possible so that each letter appears in at most one part. Return the length of each part, in order. Example: <code>"ababcbacadefegdehijhklij"</code> gives <code>[9, 7, 8]</code>, because the first part "ababcbaca" contains every a, b and c in the string.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Parts are contiguous, and a letter may not appear in two parts. The parts must cover the whole string in order.</li>
+      <li><strong>Brute force.</strong> Try every way of cutting the string and check each cut for the rule. That is exponential in the length.</li>
+      <li><strong>Find the waste.</strong> The brute force rechecks letters over and over. The only fact a cut needs is whether any letter in the current part appears later on.</li>
+      <li><strong>Optimise.</strong> First record the last index of each letter in one pass. Then scan again, keeping <code>end</code>, the furthest last index of any letter seen in the current part. When the scan index reaches <code>end</code>, no letter in the part appears later, so you can cut there.</li>
+      <li><strong>Dry run.</strong> On <code>"abac"</code>: the last indices are a at 2, b at 1, c at 3. At i=0 (a), end becomes 2. At i=1 (b), end stays 2. At i=2 (a), end stays 2 and i equals end, so the part length is 3 and the next part starts at 3. At i=3 (c), end becomes 3 and i equals end, so the part length is 1. Answer [3, 1].</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def partition_labels(s):
+    last = {ch: i for i, ch in enumerate(s)}   # last index of each letter
+    result = []
+    start = 0                                  # where the current part begins
+    end = 0                                    # furthest last index seen in this part
+    for i, ch in enumerate(s):
+        end = max(end, last[ch])
+        if i == end:                           # no letter here appears later
+            result.append(end - start + 1)
+            start = i + 1
+    return result
+
+print(partition_labels("ababcbacadefegdehijhklij"))
+print(partition_labels("eccbbbbdec"))
+print(partition_labels("abc"))</code></pre>
+    <pre class="output">[9, 7, 8]
+[10]
+[1, 1, 1]</pre>
+    <p class="cx">Time O(n) · Space O(1), because the dictionary holds at most 26 letters</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a segment must contain all occurrences of the things inside it, precompute the last occurrence and close the segment when the scan reaches the furthest one seen.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/minimum-number-of-refueling-stops/">
+    <h3>Minimum Number of Refueling Stops (LeetCode 871)</h3>
+    <div class="statement"><p>A car must drive <code>target</code> miles east. It starts with <code>startFuel</code> litres of fuel and burns one litre per mile. Gas stations are listed as <code>[position, fuel]</code> pairs, sorted by position. When the car reaches a station it may fill up with all of that station's fuel. Return the minimum number of stops needed to reach the target, or -1 if it cannot. Example: target 100, start fuel 10, stations <code>[[10, 60], [20, 30], [30, 30], [60, 40]]</code> gives 2 (stop at 10, then at 60).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Fuel is the only resource. You can refuel only at stations, and stopping costs one stop. Stations are sorted, so you always pass them in order. Fuel never goes below zero, so the car must reach each point with fuel to spare.</li>
+      <li><strong>Brute force.</strong> Try every subset of stations as the stops, check whether the car can reach the target, and keep the smallest subset that works. That is 2 to the power n subsets, far too many.</li>
+      <li><strong>Find the waste.</strong> A smarter brute force is dynamic programming. Let <code>dp[t]</code> be the farthest point reachable using exactly t stops. Each station is considered once, and for each one we update every t that can reach it. That costs O(n squared), which is acceptable for a first solution.</li>
+      <li><strong>Optimise.</strong> The greedy insight: drive forward and remember every station you have passed, as a candidate with its fuel amount. Whenever you run out before the next station, you must have stopped at one of the passed stations, so retroactively take the largest candidate. Taking the largest fuel gives the most progress per stop, and a max-heap finds it in O(log n). Adding the target as a final station with 0 fuel makes the last check the same as the others.</li>
+      <li><strong>Dry run (heap version).</strong> Start with 10 litres. Drive to station 10: fuel is 0, and station 10 (60 litres) goes into the heap. Drive to station 20: fuel is -10, so take the best candidate, 60 litres, and count one stop, giving fuel 50. Push station 20 (30 litres). Drive to station 30: fuel is 40, push 30. Drive to 60: fuel is 10, push 40. Drive to the target 100: fuel is -30, so take the best candidate, 40 litres, count a second stop, and fuel is 10, which is enough. Answer 2.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+
+def min_refuel_dp(target, start_fuel, stations):
+    """O(n squared): dp[t] is the farthest point reachable using exactly t stops."""
+    n = len(stations)
+    dp = [start_fuel] + [0] * n
+    for i, (pos, fuel) in enumerate(stations):
+        for t in range(i, -1, -1):         # go backwards so each station is used once
+            if dp[t] &gt;= pos:
+                dp[t + 1] = max(dp[t + 1], dp[t] + fuel)
+    for t in range(n + 1):
+        if dp[t] &gt;= target:
+            return t
+    return -1
+
+def min_refuel_heap(target, start_fuel, stations):
+    """O(n log n): drive greedily, and retroactively refuel at the best passed station."""
+    stations = stations + [[target, 0]]    # the target acts as a final station
+    fuel = start_fuel
+    position = 0
+    stops = 0
+    available = []                         # fuel of passed stations, as a max-heap
+    for station_pos, station_fuel in stations:
+        fuel -= station_pos - position     # drive to this station
+        while fuel &lt; 0 and available:      # we ran out before reaching it
+            fuel += -heapq.heappop(available)   # heapq is a min-heap, so store negatives
+            stops += 1
+        if fuel &lt; 0:
+            return -1                      # no passed station can fix the shortage
+        heapq.heappush(available, -station_fuel)
+        position = station_pos
+    return stops
+
+tests = [
+    (1, 1, []),
+    (100, 1, [[10, 100]]),
+    (100, 10, [[10, 60], [20, 30], [30, 30], [60, 40]]),
+]
+for target, start, stations in tests:
+    print(min_refuel_dp(target, start, stations), min_refuel_heap(target, start, stations))</code></pre>
+    <pre class="output">0 0
+-1 -1
+2 2</pre>
+    <p class="cx">Brute force DP: Time O(n squared) · Space O(n). Heap version: Time O(n log n) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a greedy choice may need to be undone later, keep the candidates you passed in a heap and pay for the best one only at the moment you run short.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Revise from these one-line definitions. If any of them feels unfamiliar, scroll back to its unit and reread the example.</p>
+  <dl>
+    <div><dt>Request lifecycle</dt><dd>The path a request takes: proxy, app server, middleware, routing, handler, data access, response, logging.</dd></div>
+    <div><dt>Middleware</dt><dd>A function that runs before or after the handler for every request, used for parsing, auth and logging.</dd></div>
+    <div><dt>MVC</dt><dd>Model, View, Controller: separates data, presentation and request handling.</dd></div>
+    <div><dt>Layered architecture</dt><dd>Routes, then services with business logic, then repositories with data access, each calling only the layer below.</dd></div>
+    <div><dt>Dependency injection</dt><dd>The framework creates and passes in the objects a class needs, instead of the class building them.</dd></div>
+    <div><dt>ORM</dt><dd>Object-relational mapper: maps database rows to objects and writes the SQL for you.</dd></div>
+    <div><dt>N+1 problem</dt><dd>One query for a list plus one query per item, so round trips grow with the data. Fix with a JOIN or eager loading.</dd></div>
+    <div><dt>Migration</dt><dd>A versioned script that changes the schema, applied once in order and recorded in the database.</dd></div>
+    <div><dt>Backward-compatible change</dt><dd>A schema change that old and new code can both run against, so deploys do not need downtime.</dd></div>
+    <div><dt>Cache-aside</dt><dd>Read the cache first, load from the database on a miss, and delete the cached key on write.</dd></div>
+    <div><dt>TTL</dt><dd>Time to live: how long a cached value may live before it expires.</dd></div>
+    <div><dt>Salt</dt><dd>A random per-user value mixed into a password hash so identical passwords get different hashes.</dd></div>
+    <div><dt>Argon2id, bcrypt, PBKDF2</dt><dd>Deliberately slow, salted password hashing functions. Never use a fast hash such as plain SHA-256 for passwords.</dd></div>
+    <div><dt>Session</dt><dd>Server-side state keyed by a random ID held in a cookie. Easy to revoke, but needs a shared store.</dd></div>
+    <div><dt>JWT</dt><dd>A signed, self-contained token (header, payload, signature). Verified without a lookup, but hard to revoke early and readable by anyone.</dd></div>
+    <div><dt>Refresh token rotation</dt><dd>Each refresh issues a new refresh token and retires the old one. Reuse of a retired token revokes the family.</dd></div>
+    <div><dt>RBAC</dt><dd>Role-based access control: roles carry permissions, users carry roles, and code checks permissions.</dd></div>
+    <div><dt>401 vs 403</dt><dd>401 means not authenticated; 403 means authenticated but not allowed.</dd></div>
+    <div><dt>Background job</dt><dd>Work moved off the request path into a queue and run later by a worker.</dd></div>
+    <div><dt>Exponential backoff</dt><dd>Waiting longer after each failed retry, usually capped and often with random jitter.</dd></div>
+    <div><dt>Idempotent</dt><dd>Safe to repeat: doing the operation twice has the same effect as doing it once.</dd></div>
+    <div><dt>Idempotency key</dt><dd>A client-generated key stored with a result, so a retry returns the stored result instead of acting again.</dd></div>
+    <div><dt>WebSocket</dt><dd>A long-lived two-way connection, started over HTTP with an Upgrade header.</dd></div>
+    <div><dt>Presigned URL</dt><dd>A time-limited, signed URL that lets a client upload or download an S3 object directly.</dd></div>
+    <div><dt>Structured logging</dt><dd>Writing each log event as a machine-readable record, usually JSON, with fields such as request ID.</dd></div>
+    <div><dt>Liveness and readiness</dt><dd>Liveness: restart the process if it is stuck. Readiness: stop sending traffic to it if it cannot serve.</dd></div>
+    <div><dt>Twelve-factor app</dt><dd>A checklist for cloud services, including config in environment variables and stateless processes.</dd></div>
+    <div><dt>Blueprint (Flask)</dt><dd>A reusable group of routes that is registered on an app, optionally under a URL prefix.</dd></div>
+    <div><dt>Application factory</dt><dd>A function that builds and configures a new app each time it is called, which helps tests and avoids circular imports.</dd></div>
+    <div><dt>WSGI vs ASGI</dt><dd>WSGI is the synchronous Python web interface (Flask). ASGI is the asynchronous one that supports WebSockets (FastAPI).</dd></div>
+    <div><dt>Greedy algorithm</dt><dd>Makes the locally best choice at each step and never reconsiders it. Correct only when an exchange argument holds.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+    <tr><td><code>sqlite3.connect</code></td><td>Opens a database file, or an in-memory one with ":memory:"</td><td><code>db = sqlite3.connect(":memory:")</code></td></tr>
+    <tr><td><code>PRAGMA user_version</code></td><td>Reads or sets the application's version number in SQLite</td><td><code>PRAGMA user_version = 3</code></td></tr>
+    <tr><td><code>hashlib.pbkdf2_hmac</code></td><td>Derives a slow, salted password hash</td><td><code>hashlib.pbkdf2_hmac("sha256", pw, salt, 100000)</code></td></tr>
+    <tr><td><code>hmac.compare_digest</code></td><td>Compares two secrets in constant time</td><td><code>hmac.compare_digest(a, b)</code></td></tr>
+    <tr><td><code>heapq.heappush / heappop</code></td><td>Add to and remove the smallest item from a heap (use negatives for a max-heap)</td><td><code>heapq.heappush(h, -fuel)</code></td></tr>
+    <tr><td><code>logging.getLogger</code></td><td>Gets a named logger; messages below its level are dropped</td><td><code>log = logging.getLogger("orders")</code></td></tr>
+    <tr><td><code>Flask(__name__)</code></td><td>Creates a Flask application</td><td><code>app = Flask(__name__)</code></td></tr>
+    <tr><td><code>app.config.from_mapping</code></td><td>Sets several configuration keys at once</td><td><code>app.config.from_mapping(SECRET_KEY="...")</code></td></tr>
+    <tr><td><code>app.register_blueprint</code></td><td>Adds a blueprint's routes, optionally under a prefix</td><td><code>app.register_blueprint(bp, url_prefix="/api")</code></td></tr>
+    <tr><td><code>Blueprint</code></td><td>Groups routes that live in one module</td><td><code>bp = Blueprint("users", __name__)</code></td></tr>
+    <tr><td><code>@bp.get / @bp.post</code></td><td>Routes a GET or POST request to a function</td><td><code>@bp.get("/&lt;int:id&gt;")</code></td></tr>
+    <tr><td><code>request.get_json()</code></td><td>Parses the JSON body of the request</td><td><code>data = request.get_json()</code></td></tr>
+    <tr><td><code>jsonify</code></td><td>Builds a JSON response</td><td><code>return jsonify(id=1), 201</code></td></tr>
+    <tr><td><code>abort</code></td><td>Stops the view and returns an HTTP error</td><td><code>abort(404)</code></td></tr>
+    <tr><td><code>render_template</code></td><td>Fills a Jinja2 template with variables</td><td><code>render_template("home.html", name=n)</code></td></tr>
+    <tr><td><code>db.session.get</code></td><td>Loads one Flask-SQLAlchemy model by primary key</td><td><code>db.session.get(User, 1)</code></td></tr>
+    <tr><td><code>gunicorn</code></td><td>Runs a WSGI app in production</td><td><code>gunicorn "app:create_app()"</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+
+
+
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 22?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 22 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-21.html"><small>Previous, day 21</small>Sunday: Aptitude, review, Mock 3, resume and HR</a><a class="next" href="day-23.html"><small>Next, day 23</small>Git and GitHub</a></nav>
+</main><script src="assets/app.js"></script></body></html>

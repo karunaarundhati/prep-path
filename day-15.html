@@ -1,0 +1,701 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 15: Networks, APIs, security basics + FastAPI</title><meta name="description" content="Today covers the networking and web layers that every backend engineer must explain: the OSI and TCP/IP models, TCP versus UDP, HTTP and TLS, DNS, and what really happens when you type a URL. It then moves to API design, authentication, and the basics of web security, and ends with FastAPI, the Python framework you can use to build those APIs. The DSA focus is binary trees and their traversals."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="15" data-key="15" data-noun="day" data-num="15" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Networks, APIs, security basics + FastAPI</h1>
+<p class="lede">Today covers the networking and web layers that every backend engineer must explain: the OSI and TCP/IP models, TCP versus UDP, HTTP and TLS, DNS, and what really happens when you type a URL. It then moves to API design, authentication, and the basics of web security, and ends with FastAPI, the Python framework you can use to build those APIs. The DSA focus is binary trees and their traversals.</p>
+<div class="station"><b>15</b><span>Mon 16 Nov 2026 · Systems · DSA: Trees and traversals</span></div>
+<ul class="topics"><li>OSI and TCP/IP layers</li><li>TCP vs UDP</li><li>HTTP, HTTPS and TLS</li><li>DNS and the journey of a URL</li><li>REST, JWT and OAuth</li><li>CIA triad, hashing vs encryption, OWASP</li><li>FastAPI: a three-endpoint app</li><li>Trees and traversals</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Layers">
+  <h2>The network layers: OSI and TCP/IP</h2>
+  <p>A network is a stack of cooperating rules. Each rule, or <strong>protocol</strong>, solves one problem and relies on the layers below it to solve the others. Engineers describe this stack in two models. The <strong>OSI model</strong> has seven layers and is mostly used as a teaching and vocabulary tool. The <strong>TCP/IP model</strong> has four layers and describes what the Internet actually runs. Interviewers expect you to know both and to map a protocol to its layer.</p>
+  <div class="tablewrap"><table><thead><tr><th>OSI layer</th><th>Number</th><th>What it does</th><th>Examples</th><th>TCP/IP layer</th></tr></thead><tbody>
+    <tr><td>Application</td><td>7</td><td>Network services used directly by programs</td><td>HTTP, DNS, SNMP, SMTP</td><td rowspan="3">Application</td></tr>
+    <tr><td>Presentation</td><td>6</td><td>Data format, encoding and encryption (conceptually)</td><td>TLS (often placed here), JSON</td></tr>
+    <tr><td>Session</td><td>5</td><td>Opening, managing and closing dialogues</td><td>NetBIOS, RPC (conceptually)</td></tr>
+    <tr><td>Transport</td><td>4</td><td>End-to-end delivery between processes, using ports</td><td>TCP, UDP</td><td>Transport</td></tr>
+    <tr><td>Network</td><td>3</td><td>Addressing and routing between networks</td><td>IP, ICMP</td><td>Internet</td></tr>
+    <tr><td>Data link</td><td>2</td><td>Moving frames between directly connected devices</td><td>Ethernet, Wi-Fi, ARP</td><td rowspan="2">Network access (link)</td></tr>
+    <tr><td>Physical</td><td>1</td><td>Bits on the wire or radio waves</td><td>Cables, fibre, radio</td></tr>
+  </tbody></table></div>
+  <p>The two columns line up loosely. TLS is the awkward one: it does not fit neatly anywhere, so textbooks place it between the transport and application layers, and that is a fine answer in an interview as long as you explain why.</p>
+  <h3>Encapsulation: how a message travels down the stack</h3>
+  <p>When a program sends data, each layer wraps the data from the layer above in its own header, and the result becomes the payload of the layer below. The receiving machine reverses the process, removing one header at each layer and handing the payload upward. This wrapping is called <strong>encapsulation</strong>, and it is why a single HTTP request is carried inside a TCP segment, which is carried inside an IP packet, which is carried inside an Ethernet frame.</p>
+  <ul>
+    <li><strong>Application data.</strong> The HTTP request, for example <code>GET /index.html</code> with headers.</li>
+    <li><strong>Transport segment.</strong> The same bytes with a TCP header that carries source and destination ports, sequence numbers and flags.</li>
+    <li><strong>Network packet.</strong> The segment with an IP header that carries source and destination IP addresses and a time-to-live field.</li>
+    <li><strong>Link frame.</strong> The packet with a link header carrying the MAC addresses of the next device on the local network.</li>
+  </ul>
+  <p>Two details matter in practice. First, an <strong>IP address</strong> identifies a machine on a network, and it can change across networks. Second, a <strong>port</strong> identifies a service or a socket on that machine. A connection is identified by the four values: source IP, source port, destination IP and destination port. A web server on port 443 can serve thousands of clients at once, because each client connection has a different source port.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not say that a router works at layer 4 because it looks at IP addresses. Routing is layer 3 (IP). Port-aware load balancers and firewalls work at layer 4, and HTTP-aware proxies work at layer 7.</p></div>
+  <details class="check"><summary>Name the TCP/IP layer for HTTP, TCP, IP and Ethernet.</summary><div class="ans"><p>HTTP is in the application layer, TCP is in the transport layer, IP is in the internet layer, and Ethernet is in the network access (link) layer. In the OSI model these are layers 7, 4, 3 and 2.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="TCP and UDP">
+  <h2>TCP versus UDP</h2>
+  <p>Both TCP and UDP are transport protocols. They deliver data between two processes using port numbers, and they differ in what they promise. This is one of the most common interview questions, and the answer is about guarantees and cost.</p>
+  <p><strong>TCP</strong> (Transmission Control Protocol) is connection-oriented and reliable. Before any data flows, the two ends perform a <strong>three-way handshake</strong>. The client sends a SYN segment with a starting sequence number. The server replies with SYN-ACK, acknowledging that number and offering its own. The client sends an ACK, and the connection is open. TCP then numbers every byte, acknowledges what it receives, retransmits anything that is not acknowledged in time, and delivers bytes to the application in order without gaps or duplicates. It also controls the rate. The <strong>receive window</strong> stops a fast sender from overwhelming a slow receiver (flow control), and <strong>congestion control</strong> reduces the sending rate when the network drops packets (for example, by halving the window on loss, then growing it slowly again).</p>
+  <p><strong>UDP</strong> (User Datagram Protocol) is connectionless and best effort. There is no handshake. Each datagram is sent independently, with an 8-byte header that carries only ports, a length and a checksum. UDP does not retransmit, does not order datagrams and does not control the rate. A datagram can be lost, arrive out of order, or arrive twice, and the application has to deal with that if it matters.</p>
+  <div class="tablewrap"><table><thead><tr><th>Property</th><th>TCP</th><th>UDP</th></tr></thead><tbody>
+    <tr><td>Connection setup</td><td>Three-way handshake before data</td><td>None</td></tr>
+    <tr><td>Reliability</td><td>Acknowledged, retransmitted</td><td>None</td></tr>
+    <tr><td>Ordering</td><td>In order to the application</td><td>Not guaranteed</td></tr>
+    <tr><td>Header size</td><td>At least 20 bytes</td><td>8 bytes</td></tr>
+    <tr><td>Flow and congestion control</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Typical uses</td><td>Web pages, email, file transfer, databases</td><td>DNS queries, video and voice streams, games, SNMP</td></tr>
+  </tbody></table></div>
+  <p>Some applications build their own reliability on top of UDP. QUIC, the transport under HTTP/3, does this: it provides reliable, encrypted streams in user space over UDP, which avoids some of the delays that TCP's ordering imposes on every stream of a connection.</p>
+  <div class="note key"><p><span class="t">Key idea</span>TCP gives you a reliable byte stream at the cost of a handshake and waiting for lost data. UDP gives you cheap, immediate datagrams and leaves reliability to you.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>"UDP is faster" is not the whole story. UDP has less overhead, but an application that needs reliability and rebuilds it poorly will be slower and buggier than TCP. Choose UDP for latency-sensitive data where a lost packet is better than a late one, such as a live video frame.</p></div>
+  <details class="check"><summary>Why does a TCP connection start with three messages?</summary><div class="ans"><p>Each side must learn that the other is reachable and agree on its starting sequence number, so that both can number and acknowledge bytes reliably. The client's SYN sends its number, the server's SYN-ACK acknowledges it and sends the server's number, and the client's ACK acknowledges the server's number. After the third message, both sides can send data.</p></div></details>
+  <details class="check"><summary>What does UDP not do that TCP does?</summary><div class="ans"><p>UDP does not set up a connection, does not acknowledge or retransmit, does not guarantee order or uniqueness, and does not perform flow or congestion control. It only adds ports, a length and a checksum to the datagram.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="HTTP and TLS">
+  <h2>HTTP, HTTPS and TLS</h2>
+  <p><strong>HTTP</strong> (Hypertext Transfer Protocol) is the application protocol of the web. A client sends a <strong>request</strong>, and a server returns a <strong>response</strong>. HTTP is stateless: each request stands alone, and any memory of the user, such as a login, is carried by cookies or tokens sent with each request.</p>
+  <p>A request has a <strong>method</strong>, a path, headers and an optional body. A response has a <strong>status code</strong>, headers and an optional body. The most important methods are GET (read a resource), POST (create or submit something), PUT (replace a resource), PATCH (change part of a resource), and DELETE (remove a resource). Status codes are grouped by their first digit: 2xx means success (200 OK, 201 Created, 204 No Content), 3xx means redirection (301 Moved Permanently, 304 Not Modified), 4xx means the client made an error (400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 409 Conflict, 422 Unprocessable Content), and 5xx means the server failed (500 Internal Server Error, 503 Service Unavailable).</p>
+  <div class="note trap"><p><span class="t">Trap</span>401 means "not authenticated": the caller has not proved who they are. 403 means "authenticated but not allowed". Many candidates swap them.</p></div>
+  <h3>How HTTP versions differ</h3>
+  <ul>
+    <li><strong>HTTP/1.1</strong> is text-based. It reuses one TCP connection for several requests in turn (keep-alive), but a response must finish before the next can start on that connection, which causes head-of-line blocking.</li>
+    <li><strong>HTTP/2</strong> is binary and multiplexes many streams on one TCP connection, so requests can be in flight at the same time. It also compresses headers.</li>
+    <li><strong>HTTP/3</strong> carries HTTP over QUIC, which runs over UDP, so a lost packet delays only the stream it belongs to.</li>
+  </ul>
+  <h3>HTTPS and TLS</h3>
+  <p><strong>HTTPS</strong> is simply HTTP sent over <strong>TLS</strong> (Transport Layer Security), normally on port 443. TLS gives three things: <strong>confidentiality</strong> (eavesdroppers cannot read the traffic), <strong>integrity</strong> (tampering is detected), and <strong>authentication</strong> of the server (the client knows it is talking to the owner of the domain name). TLS 1.2 and 1.3 are the versions in use; TLS 1.3 is the current standard and is faster to set up.</p>
+  <p>A TLS 1.3 handshake works in broad steps:</p>
+  <ol>
+    <li>The client sends a <strong>ClientHello</strong> with supported cipher suites, a key share for a key exchange (usually elliptic-curve Diffie-Hellman), and the host name it wants, in the Server Name Indication extension, so one IP address can serve many sites.</li>
+    <li>The server replies with its own key share and its <strong>certificate</strong>, which binds its public key to a domain name. The certificate is signed by a <strong>certificate authority</strong> (CA), and the client checks the signature against the CA certificates in its trust store. The server also signs part of the handshake with its private key, proving it holds that key.</li>
+    <li>Both sides compute the same shared secret from the key exchange and derive session keys. From here on, everything is encrypted with a fast symmetric cipher such as AES-GCM.</li>
+  </ol>
+  <p>The key exchange uses <strong>asymmetric</strong> cryptography, which is slow but needs no shared secret in advance. The bulk data uses <strong>symmetric</strong> cryptography, which is fast. Using both is the standard design. Ephemeral keys give <strong>forward secrecy</strong>: if the server's long-term key is stolen later, past sessions still cannot be decrypted.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The certificate proves who the server is, the key exchange creates a secret that only the two ends know, and symmetric encryption protects the data after that.</p></div>
+  <details class="check"><summary>What does TLS protect against, and what does it not protect?</summary><div class="ans"><p>TLS protects the confidentiality and integrity of data in transit and authenticates the server. It does not protect data on the endpoints themselves, does not stop a compromised browser or server, and does not stop a user from being fooled by a look-alike domain name.</p></div></details>
+  <details class="check"><summary>What does the Server Name Indication extension do?</summary><div class="ans"><p>SNI lets the client send the host name in the first TLS message, before encryption starts. The server uses it to choose the right certificate, so several HTTPS sites can share one IP address.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="DNS and URLs">
+  <h2>DNS, the journey of a URL, and SNMP</h2>
+  <p><strong>DNS</strong> (Domain Name System) translates human-readable names such as <code>example.com</code> into IP addresses. It is a distributed, hierarchical database. No single server knows everything. Each level delegates the next: the root servers point to the servers for each top-level domain (such as .com), which point to the authoritative servers for each domain, which hold the actual records.</p>
+  <div class="tablewrap"><table><thead><tr><th>Record</th><th>Meaning</th><th>Example</th></tr></thead><tbody>
+    <tr><td>A</td><td>Maps a name to an IPv4 address</td><td>example.com A 93.184.216.34</td></tr>
+    <tr><td>AAAA</td><td>Maps a name to an IPv6 address</td><td>example.com AAAA with an IPv6 address</td></tr>
+    <tr><td>CNAME</td><td>Makes a name an alias of another name</td><td>www.example.com CNAME example.com</td></tr>
+    <tr><td>MX</td><td>Names the mail servers for a domain</td><td>example.com MX 10 mail.example.com</td></tr>
+    <tr><td>NS</td><td>Names the authoritative name servers for a zone</td><td>example.com NS ns1.example.net</td></tr>
+    <tr><td>TXT</td><td>Free text, used for verification and policies</td><td>SPF and domain verification strings</td></tr>
+  </tbody></table></div>
+  <p>A <strong>recursive resolver</strong>, usually run by your ISP or a public service, does the walking on your behalf. It asks a root server where .com lives, asks the .com server where the domain's authoritative server is, then asks that server for the record. Every answer carries a <strong>TTL</strong> (time to live) in seconds, and caches at the resolver, the operating system and the browser keep the answer until it expires. DNS normally uses UDP port 53, and falls back to TCP for large responses and zone transfers.</p>
+  <h3>What happens when you type a URL</h3>
+  <p>This question tests whether you can connect the layers into one story. Here is a typical sequence for <code>https://example.com/docs</code>. Each step depends on the previous one.</p>
+  <ol>
+    <li><strong>Parse the URL.</strong> The browser reads the scheme (https), the host (example.com), the default port for the scheme (443) and the path (/docs).</li>
+    <li><strong>Check caches.</strong> The browser checks its own caches, the list of sites that must always use HTTPS (HSTS), and the operating system's DNS cache.</li>
+    <li><strong>Resolve the name.</strong> If nothing is cached, the recursive resolver walks the DNS hierarchy and returns an IP address with a TTL.</li>
+    <li><strong>Open a TCP connection.</strong> The client performs the three-way handshake with that IP address on port 443.</li>
+    <li><strong>Negotiate TLS.</strong> The TLS handshake validates the certificate for example.com and establishes encryption keys.</li>
+    <li><strong>Send the HTTP request.</strong> The browser sends GET /docs with headers such as Host, cookies and Accept. The Host header tells the server which site is wanted.</li>
+    <li><strong>Receive the response.</strong> The server, or a load balancer or reverse proxy in front of it, returns a status code. A 301 or 302 means the browser must request the new location.</li>
+    <li><strong>Render.</strong> The browser parses the HTML, builds the DOM and CSS rules, then requests images, scripts and styles, often in parallel, and paints the page.</li>
+  </ol>
+  <p>Below the transport layer, every IP packet is routed hop by hop across routers. On the local network, the machine uses ARP to find the MAC address of its default gateway, because frames on a LAN are addressed by MAC, not IP.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What happens when you type a URL? Give the eight steps in order, then say which step is slowest on a cold cache (usually DNS and the TCP and TLS round trips) and how caching and HTTP/2 or HTTP/3 reduce it.</p></div>
+  <h3>SNMP: managing network devices</h3>
+  <p><strong>SNMP</strong> (Simple Network Management Protocol) is used to monitor and configure network devices such as routers, switches and printers. It has two roles. A <strong>manager</strong> (for example a monitoring system) asks questions. An <strong>agent</strong> runs on each device and answers. SNMP runs over UDP: the manager sends requests to port 161 on the agent, and the agent sends unsolicited <strong>traps</strong> (alerts) to port 162 on the manager.</p>
+  <p>The data is organised as a tree called a <strong>MIB</strong> (Management Information Base). Each variable has an <strong>OID</strong> (object identifier), a dotted sequence of numbers such as 1.3.6.1.2.1.1.1.0, which names the system description. The operations are GET (read one value), GETNEXT and GETBULK (walk a table), SET (change a value), and the agent-initiated trap or inform.</p>
+  <p>SNMP has three versions. Version 1 and version 2c use a <strong>community string</strong> as a shared password, sent in clear text, so they must be used only on trusted networks. Version 3 adds authentication and encryption through the User-based Security Model. Using v3 in production is the correct answer when security is asked about.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A community string is not a password in the security sense. It is sent in the clear with every request, so anyone who can sniff the network can read it.</p></div>
+  <details class="check"><summary>What is the difference between a DNS A record and a CNAME record?</summary><div class="ans"><p>An A record maps a name directly to an IPv4 address. A CNAME record maps a name to another name, and the resolver then looks up that name. A CNAME cannot sit at the zone apex alongside other records, so the apex of a domain normally uses A or AAAA records.</p></div></details>
+  <details class="check"><summary>Which transport and ports does SNMP use?</summary><div class="ans"><p>SNMP uses UDP. Requests from the manager go to port 161 on the agent, and traps from the agent go to port 162 on the manager.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="REST and auth">
+  <h2>REST, idempotency, JWT, OAuth and API styles</h2>
+  <p>An <strong>API</strong> (application programming interface) lets one program call another over the network. Most web APIs follow the <strong>REST</strong> style. REST is an architectural style, not a standard, and its key constraints are: a client-server split, statelessness (each request carries everything the server needs), cacheability, and a uniform interface built on resources and HTTP.</p>
+  <h3>Designing resources and using HTTP methods</h3>
+  <p>In REST, the URL names a <strong>resource</strong>, and the HTTP method says what to do with it. Use plural nouns and avoid verbs in paths: <code>GET /books/42</code> reads book 42, and <code>DELETE /books/42</code> removes it. Nested resources express ownership, as in <code>GET /authors/7/books</code>. Responses use status codes to say what happened: 201 with a Location header after a create, 404 when the resource is missing, and 422 when the body fails validation.</p>
+  <h3>Idempotency and safety</h3>
+  <p>An operation is <strong>safe</strong> if it does not change server state (GET, HEAD and OPTIONS are safe). An operation is <strong>idempotent</strong> if doing it several times has the same effect on the server as doing it once. GET, PUT, DELETE, HEAD and OPTIONS are idempotent by definition. POST is not: sending the same POST twice usually creates two resources. PATCH is not guaranteed to be idempotent, since "add 1 to the counter" repeated gives a different result each time.</p>
+  <p>Idempotency matters because networks retry requests. If a client times out and resends a PUT, the server must end in the same state. For a payment POST, the standard fix is an <strong>idempotency key</strong>: the client sends a unique key with the request, and the server remembers the result for that key and returns it on a retry.</p>
+  <div class="note trap"><p><span class="t">Trap</span>DELETE is idempotent even though its status code changes. The first call returns 204, and a retry returns 404, but the server state is the same: the resource is gone.</p></div>
+  <h3>JWT: a signed token</h3>
+  <p>A <strong>JSON Web Token</strong> (JWT) is a compact token with three parts separated by dots: a header, a payload and a signature. Each part is base64url-encoded. The header names the signing algorithm (such as HS256). The payload contains <strong>claims</strong>, such as <code>sub</code> (the subject), <code>exp</code> (expiry time) and <code>iss</code> (issuer). The signature is computed over the first two parts with a secret key (HMAC) or a private key (RSA or ECDSA).</p>
+  <p>The most important point is that a JWT is <strong>signed, not encrypted</strong>. The payload is readable by anyone who holds the token. The signature only proves the content was not changed and was made by someone with the key. The following program builds a token, then reads its payload without any key.</p>
+  <pre class="code" data-lang="python"><code>import base64
+import hashlib
+import hmac
+import json
+
+
+def b64url(data):
+    """Base64url without padding, the encoding JWT uses."""
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+header = {"alg": "HS256", "typ": "JWT"}
+payload = {"sub": "42", "role": "reader"}
+header_part = b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+payload_part = b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+signing_input = header_part + "." + payload_part
+signature = hmac.new(b"demo-secret", signing_input.encode("ascii"), hashlib.sha256).digest()
+token = signing_input + "." + b64url(signature)
+print(token)
+
+middle = token.split(".")[1]
+padded = middle + "=" * (-len(middle) % 4)     # base64 decoding needs padding to a multiple of 4
+print(base64.urlsafe_b64decode(padded).decode("utf-8"))</code></pre>
+  <pre class="output">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MiIsInJvbGUiOiJyZWFkZXIifQ.Sl0N-Cm6cSD0cc0K8uX256gLDiCtN-JDYBnpkbWcC88
+{"sub":"42","role":"reader"}</pre>
+  <p>The program signs the token with the HMAC of the header and payload, using a demo key. The second print decodes the payload with no key at all, which shows why sensitive data must never go into a JWT unless the token is also encrypted (JWE). A server verifies a token by recomputing the signature with its key, comparing it, and then checking <code>exp</code> and the audience. It must pin the algorithm it expects, because accepting "none" or a different algorithm is a well-known vulnerability.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A JWT cannot be revoked simply by deleting it on the server, because the server does not store it. Keep lifetimes short, and use a server-side deny list or token version for logout and password changes.</p></div>
+  <h3>OAuth 2.0: delegated access</h3>
+  <p><strong>OAuth 2.0</strong> is a framework for <strong>delegated authorisation</strong>: it lets an application access a user's data on another service without receiving the user's password. It is about what an app may do, not who the user is. OpenID Connect adds an <strong>ID token</strong> on top of OAuth so that the app can learn who the user is, which is authentication.</p>
+  <p>OAuth has four roles: the <strong>resource owner</strong> (the user), the <strong>client</strong> (the app), the <strong>authorisation server</strong> (issues tokens after the user consents), and the <strong>resource server</strong> (the API that holds the data). In the authorisation code flow with PKCE, the app redirects the user to the authorisation server, the user signs in and consents, the server returns a short-lived code to the app, and the app exchanges the code, plus a secret proof called the PKCE verifier, for an access token. The access token is then sent as <code>Authorization: Bearer ...</code> on API calls. Client credentials flow is for machine-to-machine calls where no user is involved.</p>
+  <div class="note key"><p><span class="t">Key idea</span>OAuth answers "may this app act on the user's behalf, and with which scopes?", while login answers "who is this user?". OpenID Connect provides the second answer.</p></div>
+  <h3>REST versus GraphQL versus gRPC</h3>
+  <div class="tablewrap"><table><thead><tr><th>Property</th><th>REST</th><th>GraphQL</th><th>gRPC</th></tr></thead><tbody>
+    <tr><td>Transport</td><td>HTTP, usually HTTP/1.1 or 2</td><td>HTTP, usually one POST endpoint</td><td>HTTP/2 only</td></tr>
+    <tr><td>Data format</td><td>Usually JSON</td><td>JSON</td><td>Protocol Buffers (binary)</td></tr>
+    <tr><td>Who decides the response shape</td><td>The server, per endpoint</td><td>The client, field by field</td><td>The server, in the .proto contract</td></tr>
+    <tr><td>Over-fetching and under-fetching</td><td>Common, and fixed by extra endpoints</td><td>Avoided by design</td><td>Avoided by message design</td></tr>
+    <tr><td>HTTP caching</td><td>Easy with GET and cache headers</td><td>Harder, since queries are POST bodies</td><td>Not built into HTTP caches</td></tr>
+    <tr><td>Streaming</td><td>Limited</td><td>Subscriptions</td><td>Built in, client, server and bidirectional</td></tr>
+    <tr><td>Best fit</td><td>Public APIs, simple resource models</td><td>Front ends with varied data needs</td><td>Internal service-to-service calls</td></tr>
+  </tbody></table></div>
+  <p>GraphQL has its own risks. A client can ask for deeply nested data, so servers limit query depth and cost. A naive resolver can run one database query per item in a list, which is the N+1 problem. gRPC needs a proxy such as gRPC-Web to be called from a browser directly.</p>
+  <details class="check"><summary>What does idempotent mean, and which HTTP methods are idempotent?</summary><div class="ans"><p>An idempotent operation has the same effect on the server whether it runs once or many times. GET, HEAD, OPTIONS, PUT and DELETE are idempotent. POST is not, and PATCH is not guaranteed to be.</p></div></details>
+  <details class="check"><summary>Is a JWT encrypted?</summary><div class="ans"><p>No. A standard JWT is signed (JWS), so its payload is only base64url-encoded and anyone can read it. The signature protects integrity, not confidentiality. Encrypted tokens use JWE, which is a different format.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Security">
+  <h2>Security basics: CIA, hashing, encryption and OWASP</h2>
+  <p>Security engineering starts from three goals, which together are called the <strong>CIA triad</strong>. <strong>Confidentiality</strong> means only authorised parties can read data. <strong>Integrity</strong> means data cannot be changed without detection. <strong>Availability</strong> means the system works when it is needed. Every control you learn maps onto one or more of these goals. Authentication (who are you?), authorisation (what may you do?) and accounting or auditing (what did you do?) are the other concepts interviewers mention next.</p>
+  <h3>Hashing versus encryption</h3>
+  <p>These two are often confused. <strong>Encryption</strong> is reversible: with the right key, ciphertext becomes plaintext again. Symmetric encryption, such as AES, uses one key for both directions. Asymmetric encryption, such as RSA, uses a public key to encrypt and a private key to decrypt. <strong>Hashing</strong> is one-way: a hash function maps any input to a fixed-size digest, such as 256 bits for SHA-256, and there is no key and no way to get the input back. The same input always gives the same digest, and a tiny change in input gives a completely different digest.</p>
+  <p>Hashing is used for integrity checks, digital signatures (where the hash of the message is signed) and password storage. Encoding, such as base64, is a third thing: it is a reversible change of format with no secret, so it provides no security at all.</p>
+  <pre class="code" data-lang="python"><code>import hashlib
+
+print(hashlib.sha256(b"password").hexdigest())
+print(hashlib.pbkdf2_hmac("sha256", b"password", b"8f1c", 1000).hex()[:16])
+print(hashlib.pbkdf2_hmac("sha256", b"password", b"c3d9", 1000).hex()[:16])</code></pre>
+  <pre class="output">5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
+199b63552af8a4d9
+b946d0bb4f471938</pre>
+  <p>The first line is a plain SHA-256 digest of the word password. Plain hashing is too fast for passwords, because an attacker can test billions of guesses per second on a GPU. The next two lines use PBKDF2 with a salt. A <strong>salt</strong> is a random value stored with each password, so two users with the same password get different hashes, and precomputed tables cannot be reused. PBKDF2 also repeats the hash many times to slow each guess. In production, use a dedicated password hash such as Argon2, scrypt or bcrypt, with settings chosen by current guidance. The two salted outputs differ even though the password is the same, which is the point of salting.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not store passwords with encryption. If the key is ever exposed, every password is exposed too. Hash them with a slow, salted password hash, and check the password by hashing the attempt and comparing the results.</p></div>
+  <h3>OWASP and the three attacks to know</h3>
+  <p>OWASP (the Open Worldwide Application Security Project) publishes a list of the most critical web application risks, called the OWASP Top 10. Injection, which includes SQL injection and cross-site scripting, has appeared on it for many years. The three attacks below are the ones interviewers expect you to explain with a fix.</p>
+  <h4>SQL injection</h4>
+  <p><strong>SQL injection</strong> happens when user input is pasted into a SQL query as code. The database then reads part of the input as SQL. The program below builds one query by joining strings, then a second query with a placeholder. The input is an attack string that tries to make the WHERE clause always true.</p>
+  <pre class="code" data-lang="python"><code>import sqlite3
+
+con = sqlite3.connect(":memory:")
+con.execute("CREATE TABLE users (name TEXT, secret TEXT)")
+con.executemany("INSERT INTO users VALUES (?, ?)", [("alice", "a-pass"), ("bob", "b-pass")])
+
+user_input = "x' OR '1'='1"
+unsafe = "SELECT name FROM users WHERE name = '" + user_input + "'"
+print(unsafe)
+print(con.execute(unsafe).fetchall())
+
+safe = "SELECT name FROM users WHERE name = ?"
+print(con.execute(safe, (user_input,)).fetchall())</code></pre>
+  <pre class="output">SELECT name FROM users WHERE name = 'x' OR '1'='1'
+[('alice',), ('bob',)]
+[]</pre>
+  <p>In the first query, the quote in the input closes the string early, and <code>OR '1'='1'</code> is always true, so every row is returned. In the second query, the question mark is a placeholder. The driver sends the query and the value separately, so the input is treated only as a name, and no row matches it. The fix is always parameterised queries (prepared statements), which an ORM uses under the hood. Escaping strings by hand is error-prone and should be avoided.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Keep code and data separate. Parameters are data, never part of the SQL text.</p></div>
+  <h4>Cross-site scripting (XSS)</h4>
+  <p><strong>XSS</strong> happens when a site includes untrusted input in its HTML, and the browser runs that input as script. A <strong>stored</strong> XSS saves the input and shows it to later visitors. A <strong>reflected</strong> XSS echoes a value from the current request, often in a link. A <strong>DOM-based</strong> XSS is created by client-side code that writes untrusted data into the page. The attacker's script then runs with the victim's privileges on that site: it can read the page, send requests as the user, or steal data the page can reach.</p>
+  <p>The defence is <strong>output encoding</strong>: turn characters that have meaning in HTML into harmless entities when you place data in a page. The code below shows the encoding for an HTML body.</p>
+  <pre class="code" data-lang="python"><code>import html
+
+comment = '&lt;script&gt;alert("hi")&lt;/script&gt;'
+print(html.escape(comment))</code></pre>
+  <pre class="output">&amp;lt;script&amp;gt;alert(&amp;quot;hi&amp;quot;)&amp;lt;/script&amp;gt;</pre>
+  <p>The output line is the escaped form. Written into an HTML page, the browser displays it as the plain text of the tag, and never runs it as script. The entities for less-than, greater-than, ampersand and quotes are what keep the input from being read as markup. Modern frameworks escape by default, so the rules to remember are: never use innerHTML or an equivalent with untrusted data, prefer text-setting APIs, add a Content Security Policy to limit where scripts can load from, and set session cookies to HttpOnly so that script cannot read them.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Escaping is context-specific. Text inside an HTML attribute, inside a script block, and inside a URL each need different encoding. Using the HTML body encoder everywhere is not enough.</p></div>
+  <h4>Cross-site request forgery (CSRF)</h4>
+  <p><strong>CSRF</strong> tricks a logged-in user's browser into sending a state-changing request to a site where the user is authenticated. The browser attaches the site's cookies automatically, so the server sees a valid session. Imagine a page on another domain that contains a hidden form posting to a bank's transfer endpoint. If the user is logged in to the bank, the cookie goes along with the form, and the transfer happens without the user's intent. The attacker never sees the response, and does not need to.</p>
+  <p>The defences are to use the <code>SameSite</code> cookie attribute (<code>Lax</code> or <code>Strict</code>), which stops the browser sending the cookie on most cross-site requests; to require an anti-CSRF token that a cross-site page cannot read; to check the Origin header; and never to perform state changes with GET. Many modern browsers treat cookies without a SameSite attribute as Lax by default, which removes much of the risk, but tokens remain the robust answer.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you prevent SQL injection, XSS and CSRF? Parameterised queries for SQL, output encoding and a Content Security Policy for XSS, and SameSite cookies plus anti-CSRF tokens for CSRF. Name the one-line principle for each: separate code from data, encode for the context, and prove the request came from your own page.</p></div>
+  <details class="check"><summary>Why is a salted slow hash used for passwords, instead of SHA-256 alone?</summary><div class="ans"><p>A salt makes every password hash unique, so precomputed tables do not help an attacker. A slow hash makes each guess expensive, so brute force is impractical. SHA-256 is designed to be fast, which is the wrong property for passwords.</p></div></details>
+  <details class="check"><summary>How does a parameterised query stop SQL injection?</summary><div class="ans"><p>The SQL statement and the parameter values are sent to the database separately. The database parses the statement first, so each parameter is treated as a plain value, even if it contains quotes or SQL keywords.</p></div></details>
+</section>
+
+<section class="unit" id="c7" data-title="FastAPI">
+  <h2>Framework unit: FastAPI</h2>
+  <p><strong>FastAPI</strong> is a Python web framework for building APIs. It uses Python type hints for three jobs at once: to validate request data, to convert it into Python values, and to generate interactive API documentation automatically. It is built on <strong>Starlette</strong> for the web layer and <strong>Pydantic</strong> for data models, and it can run async code. The code below is not run here, because the framework is not part of the standard library, so read each line carefully. A later section shows the response it returns.</p>
+  <h3>The complete app, line by line</h3>
+  <pre class="code" data-lang="python"><code>from fastapi import Depends, FastAPI, HTTPException, Query, status
+from pydantic import BaseModel, Field
+
+app = FastAPI(title="Books API", version="1.0.0")
+
+
+class BookIn(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    year: int = Field(ge=0, le=2100)
+
+
+class Book(BookIn):
+    id: int
+
+
+class BookStore:
+    def __init__(self) -> None:
+        self.books: dict[int, Book] = {}
+        self.next_id = 1
+
+    def add(self, data: BookIn) -> Book:
+        book = Book(id=self.next_id, **data.model_dump())
+        self.books[book.id] = book
+        self.next_id += 1
+        return book
+
+
+store = BookStore()
+
+
+def get_store() -> BookStore:
+    return store
+
+
+@app.post("/books", response_model=Book, status_code=status.HTTP_201_CREATED)
+def create_book(data: BookIn, db: BookStore = Depends(get_store)) -> Book:
+    return db.add(data)
+
+
+@app.get("/books", response_model=list[Book])
+def list_books(limit: int = Query(10, ge=1, le=100), db: BookStore = Depends(get_store)) -> list[Book]:
+    return list(db.books.values())[:limit]
+
+
+@app.get("/books/{book_id}", response_model=Book)
+def get_book(book_id: int, db: BookStore = Depends(get_store)) -> Book:
+    book = db.books.get(book_id)
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book</code></pre>
+  <ul>
+    <li><code>from fastapi import ...</code> brings in the app class, the dependency helper <code>Depends</code>, the error type <code>HTTPException</code>, the query parameter helper <code>Query</code>, and the named HTTP status codes.</li>
+    <li><code>from pydantic import BaseModel, Field</code> brings in the base class for data models and the helper for adding validation rules.</li>
+    <li><code>app = FastAPI(title=..., version=...)</code> creates the application. The title and version appear in the generated documentation.</li>
+    <li><code>class BookIn(BaseModel)</code> defines the shape of data a client sends. <code>title</code> must be a string of 1 to 200 characters, and <code>year</code> an integer from 0 to 2100. Pydantic checks these rules before our code runs.</li>
+    <li><code>class Book(BookIn)</code> inherits the same fields and adds <code>id</code>. This separates input from output: clients never choose the id.</li>
+    <li><code>BookStore</code> keeps books in a dictionary keyed by id. It is an in-memory stand-in for a database, which is fine for learning but lost when the process restarts. <code>-&gt; None</code> is a return type annotation saying the initialiser returns nothing.</li>
+    <li><code>book = Book(id=self.next_id, **data.model_dump())</code> converts the validated input into a dictionary with <code>model_dump()</code>, then unpacks it into the new model together with the generated id.</li>
+    <li><code>store = BookStore()</code> creates one shared instance, and <code>get_store</code> returns it. This is the <strong>dependency</strong>.</li>
+    <li><code>@app.post("/books", ...)</code> is a decorator that registers the function as the handler for POST requests to /books. <code>response_model=Book</code> filters the output so only the declared fields are sent. <code>status_code=201</code> sets the success code to Created.</li>
+    <li><code>data: BookIn</code> in the function signature tells FastAPI to read the request body as JSON and validate it. <code>db: BookStore = Depends(get_store)</code> asks FastAPI to call <code>get_store</code> and pass its result as <code>db</code>. This is <strong>dependency injection</strong>: the handler does not create its own store, so a test can supply a different one.</li>
+    <li><code>limit: int = Query(10, ge=1, le=100)</code> is a query parameter, read from the URL such as <code>/books?limit=5</code>. The default is 10, and values outside 1 to 100 are rejected.</li>
+    <li><code>book_id: int</code> in <code>/books/{book_id}</code> is a <strong>path parameter</strong>. FastAPI reads it from the URL and converts it to an integer, so <code>/books/abc</code> fails validation before the function runs.</li>
+    <li><code>raise HTTPException(status_code=404, ...)</code> stops the request and returns a JSON error with the given code and detail.</li>
+  </ul>
+  <h3>Async endpoints</h3>
+  <p>Each handler above is a normal <code>def</code>. FastAPI runs such functions in a thread pool, so a slow blocking call does not freeze the server. If a handler uses <code>await</code> with an async library, declare it with <code>async def</code>. The rule is simple: never call a blocking function (such as <code>time.sleep</code> or a synchronous database driver) inside an <code>async def</code> handler, because it blocks the event loop for every other request.</p>
+  <h3>Automatic documentation</h3>
+  <p>Because every route declares its types, FastAPI builds an OpenAPI description of the API. Running the app with a server, such as <code>uvicorn main:app --reload</code>, makes the interactive documentation available at <code>/docs</code> (Swagger UI) and <code>/redoc</code>, and the raw specification at <code>/openapi.json</code>.</p>
+  <h3>Testing with TestClient</h3>
+  <p>FastAPI provides a test client that sends requests to the app in memory, without starting a server. It needs the <code>httpx</code> package installed. The test below creates a book and reads it back.</p>
+  <pre class="code" data-lang="python"><code>from fastapi.testclient import TestClient
+
+client = TestClient(app)
+
+
+def test_create_then_get():
+    created = client.post("/books", json={"title": "Dune", "year": 1965})
+    assert created.status_code == 201
+    book_id = created.json()["id"]
+    fetched = client.get(f"/books/{book_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["title"] == "Dune"</code></pre>
+  <p><code>client.post</code> sends a JSON body, and <code>created.json()</code> parses the response. Because the store is a module-level object, a test that needs a clean state would replace the dependency with <code>app.dependency_overrides[get_store]</code> pointing to a fresh store, which is one of the main reasons dependency injection is useful.</p>
+  <h3>The responses</h3>
+  <p>A successful create returns status 201 and the new book, including its generated id. A request for a missing book returns 404 with a detail message. A body that breaks the rules, such as an empty title, returns 422 with a list describing each invalid field, and FastAPI produces that message without any code from you.</p>
+  <h4>Response: POST /books with a valid body</h4>
+  <pre class="code" data-lang="json"><code>{"id":1,"title":"Dune","year":1965}</code></pre>
+  <h4>Response: GET /books/99 when the book does not exist</h4>
+  <pre class="code" data-lang="json"><code>{"detail":"Book not found"}</code></pre>
+  <div class="note trap"><p><span class="t">Trap</span>Do not use a plain <code>dict</code> as the input model, because then nothing is validated. Declare a Pydantic model for every body, and a separate model for output so that internal fields are not leaked.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why use Pydantic models and dependency injection in FastAPI? Models give validation, typed conversion and documentation from one definition. Dependencies make handlers testable and keep the wiring of shared resources in one place.</p></div>
+  <details class="check"><summary>What is the difference between a path parameter and a query parameter?</summary><div class="ans"><p>A path parameter is part of the URL path, as in /books/{book_id}, and is required. A query parameter follows a question mark, as in /books?limit=5, and can have a default value. FastAPI decides which one a function argument is from the route: names that appear in braces in the path are path parameters, and other simple arguments are query parameters.</p></div></details>
+  <details class="check"><summary>Why does the framework return 422 for an invalid body?</summary><div class="ans"><p>422 Unprocessable Content means the request was well formed but its content failed validation. FastAPI validates the body against the Pydantic model before calling the handler, and returns 422 with a description of each failing field if validation fails.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <details class="check"><summary>Which OSI layer does TCP work at, and what identifies a connection?</summary><div class="ans"><p>TCP is a transport protocol, layer 4 in the OSI model. A connection is identified by four values: the source IP and port and the destination IP and port. The ports let many connections share one IP address.</p></div></details>
+  <details class="check"><summary>Explain the TCP three-way handshake and why UDP has none.</summary><div class="ans"><p>The client sends SYN with its starting sequence number, the server replies SYN-ACK with its own number and an acknowledgement, and the client sends ACK. Both sides then agree on the numbers used for reliable delivery. UDP has no handshake because it does not promise reliability or ordering, so it has no state to agree on.</p></div></details>
+  <details class="check"><summary>What happens when you type a URL into a browser?</summary><div class="ans"><p>The browser parses the URL and checks caches, then resolves the host name through DNS. It opens a TCP connection to the IP address on port 443, performs the TLS handshake to validate the certificate and establish keys, and sends the HTTP GET request. The server responds, possibly with a redirect, and the browser fetches the resources the page needs and renders it.</p></div></details>
+  <details class="check"><summary>What is the difference between HTTP/1.1, HTTP/2 and HTTP/3?</summary><div class="ans"><p>HTTP/1.1 is text-based and handles one response at a time per connection, so it suffers head-of-line blocking. HTTP/2 is binary and multiplexes many streams over one TCP connection. HTTP/3 uses QUIC over UDP, so loss in one stream does not block the others.</p></div></details>
+  <details class="check"><summary>What does idempotent mean, and why does it matter for APIs?</summary><div class="ans"><p>An idempotent operation has the same effect on the server however many times it is applied. Networks retry requests, so an idempotent PUT or DELETE is safe to repeat. A non-idempotent POST needs an idempotency key so that a retry does not create a duplicate.</p></div></details>
+  <details class="check"><summary>What is the difference between OAuth 2.0 and OpenID Connect?</summary><div class="ans"><p>OAuth 2.0 is for delegated authorisation: it issues access tokens that let an app call an API for a user, with limited scopes. OpenID Connect adds an ID token so the app can authenticate the user. OAuth alone does not tell the app who the user is.</p></div></details>
+  <details class="check"><summary>Is a JWT secret? Can the server trust its contents?</summary><div class="ans"><p>A JWT is not secret: its payload is readable. The server can trust the contents only after verifying the signature with its key, checking the algorithm it expects, and checking expiry and audience claims.</p></div></details>
+  <details class="check"><summary>Hashing versus encryption: when do you use each?</summary><div class="ans"><p>Encryption is reversible with a key and protects confidentiality, for example data in transit or at rest. Hashing is one-way and fixed in size, and it is used for integrity, signatures and password storage. Passwords need a salted, slow password hash, not plain encryption.</p></div></details>
+  <details class="check"><summary>How do you stop SQL injection and XSS?</summary><div class="ans"><p>For SQL injection, use parameterised queries so that input is never part of the SQL text. For XSS, encode untrusted output for the context it is placed in, avoid writing raw HTML from untrusted data, and add a Content Security Policy.</p></div></details>
+  <details class="check"><summary>What is CSRF, and what stops it?</summary><div class="ans"><p>CSRF makes a logged-in user's browser send an unwanted state-changing request to a site where the user has a session cookie. SameSite cookies, anti-CSRF tokens checked on the server, and never changing state with GET stop it.</p></div></details>
+  <details class="check"><summary>What is the difference between REST and GraphQL?</summary><div class="ans"><p>REST exposes resources through endpoints whose responses the server defines, and it uses HTTP caching well. GraphQL exposes one schema through a single endpoint, and the client chooses which fields it needs, which avoids over-fetching but makes caching and query cost control harder.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Trees and traversals</h2>
+  <p>A <strong>binary tree</strong> is a structure where each node holds a value and has at most two children, called left and right. A tree with no nodes is <strong>empty</strong>, represented by <code>None</code> in Python. Most tree problems share one method: write a function that answers the question for a single subtree, using the answers for its left and right children, and handle the empty tree as the base case. Once you can state what the function returns for a subtree, the recursion is almost mechanical.</p>
+  <p>There are two ways to visit every node. <strong>Depth-first</strong> traversal goes as deep as possible before backtracking, and comes in three orders that differ only in when the node itself is handled: preorder (node, left, right), inorder (left, node, right) and postorder (left, right, node). <strong>Breadth-first</strong> traversal, also called level order, visits all nodes at one depth before the next, and it uses a queue.</p>
+  <div class="tablewrap"><table><thead><tr><th>Traversal</th><th>Visit order</th><th>Typical use</th><th>Extra space</th></tr></thead><tbody>
+    <tr><td>Preorder</td><td>Node, left, right</td><td>Copying or serialising a tree; the first item is the root</td><td>O(h) recursion, h is the height</td></tr>
+    <tr><td>Inorder</td><td>Left, node, right</td><td>Gives sorted values for a binary search tree</td><td>O(h)</td></tr>
+    <tr><td>Postorder</td><td>Left, right, node</td><td>Computing things from children first, such as sizes or deletion</td><td>O(h)</td></tr>
+    <tr><td>Level order</td><td>Level by level, left to right</td><td>Shortest depth, printing levels, right-side view</td><td>O(w), the widest level</td></tr>
+  </tbody></table></div>
+  <p>Every traversal visits each node once, so it takes O(n) time. The extra space depends on the shape: O(h) for recursion, where h is the height, and O(w) for a queue in level order.</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/maximum-depth-of-binary-tree/">
+    <h3>Maximum Depth of Binary Tree (LeetCode 104)</h3>
+    <div class="statement"><p>Given the root of a binary tree, return its maximum depth, which is the number of nodes on the longest path from the root down to a leaf. For example, the tree with values 3, 9, 20, then 15 and 7 under 20 has depth 3. A single node has depth 1, and an empty tree has depth 0.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Depth counts nodes, not edges. An empty tree returns 0, which is the base case.</li>
+      <li><strong>Brute force.</strong> Walk every root-to-leaf path, count its length, and keep the maximum. Correct, but it needs an explicit list of paths and is harder to write cleanly.</li>
+      <li><strong>Find the waste.</strong> The depth of the whole tree is one more than the larger of the depths of its two subtrees. That is the subproblem structure that a recursive function can use directly.</li>
+      <li><strong>Optimise.</strong> Recurse: return 0 for None, otherwise return 1 plus the maximum of the two child depths. Each node is visited once, so the cost is O(n).</li>
+      <li><strong>Dry run.</strong> Tree 3 with children 9 and 20; 20 has children 15 and 7. Depth of 9 is 1 and depth of 15 and 7 is 1 each, so depth of 20 is 2. Depth of 3 is 1 plus max(1, 2), which is 3.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_level_order(values):
+    """Build a tree from LeetCode's level-order list, where None marks a missing child."""
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+
+def max_depth(root):
+    if root is None:
+        return 0
+    return 1 + max(max_depth(root.left), max_depth(root.right))
+
+
+print(max_depth(build_level_order([3, 9, 20, None, None, 15, 7])))
+print(max_depth(build_level_order([1, None, 2])))
+print(max_depth(build_level_order([])))</code></pre>
+    <pre class="output">3
+2
+0</pre>
+    <p class="cx">Time O(n) · Space O(h) for the recursion stack</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For a tree answer, ask what a subtree returns, handle None first, then combine the children's answers.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/binary-tree-level-order-traversal/">
+    <h3>Binary Tree Level Order Traversal (LeetCode 102)</h3>
+    <div class="statement"><p>Given the root of a binary tree, return the values of its nodes grouped by level, from top to bottom and from left to right within each level. For the tree 3, then 9 and 20, then 15 and 7, the answer is <code>[[3], [9, 20], [15, 7]]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The output is a list of lists. Each inner list is one level. An empty tree gives an empty list.</li>
+      <li><strong>Brute force.</strong> Compute the depth of the tree, then for each depth d collect the nodes at depth d with a recursive walk. This visits the tree once per level, so the cost is O(n times the height).</li>
+      <li><strong>Find the waste.</strong> Each level is visited again and again. A single pass that processes whole levels at a time would avoid that.</li>
+      <li><strong>Optimise.</strong> Use a queue, which holds the nodes of the current level. Before processing a level, record its size. Then pop exactly that many nodes, collect their values, and push their children, which form the next level. The queue must be a deque, because popping from the front of a Python list is O(n).</li>
+      <li><strong>Dry run.</strong> Start with queue [3]. Level size 1: pop 3, record [3], push 9 and 20. Level size 2: pop 9 and 20, record [9, 20], push 15 and 7. Level size 2: pop 15 and 7, record [15, 7], push nothing. The queue is empty, so the answer is [[3], [9, 20], [15, 7]].</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_level_order(values):
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+
+def level_order(root):
+    if root is None:
+        return []
+    result = []
+    queue = deque([root])
+    while queue:
+        level = []
+        for _ in range(len(queue)):      # exactly the nodes of the current level
+            node = queue.popleft()
+            level.append(node.val)
+            if node.left is not None:
+                queue.append(node.left)
+            if node.right is not None:
+                queue.append(node.right)
+        result.append(level)
+    return result
+
+
+print(level_order(build_level_order([3, 9, 20, None, None, 15, 7])))
+print(level_order(build_level_order([1])))
+print(level_order(build_level_order([])))</code></pre>
+    <pre class="output">[[3], [9, 20], [15, 7]]
+[[1]]
+[]</pre>
+    <p class="cx">Time O(n) · Space O(w), where w is the width of the widest level</p>
+    <div class="note trap"><p><span class="t">Trap</span>A child is missing only when it is None. Test with <code>is not None</code>, never with the node's value, because a node holding 0 is still a real node.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need answers level by level, record the queue size at the start of each level, and process exactly that many nodes.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/">
+    <h3>Construct Binary Tree from Preorder and Inorder Traversal (LeetCode 105)</h3>
+    <div class="statement"><p>You are given two integer arrays: <code>preorder</code>, the preorder traversal of a binary tree, and <code>inorder</code>, the inorder traversal of the same tree. The values are unique. Rebuild and return the tree. For example, preorder <code>[3, 9, 20, 15, 7]</code> and inorder <code>[9, 3, 15, 20, 7]</code> give the tree 3, with 9 on the left and 20 on the right, and 15 and 7 as the children of 20.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The arrays have the same length n, and each value appears once. A single array is not enough to rebuild a tree, but two traversals usually are.</li>
+      <li><strong>Brute force.</strong> Try to find the root by scanning, split both arrays by hand, and recurse. Each split copies slices of the arrays, so the cost is O(n^2) in the worst case.</li>
+      <li><strong>Find the waste.</strong> Finding the root's position in the inorder array takes a scan, and this is repeated at every level. A dictionary from value to inorder index answers that in O(1).</li>
+      <li><strong>Optimise.</strong> The first item of the preorder list is always the root of the current subtree. Find that value's position in the inorder list. Everything to its left in the inorder list is the left subtree, and everything to its right is the right subtree. Preorder lists the left subtree's nodes right after the root, then the right subtree's nodes, so the next items in preorder belong to the left subtree first. Keep one shared index into preorder, advance it once per node, and build the left subtree before the right subtree. Each node is created once, so the total cost is O(n).</li>
+      <li><strong>Dry run.</strong> preorder [3, 9, 20, 15, 7], inorder [9, 3, 15, 20, 7]. The root is 3, at inorder index 1. The left subtree is inorder [9], and the right subtree is inorder [15, 20, 7]. Next preorder value 9 is the left child, and its inorder range is empty on both sides. Next preorder value 20 is the right child, which has inorder [15, 20, 7]. Its root is 20, at inorder index 3 of the whole list. Its left range is [15] and right range is [7], so 15 and 7 are its children.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_tree(preorder, inorder):
+    """Rebuild the tree from its preorder and inorder traversals."""
+    index_of = {v: i for i, v in enumerate(inorder)}   # value to inorder position, O(1) lookup
+    pre_pos = 0                                        # next unused item in preorder
+
+    def build(lo, hi):
+        """Build the subtree whose values are inorder[lo:hi]."""
+        nonlocal pre_pos
+        if lo &gt;= hi:
+            return None
+        root_val = preorder[pre_pos]                   # the next preorder item is this subtree's root
+        pre_pos += 1
+        mid = index_of[root_val]                       # where the root splits the inorder range
+        node = TreeNode(root_val)
+        node.left = build(lo, mid)                     # left first: preorder lists it next
+        node.right = build(mid + 1, hi)
+        return node
+
+    return build(0, len(inorder))
+
+
+def level_order(root):
+    if root is None:
+        return []
+    result = []
+    queue = deque([root])
+    while queue:
+        level = []
+        for _ in range(len(queue)):
+            node = queue.popleft()
+            level.append(node.val)
+            if node.left is not None:
+                queue.append(node.left)
+            if node.right is not None:
+                queue.append(node.right)
+        result.append(level)
+    return result
+
+
+print(level_order(build_tree([3, 9, 20, 15, 7], [9, 3, 15, 20, 7])))
+print(level_order(build_tree([1, 2], [2, 1])))
+print(level_order(build_tree([1, 2, 3], [2, 1, 3])))</code></pre>
+    <pre class="output">[[3], [9, 20], [15, 7]]
+[[1], [2]]
+[[1], [2, 3]]</pre>
+    <p class="cx">Time O(n) · Space O(n) for the dictionary and the recursion stack</p>
+    <div class="note trap"><p><span class="t">Trap</span>Build the left subtree before the right one. The shared preorder index only works if the recursion consumes preorder in the same order that preorder lists the nodes.</p></div>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>Why can't you rebuild a tree from preorder alone? Preorder does not show where the left subtree ends and the right one begins. Inorder supplies that boundary. Postorder with inorder works the same way, reading from the end.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>In a traversal, one list gives the root and the other gives the split. Use a value-to-index map to find the split in constant time.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/binary-tree-maximum-path-sum/">
+    <h3>Binary Tree Maximum Path Sum (LeetCode 124)</h3>
+    <div class="statement"><p>A path in a binary tree is a sequence of nodes where each adjacent pair is connected by an edge, and no node appears twice. The path does not have to pass through the root, and it may contain only one node. Return the largest possible sum of the values along any path. For example, with the tree 1, then 2 and 3, the best path is 2, 1, 3 with sum 6. With the tree -10, then 9 and 20, where 20 has children 15 and 7, the best path is 15, 20, 7 with sum 42, which does not include the root.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The path can bend at any node, so there is a top point of the path that may not be the root. Values can be negative, so a branch that lowers the sum should be ignored. The tree has at least one node.</li>
+      <li><strong>Brute force.</strong> For every node, consider every pair of paths that go down its left and right subtrees, and take the best. Enumerating paths for every node repeats the same downward work, so it is O(n^2) or worse.</li>
+      <li><strong>Find the waste.</strong> Two different kinds of value appear at each node. One is the best path that bends at the node and uses both children; that is a candidate answer, and it does not continue upward. The other is the best one-sided path that starts at the node and goes down one child; that is what the parent can use, because a path to the parent can extend only one way.</li>
+      <li><strong>Optimise.</strong> Write a function that returns the best one-sided downward path from a node, and while computing it, update a global best with the bent path through that node. Negative branches contribute nothing, so take max(child gain, 0) for each child. For a node with value v, the bent path is v plus the two clipped child gains, and the value returned to the parent is v plus the larger clipped child gain. Each node is visited once, so the cost is O(n).</li>
+      <li><strong>Dry run.</strong> Tree -10, then 9 and 20, with 15 and 7 under 20. Node 9 has no children, so its one-sided gain is 9 and the best is 9. Node 15 returns 15, node 7 returns 7. Node 20 has clipped gains 15 and 7, so the bent path is 20 + 15 + 7 = 42, which becomes the best. It returns 20 + max(15, 7) = 35 to its parent. At the root, the clipped gains are 9 and 35, so the bent path is -10 + 9 + 35 = 34, which is less than 42. The answer is 42.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def build_level_order(values):
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+
+def max_path_sum(root):
+    """Return the largest sum of any path in the tree; the path may bend at any node."""
+    best = root.val                       # at least one node exists, so start from its value
+
+    def gain(node):
+        """Return the best one-sided downward path sum starting at node."""
+        nonlocal best
+        if node is None:
+            return 0
+        left = max(gain(node.left), 0)    # a negative branch is better left out
+        right = max(gain(node.right), 0)
+        best = max(best, node.val + left + right)   # the path that bends at this node
+        return node.val + max(left, right)          # the path the parent can extend
+
+    gain(root)
+    return best
+
+
+print(max_path_sum(build_level_order([1, 2, 3])))
+print(max_path_sum(build_level_order([-10, 9, 20, None, None, 15, 7])))
+print(max_path_sum(build_level_order([-3])))</code></pre>
+    <pre class="output">6
+42
+-3</pre>
+    <p class="cx">Time O(n) · Space O(h) for the recursion stack</p>
+    <div class="note trap"><p><span class="t">Trap</span>Returning the bent path sum to the parent is wrong. A path that bends at a node cannot continue upward, because it would then visit the node twice. Only the one-sided gain can be returned.</p></div>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>Why clip the child gains at zero? A child whose best path is negative would make the sum smaller, so the best choice is to leave that branch out entirely. Clipping expresses "use this branch only if it helps".</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a tree problem asks for a best path rather than a best value, separate what a node reports to its parent from what it records as a candidate answer.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Protocol</dt><dd>A set of rules that two machines follow to exchange messages.</dd></div>
+    <div><dt>OSI model</dt><dd>A seven-layer model of networking, used as vocabulary and for teaching.</dd></div>
+    <div><dt>TCP/IP model</dt><dd>A four-layer model that describes the Internet: application, transport, internet and link.</dd></div>
+    <div><dt>Encapsulation</dt><dd>Wrapping data from one layer in the header of the layer below as it moves down the stack.</dd></div>
+    <div><dt>IP address and port</dt><dd>An IP identifies a machine, and a port identifies a service or socket on it.</dd></div>
+    <div><dt>TCP</dt><dd>A connection-oriented, reliable, ordered transport with flow and congestion control.</dd></div>
+    <div><dt>Three-way handshake</dt><dd>The SYN, SYN-ACK, ACK exchange that opens a TCP connection.</dd></div>
+    <div><dt>UDP</dt><dd>A connectionless, best-effort transport with an 8-byte header and no retransmission.</dd></div>
+    <div><dt>HTTP method</dt><dd>The verb of a request, such as GET, POST, PUT, PATCH or DELETE.</dd></div>
+    <div><dt>Status code</dt><dd>The three-digit result of a response; 2xx success, 3xx redirect, 4xx client error, 5xx server error.</dd></div>
+    <div><dt>HTTP/2 and HTTP/3</dt><dd>Multiplexed versions of HTTP, the second over QUIC and UDP.</dd></div>
+    <div><dt>TLS</dt><dd>The protocol that gives confidentiality, integrity and server authentication to a connection.</dd></div>
+    <div><dt>Certificate authority</dt><dd>A trusted issuer whose signature binds a public key to a domain name.</dd></div>
+    <div><dt>Forward secrecy</dt><dd>A property that keeps past sessions safe if a long-term key is later stolen.</dd></div>
+    <div><dt>Server Name Indication</dt><dd>A TLS extension that sends the host name so one IP can serve many sites.</dd></div>
+    <div><dt>DNS</dt><dd>The hierarchical system that maps names to records such as IP addresses.</dd></div>
+    <div><dt>Recursive resolver</dt><dd>The server that walks the DNS hierarchy on a client's behalf and caches answers.</dd></div>
+    <div><dt>TTL</dt><dd>The number of seconds an answer may be cached.</dd></div>
+    <div><dt>SNMP</dt><dd>A UDP protocol for monitoring and configuring network devices through agents and managers.</dd></div>
+    <div><dt>MIB and OID</dt><dd>The tree of managed variables, and the dotted number that names each one.</dd></div>
+    <div><dt>REST</dt><dd>An architectural style built on resources, uniform HTTP methods and statelessness.</dd></div>
+    <div><dt>Idempotent</dt><dd>An operation whose repeated application has the same effect as one application.</dd></div>
+    <div><dt>Idempotency key</dt><dd>A client-chosen key that lets the server recognise and deduplicate a retried POST.</dd></div>
+    <div><dt>JWT</dt><dd>A signed token with a header, a payload of claims and a signature; signed, not encrypted.</dd></div>
+    <div><dt>OAuth 2.0</dt><dd>A framework for delegated authorisation that issues scoped access tokens.</dd></div>
+    <div><dt>OpenID Connect</dt><dd>An identity layer on OAuth 2.0 that issues an ID token to authenticate users.</dd></div>
+    <div><dt>GraphQL</dt><dd>A query language in which the client selects the fields it needs from one endpoint.</dd></div>
+    <div><dt>gRPC</dt><dd>An HTTP/2 remote procedure call framework that uses Protocol Buffers.</dd></div>
+    <div><dt>CIA triad</dt><dd>Confidentiality, integrity and availability, the three goals of security.</dd></div>
+    <div><dt>Hashing</dt><dd>A one-way function that maps input to a fixed-size digest.</dd></div>
+    <div><dt>Encryption</dt><dd>A reversible transformation that needs a key to recover the plaintext.</dd></div>
+    <div><dt>Salt</dt><dd>A random value stored with a password hash so that identical passwords hash differently.</dd></div>
+    <div><dt>SQL injection</dt><dd>An attack in which input changes the meaning of a SQL query; fixed with parameters.</dd></div>
+    <div><dt>Cross-site scripting</dt><dd>An attack in which untrusted input runs as script in a victim's browser; fixed with output encoding.</dd></div>
+    <div><dt>CSRF</dt><dd>An attack that uses a victim's cookies to send an unwanted request; fixed with SameSite cookies and tokens.</dd></div>
+    <div><dt>FastAPI</dt><dd>A Python framework for APIs that uses type hints for validation and documentation.</dd></div>
+    <div><dt>Pydantic model</dt><dd>A class that declares and validates the fields of a request or response.</dd></div>
+    <div><dt>Dependency injection</dt><dd>Supplying a handler's resources through declared parameters so they can be replaced in tests.</dd></div>
+    <div><dt>Binary tree</dt><dd>A tree in which each node has at most a left and a right child.</dd></div>
+    <div><dt>Preorder and inorder</dt><dd>Depth-first orders that visit the node before or between its children.</dd></div>
+    <div><dt>Level order</dt><dd>A breadth-first traversal that visits the tree one depth at a time using a queue.</dd></div>
+    <div><dt>Path sum</dt><dd>The sum of the values along a path that can bend at any node but never repeats a node.</dd></div>
+  </dl>
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>urllib.parse.urlsplit(url)</code></td><td>Splits a URL into scheme, host, port, path, query and fragment</td><td><code>urlsplit("https://a.com/x").path</code> gives <code>"/x"</code></td></tr>
+    <tr><td><code>base64.urlsafe_b64encode(data)</code></td><td>Encodes bytes with the URL-safe base64 alphabet, adding padding</td><td><code>base64.urlsafe_b64encode(b"hi")</code> gives <code>b'aGk='</code></td></tr>
+    <tr><td><code>hmac.new(key, msg, digest)</code></td><td>Computes a keyed hash for message authentication</td><td><code>hmac.new(b"k", b"m", hashlib.sha256).hexdigest()</code></td></tr>
+    <tr><td><code>hashlib.sha256(data)</code></td><td>Computes a SHA-256 digest of bytes</td><td><code>hashlib.sha256(b"abc").hexdigest()</code></td></tr>
+    <tr><td><code>hashlib.pbkdf2_hmac(name, pw, salt, n)</code></td><td>Derives a key from a password with a salt and n iterations</td><td><code>hashlib.pbkdf2_hmac("sha256", b"pw", b"salt", 1000)</code></td></tr>
+    <tr><td><code>cursor.execute(sql, params)</code></td><td>Runs a parameterised query, with values sent separately</td><td><code>con.execute("SELECT * FROM t WHERE id = ?", (5,))</code></td></tr>
+    <tr><td><code>html.escape(text)</code></td><td>Replaces &lt;, &gt;, &amp;, " and ' with HTML entities</td><td><code>html.escape("a&lt;b")</code> gives <code>"a&amp;lt;b"</code></td></tr>
+    <tr><td><code>FastAPI()</code> and decorators</td><td>Create the app; register handlers with @app.get and @app.post</td><td><code>@app.get("/items/{item_id}")</code></td></tr>
+    <tr><td><code>Query(default, ge, le)</code></td><td>Declares a query parameter with validation rules</td><td><code>limit: int = Query(10, ge=1)</code></td></tr>
+    <tr><td><code>Depends(func)</code></td><td>Calls func and passes its result to the handler</td><td><code>db: Store = Depends(get_store)</code></td></tr>
+    <tr><td><code>HTTPException(status_code, detail)</code></td><td>Stops the request and returns an error response</td><td><code>raise HTTPException(status_code=404, detail="Not found")</code></td></tr>
+    <tr><td><code>model.model_dump()</code></td><td>Converts a Pydantic model to a dictionary</td><td><code>BookIn(title="x", year=1).model_dump()</code></td></tr>
+    <tr><td><code>TestClient(app)</code></td><td>Sends test requests to a FastAPI app in memory</td><td><code>client.get("/books/1").status_code</code></td></tr>
+    <tr><td><code>collections.deque</code></td><td>A double-ended queue with O(1) pops from the left</td><td><code>q = deque([root]); q.popleft()</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 15?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 15 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-14.html"><small>Previous, day 14</small>Sunday: Aptitude, review, Mock 2, resume and HR</a><a class="next" href="day-16.html"><small>Next, day 16</small>DBMS 1: ER model, keys, normalization</a></nav>
+</main><script src="assets/app.js"></script></body></html>

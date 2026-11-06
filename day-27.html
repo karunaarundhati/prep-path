@@ -1,0 +1,565 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 27: System design 1: Fundamentals and building blocks</title><meta name="description" content="Today starts system design, the part of an interview where you design a large service on a whiteboard. You learn the building blocks (scaling, load balancers, caches, replication, sharding, queues, gateways and rate limiters), how to estimate traffic and storage with back-of-the-envelope arithmetic, and a repeatable answer framework. The DSA part covers intervals and matrix problems, which share the skills of sorting by boundary and walking a grid layer by layer."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="27" data-key="27" data-noun="day" data-num="27" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>System design 1: <em>Fundamentals and building blocks</em></h1>
+<p class="lede">Today starts system design, the part of an interview where you design a large service on a whiteboard. You learn the building blocks (scaling, load balancers, caches, replication, sharding, queues, gateways and rate limiters), how to estimate traffic and storage with back-of-the-envelope arithmetic, and a repeatable answer framework. The DSA part covers intervals and matrix problems, which share the skills of sorting by boundary and walking a grid layer by layer.</p>
+<div class="station"><b>27</b><span>Sat 28 Nov 2026 · Systems · DSA: Intervals and matrix problems</span></div>
+<ul class="topics"><li>Scaling, latency, throughput and availability</li><li>Load balancers and caching strategies</li><li>Replication, sharding and consistent hashing</li><li>Message queues and API gateways</li><li>Rate limiting algorithms</li><li>Monolith vs microservices and estimation</li><li>The system design answer framework</li><li>Intervals and matrix problems (DSA)</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Foundations">
+  <h2>Scaling, latency, throughput and availability</h2>
+  <p>System design asks how a service behaves when it must serve many users, store a lot of data, and keep working when parts of it fail. Four ideas underlie almost every design decision: how the system grows (scaling), how fast one request is answered (latency), how many requests it can answer per second (throughput), and how often it is up (availability). Learn to define each one precisely, because interviewers listen for the exact word.</p>
+
+  <h3>Vertical and horizontal scaling</h3>
+  <p><strong>Vertical scaling</strong> (scale up) means making one machine bigger: more CPU, more memory, faster disks. It is simple, because the code does not change, and it keeps data in one place, so there are no consistency problems between machines. Its limits are hard: the biggest machine has a ceiling on cost and capacity, and a single machine is still a single point of failure.</p>
+  <p><strong>Horizontal scaling</strong> (scale out) means adding more machines and spreading the work across them. It can grow almost without limit and tolerates the loss of one machine, but it brings new problems. Requests must be routed to the right machine, data must be split or copied, and the code must be stateless or handle shared state carefully. Most large systems scale horizontally at the web tier and use a mix of techniques at the data tier.</p>
+  <p>A service is <strong>stateless</strong> when any instance can handle any request, because the request carries everything needed, or the state lives in a shared store such as a database or cache. Stateless services scale horizontally with almost no effort, which is why interviewers push you toward them.</p>
+
+  <h3>Latency and throughput</h3>
+  <p><strong>Latency</strong> is the time one request takes from start to finish, measured in milliseconds. <strong>Throughput</strong> is how many requests the system completes per unit of time, such as requests per second. They are different: a system can have low latency and low throughput (a fast single-lane road), or high throughput and high latency (a busy highway with traffic jams). Adding a queue often raises throughput while increasing latency for each request.</p>
+  <p>Report latency as percentiles, not averages. The 50th percentile (p50) is the median. The 99th percentile (p99) is the value that 99 percent of requests beat, so 1 percent of requests are slower. Users with the slowest experience are often your best customers, because they make the most requests, and an average hides them. A common target reads "p99 below 300 milliseconds".</p>
+  <div class="note trap"><p><span class="t">Trap</span>Saying "the average latency is 50 ms" tells the interviewer very little. Say "the p99 latency is 300 ms, and p50 is 40 ms" and you show that you know tails matter.</p></div>
+
+  <h3>Availability and the nines</h3>
+  <p><strong>Availability</strong> is the fraction of time a service is up and answering correctly. It is written as a percentage, and the number of nines describes it. Three nines is 99.9 percent, four nines is 99.99 percent, and five nines is 99.999 percent. Each extra nine cuts the allowed downtime by a factor of ten, which makes it much more expensive to reach. The program below converts a target into minutes of downtime per year.</p>
+  <pre class="code" data-lang="python"><code>MINUTES_PER_YEAR = 365 * 24 * 60
+
+for target in [99.9, 99.99, 99.999]:
+    allowed_minutes = MINUTES_PER_YEAR * (1 - target / 100)
+    print(f"{target}% allows {round(allowed_minutes, 2)} minutes of downtime per year")</code></pre>
+  <pre class="output">99.9% allows 525.6 minutes of downtime per year
+99.99% allows 52.56 minutes of downtime per year
+99.999% allows 5.26 minutes of downtime per year</pre>
+  <p>Step by step: each target is a fraction of the minutes in a year. <code>1 - target / 100</code> is the fraction allowed to fail. For 99.9 percent that is 0.001, and 0.001 of 525,600 minutes is 525.6 minutes, about 8.76 hours. Read the output as a budget: if you promise 99.99 percent, you have roughly 53 minutes a year for every outage, planned maintenance included.</p>
+  <p>Availability of parts combines in two ways, and this is a common interview question. Components in <strong>series</strong> all have to work, so their availabilities multiply. Two services at 99.9 percent each, called in sequence, give 0.999 times 0.999, which is about 99.8 percent. Components in <strong>parallel</strong> (redundant copies) only need one to work, so the chance that all fail is the product of their failure rates. Two copies at 99.9 percent each fail together only 0.001 times 0.001 of the time, so the pair is about 99.9999 percent available. This is why redundancy is the main tool for availability, and why every extra dependency in the request path lowers the total.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Availability multiplies along the request path, so every serial dependency lowers it. Redundancy in parallel is how you raise it.</p></div>
+  <details class="check"><summary>What is the difference between latency and throughput?</summary><div class="ans"><p>Latency is how long one request takes, measured in milliseconds. Throughput is how many requests the system completes per second. A queue can raise throughput while making each request wait longer, so the two can move in opposite directions.</p></div></details>
+  <details class="check"><summary>Why do you report p99 latency instead of the average?</summary><div class="ans"><p>The p99 is the time that 99 percent of requests beat, so it shows the slow tail that real users experience. An average can look healthy while many requests are slow, and the slowest requests often come from the heaviest users.</p></div></details>
+  <details class="check"><summary>Two services with 99.9 percent availability are called one after the other. What is the combined availability?</summary><div class="ans"><p>Series availabilities multiply, so 0.999 times 0.999 is about 0.998, or roughly 99.8 percent. The combined figure is lower than either service alone, which is why dependencies must be limited and designed to degrade gracefully.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Traffic and cache">
+  <h2>Load balancers and caching strategies</h2>
+  <p>A horizontally scaled system needs a component that decides which server gets each request. That component is a <strong>load balancer</strong>, which you met on day 26 as an AWS service. The same idea applies in any design: clients talk to one address, and the balancer spreads the work and skips unhealthy servers. In an interview, name the algorithm you would use and say why.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Algorithm</th><th>How it chooses</th><th>Good when</th></tr></thead>
+    <tbody>
+      <tr><td>Round robin</td><td>Takes servers in turn</td><td>Servers are identical and requests are similar in cost</td></tr>
+      <tr><td>Weighted round robin</td><td>Turns, with more turns for stronger servers</td><td>Servers have different capacities</td></tr>
+      <tr><td>Least connections</td><td>Picks the server with the fewest open connections</td><td>Requests vary a lot in duration</td></tr>
+      <tr><td>IP hash</td><td>Hashes the client address to pick a server</td><td>You need the same client to reach the same server, for example for in-memory sessions</td></tr>
+      <tr><td>Random with two choices</td><td>Picks two servers at random and sends the request to the less loaded one</td><td>Large fleets where tracking every server is costly</td></tr>
+    </tbody>
+  </table></div>
+  <p>The balancer itself must not become a single point of failure. In practice you run several balancers, and DNS or an anycast address spreads clients across them. Health checks remove failed servers from rotation within seconds.</p>
+
+  <h3>Caching</h3>
+  <p>A <strong>cache</strong> stores the result of an expensive operation, so the next request can reuse it. Caches work because real traffic is skewed: a small share of keys receives most reads, a pattern called locality or hot keys. The cache must be closer and faster than the source, such as memory in front of a database, or a CDN in front of an origin server. Its two hard questions are which items to keep and when a copy becomes stale.</p>
+  <p>The main <strong>caching strategies</strong> differ in how writes flow.</p>
+  <ul>
+    <li><strong>Cache-aside</strong> (lazy loading): the application checks the cache, and on a miss reads the database and fills the cache. Writes go to the database, then the cache entry is deleted or refreshed. Simple and common, but a read right after a write can briefly see old data.</li>
+    <li><strong>Read-through</strong>: the cache itself loads missing items from the database, so the application only talks to the cache. The logic moves into the cache library.</li>
+    <li><strong>Write-through</strong>: every write goes to the cache and to the database before returning, so the cache is never stale. Writes are slower, and data that is never read still gets cached.</li>
+    <li><strong>Write-back</strong> (write-behind): writes go to the cache and are saved to the database later in batches. Writes are fast, but data is lost if the cache fails before the flush.</li>
+    <li><strong>Write-around</strong>: writes go straight to the database and skip the cache, so the cache fills only on reads. This avoids filling the cache with data that is written once and never read.</li>
+  </ul>
+  <p>Caches also need an <strong>eviction policy</strong> when they are full. LRU (least recently used) removes the item that has not been read for the longest time, which fits most workloads. LFU (least frequently used) removes the least popular item. A <strong>time to live</strong> (TTL) removes items after a fixed time, which bounds how stale they can get.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A cache stampede happens when a popular key expires and thousands of requests miss at once and hit the database together. Mitigate it with a lock so only one request refills the key, or by refreshing popular keys before they expire.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Caching trades freshness for speed. Choose the write strategy and the TTL based on how stale a value may be before users notice.</p></div>
+  <details class="check"><summary>What does a least connections balancer do better than round robin?</summary><div class="ans"><p>Round robin assumes all requests cost the same. If some requests are slow, round robin can send new work to a server that is already busy. Least connections sends work to the server with the fewest open connections, which adapts to uneven request durations.</p></div></details>
+  <details class="check"><summary>Compare write-through and write-back caching.</summary><div class="ans"><p>Write-through writes to the cache and the database before the write completes, so the data is durable and the cache is never stale, but writes are slower. Write-back acknowledges the write after updating the cache and writes to the database later, which is faster but risks losing data if the cache fails first.</p></div></details>
+  <details class="check"><summary>Why is cache-aside the most common strategy?</summary><div class="ans"><p>It is simple, the database stays the source of truth, and the cache only holds data that was actually requested. Its weakness is brief staleness after writes and the cost of a miss on the first read, which a TTL bounds.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Data scaling">
+  <h2>Replication, sharding and consistent hashing</h2>
+  <p>Data is harder to scale than stateless servers, because each piece of data has to live somewhere, and the copies must agree. Two techniques do most of the work. <strong>Replication</strong> keeps copies of the same data on several machines, which improves availability and read capacity. <strong>Sharding</strong> (also called partitioning) splits the data into parts so that each machine stores only a share, which improves storage and write capacity. Large systems use both.</p>
+
+  <h3>Replication</h3>
+  <p>In <strong>leader-follower</strong> replication, one node (the leader) accepts all writes and sends the changes to followers, which serve reads. With <strong>synchronous</strong> replication, the leader waits for a follower to confirm before reporting success, so the follower always has the data, but each write is slower and an unavailable follower can block writes. With <strong>asynchronous</strong> replication, the leader does not wait, which is fast but means a follower can lag, and a failover can lose the last writes. Multi-leader and leaderless designs accept writes at several nodes, and they bring conflict resolution, which day 29 covers in detail.</p>
+  <p>Replication lag causes a familiar bug: a user posts a comment, refreshes the page, and their comment is missing, because the read went to a follower that has not received it yet. The fix is to send a user's own reads to the leader for a short time after they write, or to read from the leader for data that the user has just changed.</p>
+
+  <h3>Sharding</h3>
+  <p>A shard key decides which shard stores each item. Three common schemes exist. <strong>Range sharding</strong> puts keys in ranges, such as user IDs 1 to 1,000,000 on shard A. It keeps related data together and supports range queries, but new data often lands on the newest shard, creating a hotspot. <strong>Hash sharding</strong> hashes the key and takes the result modulo the number of shards. It spreads load evenly, but range queries touch every shard, and changing the shard count moves almost every key. <strong>Directory sharding</strong> keeps a lookup table from key to shard. It is flexible, but the directory becomes a dependency that must be fast and reliable.</p>
+  <p>A good shard key has high cardinality (many distinct values), spreads traffic evenly, and matches the most common query, so that most requests touch one shard. A hot key, such as a celebrity account, can still overload one shard, and then the fix is a finer key or a separate cache for that key.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Hash sharding with "hash modulo number of shards" makes adding a shard painful, because almost every key maps to a new shard. Consistent hashing fixes this, as the next section shows.</p></div>
+
+  <h3>Consistent hashing</h3>
+  <p><strong>Consistent hashing</strong> places both the servers and the keys on a circle of hash values, from 0 to a very large number that wraps around. A key belongs to the first server found clockwise from its position. When a server is added or removed, only the keys between it and its neighbour on the circle move. The rest stay where they are. <strong>Virtual nodes</strong> give each physical server many points on the circle, which evens out the load, because a few points per server would leave some servers with large arcs.</p>
+  <p>The program below builds a ring with 50 virtual nodes per server, places 1,000 keys, removes one server, and counts how many keys move. It uses MD5 only as a stable hash function, and the output is the same on every run.</p>
+  <pre class="code" data-lang="python"><code>import bisect
+import hashlib
+
+def h(key):
+    return int(hashlib.md5(key.encode()).hexdigest(), 16)
+
+class Ring:
+    def __init__(self, nodes, vnodes=50):
+        points = []
+        for node in nodes:
+            for i in range(vnodes):
+                points.append((h(node + "#" + str(i)), node))
+        points.sort()
+        self.hashes = [p for p, _ in points]
+        self.owners = [n for _, n in points]
+
+    def lookup(self, key):
+        i = bisect.bisect(self.hashes, h(key))   # first point clockwise from the key
+        if i == len(self.hashes):
+            i = 0                                  # wrap around the circle
+        return self.owners[i]
+
+keys = ["user:" + str(i) for i in range(1000)]
+ring3 = Ring(["A", "B", "C"])
+before = {k: ring3.lookup(k) for k in keys}
+counts = {n: 0 for n in ["A", "B", "C"]}
+for k in keys:
+    counts[before[k]] += 1
+print("Keys per node:", counts)
+
+ring2 = Ring(["A", "B"])                     # server C is removed
+after = {k: ring2.lookup(k) for k in keys}
+moved = [k for k in keys if before[k] != after[k]]
+print("Keys that moved:", len(moved))
+print("Moved keys that were not on C:", sum(1 for k in moved if before[k] != "C"))</code></pre>
+  <pre class="output">Keys per node: {'A': 264, 'B': 343, 'C': 393}
+Keys that moved: 393
+Moved keys that were not on C: 0</pre>
+  <p>Step by step: <code>Ring.__init__</code> places 50 points for each server by hashing names such as "A#0" to "C#49", then sorts the points around the circle. <code>lookup</code> hashes the key and finds the first point at or after it with <code>bisect</code>, a binary search on the sorted list. If the key hashes past the last point, it wraps to the first point. The counts show the keys spread across the three servers, but not perfectly evenly: 50 virtual nodes per server still leave some arcs larger than others, and more virtual nodes would even the split further. Removing C moves exactly the keys that C owned (393 here), and no others, which is the property that makes consistent hashing useful for caches and sharded stores. With plain modulo hashing, almost every key would move.</p>
+  <details class="check"><summary>Why does consistent hashing move fewer keys than modulo hashing when a server is added?</summary><div class="ans"><p>With modulo hashing, the server for a key is hash mod N, so changing N changes almost every result. With consistent hashing, a key stays with the same server unless a new point lands between it and its owner on the circle, so only a fraction of keys move.</p></div></details>
+  <details class="check"><summary>What problem do virtual nodes solve?</summary><div class="ans"><p>With one point per server, the arcs between points can be very uneven, so some servers own much more of the key space. Giving each server many virtual points spreads the arcs evenly and balances the load.</p></div></details>
+  <details class="check"><summary>What is a hot spot in range sharding, and how do you avoid it?</summary><div class="ans"><p>When keys are assigned in increasing order, such as timestamps, all new writes land on the newest range and one shard does most of the work. Avoid it by choosing a shard key that spreads writes, such as a hashed key, or by splitting the newest range across shards.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Messaging and limits">
+  <h2>Message queues, API gateways and rate limiting</h2>
+  <p>Once a system has several services, they need ways to call each other without becoming tightly bound. A <strong>message queue</strong> lets a producer hand off work and continue immediately, while a consumer processes it later at its own speed. This <strong>decoupling</strong> brings three benefits: a slow consumer does not slow the producer, a spike of traffic is absorbed by the queue rather than overwhelming the consumer, and a failed consumer can be restarted without losing work. Day 26 covered SQS and SNS, and the same ideas appear in Kafka, which day 29 covers.</p>
+  <p>Delivery guarantees are a key choice. <strong>At-most-once</strong> delivery never retries, so a message may be lost. <strong>At-least-once</strong> delivery retries until acknowledged, so a message may be processed twice. <strong>Exactly-once</strong> processing is achieved in practice by at-least-once delivery combined with idempotent consumers, which give the same result when they see the same message twice. In an interview, say "at-least-once with idempotency" when the requirement is "no duplicate effects".</p>
+
+  <h3>API gateway</h3>
+  <p>An <strong>API gateway</strong> is the single entry point for client requests to a set of backend services. It performs the cross-cutting work so each service does not have to: authentication, TLS termination, routing by path, rate limiting, request validation, logging and sometimes response caching. Clients see one API, and the internal services can change without the clients noticing. The risk is that the gateway becomes a bottleneck or a single point of failure, so keep it thin, run several instances, and avoid putting business logic in it.</p>
+  <p>A gateway also reduces round trips: a mobile client can ask one endpoint for a home screen, and the gateway calls several services and combines the answers. That pattern is sometimes called backend for frontend (BFF).</p>
+
+  <h3>Rate limiting algorithms</h3>
+  <p><strong>Rate limiting</strong> caps how many requests a client may make in a period, to protect the service from overload and from abuse. The limit is usually per user, per API key or per IP address, and the response when it is exceeded is HTTP 429 (Too Many Requests). Five algorithms appear in interviews.</p>
+  <ul>
+    <li><strong>Fixed window counter</strong>: count requests in each clock window, such as each minute, and reject when the count passes the limit. Very simple. Its flaw is a burst at the boundary: a client can send the full limit at the end of one window and again at the start of the next, which doubles the rate for a moment.</li>
+    <li><strong>Sliding window log</strong>: store the timestamp of every request in the last window and count those. Accurate, but it uses memory in proportion to the request rate.</li>
+    <li><strong>Sliding window counter</strong>: keep the counts for the current and previous windows, and estimate the rate in the sliding window as a weighted mix of the two. Nearly as accurate as the log, with fixed memory.</li>
+    <li><strong>Token bucket</strong>: a bucket holds up to a capacity of tokens and refills at a steady rate. Each request takes one token, and a request with no token is rejected. It allows short bursts up to the capacity while holding the long-run rate. This is the most common choice.</li>
+    <li><strong>Leaky bucket</strong>: requests enter a queue and leave at a constant rate. It smooths output, which suits protecting a downstream system that needs steady input, but it adds latency for bursts.</li>
+  </ul>
+  <p>The program below implements a token bucket that takes the current time as a parameter, so the output is deterministic. A real service would read the clock instead.</p>
+  <pre class="code" data-lang="python"><code>class TokenBucket:
+    def __init__(self, capacity, refill_per_second):
+        self.capacity = capacity
+        self.refill_rate = refill_per_second
+        self.tokens = capacity          # the bucket starts full
+        self.last = 0.0
+
+    def allow(self, now):
+        elapsed = now - self.last
+        self.tokens = min(self.capacity, self.tokens + elapsed * self.refill_rate)
+        self.last = now
+        if self.tokens &gt;= 1:
+            self.tokens -= 1            # spend one token for this request
+            return True
+        return False
+
+bucket = TokenBucket(capacity=3, refill_per_second=1)
+times = [0, 0, 0, 0, 1, 1, 2.5]
+print([bucket.allow(t) for t in times])</code></pre>
+  <pre class="output">[True, True, True, False, True, False, True]</pre>
+  <p>Step by step: the bucket starts with 3 tokens. The first three requests at time 0 each take one token. The fourth finds fewer than one token and is rejected. At time 1, one second has passed, so one token has been added, and the first request at time 1 succeeds. The second request at time 1 finds no token left. At time 2.5, 1.5 seconds have passed since the last update, so 1.5 tokens have been added, enough for one request. The refill is calculated from the elapsed time, not by a timer, which is why the bucket needs only the current time and the last update time. The capacity allows bursts of up to three requests, and the refill rate sets the long-run average.</p>
+  <details class="check"><summary>What is the boundary burst problem of a fixed window counter?</summary><div class="ans"><p>A client can send the full limit just before a window ends and the full limit again just after the next window starts. That is twice the limit within a short time span across the boundary. A sliding window avoids the problem.</p></div></details>
+  <details class="check"><summary>Why is the token bucket the most common rate limiter?</summary><div class="ans"><p>It enforces a steady average rate and still allows short bursts up to the bucket size, which matches how real clients behave. It needs only two numbers per client, the token count and the last update time, so it is cheap to store.</p></div></details>
+  <details class="check"><summary>How does a queue help a consumer that cannot keep up with a traffic spike?</summary><div class="ans"><p>The queue stores the work during the spike, so the producer is not blocked and the messages are not dropped. The consumer works through the backlog at its own speed. The trade-off is that the work finishes later, so latency rises during the spike.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Architecture and estimates">
+  <h2>Monolith vs microservices, and back-of-the-envelope estimation</h2>
+  <p>A <strong>monolith</strong> is one deployable application that contains all the features. A <strong>microservices</strong> design splits the features into separately deployed services, each owning its data and talking to the others over the network. Neither is better in general. The choice depends on team size, how independently parts of the system must scale, and how much operational effort the organization can carry.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Concern</th><th>Monolith</th><th>Microservices</th></tr></thead>
+    <tbody>
+      <tr><td>Deployment</td><td>One artifact, one pipeline</td><td>Many pipelines, deploy each service separately</td></tr>
+      <tr><td>Scaling</td><td>Scale the whole application</td><td>Scale only the hot service</td></tr>
+      <tr><td>Transactions</td><td>Simple, inside one database</td><td>Hard, needs patterns such as sagas (day 29)</td></tr>
+      <tr><td>Calls between features</td><td>In-process function calls</td><td>Network calls, which add latency and failure modes</td></tr>
+      <tr><td>Operations</td><td>Fewer moving parts</td><td>Service discovery, tracing and per-service monitoring are required</td></tr>
+      <tr><td>Team autonomy</td><td>Teams share one codebase</td><td>Teams own services end to end</td></tr>
+    </tbody>
+  </table></div>
+  <p>A reasonable default for a new product is a <strong>modular monolith</strong>: one deployment with clear internal boundaries, which can be split later if a part needs independent scaling or a separate team. Interviewers respond well to that nuance, because splitting too early is a common and expensive mistake.</p>
+
+  <h3>Back-of-the-envelope estimation</h3>
+  <p>Estimates tell you which building blocks are needed. A design that handles 100 requests per second is different from one that handles 100,000. The method is simple: state your assumptions clearly, convert them to per-second and per-day figures, and round aggressively. Some useful facts: a day has 86,400 seconds, so a daily total divided by 86,400 gives the average per second, and peak traffic is often two to three times the average. Storage is the number of records multiplied by their size, and bandwidth is the size multiplied by the rate.</p>
+  <p>Worked example: a photo-sharing service with 100 million daily active users. Assume each user views 20 photos a day, uploads one photo every ten days (0.1 per day), and each stored photo takes 2 MB, including its thumbnails. The program turns these into average and peak request rates and storage per day and per year.</p>
+  <pre class="code" data-lang="python"><code>DAU = 100_000_000          # daily active users
+READS_PER_USER = 20        # photos viewed per user per day
+UPLOADS_PER_USER = 0.1     # one upload every ten days
+PHOTO_MB = 2               # stored size of one photo, with thumbnails
+SECONDS_PER_DAY = 24 * 60 * 60
+
+read_qps = DAU * READS_PER_USER / SECONDS_PER_DAY
+write_qps = DAU * UPLOADS_PER_USER / SECONDS_PER_DAY
+print("Average read QPS:", round(read_qps))
+print("Average write QPS:", round(write_qps))
+print("Peak read QPS (2 times average):", round(2 * read_qps))
+
+uploads_per_day = DAU * UPLOADS_PER_USER
+gb_per_day = uploads_per_day * PHOTO_MB / 1024
+tb_per_year = gb_per_day * 365 / 1024
+print("New storage per day (GB):", f"{round(gb_per_day):,}")
+print("New storage per year (TB):", f"{round(tb_per_year):,}")</code></pre>
+  <pre class="output">Average read QPS: 23148
+Average write QPS: 116
+Peak read QPS (2 times average): 46296
+New storage per day (GB): 19,531
+New storage per year (TB): 6,962</pre>
+  <p>Step by step. The reads are 100 million times 20 views, or 2 billion a day, divided by 86,400 seconds, which is about 23,148 per second on average. Uploads are 10 million a day, or about 116 per second. The peak is assumed to be twice the average, which gives about 46,000 reads per second, so the read path needs caching and many servers, while the write path is light. Storage grows by 10 million photos a day times 2 MB, which is 20 million MB, or about 19,531 GB, and about 6,962 TB a year. That number tells you the storage tier must be distributed and that old data needs lifecycle rules (day 25 covered S3 lifecycle policies).</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you estimate traffic? State the users, the actions per user per day, divide by 86,400, apply a peak factor, and say which numbers you are guessing. Interviewers care more about the method and the assumptions than the exact result.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Forgetting the peak. Designing for the average means the system fails at its busiest moment, so state a peak factor and design for it.</p></div>
+  <details class="check"><summary>Why divide a daily total by 86,400?</summary><div class="ans"><p>There are 86,400 seconds in a day, so dividing a daily count by that number gives the average rate per second. Multiply by a peak factor of two or three to design for busy periods.</p></div></details>
+  <details class="check"><summary>When would you split a monolith into microservices?</summary><div class="ans"><p>When parts of the system need to scale independently, when separate teams need to deploy independently, or when a part has very different reliability or security needs. Before that, the operational cost of microservices usually outweighs the benefit.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Framework">
+  <h2>The system design answer framework</h2>
+  <p>A system design interview is an open conversation of about 45 minutes. The interviewer wants to see how you clarify a vague request, make reasonable trade-offs, and reason about failure. A repeatable structure keeps you from getting lost, and it lets the interviewer follow your thinking. The framework below is used by most candidates, and the case studies on day 30 apply it in full.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Step</th><th>What you do</th><th>Time (of 45 minutes)</th></tr></thead>
+    <tbody>
+      <tr><td>1. Requirements</td><td>Separate functional requirements (what it does) from non-functional ones (scale, latency, availability, consistency). Ask questions and write the answers down.</td><td>about 5 minutes</td></tr>
+      <tr><td>2. Estimates</td><td>Users, requests per second, storage and bandwidth, with stated assumptions and a peak factor.</td><td>about 3 minutes</td></tr>
+      <tr><td>3. API</td><td>List the main endpoints or operations, their inputs and outputs.</td><td>about 3 minutes</td></tr>
+      <tr><td>4. Data model</td><td>Name the entities, their keys, and the storage type that fits each access pattern.</td><td>about 5 minutes</td></tr>
+      <tr><td>5. High-level design</td><td>Draw clients, DNS, CDN, load balancers, services, caches, databases and queues, and trace one request through them.</td><td>about 10 minutes</td></tr>
+      <tr><td>6. Deep dives</td><td>Pick the two or three hardest parts, such as hot keys, consistency or failure handling, and go deep on them.</td><td>about 15 minutes</td></tr>
+      <tr><td>7. Trade-offs</td><td>Summarize the decisions, what they cost, and what would change at ten times the scale.</td><td>about 4 minutes</td></tr>
+    </tbody>
+  </table></div>
+  <p>Two habits make the framework work. First, keep a running list of assumptions on the board, so the interviewer can correct them. Second, when you name a component, say its job in one phrase and its main risk in another, for example "a cache for hot reads, with the risk of stale data bounded by the TTL".</p>
+  <div class="note key"><p><span class="t">Key idea</span>Requirements and estimates decide the design. A design without numbers is a list of boxes, and numbers without a design are only arithmetic.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What do you do first when given a vague prompt such as "design a chat app"? Ask about the users, the scale, the message delivery guarantees and the latency targets, then write the answers before drawing anything.</p></div>
+  <details class="check"><summary>What are functional and non-functional requirements?</summary><div class="ans"><p>Functional requirements describe what the system must do, such as post a message or follow a user. Non-functional requirements describe how well it must do it, such as latency, availability, consistency and scale.</p></div></details>
+  <details class="check"><summary>Why should you draw the high-level design before deep dives?</summary><div class="ans"><p>The high-level design gives the whole picture and the shared vocabulary. Deep dives need that context to make sense, and they let you show depth on the parts that matter most for the requirements.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: intervals and matrix problems</h2>
+  <h3>The pattern: sort the boundaries, walk the layers</h3>
+  <p>An <strong>interval</strong> is a pair of numbers <code>[start, end]</code> that covers every value between them. Interval problems almost always start by sorting by start, and then they compare each interval with the last one kept. Two intervals overlap when the second starts before or at the end of the first. Overlapping intervals merge into one whose start is the smaller start and whose end is the larger end.</p>
+  <p>A <strong>matrix</strong> is a grid of rows and columns. Many matrix problems are easier if you think of the grid as a set of nested rings, called layers, and process one layer at a time, shrinking the boundary after each pass. Other matrix problems use a fixed transformation, such as transposing the grid and then reversing each row to rotate it.</p>
+  <div class="note key"><p><span class="t">Pattern to remember</span>For intervals, sort by start and compare with the last merged interval. For matrices, peel the outside layer, then shrink the boundaries and repeat.</p></div>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/insert-interval/">
+    <h3>Insert Interval (LeetCode 57)</h3>
+    <div class="statement"><p>You are given a list of non-overlapping intervals sorted by start, and one new interval. Insert the new interval and merge any intervals that overlap it, and return the result, still sorted and non-overlapping. Example: inserting <code>[4, 8]</code> into <code>[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]]</code> gives <code>[[1, 2], [3, 10], [12, 16]]</code>, because <code>[4, 8]</code> overlaps with <code>[3, 5]</code>, <code>[6, 7]</code> and <code>[8, 10]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The input is already sorted and non-overlapping, so only the new interval can cause merges. Touching intervals such as <code>[1, 5]</code> and <code>[5, 7]</code> count as overlapping. An empty list is valid.</li>
+      <li><strong>Brute force.</strong> Append the new interval, sort the whole list by start, and run the standard merge pass. This is correct, and it costs O(n log n) because of the sort.</li>
+      <li><strong>Find the waste.</strong> The list is already sorted, so the sort repeats work that is done. Only the position of the new interval is unknown.</li>
+      <li><strong>Optimise.</strong> Split the sorted list into three phases. First, copy the intervals that end before the new one starts. Second, merge every interval that starts before or at the new end into the new interval, widening its start and end. Third, copy the rest. One pass through the list gives O(n).</li>
+      <li><strong>Dry run.</strong> Take the example above with <code>[4, 8]</code>. The table shows the phase and the state after each step.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Interval examined</th><th>Phase</th><th>Test</th><th>Result so far</th><th>Current start and end</th></tr></thead>
+      <tbody>
+        <tr><td>[1, 2]</td><td>Before</td><td>2 is less than 4</td><td>[[1, 2]]</td><td>4, 8</td></tr>
+        <tr><td>[3, 5]</td><td>Overlap</td><td>3 is at most 8</td><td>[[1, 2]]</td><td>3, 8</td></tr>
+        <tr><td>[6, 7]</td><td>Overlap</td><td>6 is at most 8</td><td>[[1, 2]]</td><td>3, 8</td></tr>
+        <tr><td>[8, 10]</td><td>Overlap</td><td>8 is at most 8, end becomes 10</td><td>[[1, 2]]</td><td>3, 10</td></tr>
+        <tr><td>[12, 16]</td><td>After</td><td>12 is greater than 10, so stop merging</td><td>[[1, 2], [3, 10]], then [12, 16]</td><td>done</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def insert(intervals, new_interval):
+    result = []
+    start, end = new_interval
+    i = 0
+    n = len(intervals)
+    # Phase 1: intervals that end before the new one starts
+    while i &lt; n and intervals[i][1] &lt; start:
+        result.append(intervals[i])
+        i += 1
+    # Phase 2: intervals that overlap the new one, merged into it
+    while i &lt; n and intervals[i][0] &lt;= end:
+        start = min(start, intervals[i][0])
+        end = max(end, intervals[i][1])
+        i += 1
+    result.append([start, end])
+    # Phase 3: intervals that start after the merged one ends
+    while i &lt; n:
+        result.append(intervals[i])
+        i += 1
+    return result
+
+print(insert([[1, 3], [6, 9]], [2, 5]))
+print(insert([[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]], [4, 8]))
+print(insert([], [5, 7]))
+print(insert([[1, 5]], [2, 3]))</code></pre>
+    <pre class="output">[[1, 5], [6, 9]]
+[[1, 2], [3, 10], [12, 16]]
+[[5, 7]]
+[[1, 5]]</pre>
+    <p>Step by step: the first loop copies the intervals that finish before the new one begins, which here is <code>[1, 2]</code>. The second loop merges every interval whose start is not after the current end, so the new interval grows from <code>[4, 8]</code> to <code>[3, 10]</code>. The third loop copies the rest, which is <code>[12, 16]</code>. The append of the merged interval comes between the loops, so the output stays sorted. The empty-list and single-interval tests show the edge cases: no existing intervals means the new one is returned as it is, and a new interval fully inside an existing one changes nothing.</p>
+    <p class="cx">Time O(n) · Space O(n) for the result</p>
+    <div class="note trap"><p><span class="t">Trap</span>Using <code>&lt;</code> instead of <code>&lt;=</code> in the merge test misses touching intervals such as <code>[1, 5]</code> and <code>[5, 7]</code>, which must merge.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For a sorted list of intervals, split the work into intervals before, overlapping and after the new one. One pass is enough.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/spiral-matrix/">
+    <h3>Spiral Matrix (LeetCode 54)</h3>
+    <div class="statement"><p>Given an m by n matrix, return all its elements in spiral order: left to right along the top row, down the right column, right to left along the bottom row, and up the left column, then repeat on the smaller inner matrix. Example: for <code>[[1, 2, 3], [4, 5, 6], [7, 8, 9]]</code> the answer is <code>[1, 2, 3, 6, 9, 8, 7, 4, 5]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The matrix can be a single row or a single column, and the walk must not visit any cell twice. The output has m times n values.</li>
+      <li><strong>Brute force.</strong> Keep a visited grid and a direction. Walk forward in the current direction, and turn right whenever the next cell is outside the grid or already visited. This is correct, and it costs O(m × n) time with O(m × n) extra space for the visited grid.</li>
+      <li><strong>Find the waste.</strong> The visited grid is only needed to detect the edges of the walk. The edges are known in advance: they are the four boundaries of the unvisited region, and each pass moves one boundary inward.</li>
+      <li><strong>Optimise.</strong> Keep four boundaries: top, bottom, left and right. Walk the top row and move top down, walk the right column and move right in, walk the bottom row and move bottom up, walk the left column and move left in. Before the bottom row and the left column, check that a row or a column is still left, because a single row or column would otherwise be walked twice.</li>
+      <li><strong>Dry run.</strong> The table follows the 3 by 3 example pass by pass.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Pass</th><th>Boundaries (top, bottom, left, right)</th><th>Values added</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>0, 2, 0, 2</td><td>Top row 1, 2, 3; right column 6, 9; bottom row 8, 7; left column 4. Each side moves its boundary inward after it is walked.</td></tr>
+        <tr><td>2</td><td>1, 1, 1, 1</td><td>One cell is left, the top row of the inner matrix: 5</td></tr>
+        <tr><td>end</td><td>2, 1, 1, 0</td><td>top is past bottom, so the loop stops</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def spiral_order(matrix):
+    result = []
+    top, bottom = 0, len(matrix) - 1
+    left, right = 0, len(matrix[0]) - 1
+    while top &lt;= bottom and left &lt;= right:
+        # top row, left to right
+        for c in range(left, right + 1):
+            result.append(matrix[top][c])
+        top += 1
+        # right column, top to bottom
+        for r in range(top, bottom + 1):
+            result.append(matrix[r][right])
+        right -= 1
+        # bottom row, right to left, only if a row is still left
+        if top &lt;= bottom:
+            for c in range(right, left - 1, -1):
+                result.append(matrix[bottom][c])
+            bottom -= 1
+        # left column, bottom to top, only if a column is still left
+        if left &lt;= right:
+            for r in range(bottom, top - 1, -1):
+                result.append(matrix[r][left])
+            left += 1
+    return result
+
+print(spiral_order([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
+print(spiral_order([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]))
+print(spiral_order([[1, 2, 3]]))
+print(spiral_order([[1], [2], [3]]))</code></pre>
+    <pre class="output">[1, 2, 3, 6, 9, 8, 7, 4, 5]
+[1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7]
+[1, 2, 3]
+[1, 2, 3]</pre>
+    <p>Step by step: each <code>for</code> loop covers one side of the current boundary. After a side is walked, its boundary moves inward by one, so the next loop never revisits a cell. The two <code>if</code> guards handle the thin cases. For a single row, the right column loop is empty and the bottom row would repeat the top row, so the guard stops it. For a single column, the same happens to the left column. Each cell is appended exactly once, so the time is O(m × n) and the extra space is only the boundaries.</p>
+    <p class="cx">Time O(m × n) · Space O(1) besides the output</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting the two guards makes a single row or column print values twice. Test the thin shapes explicitly, as the last two tests do.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Matrix traversal by layers: four shrinking boundaries, with a guard before each side that could be empty.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/rotate-image/">
+    <h3>Rotate Image (LeetCode 48)</h3>
+    <div class="statement"><p>Given an n by n matrix, rotate the image by 90 degrees clockwise, in place. Example: the matrix <code>[[1, 2, 3], [4, 5, 6], [7, 8, 9]]</code> becomes <code>[[7, 4, 1], [8, 5, 2], [9, 6, 3]]</code>. The first column, read from bottom to top, becomes the first row.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> In place means no second matrix of the same size may be used. The matrix is square, so every cell has a partner in the rotated position.</li>
+      <li><strong>Brute force.</strong> Create a new matrix, and copy each element to its rotated position, where element (r, c) moves to (c, n - 1 - r). Copy the result back. This is correct, but it uses O(n²) extra space, which the problem forbids.</li>
+      <li><strong>Find the waste.</strong> The extra matrix stores what the grid can hold in place. A clockwise rotation is the same as two simpler moves: a transpose, which swaps each cell with its mirror across the main diagonal, and a reversal of each row.</li>
+      <li><strong>Optimise.</strong> Transpose the matrix in place by swapping cell (i, j) with cell (j, i) for j greater than i. Then reverse every row in place. Both steps use O(1) extra space and O(n²) time.</li>
+      <li><strong>Dry run.</strong> The table follows the 3 by 3 example.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Stage</th><th>Row 0</th><th>Row 1</th><th>Row 2</th></tr></thead>
+      <tbody>
+        <tr><td>Start</td><td>1 2 3</td><td>4 5 6</td><td>7 8 9</td></tr>
+        <tr><td>After transpose (rows become columns)</td><td>1 4 7</td><td>2 5 8</td><td>3 6 9</td></tr>
+        <tr><td>After reversing each row</td><td>7 4 1</td><td>8 5 2</td><td>9 6 3</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def rotate(matrix):
+    n = len(matrix)
+    # step 1: transpose, swapping each cell with its mirror across the diagonal
+    for i in range(n):
+        for j in range(i + 1, n):
+            matrix[i][j], matrix[j][i] = matrix[j][i], matrix[i][j]
+    # step 2: reverse every row
+    for row in matrix:
+        row.reverse()
+
+grid = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+rotate(grid)
+for row in grid:
+    print(row)
+
+small = [[1, 2], [3, 4]]
+rotate(small)
+print(small)</code></pre>
+    <pre class="output">[7, 4, 1]
+[8, 5, 2]
+[9, 6, 3]
+[[3, 1], [4, 2]]</pre>
+    <p>Step by step: the transpose loop starts at <code>j = i + 1</code>, so each pair of mirrored cells is swapped once and the diagonal is left alone. The swap on the same line uses Python's tuple assignment, which reads both right-hand values before writing either left-hand cell, so no temporary variable is needed. After the transpose, the first row holds the first column, 1, 4, 7. Reversing it gives 7, 4, 1, which is the first row of the clockwise rotation. The 2 by 2 example shows the same two steps on a smaller grid.</p>
+    <p class="cx">Time O(n²) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>A clockwise rotation equals transpose then reverse each row. A counter-clockwise rotation equals transpose then reverse each column.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Swapping all pairs in the transpose, instead of only those with j greater than i, swaps every pair twice, which leaves the matrix unchanged.</p></div>
+  </article>
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/data-stream-as-disjoint-intervals/">
+    <h3>Data Stream as Disjoint Intervals (LeetCode 352)</h3>
+    <div class="statement"><p>Numbers arrive one at a time in a stream. Design a structure with <code>addNum(value)</code>, which adds a number, and <code>getIntervals()</code>, which returns the set of numbers seen so far as a sorted list of disjoint intervals <code>[start, end]</code>, with consecutive integers merged. Example: after adding 1, 3, 7, 2 and 6, <code>getIntervals()</code> returns <code>[[1, 3], [6, 7]]</code>, because the numbers seen are 1, 2, 3, 6 and 7.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A repeated value changes nothing. Values are integers, and the interval list must always be correct after every call to <code>addNum</code>, because <code>getIntervals</code> may be called at any time.</li>
+      <li><strong>Brute force.</strong> Keep a set of the numbers seen. For <code>getIntervals</code>, sort the set and walk it, starting a new interval whenever a number is not exactly one more than the previous one. This is correct, but each call sorts all n numbers, which costs O(n log n) per call.</li>
+      <li><strong>Find the waste.</strong> Most of the intervals are unchanged after each new number, so re-sorting and re-merging everything repeats work. A new number changes at most one interval or joins two neighbours.</li>
+      <li><strong>Optimise.</strong> Keep the disjoint intervals at all times, in two parallel sorted lists, one of starts and one of ends. For a new value, use binary search (<code>bisect</code>) to find its position. Four cases follow. The value is already covered by the interval on its left, so do nothing. The value touches the interval on its left (one more than its end), so extend that end. The value touches the interval on its right (one less than its start), so lower that start. The value touches both sides, so join the two intervals. If it touches neither, insert a new interval of its own. Each call costs O(log n) to search, plus an insertion into a list. A balanced tree would make the insertion O(log n) too.</li>
+      <li><strong>Dry run.</strong> The table follows the sequence 1, 3, 7, 2, 6 from the example.</li>
+    </ol>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Value added</th><th>Position found</th><th>Case</th><th>Intervals after the call</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>0 (list is empty)</td><td>Neither side touches, insert a new interval</td><td>[[1, 1]]</td></tr>
+        <tr><td>3</td><td>1</td><td>Neither side touches (1 + 1 is not 3, 3 - 1 is not 1), insert</td><td>[[1, 1], [3, 3]]</td></tr>
+        <tr><td>7</td><td>2</td><td>Neither side touches, insert at the end</td><td>[[1, 1], [3, 3], [7, 7]]</td></tr>
+        <tr><td>2</td><td>1</td><td>Touches both: 1 + 1 is 2 on the left, and 3 - 1 is 2 on the right, so join [1, 1] and [3, 3]</td><td>[[1, 3], [7, 7]]</td></tr>
+        <tr><td>6</td><td>1</td><td>Touches only the right side: 7 - 1 is 6, so lower 7 to 6</td><td>[[1, 3], [6, 7]]</td></tr>
+      </tbody>
+    </table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import bisect
+
+class SummaryRanges:
+    def __init__(self):
+        self.starts = []    # sorted start of each disjoint interval
+        self.ends = []      # end of the interval with the same index
+
+    def addNum(self, value):
+        i = bisect.bisect_right(self.starts, value)   # first interval starting after value
+        if i &gt; 0 and self.ends[i - 1] &gt;= value:
+            return                                    # value is already covered
+        touches_left = i &gt; 0 and self.ends[i - 1] + 1 == value
+        touches_right = i &lt; len(self.starts) and self.starts[i] - 1 == value
+        if touches_left and touches_right:
+            self.ends[i - 1] = self.ends[i]           # value bridges two intervals: join them
+            del self.starts[i]
+            del self.ends[i]
+        elif touches_left:
+            self.ends[i - 1] = value                 # extend the interval on the left
+        elif touches_right:
+            self.starts[i] = value                   # extend the interval on the right
+        else:
+            self.starts.insert(i, value)             # a new interval of its own
+            self.ends.insert(i, value)
+
+    def getIntervals(self):
+        return [[s, e] for s, e in zip(self.starts, self.ends)]
+
+sr = SummaryRanges()
+for v in [1, 3, 7, 2, 6]:
+    sr.addNum(v)
+    print(v, sr.getIntervals())
+sr.addNum(2)                                    # a repeat changes nothing
+print("after repeating 2:", sr.getIntervals())</code></pre>
+    <pre class="output">1 [[1, 1]]
+3 [[1, 1], [3, 3]]
+7 [[1, 1], [3, 3], [7, 7]]
+2 [[1, 3], [7, 7]]
+6 [[1, 3], [6, 7]]
+after repeating 2: [[1, 3], [6, 7]]</pre>
+    <p>Step by step: <code>bisect_right</code> on the starts returns the index where the value would go after any equal start, so the interval just before that index is the one that could contain the value. The first <code>if</code> handles a value that is already inside it, which covers repeats. The two <code>touches</code> flags test adjacency with the integer rule: a value touches the left interval when it is one more than that interval's end, and touches the right interval when it is one less than that interval's start. The value 2 in the table has both flags true, so the two intervals <code>[1, 1]</code> and <code>[3, 3]</code> become one, <code>[1, 3]</code>. Deleting the right entry keeps the two lists aligned, so index i in both lists always describes the same interval.</p>
+    <p class="cx">Time per addNum O(log n) to search, plus O(n) worst case for a list insert or delete · Time per getIntervals O(n) · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting the touching cases (value equals end plus one, or start minus one) makes the intervals adjacent but not merged, so the output is not the minimal list the problem asks for.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Keep a sorted list of disjoint intervals and use binary search to find the neighbours. A new value can only affect its left and right neighbours.</p></div>
+  </article>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer aloud before opening the answer. Lead with the principle, then give one concrete example from a system you know.</p>
+  <details class="check"><summary>What is the difference between vertical and horizontal scaling, and when would you choose each?</summary><div class="ans"><p>Vertical scaling makes one machine bigger, which is simple and keeps data in one place, but it has a ceiling and a single point of failure. Horizontal scaling adds machines, which scales further and tolerates failures, but it needs routing, data partitioning and stateless services. Start vertical for simplicity, and move horizontal when the ceiling or availability requires it.</p></div></details>
+  <details class="check"><summary>Latency and throughput both matter. Can they conflict?</summary><div class="ans"><p>Yes. Batching requests raises throughput but makes each request wait for the batch, which adds latency. A queue smooths load and can raise the number of completed requests per second while making individual requests slower during a spike.</p></div></details>
+  <details class="check"><summary>Why report p99 latency and not the average?</summary><div class="ans"><p>The p99 is the time that 99 percent of requests beat, so it reveals the slow tail. An average can look fine while a meaningful share of users waits a long time, and those users are often the most active.</p></div></details>
+  <details class="check"><summary>Three services each at 99.9 percent availability are all required for one request. What is the combined availability, and how do you improve it?</summary><div class="ans"><p>Serial availabilities multiply, so 0.999 cubed is about 0.997, or roughly 99.7 percent. To improve it, reduce serial dependencies, add redundant copies in parallel so one copy can fail, and degrade gracefully when an optional dependency is down.</p></div></details>
+  <details class="check"><summary>Compare cache-aside with write-through caching.</summary><div class="ans"><p>Cache-aside loads the cache on demand and invalidates it on writes, so it may serve brief stale data after a write, but it caches only what is read. Write-through updates the cache on every write, so reads are fresh, but writes are slower and cache data that is never read.</p></div></details>
+  <details class="check"><summary>Why does consistent hashing matter for a cache cluster?</summary><div class="ans"><p>When a cache server is added or removed, consistent hashing moves only the keys that belong to that server. With modulo hashing, nearly every key would move, which would empty the cache and send a flood of misses to the database.</p></div></details>
+  <details class="check"><summary>What is a hot spot in sharding, and how do you mitigate it?</summary><div class="ans"><p>A hot spot is a shard that receives a disproportionate share of traffic, for example from a celebrity account or a time-ordered key range. Mitigate it with a shard key that spreads writes, caching the hot key, or splitting the hot key's data across several sub-keys.</p></div></details>
+  <details class="check"><summary>Your queue delivers at least once. How do you avoid charging a customer twice?</summary><div class="ans"><p>Make the consumer idempotent. Give each payment a unique ID, record it in the database inside the same transaction as the charge, and skip the work if the ID is already recorded. The second delivery then has no effect.</p></div></details>
+  <details class="check"><summary>What is the advantage of a token bucket over a fixed window counter?</summary><div class="ans"><p>A fixed window counter allows double the limit across a window boundary. A token bucket enforces a steady average rate and still permits bursts up to its capacity, without the boundary problem.</p></div></details>
+  <details class="check"><summary>When would you recommend microservices over a monolith?</summary><div class="ans"><p>When separate parts need independent scaling, when separate teams must deploy without coordination, or when a part has distinct reliability or security needs, and the organization can run the operational tooling. For a new product with a small team, a modular monolith is usually the better start.</p></div></details>
+  <details class="check"><summary>How do you estimate peak requests per second for a service?</summary><div class="ans"><p>Multiply daily active users by actions per user per day, divide by 86,400 to get the average per second, and multiply by a peak factor of two or three. State each assumption, because the interviewer will change some of them.</p></div></details>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Vertical scaling</dt><dd>Making one machine bigger, simple but limited and a single point of failure.</dd></div>
+    <div><dt>Horizontal scaling</dt><dd>Adding machines and spreading work across them, which needs stateless services and routing.</dd></div>
+    <div><dt>Stateless service</dt><dd>A service where any instance can handle any request, so instances are interchangeable.</dd></div>
+    <div><dt>Latency</dt><dd>The time one request takes, usually reported as percentiles.</dd></div>
+    <div><dt>Throughput</dt><dd>The number of requests the system completes per unit of time.</dd></div>
+    <div><dt>p99 latency</dt><dd>The response time that 99 percent of requests beat, which exposes the slow tail.</dd></div>
+    <div><dt>Availability and nines</dt><dd>The percentage of time a service is up, where each extra nine cuts allowed downtime tenfold.</dd></div>
+    <div><dt>Serial and parallel availability</dt><dd>Serial components multiply their availabilities, while redundant parallel copies raise it.</dd></div>
+    <div><dt>Load balancer</dt><dd>A component that spreads requests across healthy servers, using an algorithm such as round robin or least connections.</dd></div>
+    <div><dt>Cache-aside</dt><dd>Reading the cache first, loading from the database on a miss, and invalidating on write.</dd></div>
+    <div><dt>Write-through and write-back</dt><dd>Write-through writes to the cache and database together, and write-back writes to the database later.</dd></div>
+    <div><dt>Eviction and TTL</dt><dd>Eviction removes items when a cache is full, and a time to live expires items after a fixed period.</dd></div>
+    <div><dt>Cache stampede</dt><dd>Many requests missing a cache at once after a popular key expires.</dd></div>
+    <div><dt>Replication</dt><dd>Keeping copies of the same data on several machines for availability and read capacity.</dd></div>
+    <div><dt>Replication lag</dt><dd>The delay before a follower has a write, which can make a user's own change look missing.</dd></div>
+    <div><dt>Sharding</dt><dd>Splitting data across machines by a shard key, for storage and write capacity.</dd></div>
+    <div><dt>Hot spot</dt><dd>A shard or key that receives a disproportionate share of traffic.</dd></div>
+    <div><dt>Consistent hashing</dt><dd>A ring placement where adding or removing a server moves only the keys next to it.</dd></div>
+    <div><dt>Virtual nodes</dt><dd>Many ring points per physical server, which balances the key space.</dd></div>
+    <div><dt>Message queue</dt><dd>A buffer that decouples producers from consumers and absorbs traffic spikes.</dd></div>
+    <div><dt>At-least-once delivery</dt><dd>A guarantee that a message is delivered at least once, so duplicates are possible.</dd></div>
+    <div><dt>Idempotent consumer</dt><dd>A consumer whose repeated processing of a message has the same effect as one time.</dd></div>
+    <div><dt>API gateway</dt><dd>The single entry point that handles authentication, routing, rate limits and logging for backend services.</dd></div>
+    <div><dt>Rate limiting</dt><dd>Capping how many requests a client may make in a period, usually answered with HTTP 429.</dd></div>
+    <div><dt>Token bucket</dt><dd>A limiter with a capacity and steady refill, allowing bursts while holding the average rate.</dd></div>
+    <div><dt>Fixed window counter</dt><dd>A limiter that counts per clock window, with a burst problem at window boundaries.</dd></div>
+    <div><dt>Monolith and microservices</dt><dd>One deployable application versus many independently deployed services.</dd></div>
+    <div><dt>Back-of-the-envelope estimate</dt><dd>Quick arithmetic from stated assumptions that sizes traffic, storage and bandwidth.</dd></div>
+    <div><dt>Functional and non-functional requirements</dt><dd>What the system does, and how well it must do it.</dd></div>
+    <div><dt>Interval merge</dt><dd>Combining overlapping intervals into one whose start is the smaller start and end is the larger end.</dd></div>
+    <div><dt>Layer traversal</dt><dd>Walking a matrix one outer ring at a time while shrinking the boundaries.</dd></div>
+  </dl>
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td><code>bisect.bisect_right(a, x)</code></td><td>Returns the index after any entries equal to x in a sorted list</td><td><code>bisect.bisect_right([1, 3, 7], 2)</code> gives 1</td></tr>
+      <tr><td><code>bisect.bisect(a, x)</code></td><td>Same as bisect_right, the name used for ring lookups</td><td><code>bisect.bisect([10, 20], 15)</code> gives 1</td></tr>
+      <tr><td><code>hashlib.md5(data).hexdigest()</code></td><td>Returns a stable 32-character hex hash of bytes</td><td><code>hashlib.md5(b"abc").hexdigest()</code> returns the same digest every run</td></tr>
+      <tr><td><code>str.encode()</code></td><td>Converts a string to bytes, which hash functions need</td><td><code>"user:1".encode()</code> gives b'user:1'</td></tr>
+      <tr><td><code>list.reverse()</code></td><td>Reverses a list in place</td><td><code>row = [1, 2]; row.reverse()</code> leaves row as [2, 1]</td></tr>
+      <tr><td><code>zip(a, b)</code></td><td>Pairs items from two sequences</td><td><code>list(zip([1, 2], "ab"))</code> gives [(1, 'a'), (2, 'b')]</td></tr>
+      <tr><td><code>round(x, n)</code></td><td>Rounds a number to n decimal places</td><td><code>round(525.6000001, 2)</code> gives 525.6</td></tr>
+      <tr><td><code>min(a, b)</code> and <code>max(a, b)</code></td><td>Return the smaller or larger value, used for interval merges</td><td><code>max(8, 10)</code> gives 10</td></tr>
+      <tr><td><code>del list[i]</code></td><td>Removes the item at index i from a list</td><td><code>del starts[1]</code> removes the second start</td></tr>
+      <tr><td><code>list.insert(i, x)</code></td><td>Inserts x at index i, shifting later items right</td><td><code>starts.insert(1, 5)</code> places 5 second</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 27?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 27 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-26.html"><small>Previous, day 26</small>Cloud and AWS 2 + DevOps and MLOps</a><a class="next" href="day-28.html"><small>Next, day 28</small>Sunday: Aptitude, review, Mock 4, resume and HR</a></nav>
+</main><script src="assets/app.js"></script></body></html>

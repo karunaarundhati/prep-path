@@ -1,0 +1,1034 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 2: Python 2: OOP, advanced features, internals</title><meta name="description" content="Day 2 covers the Python features that separate a working script from a well-designed program: object-oriented design (inheritance, the method resolution order, special methods, abstract base classes and dataclasses), generators and iterators, decorators, context managers, exception handling, copying and memory management, the GIL and the three ways Python runs work concurrently, and testing with pytest. Interviewers use these topics to probe depth, so each one comes with the exact behaviour, a runnable example and the trap to avoid."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="2" data-key="2" data-noun="day" data-num="2" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Python 2: <em>OOP, advanced features, internals</em></h1>
+<p class="lede">Day 2 covers the Python features that separate a working script from a well-designed program: object-oriented design (inheritance, the method resolution order, special methods, abstract base classes and dataclasses), generators and iterators, decorators, context managers, exception handling, copying and memory management, the GIL and the three ways Python runs work concurrently, and testing with pytest. Interviewers use these topics to probe depth, so each one comes with the exact behaviour, a runnable example and the trap to avoid.</p>
+<div class="station"><b>2</b><span>Tue 3 Nov 2026 · Programming · DSA: Strings</span></div>
+<ul class="topics"><li>OOP: MRO, super, dunders, ABCs, dataclasses</li><li>Generators and iterators</li><li>Decorators and context managers</li><li>Exceptions and error design</li><li>Copy, references, garbage collection</li><li>GIL, threads, processes, asyncio</li><li>Testing with pytest and mocks</li><li>DSA: Strings</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Object-oriented Python">
+  <h2>Object-oriented programming in Python</h2>
+  <p>A <strong>class</strong> is a blueprint. An <strong>object</strong> (also called an instance) is one thing built from that blueprint, with its own data. Methods are functions defined inside a class. Python's object model is simple to start with and deep underneath. The first part of this unit covers the basics you must write fluently. The rest covers the parts interviewers use to test depth.</p>
+
+  <h3>Classes, instances and self</h3>
+  <p>When you call a class like a function, Python creates a new object and runs <code>__init__</code> on it. The first parameter of every method is the object the method was called on, which is conventionally named <code>self</code>. Writing <code>self.name = name</code> stores data on that particular object.</p>
+  <pre class="code" data-lang="python"><code>class Dog:
+    species = "canis"                  # class attribute: shared by all dogs
+
+    def __init__(self, name):          # runs when you write Dog("Rex")
+        self.name = name               # instance attribute: one per dog
+
+    def speak(self):                   # self is the dog the method was called on
+        return f"{self.name} says woof"
+
+d = Dog("Rex")
+print(d.speak())
+print(Dog.species, d.species)</code></pre>
+  <pre class="output">Rex says woof
+canis canis</pre>
+  <p>Attribute lookup on an instance first checks the instance's own dictionary, then the class. That is why <code>d.species</code> finds the class attribute. Setting <code>d.species = "other"</code> would create an instance attribute that hides the class one for that object only.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A mutable class attribute is shared by every instance, because the instances do not each get a copy of it. Create per-object mutable state in <code>__init__</code> instead.</p></div>
+  <pre class="code" data-lang="python"><code>class Bag:
+    items = []                         # one list shared by the whole class
+
+    def add(self, x):
+        self.items.append(x)
+
+a, b = Bag(), Bag()
+a.add(1)
+print(b.items)</code></pre>
+  <pre class="output">[1]</pre>
+  <p>The fix is to write <code>self.items = []</code> inside <code>__init__</code>, so each object gets its own list.</p>
+
+  <h3>The four pillars and how Python provides them</h3>
+  <div class="tablewrap"><table><thead><tr><th>Pillar</th><th>Meaning</th><th>In Python</th></tr></thead><tbody>
+    <tr><td>Encapsulation</td><td>Bundle data with the methods that use it, and hide internal details</td><td>A single underscore marks a name as internal by convention. A double underscore triggers name mangling. <code>@property</code> controls access.</td></tr>
+    <tr><td>Inheritance</td><td>A child class reuses and extends a parent class</td><td><code>class Child(Parent)</code> and <code>super()</code></td></tr>
+    <tr><td>Polymorphism</td><td>The same call does different things for different types</td><td>Method overriding, duck typing and special methods</td></tr>
+    <tr><td>Abstraction</td><td>Expose what an object does and hide how</td><td><code>abc.ABC</code> with <code>@abstractmethod</code></td></tr>
+  </tbody></table></div>
+  <p>Python has no enforced private members. Everything is accessible if you want it. The conventions are a signal to other programmers, not a security boundary.</p>
+
+  <h4>Name mangling</h4>
+  <p>A name that starts with two underscores and does not end with two underscores is rewritten to <code>_ClassName__name</code>. This prevents accidental clashes when a subclass uses the same attribute name. It is not privacy.</p>
+  <pre class="code" data-lang="python"><code>class Account:
+    def __init__(self):
+        self.__balance = 100           # stored under the name _Account__balance
+
+a = Account()
+print(a._Account__balance)
+try:
+    print(a.__balance)
+except AttributeError as e:
+    print("AttributeError:", e)</code></pre>
+  <pre class="output">100
+AttributeError: 'Account' object has no attribute '__balance'</pre>
+
+  <h4>@property: attributes with rules</h4>
+  <p>A property lets you write <code>obj.attr</code> while running a function behind the scenes. It is the Pythonic replacement for explicit getter and setter methods. The setter below rejects impossible temperatures, and the read-only property computes Fahrenheit from the stored Celsius value.</p>
+  <pre class="code" data-lang="python"><code>class Temperature:
+    def __init__(self, celsius):
+        self.celsius = celsius         # goes through the setter below
+
+    @property
+    def celsius(self):
+        return self._c
+
+    @celsius.setter
+    def celsius(self, value):
+        if value &lt; -273.15:
+            raise ValueError("below absolute zero")
+        self._c = value
+
+    @property
+    def fahrenheit(self):              # computed on each read, no setter, so read-only
+        return self._c * 9 / 5 + 32
+
+t = Temperature(25)
+print(t.fahrenheit)
+try:
+    t.celsius = -300
+except ValueError as e:
+    print("ValueError:", e)</code></pre>
+  <pre class="output">77.0
+ValueError: below absolute zero</pre>
+
+  <h4>Instance methods, @classmethod and @staticmethod</h4>
+  <p>An ordinary method receives the instance. A <code>@classmethod</code> receives the class itself, conventionally named <code>cls</code>, which makes it a good alternative constructor. A <code>@staticmethod</code> receives neither, so it is just a function grouped inside the class for organisation.</p>
+  <pre class="code" data-lang="python"><code>class Date:
+    def __init__(self, y, m, d):
+        self.y, self.m, self.d = y, m, d
+
+    @classmethod
+    def from_string(cls, s):           # cls is Date, or a subclass if one calls it
+        return cls(*map(int, s.split("-")))
+
+    @staticmethod
+    def is_leap(year):                 # no self, no cls: a plain function
+        return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+d = Date.from_string("2026-11-03")
+print(d.y, d.m, d.d)
+print(Date.is_leap(2024), Date.is_leap(1900))</code></pre>
+  <pre class="output">2026 11 3
+True False</pre>
+  <p>Using <code>cls(...)</code> instead of <code>Date(...)</code> matters when you subclass <code>Date</code>. Calling <code>SubDate.from_string(...)</code> then produces a <code>SubDate</code>. The leap year rule in <code>is_leap</code> is the Gregorian one: years divisible by 4 are leap years, except centuries not divisible by 400. That is why 1900 is not a leap year and 2024 is.</p>
+
+  <h3>Inheritance, super() and the MRO</h3>
+  <p>A subclass inherits every attribute of its parent and can override any of them. To call the overridden version from the subclass, use <code>super()</code>. The subtle point is that <code>super()</code> does not mean "my parent class". It means "the next class in the method resolution order (MRO) of the object's actual class".</p>
+  <p>The MRO is the list of classes Python searches, in order, when it looks up an attribute. Python computes it with the <strong>C3 linearization</strong> algorithm. In plain terms: a class always comes before its parents, and the parents keep the order you listed them in. You can read any class's MRO through <code>ClassName.__mro__</code>.</p>
+  <pre class="code" data-lang="python"><code>class A:
+    def hello(self):
+        print("A")
+
+class B(A):
+    def hello(self):
+        print("B")
+        super().hello()
+
+class C(A):
+    def hello(self):
+        print("C")
+        super().hello()
+
+class D(B, C):                         # the "diamond": D inherits from B and C, both from A
+    def hello(self):
+        print("D")
+        super().hello()
+
+D().hello()
+print([k.__name__ for k in D.__mro__])</code></pre>
+  <pre class="output">D
+B
+C
+A
+['D', 'B', 'C', 'A', 'object']</pre>
+  <p>Read the output as a trace. <code>D().hello()</code> prints "D", then its <code>super()</code> call goes to the next class in the MRO, which is B. B prints "B", and its <code>super()</code> call goes to C, not to A. That is the important detail: inside B, <code>super()</code> follows the MRO of the object, which is a D, so C comes next. C then calls <code>super()</code>, which reaches A. A does not call <code>super()</code>, so the chain ends. Each class runs exactly once.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the MRO and how does <code>super()</code> use it? The MRO is a fixed linear order of the classes for each type. <code>super()</code> calls the next class after the current one in the MRO of the object's real type, which is why it can call a sibling class in a diamond.</p></div>
+  <p>Because of this, every class in a cooperative hierarchy should call <code>super()</code>, and the methods should accept the same arguments. Otherwise the chain breaks partway through.</p>
+
+  <h3>Dunder (magic) methods</h3>
+  <p>Methods whose names start and end with two underscores are called <em>dunder</em> methods, short for double underscore. Python calls them when you use built-in syntax on your object. Defining <code>__add__</code> lets <code>+</code> work, and defining <code>__len__</code> lets <code>len()</code> work. This is how Python's own types behave, so your classes can behave the same way.</p>
+  <pre class="code" data-lang="python"><code>class Vector:
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+    def __repr__(self):                # the developer view, used by print when no __str__ exists
+        return f"Vector({self.x}, {self.y})"
+    def __add__(self, other):          # v1 + v2
+        return Vector(self.x + other.x, self.y + other.y)
+    def __eq__(self, other):           # v1 == v2
+        return (self.x, self.y) == (other.x, other.y)
+    def __len__(self):                 # len(v)
+        return 2
+    def __getitem__(self, i):          # v[i]; also makes the object iterable
+        return (self.x, self.y)[i]
+
+v = Vector(1, 2) + Vector(3, 4)
+print(v, v == Vector(4, 6), len(v), v[0], list(v))</code></pre>
+  <pre class="output">Vector(4, 6) True 2 4 [4, 6]</pre>
+  <p><code>list(v)</code> works even though we never wrote <code>__iter__</code>. Python falls back to calling <code>__getitem__(0)</code>, <code>__getitem__(1)</code>, and so on until an <code>IndexError</code> stops the process. Writing <code>__iter__</code> is cleaner and is the modern approach.</p>
+  <div class="tablewrap"><table><thead><tr><th>Dunder</th><th>Triggered by</th></tr></thead><tbody>
+    <tr><td><code>__init__</code> and <code>__new__</code></td><td>Creating an object. <code>__new__</code> builds it, <code>__init__</code> fills it in.</td></tr>
+    <tr><td><code>__str__</code> and <code>__repr__</code></td><td><code>str(x)</code> and <code>print(x)</code> use <code>__str__</code>. <code>repr(x)</code> and the interactive prompt use <code>__repr__</code>.</td></tr>
+    <tr><td><code>__eq__</code>, <code>__lt__</code>, <code>__hash__</code></td><td><code>==</code>, <code>&lt;</code>, and using the object as a dict key or set member</td></tr>
+    <tr><td><code>__len__</code>, <code>__getitem__</code>, <code>__contains__</code>, <code>__iter__</code></td><td><code>len</code>, <code>x[i]</code>, <code>in</code>, and <code>for</code> loops</td></tr>
+    <tr><td><code>__call__</code></td><td>Calling the object as a function, <code>obj(...)</code></td></tr>
+    <tr><td><code>__enter__</code> and <code>__exit__</code></td><td>The <code>with</code> statement</td></tr>
+  </tbody></table></div>
+  <div class="note trap"><p><span class="t">Trap</span>If you define <code>__eq__</code> but not <code>__hash__</code>, Python sets <code>__hash__</code> to None, and the objects can no longer be dict keys or set members. Equal objects must have equal hashes, so define both, or make the object immutable and hash it on its fields.</p></div>
+
+  <h3>Abstract base classes</h3>
+  <p>An abstract base class (ABC) describes an interface that subclasses must implement. Methods marked <code>@abstractmethod</code> must be overridden. Python refuses to create an instance of any class that still has an unimplemented abstract method.</p>
+  <pre class="code" data-lang="python"><code>from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self):
+        ...
+
+class Square(Shape):
+    def __init__(self, side):
+        self.side = side
+    def area(self):
+        return self.side ** 2
+
+print(Square(3).area())
+try:
+    Shape()
+except TypeError as e:
+    print("TypeError:", e)</code></pre>
+  <pre class="output">9
+TypeError: Can't instantiate abstract class Shape without an implementation for abstract method 'area'</pre>
+  <p>The check happens when the object is created, not when the class is defined. A subclass that forgets one abstract method is also refused at creation time, so the mistake is caught early.</p>
+
+  <h3>Dataclasses: less boilerplate for data holders</h3>
+  <p>A dataclass is a class whose <code>__init__</code>, <code>__repr__</code> and <code>__eq__</code> are generated from annotated fields. You declare the fields with type annotations, and the decorator writes the methods. Options change the result. <code>order=True</code> adds comparison methods. <code>frozen=True</code> makes instances immutable and hashable. <code>slots=True</code>, available from Python 3.10, stores attributes in a fixed layout, which saves memory and blocks new attributes.</p>
+  <pre class="code" data-lang="python"><code>from dataclasses import dataclass, field
+
+@dataclass(order=True, frozen=True)
+class Point:
+    x: int
+    y: int = 0
+
+@dataclass
+class Student:
+    name: str
+    marks: list = field(default_factory=list)   # a fresh list per student; never write marks: list = []
+
+p = Point(1, 2)
+print(p)
+print(Point(1, 2) == Point(1, 2), Point(1, 2) &lt; Point(2, 0))
+print(Student("Asha"))
+try:
+    p.x = 5
+except Exception as e:
+    print(type(e).__name__, e)</code></pre>
+  <pre class="output">Point(x=1, y=2)
+True True
+Student(name='Asha', marks=[])
+FrozenInstanceError cannot assign to field 'x'</pre>
+  <p>The <code>field(default_factory=list)</code> line is the dataclass version of the mutable default trap from day 1. A plain <code>marks: list = []</code> is rejected by the decorator with an error, because it would share one list between all instances. The factory runs once for each new object.</p>
+  <p><code>Point(1, 2) &lt; Point(2, 0)</code> is True because <code>order=True</code> compares the fields as tuples: (1, 2) is less than (2, 0) since 1 is less than 2.</p>
+
+  <div class="key"><p><strong>Likely questions:</strong> What is the MRO and how does <code>super()</code> use it? What is the difference between <code>__str__</code> and <code>__repr__</code>? Classmethod versus staticmethod? Is there a private in Python? When would you use a dataclass, and when a NamedTuple or a plain class?</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="Generators">
+  <h2>Iterators and generators</h2>
+  <p>An <strong>iterable</strong> is anything you can loop over with <code>for</code>. An <strong>iterator</strong> is the object that hands out the values one at a time when asked. A <strong>generator</strong> is the easiest way to write an iterator, because Python builds the iterator for you from a function that uses <code>yield</code>.</p>
+
+  <h3>The iterator protocol</h3>
+  <p>A <code>for</code> loop is a shortcut for two steps. It calls <code>iter(x)</code> once to get an iterator, then calls <code>next()</code> repeatedly until the iterator raises <code>StopIteration</code>. You can do those steps by hand, which makes the protocol visible.</p>
+  <pre class="code" data-lang="python"><code>nums = [10, 20]
+it = iter(nums)            # calls nums.__iter__() and returns an iterator
+print(next(it))            # calls it.__next__()
+print(next(it))
+try:
+    print(next(it))
+except StopIteration:
+    print("no more items")</code></pre>
+  <pre class="output">10
+20
+no more items</pre>
+  <p>The list itself is an iterable but not an iterator, because it has no <code>__next__</code> and does not remember a position. The iterator returned by <code>iter</code> remembers the position. This distinction is a common interview question.</p>
+
+  <h3>Generators with yield</h3>
+  <p>A function that contains <code>yield</code> does not run its body when you call it. It returns a generator object. Each call to <code>next()</code> runs the body until the next <code>yield</code>, hands that value out, and pauses with all its local variables intact. The next <code>next()</code> call resumes right after the <code>yield</code>.</p>
+  <pre class="code" data-lang="python"><code>def countdown(n):
+    print("start")
+    while n &gt; 0:
+        yield n
+        n -= 1
+    print("done")
+
+g = countdown(3)           # nothing is printed yet: the body has not started
+print(next(g))
+print(list(g))</code></pre>
+  <pre class="output">start
+3
+done
+[2, 1]</pre>
+  <p>Trace the output. The first <code>next(g)</code> runs the body up to <code>yield 3</code>, which prints "start" and returns 3. The <code>list(g)</code> call resumes the generator after the yield, so <code>n</code> becomes 2 and yields 2, then 1. When <code>n</code> reaches 0, the loop ends, "done" is printed, and the generator finishes. Only then does <code>list</code> build its result, so "done" appears before the list.</p>
+
+  <h3>Why use generators: memory and laziness</h3>
+  <p>A generator produces values on demand. It never stores the whole sequence. A list comprehension builds the entire list in memory before anything else happens. A generator expression, written with round brackets, does the same work lazily. For large data this is the difference between using a few bytes and using gigabytes.</p>
+  <pre class="code" data-lang="python"><code>squares_gen = (x * x for x in range(1_000_000))
+print(sum(squares_gen))</code></pre>
+  <pre class="output">333332833333500000</pre>
+  <p>The generator holds only its current state, a few hundred bytes, and computes each square when <code>sum</code> asks for it. A list of the same million squares would need several megabytes before <code>sum</code> even starts. The sum is 0 squared plus 1 squared plus and so on up to 999999 squared, which is the closed form (n-1) n (2n-1) / 6 for n = 1000000, here printed exactly by Python's big integers.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A generator can be consumed only once. After the first pass it is empty, so a second <code>list()</code> returns nothing, with no error.</p></div>
+  <pre class="code" data-lang="python"><code>g = (x for x in range(3))
+print(list(g), list(g))</code></pre>
+  <pre class="output">[0, 1, 2] []</pre>
+  <p>If you need to loop twice, either build a list once or create the generator again. Keeping the generator in a variable and expecting it to restart is a classic mistake.</p>
+
+  <h3>yield from and lazy pipelines</h3>
+  <p><code>yield from</code> delegates to another iterable, passing each of its values straight out. It is the standard way to write a recursive generator, such as one that flattens a nested list.</p>
+  <pre class="code" data-lang="python"><code>def flatten(nested):
+    for item in nested:
+        if isinstance(item, list):
+            yield from flatten(item)    # hand over every value the inner generator makes
+        else:
+            yield item
+
+print(list(flatten([1, [2, [3, 4]], 5])))
+
+lines = ["10", "x", "25", "7"]
+numbers = (int(s) for s in lines if s.isdigit())     # stage 1: parse digits only
+big = (n for n in numbers if n &gt; 8)                  # stage 2: keep values above 8
+print(list(big))</code></pre>
+  <pre class="output">[1, 2, 3, 4, 5]
+[10, 25]</pre>
+  <p>The second example is a pipeline. Nothing runs until <code>list(big)</code> asks for a value. That value asks <code>numbers</code> for one, which asks the source for one line. Each item flows through all the stages before the next item is read, so the stages never build intermediate lists. This is how large log files or database rows are processed in Python.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between <code>return</code> and <code>yield</code>? <code>return</code> ends the function and sends one value. <code>yield</code> pauses the function, sends a value, and can resume later, so the function produces a sequence over time.</p></div>
+  <details class="check"><summary>What is the difference between an iterable and an iterator?</summary><div class="ans"><p>An iterable can produce an iterator through <code>iter()</code>. Examples are lists, strings and dicts. An iterator has a <code>__next__</code> method and remembers its position, and it is exhausted after one pass. A list is iterable but not an iterator.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Decorators">
+  <h2>Decorators</h2>
+  <p>A decorator is a function that takes another function and returns a new function that adds behaviour around it. The <code>@</code> syntax is shorthand. Writing <code>@logged</code> above <code>def add</code> is exactly the same as writing <code>add = logged(add)</code> after the definition. Decorators rely on two ideas you already know: functions are objects you can pass around, and closures remember variables from their enclosing scope.</p>
+
+  <h3>A logging decorator, step by step</h3>
+  <p>The outer function receives the original function. It defines a wrapper that accepts any arguments, calls the original with them, and returns the result. The wrapper is what the name <code>add</code> refers to after decoration.</p>
+  <pre class="code" data-lang="python"><code>import functools
+
+def logged(func):
+    @functools.wraps(func)                # copy the name and docstring of func onto wrapper
+    def wrapper(*args, **kwargs):         # accepts whatever the caller passes
+        print(f"calling {func.__name__} with {args} {kwargs}")
+        result = func(*args, **kwargs)    # call the original function
+        print(f"{func.__name__} returned {result!r}")
+        return result
+    return wrapper
+
+@logged
+def add(a, b=0):
+    """Add two numbers."""
+    return a + b
+
+print(add(2, b=3))
+print(add.__name__, add.__doc__)</code></pre>
+  <pre class="output">calling add with (2,) {'b': 3}
+add returned 5
+5
+add Add two numbers.</pre>
+  <p>Without <code>@functools.wraps(func)</code>, the last line would print <code>wrapper</code> and <code>None</code> instead of the original name and docstring. Debuggers, documentation tools and test frameworks rely on those attributes, so always use <code>wraps</code> in a decorator. Notice also that the wrapper uses <code>*args</code> and <code>**kwargs</code>, so it works for any signature.</p>
+
+  <h3>A decorator that takes arguments</h3>
+  <p>If the decorator itself needs settings, it needs one more layer. The outermost function takes the settings and returns the real decorator. Read it as three nested functions: the factory with the settings, the decorator that receives the function, and the wrapper that runs at call time.</p>
+  <pre class="code" data-lang="python"><code>import functools
+
+def repeat(n):                             # level 1: takes the setting
+    def decorator(func):                   # level 2: takes the function
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):      # level 3: runs on each call
+            return [func(*args, **kwargs) for _ in range(n)]
+        return wrapper
+    return decorator
+
+@repeat(3)                                 # repeat(3) returns the real decorator
+def greet(name):
+    return f"hi {name}"
+
+print(greet("Karuna"))</code></pre>
+  <pre class="output">['hi Karuna', 'hi Karuna', 'hi Karuna']</pre>
+  <p>The line <code>@repeat(3)</code> is evaluated first. It calls <code>repeat(3)</code>, which returns <code>decorator</code>. Then Python applies that decorator to <code>greet</code>. Forgetting the parentheses, as in <code>@repeat</code>, passes the function as <code>n</code> and produces a confusing error.</p>
+
+  <h3>lru_cache: a decorator from the standard library</h3>
+  <p><code>functools.lru_cache</code> remembers the results of previous calls and returns them for repeated arguments. Naive recursive Fibonacci makes an exponential number of calls, because it recomputes the same values again and again. With a cache, each value is computed once.</p>
+  <pre class="code" data-lang="python"><code>from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def fib(n):
+    return n if n &lt; 2 else fib(n - 1) + fib(n - 2)
+
+print(fib(80))
+print(fib.cache_info().hits &gt; 0)</code></pre>
+  <pre class="output">23416728348467685
+True</pre>
+  <p>Without the cache, computing <code>fib(80)</code> would take an enormous number of calls. With the cache, the function is effectively computed once per value from 0 to 80, which is O(n) calls. The cache is stored on the function and can be cleared with <code>fib.cache_clear()</code>. Use it only for pure functions, meaning functions whose result depends only on their arguments.</p>
+
+  <h3>Stacking decorators</h3>
+  <p>You can put several decorators on one function. They are applied from the bottom upward, and the top one becomes the outermost layer, so it runs first when the function is called.</p>
+  <pre class="code" data-lang="python"><code>def bracket(tag):
+    def deco(func):
+        def wrapper(*args):
+            return f"&lt;{tag}&gt;" + func(*args) + f"&lt;/{tag}&gt;"
+        return wrapper
+    return deco
+
+@bracket("b")
+@bracket("i")
+def text(s):
+    return s
+
+print(text("hi"))</code></pre>
+  <pre class="output">&lt;b&gt;&lt;i&gt;hi&lt;/i&gt;&lt;/b&gt;</pre>
+  <p>The meaning of <code>@bracket("b")</code> above <code>@bracket("i")</code> is <code>text = bracket("b")(bracket("i")(text))</code>. The inner decorator wraps first, so the italic tags are closest to the text. The outer wrapper then adds the bold tags around the result.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Write a decorator that logs or times a function. Why use <code>functools.wraps</code>? Name real uses. Good answers include Flask's <code>@app.route</code>, login checks, caching and retry logic.</p></div>
+  <details class="check"><summary>What does <code>@decorator</code> above <code>def f</code> mean, exactly?</summary><div class="ans"><p>It means <code>f = decorator(f)</code>. The name <code>f</code> is rebound to whatever the decorator returns, which is usually a wrapper function that calls the original.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Context managers">
+  <h2>Context managers and the with statement</h2>
+  <p>The <code>with</code> statement guarantees that setup and cleanup code run around a block, even when an error happens inside the block. Files, locks, database connections and temporary directories all use it, because forgetting to clean up is a common source of bugs such as leaked file handles.</p>
+  <pre class="code" data-lang="python"><code>with open("notes.txt", "w") as f:
+    f.write("hello")
+# the file is closed here, even if write() had raised an error</code></pre>
+  <p>Here is what Python does. It calls <code>__enter__</code> on the object and binds its return value to the name after <code>as</code>. When the block ends, normally or through an exception, it calls <code>__exit__</code> with details about any exception that occurred.</p>
+
+  <h3>Writing a context manager as a class</h3>
+  <p>A class needs two methods. <code>__enter__</code> does the setup and returns the object to use inside the block. <code>__exit__</code> does the cleanup. It receives three arguments describing the exception, or three <code>None</code> values if there was none.</p>
+  <pre class="code" data-lang="python"><code>class Resource:
+    def __enter__(self):
+        print("acquire")
+        return self                        # this becomes the value after "as"
+
+    def __exit__(self, exc_type, exc, tb):
+        print("release", exc_type.__name__ if exc_type else None)
+        return False                       # False: let any exception continue
+
+with Resource() as r:
+    print("working")
+
+try:
+    with Resource():
+        raise ValueError("boom")
+except ValueError as e:
+    print("caught", e)</code></pre>
+  <pre class="output">acquire
+working
+release None
+acquire
+release ValueError
+caught boom</pre>
+  <p>The second block shows the important guarantee. The exception was raised inside the block, <code>__exit__</code> still ran and printed the release, and then the exception continued outward to the <code>except</code> clause. Returning <code>False</code> from <code>__exit__</code> means "do not hide the exception".</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>If <code>__exit__</code> returns a true value, the exception is swallowed and the program continues after the block. Only do that when you deliberately want to suppress the error, and be specific about which error.</p></div>
+  <pre class="code" data-lang="python"><code>class IgnoreValueError:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return exc_type is not None and issubclass(exc_type, ValueError)
+
+with IgnoreValueError():
+    raise ValueError("ignored")
+print("after")</code></pre>
+  <pre class="output">after</pre>
+  <p>The standard library provides the same idea in <code>contextlib.suppress(ValueError)</code>, which is clearer than writing this class yourself.</p>
+
+  <h3>Writing one with the contextmanager decorator</h3>
+  <p>For simple cases, <code>@contextlib.contextmanager</code> turns a generator function into a context manager. Everything before the <code>yield</code> is the setup. The value of <code>yield</code> is what goes after <code>as</code>. Everything after it is cleanup, and the cleanup belongs in a <code>finally</code> block so that it runs even when the body raises an error.</p>
+  <pre class="code" data-lang="python"><code>from contextlib import contextmanager
+
+@contextmanager
+def tag(name):
+    print(f"&lt;{name}&gt;")               # setup, like __enter__
+    try:
+        yield                              # the with-block runs here
+    finally:
+        print(f"&lt;/{name}&gt;")            # cleanup, like __exit__, always runs
+
+with tag("p"):
+    print("hello")</code></pre>
+  <pre class="output">&lt;p&gt;
+hello
+&lt;/p&gt;</pre>
+  <p>Without the <code>try/finally</code>, an exception inside the block would skip the closing tag, because the code after the <code>yield</code> would never be reached. The <code>finally</code> keyword is what makes the cleanup reliable.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What happens under the hood in <code>with open(...)</code>? Python calls <code>__enter__</code> on the file object, which returns the file. When the block ends, it calls <code>__exit__</code>, which closes the file, and it does so even if an exception was raised.</p></div>
+  <details class="check"><summary>Name two context managers in the standard library and what each guarantees.</summary><div class="ans"><p><code>threading.Lock</code> acquires the lock on entry and releases it on exit, so a block cannot forget to unlock. <code>tempfile.TemporaryDirectory</code> creates a directory on entry and deletes it on exit. <code>contextlib.suppress</code> ignores the listed exceptions. All three guarantee cleanup.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Exceptions">
+  <h2>Exceptions: raising, catching and designing errors</h2>
+  <p>An <strong>exception</strong> is Python's way of signalling that something went wrong. When code raises one, normal execution stops and Python looks for an <code>except</code> clause that matches. If none exists, the program ends with a traceback. Exceptions are objects, so you can inspect them, subclass them and chain them.</p>
+
+  <h3>try, except, else and finally: the exact order</h3>
+  <p>The four clauses run in a fixed order. The <code>try</code> block runs first. If it raises a matching exception, the <code>except</code> block runs. The <code>else</code> block runs only if no exception occurred. The <code>finally</code> block runs last, always, whatever happened, including after a <code>return</code> inside <code>try</code>.</p>
+  <pre class="code" data-lang="python"><code>def divide(x):
+    try:
+        r = 10 / x
+    except ZeroDivisionError as e:
+        print("error:", e)
+        return None
+    else:
+        print("no error")
+        return r
+    finally:
+        print("finally runs")
+
+print(divide(2))
+print(divide(0))</code></pre>
+  <pre class="output">no error
+finally runs
+5.0
+error: division by zero
+finally runs
+None</pre>
+  <p>In the first call, <code>else</code> runs and returns 5.0, but <code>finally</code> still runs before the value reaches the caller. In the second call, <code>except</code> catches the division error and returns None, and <code>finally</code> still runs. The <code>else</code> clause is useful because it keeps code that should run only on success out of the <code>try</code> block, so that unrelated errors inside it are not caught by accident.</p>
+
+  <h3>The exception hierarchy</h3>
+  <p>All exceptions inherit from <code>BaseException</code>. Most of your code should deal with subclasses of <code>Exception</code>. The diagram below shows the main branches.</p>
+  <pre class="code" data-lang="text"><code>BaseException
+ ├── SystemExit, KeyboardInterrupt, GeneratorExit
+ └── Exception
+      ├── ArithmeticError → ZeroDivisionError
+      ├── LookupError → IndexError, KeyError
+      ├── ValueError, TypeError, AttributeError
+      └── OSError → FileNotFoundError, and others</code></pre>
+  <p>Catch the most specific exception you can handle. A bare <code>except:</code> catches everything, including <code>KeyboardInterrupt</code> (Ctrl+C) and <code>SystemExit</code>, which should normally stop the program. Use <code>except Exception</code> at the widest, and a specific type wherever you can.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A bare <code>except:</code> makes Ctrl+C stop working inside the protected code and hides real bugs. Catch the specific error you expect.</p></div>
+
+  <h3>Custom exceptions and chaining</h3>
+  <p>Define your own exception class when callers need to tell your error apart from others. Subclass <code>Exception</code>, and store any useful details as attributes. When you convert one error into another, use <code>raise ... from</code>, which keeps the original error attached as <code>__cause__</code>, so the traceback shows both.</p>
+  <pre class="code" data-lang="python"><code>class InsufficientFunds(Exception):
+    def __init__(self, needed):
+        super().__init__(f"need {needed} more")
+        self.needed = needed
+
+def withdraw(balance, amount):
+    if amount &gt; balance:
+        raise InsufficientFunds(amount - balance)
+    return balance - amount
+
+try:
+    withdraw(100, 150)
+except InsufficientFunds as e:
+    print(e, e.needed)
+
+try:
+    try:
+        int("abc")
+    except ValueError as e:
+        raise RuntimeError("could not parse config") from e
+except RuntimeError as e:
+    print(e, "| cause:", repr(e.__cause__))</code></pre>
+  <pre class="output">need 50 more 50
+could not parse config | cause: ValueError("invalid literal for int() with base 10: 'abc'")</pre>
+  <p>The custom class passes its message up to <code>Exception</code> with <code>super().__init__</code>, so <code>print(e)</code> shows it. The <code>needed</code> attribute gives the caller a number to act on, without parsing the message. The chained error keeps the original <code>ValueError</code> available for debugging.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A <code>return</code> inside <code>finally</code> overrides the return from <code>try</code>, and it also silently discards any exception that was in flight. Never return from <code>finally</code>.</p></div>
+  <pre class="code" data-lang="python"><code>def g():
+    try:
+        return 1
+    finally:
+        return 2
+
+print(g())</code></pre>
+  <pre class="output">2</pre>
+  <p>The function returns 2 even though the <code>try</code> block returned 1, because <code>finally</code> runs last and its return wins.</p>
+
+  <h3>EAFP and LBYL: two styles of checking</h3>
+  <p><strong>EAFP</strong> stands for "easier to ask forgiveness than permission". You try the operation and catch the error if it fails. <strong>LBYL</strong> stands for "look before you leap". You check the condition first. Python code leans toward EAFP, because checking first can be racy (the file may disappear between the check and the open) and repeats work.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why does Python prefer EAFP? Because the try-and-catch version is shorter, and it handles conditions that a separate check might miss, such as a file deleted between the check and the read.</p></div>
+  <details class="check"><summary>When does the <code>else</code> clause of a try statement run?</summary><div class="ans"><p>Only when the try block finishes without raising an exception. It is for code that should run on success, kept outside the try so that its own errors are not caught by the except clauses.</p></div></details>
+  <details class="check"><summary>Why is a bare <code>except:</code> dangerous?</summary><div class="ans"><p>It catches every exception, including KeyboardInterrupt and SystemExit, so Ctrl+C and deliberate exits can be swallowed, and real bugs are hidden. Catch specific exception types, or at most Exception.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Copy and memory">
+  <h2>Copying, identity, memory and garbage collection</h2>
+  <p>In Python, a variable is a name that refers to an object. Assignment never copies an object. It only adds another name. Once you accept that, most copy questions become simple to reason about.</p>
+
+  <h3>Assignment, shallow copy and deep copy</h3>
+  <p>A <strong>shallow copy</strong> creates a new outer container that holds the same inner objects. A <strong>deep copy</strong> creates new copies of the inner objects too, recursively. The <code>copy</code> module provides both.</p>
+  <pre class="code" data-lang="python"><code>import copy
+
+a = [[1, 2], [3, 4]]
+b = a                    # same object, a second name
+c = copy.copy(a)         # shallow: new outer list, SAME inner lists
+d = copy.deepcopy(a)     # deep: new outer list AND new inner lists
+
+a[0].append(99)
+print(b)
+print(c)
+print(d)
+print(a is b, a is c, a[0] is c[0], a[0] is d[0])</code></pre>
+  <pre class="output">[[1, 2, 99], [3, 4]]
+[[1, 2, 99], [3, 4]]
+[[1, 2], [3, 4]]
+True False True False</pre>
+  <p>Work through the output. <code>b</code> shows the change because it is the same object as <code>a</code>. <code>c</code> shows the change too, because its inner list is the same object as <code>a[0]</code>. Only <code>d</code>, the deep copy, is unaffected. The last line confirms the structure: <code>a is b</code> is True, <code>a is c</code> is False because the outer lists differ, and <code>a[0] is c[0]</code> is True because the inner lists are shared.</p>
+  <p>Shallow copies are also made by <code>a[:]</code>, <code>list(a)</code>, <code>a.copy()</code> and <code>dict.copy()</code>. All of them share the inner objects.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Repeating a list with <code>*</code> repeats the reference, not the contents. <code>[[0] * 3] * 3</code> makes three names for one row. The fix is a list comprehension, which creates a new row each time.</p></div>
+  <pre class="code" data-lang="python"><code>grid = [[0] * 3] * 3
+grid[0][0] = 1
+print(grid)
+
+good = [[0] * 3 for _ in range(3)]
+good[0][0] = 1
+print(good)</code></pre>
+  <pre class="output">[[1, 0, 0], [1, 0, 0], [1, 0, 0]]
+[[1, 0, 0], [0, 0, 0], [0, 0, 0]]</pre>
+
+  <h3>is versus ==</h3>
+  <p><code>==</code> compares values by calling <code>__eq__</code>. <code>is</code> compares identity, which means whether two names refer to the same object in memory. Use <code>is</code> for the singletons <code>None</code>, <code>True</code> and <code>False</code>, and for identity checks you truly need. CPython happens to share small integers, from -5 to 256, between uses, so <code>x is y</code> can be True for those values and False for larger equal numbers. That is an implementation detail, so never rely on it.</p>
+
+  <h3>How CPython frees memory</h3>
+  <p>CPython uses two mechanisms. The first is <strong>reference counting</strong>. Every object keeps a count of the names and containers that refer to it. When the count drops to zero, the object is freed immediately. This is why most objects disappear as soon as the last name is gone.</p>
+  <p>Reference counting cannot free a <strong>reference cycle</strong>, where objects refer to each other, so each one keeps the other's count above zero even when nothing else reaches them. The second mechanism is the <strong>cyclic garbage collector</strong>, which is the <code>gc</code> module. It periodically searches for groups of objects that are unreachable from the program and frees them. It is generational: newly created objects are examined often, and long-lived objects less often, because most objects die young.</p>
+  <pre class="code" data-lang="python"><code>import gc
+
+class Node:
+    pass
+
+a, b = Node(), Node()
+a.other, b.other = b, a      # a reference cycle: each refers to the other
+del a, b                     # the names are gone, but the cycle keeps the objects alive
+print(gc.collect() &gt;= 2)     # the cyclic collector finds and frees them</code></pre>
+  <pre class="output">True</pre>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How does Python manage memory? Reference counting frees most objects immediately, and a cyclic garbage collector handles reference cycles. Memory is returned to the allocator, and small objects are served from pools, which is a detail you can mention if asked.</p></div>
+  <details class="check"><summary>Why does modifying a copy sometimes change the original?</summary><div class="ans"><p>A shallow copy shares its inner objects with the original. Changing an inner object through the copy changes it for the original too. A deep copy avoids this, at the cost of more memory and time.</p></div></details>
+</section>
+
+<section class="unit" id="c7" data-title="GIL and concurrency">
+  <h2>The GIL, threads, processes and asyncio</h2>
+  <p>Concurrency means making progress on several tasks at once, either truly in parallel or by switching between them. Python offers three main tools, and the right choice depends on whether the work is waiting for input and output or doing heavy calculation.</p>
+
+  <h3>What the GIL is</h3>
+  <p>The <strong>Global Interpreter Lock</strong> is a lock inside the standard CPython interpreter. Only one thread can execute Python bytecode at a time. CPython needs it because its reference counts are not protected against simultaneous updates by several threads, and one lock is far simpler and faster than locking every object.</p>
+  <ul>
+    <li><strong>I/O-bound work</strong> (network calls, disk reads, waiting for a timer). Threads help, because a thread releases the GIL while it waits for the operating system.</li>
+    <li><strong>CPU-bound work</strong> (pure Python arithmetic and loops). Adding threads does not make it faster. Use <code>multiprocessing</code>, where each process has its own interpreter and GIL, or a library such as NumPy that releases the GIL inside its compiled code.</li>
+    <li><strong>Free-threaded builds.</strong> Python 3.13 introduced an optional build without the GIL, described in PEP 703. It is opt-in, and the default build still has the GIL. Mention it to show you follow the language's development.</li>
+  </ul>
+
+  <h3>Choosing the tool</h3>
+  <div class="tablewrap"><table><thead><tr><th>Tool</th><th>Best for</th><th>Why</th></tr></thead><tbody>
+    <tr><td><code>threading</code> and <code>ThreadPoolExecutor</code></td><td>I/O-bound work with a moderate number of tasks</td><td>Threads wait in parallel, and the GIL is released while they wait</td></tr>
+    <tr><td><code>multiprocessing</code> and <code>ProcessPoolExecutor</code></td><td>CPU-bound work</td><td>Separate processes run on separate cores</td></tr>
+    <tr><td><code>asyncio</code></td><td>Thousands of I/O tasks, such as web servers and crawlers</td><td>One thread switches between tasks at each <code>await</code>, with very little overhead</td></tr>
+  </tbody></table></div>
+
+  <h3>Threads for I/O work</h3>
+  <p><code>ThreadPoolExecutor.map</code> runs a function over many inputs using a pool of threads and returns the results in input order. The function below sleeps to imitate a network call. While one thread waits, the others can run.</p>
+  <pre class="code" data-lang="python"><code>from concurrent.futures import ThreadPoolExecutor
+import time
+
+def download(n):
+    time.sleep(0.1)          # stands in for a network call that mostly waits
+    return n * 10
+
+with ThreadPoolExecutor(max_workers=5) as ex:
+    results = list(ex.map(download, range(5)))
+print(results)</code></pre>
+  <pre class="output">[0, 10, 20, 30, 40]</pre>
+  <p>Five waits of 0.1 seconds take about 0.1 seconds in total, not 0.5, because they overlap. The results still arrive in input order, which is a property of <code>map</code> worth remembering.</p>
+
+  <h3>asyncio: the same idea with coroutines</h3>
+  <p>An <code>async def</code> function is a coroutine. Inside it, <code>await</code> marks a point where the coroutine can pause and let the event loop run other tasks. Only one coroutine runs at a time, so there is no GIL contention and no thread overhead. <code>asyncio.gather</code> runs several coroutines together and collects their results in order.</p>
+  <pre class="code" data-lang="python"><code>import asyncio
+
+async def fetch(i):
+    await asyncio.sleep(0.1)     # gives control back to the event loop while waiting
+    return i * 10
+
+async def main():
+    return await asyncio.gather(*(fetch(i) for i in range(3)))
+
+print(asyncio.run(main()))</code></pre>
+  <pre class="output">[0, 10, 20]</pre>
+  <div class="note trap"><p><span class="t">Trap</span>A plain <code>time.sleep</code> or a blocking library call inside a coroutine blocks the whole event loop, because it never reaches an <code>await</code>. Use <code>await asyncio.sleep</code> or an asynchronous library.</p></div>
+
+  <h3>The GIL does not make your code thread-safe</h3>
+  <p><code>counter += 1</code> is several bytecode steps: read the value, add one, write it back. Between those steps, another thread can run and write its own value, and one of the increments is lost. This is a <strong>race condition</strong>. The GIL does not prevent it. Protect shared state with a <code>threading.Lock</code>, and keep the critical section as short as possible.</p>
+  <pre class="code" data-lang="python"><code>import threading
+
+counter = 0
+lock = threading.Lock()
+
+def work():
+    global counter
+    for _ in range(100_000):
+        with lock:                 # only one thread at a time inside this block
+            counter += 1
+
+threads = [threading.Thread(target=work) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+print(counter)</code></pre>
+  <pre class="output">400000</pre>
+  <p>Four threads each add 100,000 times, so the correct total is 400,000. The lock makes the result exact on every run. Remove the <code>with lock</code> line and the total may come out smaller, because the switches between threads can happen in the middle of an increment.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the GIL, and is Python multithreading useless? The GIL lets only one thread run Python bytecode at a time. Threads are still useful for I/O-bound work. For CPU-bound work, use processes. A deadlock is the opposite problem: two threads each wait for a lock the other holds, so neither can continue.</p></div>
+  <details class="check"><summary>A program downloads 50 pages, each taking one second of network waiting, then does a heavy calculation on each. Which tools fit each part?</summary><div class="ans"><p>The downloads are I/O-bound, so a thread pool or asyncio fits, and they overlap their waiting. The calculations are CPU-bound, so a process pool is the right tool, because threads would not run them in parallel.</p></div></details>
+</section>
+
+<section class="unit" id="c8" data-title="Testing">
+  <h2>Testing with pytest and mocks</h2>
+  <p>A test is a small function that calls your code and checks the result with <code>assert</code>. Automated tests protect you when you change code, and in interviews they show that you think about correctness. The standard third-party tool is <strong>pytest</strong>. It finds files named <code>test_*.py</code> and functions named <code>test_*</code>, and it reports which assertions failed.</p>
+  <pre class="code" data-lang="python"><code># calc.py
+def divide(a, b):
+    if b == 0:
+        raise ValueError("b must not be zero")
+    return a / b</code></pre>
+  <pre class="code" data-lang="python"><code># test_calc.py
+import pytest
+from calc import divide
+
+@pytest.mark.parametrize("a, b, expected", [(6, 3, 2), (5, 2, 2.5), (-4, 2, -2)])
+def test_divide(a, b, expected):           # pytest runs this three times, once per tuple
+    assert divide(a, b) == expected
+
+def test_divide_by_zero():
+    with pytest.raises(ValueError, match="zero"):
+        divide(1, 0)
+
+@pytest.fixture
+def sample_scores():                       # reusable setup, provided by name
+    return [70, 80, 90]
+
+def test_average(sample_scores):
+    assert sum(sample_scores) / len(sample_scores) == 80</code></pre>
+  <p>Running <code>pytest</code> in the project folder collects these five test cases, runs them, and prints a summary such as the number of tests passed. A parametrized test counts as several cases. A <strong>fixture</strong> is a function that prepares data for tests, and a test asks for it by naming it as a parameter. The <code>pytest.raises</code> block passes only if the code inside raises the expected exception.</p>
+
+  <h3>Mocking: replacing parts you do not want to run</h3>
+  <p>A <strong>mock</strong> is a stand-in object that records how it was used and returns values you choose. Mocks let you test code that talks to a network, a database or a clock without doing the real thing. The example below replaces <code>os.path.exists</code> with a mock that returns True, then checks the call.</p>
+  <pre class="code" data-lang="python"><code>import os
+from unittest.mock import patch
+
+def has_config():
+    return os.path.exists("/etc/app.conf")
+
+with patch("os.path.exists", return_value=True) as fake:
+    print(has_config())
+    fake.assert_called_once_with("/etc/app.conf")</code></pre>
+  <pre class="output">True</pre>
+  <p>The <code>patch</code> context manager (a context manager from the previous unit) swaps the function for the duration of the block and restores it afterwards. The test passes because the mock was called exactly once with the expected path. The file system was never touched.</p>
+  <pre class="code" data-lang="python"><code>from unittest.mock import Mock
+
+api = Mock()
+api.get_user.return_value = {"name": "Asha"}
+print(api.get_user(7)["name"])
+api.get_user.assert_called_once_with(7)</code></pre>
+  <pre class="output">Asha</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Patch the name where the code looks it up. If <code>app.py</code> does <code>from requests import get</code>, patch <code>app.get</code>, not <code>requests.get</code>.</p></div>
+
+  <div class="tablewrap"><table><thead><tr><th>Test type</th><th>Scope</th><th>Typical speed</th></tr></thead><tbody>
+    <tr><td>Unit</td><td>One function or class, with dependencies mocked</td><td>Very fast</td></tr>
+    <tr><td>Integration</td><td>Several parts together, such as code plus a real database</td><td>Slower</td></tr>
+    <tr><td>End-to-end</td><td>The whole system, exercised as a user would use it</td><td>Slowest</td></tr>
+  </tbody></table></div>
+  <p>Test-driven development (TDD) reverses the usual order. You write a failing test first, write just enough code to make it pass, then clean up the code while the tests stay green. Coverage tools report which lines the tests execute. High coverage is useful, but 100 percent coverage does not prove the tests check the right things.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>When would you mock something? When the real dependency is slow, unreliable, costly or has side effects, such as a payment service. Mock at the boundary, and keep your own logic unmocked so the test still exercises it.</p></div>
+  <details class="check"><summary>What is a fixture, and how does a test receive one?</summary><div class="ans"><p>A fixture is a function decorated with <code>@pytest.fixture</code> that returns setup data or objects. A test receives it by naming it as a parameter, and pytest calls the fixture and passes the result in.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question aloud before opening the answer. The model answers give the points to cover, so practise saying them in your own words.</p>
+  <details class="check"><summary>What does <code>super()</code> do in a class with multiple inheritance?</summary><div class="ans"><p>It calls the next class after the current one in the MRO of the object's actual type, not necessarily the direct parent. This lets cooperative classes call each other in a fixed order, and it means each class in a diamond runs once.</p></div></details>
+  <details class="check"><summary>What is the difference between <code>__str__</code> and <code>__repr__</code>?</summary><div class="ans"><p><code>__str__</code> gives a readable form for end users and is used by <code>print</code> and <code>str()</code>. <code>__repr__</code> gives an unambiguous developer form, ideally one that could recreate the object, and is used by <code>repr()</code> and the interactive prompt. If only <code>__repr__</code> is defined, it serves as the fallback for <code>str()</code>.</p></div></details>
+  <details class="check"><summary>What is the difference between a classmethod and a staticmethod?</summary><div class="ans"><p>A classmethod receives the class as its first argument (<code>cls</code>) and can create instances of the right class, which makes it a good alternative constructor. A staticmethod receives neither the class nor the instance, and behaves like a function stored in the class namespace.</p></div></details>
+  <details class="check"><summary>Why does defining <code>__eq__</code> remove the default <code>__hash__</code>?</summary><div class="ans"><p>Objects that compare equal must hash equally, and the default hash is based on identity, which would break that rule. Python therefore sets <code>__hash__</code> to None, which makes the objects unhashable. Define <code>__hash__</code> explicitly if the objects should be hashable, typically from the same fields that <code>__eq__</code> uses.</p></div></details>
+  <details class="check"><summary>What does a generator function return, and when does its body run?</summary><div class="ans"><p>Calling it returns a generator object without running the body. The body runs step by step, each time <code>next()</code> is called, pausing at every <code>yield</code>.</p></div></details>
+  <details class="check"><summary>Explain what a decorator does with <code>@wraps</code> and why it matters.</summary><div class="ans"><p>A decorator returns a wrapper function in place of the original. Without <code>functools.wraps</code>, the wrapper's name and docstring replace the original's, which breaks introspection, debugging and documentation. <code>wraps</code> copies those attributes onto the wrapper.</p></div></details>
+  <details class="check"><summary>When does the <code>__exit__</code> method of a context manager run, and what if the block raises?</summary><div class="ans"><p>It runs when the block ends, whether normally, through a return or break, or through an exception. If an exception occurred, its type, value and traceback are passed in. Returning a true value suppresses the exception, and returning False or None lets it continue.</p></div></details>
+  <details class="check"><summary>What is the GIL and how does it affect threads and processes?</summary><div class="ans"><p>The GIL is a lock that lets only one thread run Python bytecode at a time in CPython. Threads still help with I/O, because they release the GIL while waiting. CPU-bound work does not speed up with threads, so use processes, which each have their own interpreter and GIL.</p></div></details>
+  <details class="check"><summary>What is the difference between shallow and deep copy, and when does it matter?</summary><div class="ans"><p>A shallow copy creates a new container holding the same inner objects. A deep copy copies the inner objects as well. It matters whenever the structure contains mutable objects that are shared, because changes through one copy would appear in the other.</p></div></details>
+  <details class="check"><summary>Why do you need a lock around <code>counter += 1</code> even with the GIL?</summary><div class="ans"><p>The increment is several bytecode operations, and the interpreter can switch threads between them. Two threads can read the same old value and both write back the same result, losing one increment. A lock makes the read-add-write sequence atomic with respect to other threads that use the same lock.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Strings</h2>
+  <p>A <strong>string</strong> in an interview problem is a sequence of characters, and most string questions reduce to one of four patterns: two pointers, a sliding window, counting with a hash map, or using a sorted version of the string as a key. This lesson first recalls the Python facts that make string code fast or slow, then works through four assigned problems.</p>
+
+  <h3>Facts to know first</h3>
+  <ul>
+    <li>Python strings are <strong>immutable</strong>. <code>s[0] = "x"</code> raises a TypeError, so every apparent change creates a new string.</li>
+    <li>Building a string with <code>+=</code> inside a loop can cost O(n squared), because each step copies the whole string so far. Collect the pieces in a list and join them once with <code>"".join(parts)</code>, which is O(n) in total.</li>
+    <li>Indexing and <code>len</code> are O(1). Slicing <code>s[i:j]</code> copies the characters, so it costs O(j minus i). Membership with <code>in</code> scans, so it is O(n) on average.</li>
+    <li><code>ord</code> gives the character code of a single character, and <code>chr</code> does the reverse. Subtracting <code>ord("a")</code> turns a lowercase letter into an index from 0 to 25, which is how small arrays of counts are indexed.</li>
+  </ul>
+  <pre class="code" data-lang="python"><code>s = "hello"
+print(s[::-1], s[1:4], s.upper(), ord("a"), chr(98))
+print("-".join(["a", "b", "c"]), "  hi  ".strip(), "a,b,,c".split(","))</code></pre>
+  <pre class="output">olleh ell HELLO 97 b
+a-b-c hi ['a', 'b', '', 'c']</pre>
+  <p>The first line shows reversal with a negative step, a slice that excludes its end index, and the two character code functions. The second line shows <code>join</code>, which uses the separator string between items, and <code>strip</code>, which removes leading and trailing whitespace. The <code>split</code> call keeps the empty string between the two commas, which is a detail that matters for parsing input.</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/valid-anagram/">
+    <h3>Valid Anagram (LeetCode 242)</h3>
+    <div class="statement"><p>Given two strings <code>s</code> and <code>t</code>, return True if <code>t</code> is an anagram of <code>s</code>, meaning both contain exactly the same letters with the same counts, in any order. For <code>s = "anagram"</code> and <code>t = "nagaram"</code>, the answer is True. For <code>"rat"</code> and <code>"car"</code>, it is False.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The letters must match with counts. Different lengths mean the answer is False straight away. The constraints for this problem use lowercase English letters only.</li>
+      <li><strong>Brute force.</strong> Sort both strings and compare them. Correct, and O(n log n) time.</li>
+      <li><strong>Find the waste.</strong> Sorting puts the letters in order, which we do not need. We only need to know how many of each letter there are.</li>
+      <li><strong>Optimise.</strong> Keep one array of 26 counts. Add one for each letter of <code>s</code> and subtract one for each letter of <code>t</code>. The strings are anagrams exactly when every count ends at zero. This is O(n) time and O(1) space, because 26 is a fixed size.</li>
+      <li><strong>Dry run.</strong> For <code>s = "rat"</code> and <code>t = "car"</code>, the table tracks the counts for the letters involved. The letter c has count minus 1 at the end, so the answer is False.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Step</th><th>Letter from s, +1</th><th>Letter from t, -1</th><th>Non-zero counts afterwards</th></tr></thead><tbody>
+      <tr><td>1</td><td>r, count[r] = 1</td><td>c, count[c] = -1</td><td>r: 1, c: -1</td></tr>
+      <tr><td>2</td><td>a, count[a] = 1</td><td>a, count[a] = 0</td><td>r: 1, c: -1</td></tr>
+      <tr><td>3</td><td>t, count[t] = 1</td><td>r, count[r] = 0</td><td>t: 1, c: -1</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def is_anagram(s, t):
+    if len(s) != len(t):
+        return False
+    counts = [0] * 26
+    for a, b in zip(s, t):                 # walk both strings together
+        counts[ord(a) - ord("a")] += 1     # one more of this letter in s
+        counts[ord(b) - ord("a")] -= 1     # one fewer of this letter in t
+    return all(c == 0 for c in counts)
+
+print(is_anagram("anagram", "nagaram"))
+print(is_anagram("rat", "car"))</code></pre>
+    <pre class="output">True
+False</pre>
+    <p class="cx">Time O(n) · Space O(1), since the array has a fixed size of 26</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For anagram or frequency questions, count letters in an array or a Counter, then compare. Sorting works too but is slower.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/longest-palindromic-substring/">
+    <h3>Longest Palindromic Substring (LeetCode 5)</h3>
+    <div class="statement"><p>Given a string <code>s</code>, return the longest substring that reads the same forwards and backwards. A substring is a contiguous piece of the string. If several substrings tie for the longest, any one is accepted. For <code>"babad"</code>, the answer is <code>"bab"</code> (or <code>"aba"</code>), and for <code>"cbbd"</code> it is <code>"bb"</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A palindrome such as <code>"racecar"</code> or <code>"abba"</code> is the same read in both directions. A single letter is a palindrome. An empty string gives an empty answer. The string length is at most 1000 in LeetCode's constraints, so O(n squared) is acceptable.</li>
+      <li><strong>Brute force.</strong> Check every substring to see whether it is a palindrome. There are about n squared substrings, and each check costs up to n, so the total is O(n cubed).</li>
+      <li><strong>Find the waste.</strong> A palindrome is built outward from its middle. If the letters on both sides match, the palindrome grows. Checking each substring from scratch repeats that work.</li>
+      <li><strong>Optimise.</strong> Try every possible centre. A palindrome can have one centre letter (odd length, such as "aba") or two equal centre letters (even length, such as "abba"). From each centre, expand left and right while the letters match. That costs O(n) per centre, and there are about 2n centres, so the total is O(n squared) with O(1) extra space.</li>
+      <li><strong>Dry run.</strong> For <code>"cbbd"</code>, the even-length centre between the two b letters expands once. The left letter c and the right letter d differ, so the best palindrome is "bb".</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Centre</th><th>Pair checked</th><th>Expansion</th><th>Palindrome found</th></tr></thead><tbody>
+      <tr><td>index 1, even (between 1 and 2)</td><td>s[1] = b and s[2] = b, match</td><td>s[0] = c and s[3] = d, no match, stop</td><td>s[1:3] = "bb"</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def longest_palindrome(s):
+    best = ""
+    for center in range(len(s)):
+        # two kinds of centre: one letter (odd length) or the gap after it (even length)
+        for left, right in ((center, center), (center, center + 1)):
+            while left &gt;= 0 and right &lt; len(s) and s[left] == s[right]:
+                left -= 1
+                right += 1
+            candidate = s[left + 1:right]    # the loop stopped one step too far
+            if len(candidate) &gt; len(best):
+                best = candidate
+    return best
+
+print(longest_palindrome("babad"))
+print(longest_palindrome("cbbd"))
+print(longest_palindrome("a"))
+print(repr(longest_palindrome("")))</code></pre>
+    <pre class="output">bab
+bb
+a
+''</pre>
+    <p>The key detail is the slice <code>s[left + 1:right]</code>. When the loop stops, the letters at <code>left</code> and <code>right</code> do not match, or one of them is off the string. So the palindrome is the part strictly between them, which is why we add one to <code>left</code>. For "babad", the centre at index 1 finds "bab" first. The later centre at index 2 finds "aba", which has the same length, so the strict comparison keeps the first answer.</p>
+    <p class="cx">Time O(n squared) · Space O(1) extra, not counting the returned string</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For palindromes, expand around each centre. Remember both the odd and the even centres, and slice out the palindrome after the expansion stops.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/group-anagrams/">
+    <h3>Group Anagrams (LeetCode 49)</h3>
+    <div class="statement"><p>Given an array of strings, group the strings that are anagrams of each other. The groups can be returned in any order, and so can the strings inside each group. For <code>["eat", "tea", "tan", "ate", "nat", "bat"]</code>, one valid answer is <code>[["bat"], ["nat", "tan"], ["ate", "eat", "tea"]]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Two strings belong together exactly when they are anagrams. We need groups, so we need a key that every member of a group shares and that differs between groups.</li>
+      <li><strong>Brute force.</strong> Compare every pair of words with an anagram test. With n words that is O(n squared) comparisons, each costing up to the word length.</li>
+      <li><strong>Find the waste.</strong> The comparisons repeat the same question: are these two words anagrams? If each word is converted into a canonical form that is the same for all its anagrams, we only need to group by that form.</li>
+      <li><strong>Optimise.</strong> Use the sorted letters of each word as the key. "eat", "tea" and "ate" all sort to "aet". Store the words in a <code>defaultdict(list)</code> under that key, then return the lists.</li>
+      <li><strong>Dry run.</strong> The table follows the key for each word. Words with the same key land in the same group.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Word</th><th>Sorted key</th><th>Groups after this word</th></tr></thead><tbody>
+      <tr><td>eat</td><td>aet</td><td>aet: [eat]</td></tr>
+      <tr><td>tea</td><td>aet</td><td>aet: [eat, tea]</td></tr>
+      <tr><td>tan</td><td>ant</td><td>aet: [eat, tea], ant: [tan]</td></tr>
+      <tr><td>ate</td><td>aet</td><td>aet: [eat, tea, ate], ant: [tan]</td></tr>
+      <tr><td>nat</td><td>ant</td><td>aet: [eat, tea, ate], ant: [tan, nat]</td></tr>
+      <tr><td>bat</td><td>abt</td><td>aet: [eat, tea, ate], ant: [tan, nat], abt: [bat]</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import defaultdict
+
+def group_anagrams(words):
+    groups = defaultdict(list)
+    for w in words:
+        key = "".join(sorted(w))           # every anagram of w gives the same key
+        groups[key].append(w)
+    return list(groups.values())
+
+print(group_anagrams(["eat", "tea", "tan", "ate", "nat", "bat"]))</code></pre>
+    <pre class="output">[['eat', 'tea', 'ate'], ['tan', 'nat'], ['bat']]</pre>
+    <p>The groups come out in the order their first word appeared, because a dict keeps insertion order. Within each group the words keep their input order. Both facts are useful to know, but a judge would accept any order.</p>
+    <p class="cx">Time O(n · k log k) for n words of length k · Space O(n · k)</p>
+    <div class="note tip"><p><span class="t">Tip</span>A faster key is a tuple of 26 letter counts, which avoids sorting. It makes the time O(n · k), and it is worth mentioning once you have the sorted version working.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To group items that are equal under a rule, choose a canonical key that the rule produces for every member, and group by that key in a dict.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/text-justification/">
+    <h3>Text Justification (LeetCode 68)</h3>
+    <div class="statement"><p>Given an array of words and a width <code>maxWidth</code>, format the text so that each line has exactly <code>maxWidth</code> characters and is fully justified: the words are spread so that both the left and right edges line up. Pack as many words as possible on each line, with at least one space between words. Spaces are distributed as evenly as possible across the gaps, and when they do not divide evenly, the extra spaces go to the gaps on the left. The last line, and any line with only one word, is left-justified with single spaces between words and padded with spaces on the right.</p><p>For <code>words = ["This", "is", "an", "example", "of", "text", "justification."]</code> and <code>maxWidth = 16</code>, the answer is <code>["This    is    an", "example  of text", "justification.  "]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each output line is exactly <code>maxWidth</code> characters long. A line's length is the sum of its word lengths plus the spaces. Two rules are special: the last line is never fully justified, and a line with a single word is padded on the right, since there is no gap to stretch.</li>
+      <li><strong>Brute force.</strong> Build each line by trying to add the next word, then joining the current candidate words to measure the line each time. That re-measures the same line over and over, which costs far more than necessary, often O(n squared) work for a single line.</li>
+      <li><strong>Find the waste.</strong> We only need the total length of the words chosen so far, plus one space for each gap. Keeping that number as a running total makes each decision a single addition and comparison.</li>
+      <li><strong>Optimise.</strong> Work through the words from left to right, in three steps for each line. First, greedily take words while the running length, including one space before each new word, still fits in <code>maxWidth</code>. Second, count the spaces still needed: <code>maxWidth</code> minus the total word length. Third, split those spaces across the gaps. With <code>gaps</code> gaps, each gap gets <code>spaces // gaps</code> spaces, and the first <code>spaces % gaps</code> gaps get one extra. For the last line and single-word lines, use single spaces and pad on the right instead.</li>
+      <li><strong>Dry run.</strong> The table below follows the first line of the example, then the second line, to show the arithmetic.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Line</th><th>Words chosen</th><th>Total word letters</th><th>Gaps</th><th>Spaces to place (16 minus letters)</th><th>Each gap, then extra for the first gaps</th><th>Result</th></tr></thead><tbody>
+      <tr><td>1</td><td>This, is, an</td><td>4 + 2 + 2 = 8</td><td>2</td><td>8</td><td>8 // 2 = 4 each, 8 % 2 = 0 extra</td><td>"This    is    an"</td></tr>
+      <tr><td>2</td><td>example, of, text</td><td>7 + 2 + 4 = 13</td><td>2</td><td>3</td><td>3 // 2 = 1 each, 3 % 2 = 1 extra, so the first gap gets 2</td><td>"example  of text"</td></tr>
+      <tr><td>3</td><td>justification. (last line)</td><td>14</td><td>0</td><td>not spread</td><td>left-justified and padded to 16</td><td>"justification.  "</td></tr>
+    </tbody></table></div>
+    <p>Line 1 greedily takes "This" (4), then "is" would make 4 + 1 + 2 = 7, which fits, then "an" makes 10, which fits, then "example" would make 18, which does not fit. So line 1 has three words. Line 2 takes "example", "of" and "text" in the same way, and "justification." would overflow.</p>
+    <h4>Code</h4>
+    <p>The first version below is the brute force idea written out: it joins the candidate words to measure them each time. It is correct, and it is useful to see before the optimised version.</p>
+    <pre class="code" data-lang="python"><code>def line_length_brute(words):
+    return len(" ".join(words))        # rebuilds the whole line just to measure it
+
+words = ["This", "is", "an", "example"]
+print(line_length_brute(words[:3]), line_length_brute(words))</code></pre>
+    <pre class="output">10 18</pre>
+    <p>Here the measurement of "This is an" costs a join each time. Inside a greedy loop that is repeated for every candidate word, and the optimised version replaces it with a running number.</p>
+    <pre class="code" data-lang="python"><code>def full_justify(words, max_width):
+    lines = []
+    i = 0
+    while i &lt; len(words):
+        # step 1: take as many words as fit, counting one space before each extra word
+        line_words = [words[i]]
+        length = len(words[i])
+        i += 1
+        while i &lt; len(words) and length + 1 + len(words[i]) &lt;= max_width:
+            length += 1 + len(words[i])
+            line_words.append(words[i])
+            i += 1
+
+        # step 2: a last line or a single word is left-justified and padded on the right
+        is_last = i == len(words)
+        if is_last or len(line_words) == 1:
+            text = " ".join(line_words)
+            lines.append(text + " " * (max_width - len(text)))
+            continue
+
+        # step 3: spread the spaces across the gaps, extra spaces to the left gaps first
+        gaps = len(line_words) - 1
+        spaces = max_width - sum(len(w) for w in line_words)
+        each, extra = divmod(spaces, gaps)
+        parts = []
+        for k, w in enumerate(line_words[:-1]):
+            parts.append(w)
+            parts.append(" " * (each + (1 if k &lt; extra else 0)))
+        parts.append(line_words[-1])
+        lines.append("".join(parts))
+    return lines
+
+for line in full_justify(["This", "is", "an", "example", "of", "text", "justification."], 16):
+    print(repr(line))</code></pre>
+    <pre class="output">'This    is    an'
+'example  of text'
+'justification.  '</pre>
+  <p>Each line of output is exactly 16 characters wide, which is the easiest way to check the code by hand. "This    is    an" has 8 letters and 8 spaces. "example  of text" has 13 letters and 3 spaces. "justification.  " has 14 letters and 2 padding spaces. The loop never produces a line that is too long, because step 1 only accepts a word when the running length still fits.</p>
+  <p>The same code handles the other edge cases. A word longer than <code>maxWidth</code> cannot fit, and the constraints of the problem guarantee that every word fits, so the loop always takes at least one word per line. A line with a single word, such as "acknowledgment" on its own, takes the left-justified branch and is padded on the right. The arithmetic in step 3 never divides by zero, because a line with one word already left the spread branch.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The common error is to forget that spaces are distributed by gap count, not by word count. A line of three words has two gaps, so <code>spaces // 2</code> goes into each gap and the leftover goes to the left gap, which is why the first gap in "example  of text" is wider.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Greedy packing plus integer division with remainder. Decide each line's words first, then split the spaces with <code>divmod</code>, and handle the last line and single-word lines as a separate case.</p></div>
+  <p class="cx">Time O(total characters in the output) · Space O(n) for the output lines</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you know the greedy choice is right? The problem's rules fix the layout. Each line must hold as many words as fit, so greedy packing produces the one valid set of line breaks, and no other choice of breaks is allowed.</p></div>
+</article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this list to revise. If an entry feels unclear, go back to its section and rerun the example, because seeing the output settles most doubts about Python behaviour.</p>
+  <dl>
+    <div><dt>Class</dt><dd>A blueprint for objects, with attributes and methods.</dd></div>
+    <div><dt>Instance attribute</dt><dd>Data stored on one object, usually set in <code>__init__</code>.</dd></div>
+    <div><dt>Class attribute</dt><dd>Data shared by every instance of a class. Mutable ones are a shared-state trap.</dd></div>
+    <div><dt>Name mangling</dt><dd>Renaming of <code>__name</code> to <code>_Class__name</code> to avoid clashes in subclasses. It is not privacy.</dd></div>
+    <div><dt>Property</dt><dd>A method exposed as an attribute, with optional setter rules.</dd></div>
+    <div><dt>MRO</dt><dd>The method resolution order, a fixed linear search order of classes, computed with C3.</dd></div>
+    <div><dt>super()</dt><dd>Calls the next class in the MRO of the object's actual type.</dd></div>
+    <div><dt>Dunder method</dt><dd>A special method such as <code>__add__</code> or <code>__len__</code> that powers built-in syntax.</dd></div>
+    <div><dt>Abstract base class</dt><dd>A class with abstract methods that subclasses must implement before they can be instantiated.</dd></div>
+    <div><dt>Dataclass</dt><dd>A class whose init, repr and eq methods are generated from annotated fields.</dd></div>
+    <div><dt>Iterator</dt><dd>An object with <code>__next__</code> that yields values one at a time and remembers its position.</dd></div>
+    <div><dt>Generator</dt><dd>A function containing <code>yield</code>, which returns an iterator that pauses between values.</dd></div>
+    <div><dt>yield from</dt><dd>Delegates iteration to another iterable or generator, passing its values through.</dd></div>
+    <div><dt>Generator expression</dt><dd>A lazy, round-bracket version of a list comprehension.</dd></div>
+    <div><dt>Decorator</dt><dd>A function that takes a function and returns a wrapper, applied with the <code>@</code> syntax.</dd></div>
+    <div><dt>functools.wraps</dt><dd>Copies the name and docstring of the wrapped function onto the wrapper.</dd></div>
+    <div><dt>Closure in decorators</dt><dd>The wrapper keeps the original function alive by closing over it.</dd></div>
+    <div><dt>Context manager</dt><dd>An object with <code>__enter__</code> and <code>__exit__</code> that guarantees setup and cleanup around a block.</dd></div>
+    <div><dt>contextlib.contextmanager</dt><dd>Builds a context manager from a generator with a try and finally around the yield.</dd></div>
+    <div><dt>Exception</dt><dd>An object raised to signal an error. Catch the most specific type you can handle.</dd></div>
+    <div><dt>try, else, finally</dt><dd>The else runs on success only, and the finally always runs, even after a return.</dd></div>
+    <div><dt>Exception chaining</dt><dd><code>raise X from Y</code> keeps Y as the cause of X, shown in the traceback.</dd></div>
+    <div><dt>EAFP</dt><dd>"Easier to ask forgiveness than permission": try the operation and catch errors.</dd></div>
+    <div><dt>Shallow copy</dt><dd>A new container that shares its inner objects with the original.</dd></div>
+    <div><dt>Deep copy</dt><dd>A copy that recursively copies the inner objects too.</dd></div>
+    <div><dt>Reference cycle</dt><dd>Objects that refer to each other, which reference counting alone cannot free.</dd></div>
+    <div><dt>GIL</dt><dd>The lock that lets one thread run Python bytecode at a time in CPython.</dd></div>
+    <div><dt>I/O-bound and CPU-bound</dt><dd>Work that waits on outside systems versus work that computes. Threads suit the first, processes the second.</dd></div>
+    <div><dt>asyncio</dt><dd>Single-threaded concurrency where coroutines switch at each await.</dd></div>
+    <div><dt>Race condition</dt><dd>A bug where the outcome depends on the timing of threads. A lock prevents it.</dd></div>
+    <div><dt>Fixture</dt><dd>A pytest function that prepares data for tests, requested by parameter name.</dd></div>
+    <div><dt>Mock</dt><dd>A stand-in object that records calls and returns chosen values.</dd></div>
+    <div><dt>Anagram</dt><dd>Two strings with the same letters and counts in any order.</dd></div>
+    <div><dt>Palindrome</dt><dd>A sequence that reads the same forwards and backwards.</dd></div>
+    <div><dt>Canonical key</dt><dd>A value, such as sorted letters, that is equal for all members of a group.</dd></div>
+    <div><dt>Greedy packing</dt><dd>Adding items to the current group as long as the rules still allow it.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>super().method()</code></td><td>Calls the next class's method in the MRO</td><td><code>super().__init__(name)</code></td></tr>
+    <tr><td><code>@property</code></td><td>Makes a method read like an attribute</td><td><code>@property def area(self): ...</code></td></tr>
+    <tr><td><code>@classmethod</code></td><td>Method that receives the class as cls</td><td><code>@classmethod def make(cls): return cls()</code></td></tr>
+    <tr><td><code>@dataclass(frozen=True)</code></td><td>Generates init, repr and eq, and makes instances immutable</td><td><code>@dataclass(frozen=True) class P: x: int</code></td></tr>
+    <tr><td><code>iter(x)</code> and <code>next(it)</code></td><td>Get an iterator and fetch the next value</td><td><code>next(iter([7, 8]))</code> gives 7</td></tr>
+    <tr><td><code>yield</code> and <code>yield from</code></td><td>Produce a value and pause, or delegate to another iterable</td><td><code>yield from [1, 2]</code></td></tr>
+    <tr><td><code>functools.wraps(f)</code></td><td>Copies metadata from f onto a wrapper</td><td><code>@functools.wraps(func)</code></td></tr>
+    <tr><td><code>functools.lru_cache</code></td><td>Caches results of a function by its arguments</td><td><code>@lru_cache(maxsize=None)</code></td></tr>
+    <tr><td><code>with</code></td><td>Runs __enter__ before and __exit__ after a block</td><td><code>with open("f.txt") as f: ...</code></td></tr>
+    <tr><td><code>contextlib.suppress(E)</code></td><td>Ignores the listed exception type inside a block</td><td><code>with suppress(KeyError): del d["x"]</code></td></tr>
+    <tr><td><code>raise E from cause</code></td><td>Raises E and keeps cause as its __cause__</td><td><code>raise RuntimeError("bad") from err</code></td></tr>
+    <tr><td><code>copy.copy(x)</code></td><td>Shallow copy</td><td><code>copy.copy([[1]])</code></td></tr>
+    <tr><td><code>copy.deepcopy(x)</code></td><td>Deep copy, recursively copying inner objects</td><td><code>copy.deepcopy([[1]])</code></td></tr>
+    <tr><td><code>gc.collect()</code></td><td>Runs the cyclic garbage collector and returns the number of unreachable objects found</td><td><code>gc.collect()</code></td></tr>
+    <tr><td><code>threading.Lock()</code></td><td>A lock used with <code>with</code> to protect shared state</td><td><code>with lock: counter += 1</code></td></tr>
+    <tr><td><code>ThreadPoolExecutor.map</code></td><td>Runs a function over inputs in threads, results in input order</td><td><code>list(ex.map(f, items))</code></td></tr>
+    <tr><td><code>asyncio.run(coro)</code></td><td>Runs a top-level coroutine on a new event loop</td><td><code>asyncio.run(main())</code></td></tr>
+    <tr><td><code>asyncio.gather(*aws)</code></td><td>Runs awaitables together and returns their results in order</td><td><code>await asyncio.gather(f(1), f(2))</code></td></tr>
+    <tr><td><code>pytest.raises(E)</code></td><td>Passes only if the block raises the exception E</td><td><code>with pytest.raises(ValueError): f()</code></td></tr>
+    <tr><td><code>unittest.mock.patch(name)</code></td><td>Replaces a name for the duration of a block</td><td><code>with patch("os.path.exists", return_value=True):</code></td></tr>
+    <tr><td><code>str.join(parts)</code></td><td>Joins a list of strings with the separator, in O(n)</td><td><code>"".join(["a", "b"])</code> gives "ab"</td></tr>
+    <tr><td><code>str.split(sep)</code></td><td>Splits a string into a list, keeping empty pieces when sep is given</td><td><code>"a,,b".split(",")</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 2?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 2 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-01.html"><small>Previous, day 1</small>Python 1: Core language, data structures, functions</a><a class="next" href="day-03.html"><small>Next, day 3</small>C 1: Fundamentals, pointers, memory</a></nav>
+</main><script src="assets/app.js"></script></body></html>

@@ -1,0 +1,693 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 33: JavaScript</title><meta name="description" content="Today is JavaScript, the language behind every front-end and most Node back-ends. You will learn how var, let and const scope and hoist, how type coercion and equality surprise people, how closures and this work, how the prototype chain works, how the event loop orders output between synchronous code, microtasks and timers, how promises and async/await are built on top of that, and how to write polyfills for map, bind and Promise.all. The DSA set is design problems: an LRU cache, a min stack, a flattening iterator and an LFU cache."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="33" data-key="33" data-noun="day" data-num="33" data-track="web">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>JavaScript</h1>
+<p class="lede">Today is JavaScript, the language behind every front-end and most Node back-ends. You will learn how var, let and const scope and hoist, how type coercion and equality surprise people, how closures and this work, how the prototype chain works, how the event loop orders output between synchronous code, microtasks and timers, how promises and async/await are built on top of that, and how to write polyfills for map, bind and Promise.all. The DSA set is design problems: an LRU cache, a min stack, a flattening iterator and an LFU cache.</p>
+<div class="station"><b>33</b><span>Fri 4 Dec 2026 · Web · DSA: LRU cache and design problems</span></div>
+<ul class="topics"><li>Scope, hoisting and closures</li><li>Coercion and equality</li><li>this, bind and prototypes</li><li>Event loop and microtasks</li><li>Promises and async/await</li><li>DOM events, debounce and polyfills</li><li>LRU cache and design problems</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Scope and hoisting">
+  <h2>Variables, scope, hoisting and closures</h2>
+  <p>JavaScript has three ways to declare a variable. <code>var</code> is the old form. It is function-scoped (visible throughout the whole function that contains it), and it can be redeclared. <code>let</code> and <code>const</code> are block-scoped (visible only inside the nearest pair of curly braces), and they cannot be redeclared in the same scope. <code>const</code> also forbids reassigning the binding, although an object it points to can still change its properties. Prefer <code>const</code> by default and <code>let</code> when a value must change. Avoid <code>var</code> in new code.</p>
+
+  <h3>Hoisting</h3>
+  <p>Before any code in a scope runs, the engine scans the scope for declarations and sets them up. This is called hoisting. The effect differs by kind. A <code>var</code> is hoisted and starts as <code>undefined</code>, so reading it early gives <code>undefined</code> and no error. A function declaration is hoisted with its body, so you can call it above the line where it is written. A <code>let</code> or <code>const</code> is also hoisted, but it stays uninitialised until its declaration runs. Reading it in that period throws a ReferenceError. The period between the start of the scope and the declaration is the <strong>temporal dead zone</strong> (TDZ).</p>
+  <pre class="code" data-lang="javascript"><code>console.log(a);          // undefined: var is hoisted and set to undefined
+var a = 5;
+
+console.log(hello());    // "hi": the whole function is hoisted
+function hello() {
+  return "hi";
+}
+
+try {
+  console.log(b);        // reading b inside its TDZ
+} catch (error) {
+  console.log(error.name + ": " + error.message);
+}
+let b = 10;
+console.log(b);          // 10: by now the declaration has run</code></pre>
+  <pre class="output">undefined
+hi
+ReferenceError: Cannot access 'b' before initialization
+10</pre>
+  <p>Read the output from top to bottom. The first line is <code>undefined</code> because <code>var a</code> exists before its assignment. The function call works because the whole declaration is hoisted. The <code>let b</code> line fails because the code runs before the declaration, inside the TDZ. The final line works because the declaration has run by then.</p>
+
+  <p>A <strong>closure</strong> is a function that remembers the variables of the scope where it was created, even after that scope has finished. Closures are how JavaScript does private state. The counter below keeps <code>count</code> hidden: only the two returned methods can reach it. Each call to <code>makeCounter</code> creates a new scope, so two counters do not share state.</p>
+  <pre class="code" data-lang="javascript"><code>function makeCounter() {
+  let count = 0;
+  return {
+    next() { count += 1; return count; },
+    peek() { return count; },
+  };
+}
+
+const c1 = makeCounter();
+c1.next();
+c1.next();
+console.log("c1:", c1.next(), c1.peek());
+const c2 = makeCounter();
+console.log("c2:", c2.next());
+
+const fnsVar = [];
+for (var i = 0; i &lt; 3; i++) fnsVar.push(() =&gt; i);
+const fnsLet = [];
+for (let j = 0; j &lt; 3; j++) fnsLet.push(() =&gt; j);
+console.log(fnsVar.map((f) =&gt; f()).join(" "), fnsLet.map((f) =&gt; f()).join(" "));</code></pre>
+  <pre class="output">c1: 3 3
+c2: 1
+3 3 3 0 1 2</pre>
+  <p>The second half is a classic interview question. With <code>var</code>, all three closures share one <code>i</code>, and by the time they run the loop has finished with <code>i</code> equal to 3. With <code>let</code>, each loop iteration gets a fresh <code>j</code>, so each closure keeps its own value.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Assuming a closure captures the value of a variable at the moment it is created. It captures the variable itself, so later changes to that variable are visible to the closure.</p></div>
+
+  <details class="check"><summary>What does this print, and why: for (var i = 0; i &lt; 3; i++) setTimeout(() =&gt; console.log(i));</summary><div class="ans"><p>It prints 3 three times, because var has one binding for the whole function. The timers run after the loop has finished, when i is already 3. Replacing var with let gives 0, 1 and 2, because each iteration has its own binding.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Coercion and equality">
+  <h2>Type coercion, null and undefined, and equality</h2>
+  <p>JavaScript converts values between types automatically when an operation needs a different type. This is called <strong>coercion</strong>. The rules are consistent but surprising. The operator <code>+</code> turns a number into a string if either side is a string, so <code>"5" + 3</code> gives <code>"53"</code>. The operator <code>-</code> converts to numbers, so <code>"5" - 3</code> gives 2. Knowing the rules matters less than knowing when to avoid them.</p>
+  <p><code>null</code> is an intentional "no value" that a programmer assigns. <code>undefined</code> means a value was never given, such as a missing argument or property. <code>typeof null</code> returns "object", which is a historical bug that cannot be fixed without breaking existing code. The double equals <code>==</code> converts types before comparing, while <code>===</code> compares type and value with no conversion. Use <code>===</code> by default.</p>
+  <pre class="code" data-lang="javascript"><code>console.log(typeof null, typeof undefined);
+console.log(null == undefined, null === undefined);
+console.log(0 == "", 0 === "");
+console.log("5" + 3, "5" - 3);
+console.log([] == false);
+console.log(NaN === NaN, Number.isNaN(NaN));
+console.log(Boolean(""), Boolean("0"), Boolean([]));</code></pre>
+  <pre class="output">object undefined
+true false
+true false
+53 2
+true
+false true
+false true true</pre>
+  <p>The falsy values are <code>false</code>, <code>0</code>, <code>""</code>, <code>null</code>, <code>undefined</code> and <code>NaN</code>. Every other value is truthy, including the string "0" and the empty array. <code>NaN</code> is the only value not equal to itself, so use <code>Number.isNaN</code> to test for it.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Using <code>||</code> for default values. <code>count || 10</code> replaces a legitimate 0 with 10. Use <code>??</code>, the nullish coalescing operator, which only replaces null and undefined.</p></div>
+
+  <details class="check"><summary>Why does [] == false evaluate to true?</summary><div class="ans"><p>When one side is a boolean, == converts it to a number, so false becomes 0. The array is then converted to a primitive, which is its string form, the empty string. The empty string converts to the number 0, and 0 == 0 is true. The chain of conversions is the reason == is hard to reason about.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="this, bind and prototypes">
+  <h2>this, bind, prototypes and classes</h2>
+  <p>The value of <code>this</code> depends on how a function is called, not where it is written. In a method call such as <code>user.greet()</code>, <code>this</code> is the object before the dot. In a plain call such as <code>greet()</code> it is undefined in strict mode (the default in classes and modules), or the global object in sloppy mode. An arrow function has no <code>this</code> of its own; it uses the <code>this</code> of the scope where it was written. <code>call</code> and <code>apply</code> invoke a function with a chosen <code>this</code>, and <code>bind</code> returns a new function with <code>this</code> fixed.</p>
+  <pre class="code" data-lang="javascript"><code>'use strict';
+const user = { name: "Ada", greet() { return "hi " + this.name; } };
+
+const detached = user.greet;
+try {
+  detached();
+} catch (error) {
+  console.log(error.constructor.name);
+}
+console.log(detached.call({ name: "Bo" }));
+const bound = user.greet.bind({ name: "Cy" });
+console.log(bound());
+
+function Animal(name) { this.name = name; }
+Animal.prototype.speak = function () { return this.name + " makes a sound"; };
+const dog = new Animal("Rex");
+console.log(dog.speak());
+console.log(Object.getPrototypeOf(dog) === Animal.prototype);
+console.log(dog.hasOwnProperty("speak"), "speak" in dog);
+
+class Dog extends Animal {
+  speak() { return super.speak() + " (woof)"; }
+}
+console.log(new Dog("Fido").speak());</code></pre>
+  <pre class="output">TypeError
+hi Bo
+hi Cy
+Rex makes a sound
+true
+false true
+Fido makes a sound (woof)</pre>
+  <p>The prototype chain is how objects share methods. When you read a property, the engine looks at the object itself, then at its prototype, then at that prototype's prototype, until it reaches null. <code>dog.speak</code> is not stored on <code>dog</code>; it is found on <code>Animal.prototype</code>. The <code>in</code> operator searches the whole chain, while <code>hasOwnProperty</code> checks only the object itself. A <code>class</code> is syntax over this same mechanism: <code>extends</code> sets up the prototype link, and <code>super</code> calls the parent's method.</p>
+  <p>Arrow functions are a common source of <code>this</code> bugs when used as object methods. An arrow method inherits <code>this</code> from the module or script scope, not from the object, so <code>this.name</code> is not what you expect.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A function's this is decided at the call site. Use bind or an arrow function when a callback must keep the object it was written in.</p></div>
+
+  <details class="check"><summary>What is the difference between call, apply and bind?</summary><div class="ans"><p>call and apply invoke the function immediately with a chosen this. call takes the arguments one by one, and apply takes them as an array. bind does not invoke anything. It returns a new function with this fixed, and that function can be called later, with any extra arguments placed after the bound ones.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Event loop and promises">
+  <h2>The event loop, promises and async/await</h2>
+  <p>JavaScript runs one piece of code at a time on a single thread. The <strong>event loop</strong> decides what runs next. Each macrotask (a timer, an I/O callback, a user event) runs to completion. Between macrotasks, the engine drains the <strong>microtask queue</strong>, which holds promise callbacks and <code>queueMicrotask</code> callbacks. Microtasks queued during a microtask also run before the next macrotask. Node adds <code>process.nextTick</code>, which runs before promise callbacks. Output-order questions are answered by remembering this sequence: all synchronous code, then the nextTick and microtask queues, then one timer, and repeat.</p>
+  <pre class="code" data-lang="javascript"><code>console.log("1");
+setTimeout(() =&gt; console.log("2"), 0);
+Promise.resolve().then(() =&gt; console.log("3"));
+queueMicrotask(() =&gt; console.log("4"));
+console.log("5");</code></pre>
+  <pre class="output">1
+5
+3
+4
+2</pre>
+  <p>The two synchronous lines print first. The promise callback and the queueMicrotask callback are microtasks, so they run in the order they were queued, before the timer, even though the timer was queued first with a delay of zero.</p>
+
+  <pre class="code" data-lang="javascript"><code>async function a1() { console.log("a1 start"); await a2(); console.log("a1 end"); }
+async function a2() { console.log("a2"); }
+
+console.log("script start");
+setTimeout(() =&gt; console.log("setTimeout"), 0);
+a1();
+new Promise((resolve) =&gt; { console.log("p1"); resolve(); }).then(() =&gt; console.log("p2"));
+console.log("script end");</code></pre>
+  <pre class="output">script start
+a1 start
+a2
+p1
+script end
+a1 end
+p2
+setTimeout</pre>
+  <p>An <code>async</code> function runs synchronously until its first <code>await</code>. The code after the await becomes a microtask, which is why "a1 end" waits behind the synchronous lines but runs before the timer.</p>
+
+  <h3>Promises and async/await</h3>
+  <p>A promise is an object that represents a value that will be available later. It is pending, then either fulfilled with a value or rejected with an error. <code>then</code> and <code>catch</code> attach callbacks, and each returns a new promise, so chains can be flattened. <code>async</code> functions always return a promise, and <code>await</code> pauses the function until a promise settles, without blocking the thread. The helpers <code>Promise.all</code> (all succeed, or the first failure rejects), <code>Promise.allSettled</code> (wait for every outcome) and <code>Promise.race</code> (the first to settle) cover most combinations.</p>
+  <pre class="code" data-lang="javascript"><code>const delay = (ms, value) =&gt; new Promise((resolve) =&gt; setTimeout(() =&gt; resolve(value), ms));
+
+async function main() {
+  const a = await delay(20, "first");
+  console.log(a);
+  const [b, c] = await Promise.all([delay(30, "second"), delay(10, "third")]);
+  console.log(b, c);
+  try {
+    await Promise.reject(new Error("boom"));
+  } catch (err) {
+    console.log("caught", err.message);
+  }
+  const result = await Promise.allSettled([Promise.resolve(1), Promise.reject(new Error("no"))]);
+  console.log(result.map((r) =&gt; r.status).join(","));
+}
+main();</code></pre>
+  <pre class="output">first
+second third
+caught boom
+fulfilled,rejected</pre>
+  <p>Notice that the two delays in <code>Promise.all</code> run at the same time. The whole group takes about the longest delay, not the sum, which is the most common performance mistake with <code>await</code> in a loop: awaiting each independent request one after another makes them run in series.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Writing <code>await</code> inside a loop over independent work. The requests run one after another. Start them all first, then await <code>Promise.all</code> on the array.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why does a setTimeout of zero run after a promise callback? Answer: the promise callback is a microtask, and microtasks drain completely before the next macrotask, which a timer always is.</p></div>
+
+  <details class="check"><summary>Why is an unhandled promise rejection a problem in Node?</summary><div class="ans"><p>A rejection with no catch handler is an error that nothing observes. Modern Node treats unhandled rejections as fatal by default, so the process exits. Always end a chain with a catch or await inside a try block, and handle rejections of promises that you start but do not await.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="DOM, modules and TypeScript">
+  <h2>DOM events, Node.js and TypeScript basics</h2>
+  <p>In the browser, JavaScript reads and changes the DOM and reacts to user events. An event travels in two phases: capture from the window down to the target, then bubble from the target back up. <code>addEventListener</code> attaches a handler, and <code>event.target</code> is the element that was clicked.</p>
+  <h3>Event delegation</h3>
+  <p>Attaching one listener to a parent, instead of one listener to each child, is called delegation. It works because clicks bubble. The handler finds the relevant child with <code>closest()</code>. Delegation handles items added later, uses less memory, and needs fewer listeners to remove.</p>
+  <pre class="code" data-lang="javascript"><code>// Browser code: runs in a page, not in Node, so there is no output block
+const list = document.querySelector("#todo-list");
+list.addEventListener("click", (event) =&gt; {
+  const item = event.target.closest("li");
+  if (!item || !list.contains(item)) return;
+  item.classList.toggle("done");
+});</code></pre>
+
+  <h3>Debounce and throttle</h3>
+  <p>A debounced function waits until calls stop for a set time, then runs once, which suits search boxes. A throttled function runs at most once per time window, which suits scroll and resize handlers. The example passes the clock as an argument, so the throttle output does not depend on the real time.</p>
+  <pre class="code" data-lang="javascript"><code>function debounce(fn, wait) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() =&gt; fn.apply(this, args), wait);
+  };
+}
+
+function throttle(fn, wait, clock = Date.now) {
+  let last = -Infinity;
+  return function (...args) {
+    const now = clock();
+    if (now - last &gt;= wait) {
+      last = now;
+      return fn.apply(this, args);
+    }
+  };
+}
+
+const search = debounce((q) =&gt; console.log("search:", q), 50);
+search("a");
+search("ab");
+search("abc");
+
+let fakeNow = 0;
+const logged = throttle((x) =&gt; console.log("ran with", x), 100, () =&gt; fakeNow);
+fakeNow = 0;
+logged(1);
+fakeNow = 50;
+logged(2);
+fakeNow = 120;
+logged(3);</code></pre>
+  <pre class="output">ran with 1
+ran with 3
+search: abc</pre>
+  <p>The three search calls cancel each other until the last one, so the debounced function runs once after 50 milliseconds with "abc". The throttled calls at fake times 0 and 120 run, and the one at 50 is skipped because only 50 of the 100 millisecond window has passed.</p>
+
+  <h3>Node.js basics</h3>
+  <p>Node.js runs JavaScript outside the browser, with access to the file system, the network and the operating system. It is single-threaded like the browser, and it uses the same event loop. Its built-in modules are loaded with <code>require</code> in CommonJS files, or with <code>import</code> in ES module files (a <code>.mjs</code> file or a package whose package.json says <code>"type": "module"</code>). Packages come from npm, and <code>package.json</code> lists them. Use <code>node:</code> prefixes for built-in modules, such as <code>require("node:fs")</code>, so a package with the same name cannot shadow them. File and network operations offer callback and promise versions, and the promise versions work well with async/await.</p>
+  <pre class="code" data-lang="javascript"><code>const { readFile } = require("node:fs/promises");
+
+async function loadConfig(path) {
+  const text = await readFile(path, "utf8");
+  return JSON.parse(text);
+}</code></pre>
+
+  <h3>TypeScript basics</h3>
+  <p>TypeScript is JavaScript with static types, checked before the code runs and then removed. It is not run directly by Node, so the snippet below is shown for reading only. Types describe the shape of data, and an interface names a shape that objects must have. The compiler reports mistakes such as passing a string where a number is required, or reading a property the type does not declare.</p>
+  <pre class="code" data-lang="javascript"><code>// TypeScript (not plain JavaScript; shown for reading, not run here)
+interface Product {
+  id: number;
+  name: string;
+  price?: number;   // optional property
+}
+
+function total(items: Product[]): number {
+  return items.reduce((sum, p) =&gt; sum + (p.price ?? 0), 0);
+}</code></pre>
+
+  <details class="check"><summary>Why is event delegation useful for a list whose items are added later?</summary><div class="ans"><p>Because click events bubble, a single listener on the list receives clicks on every current and future item, without needing to be attached to each new element. The handler finds the clicked item with closest("li"). This avoids forgetting to attach listeners to new items and keeps memory use low.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Polyfills">
+  <h2>Polyfills: map, bind and Promise.all</h2>
+  <p>A polyfill is code that adds a feature missing from an older runtime, usually by implementing the standard behaviour on top of existing features. Interviewers ask for polyfills because they test your understanding of the feature itself. Write each one from the specification, handle the edge cases you can name, and explain what you left out.</p>
+  <pre class="code" data-lang="javascript"><code>Array.prototype.myMap = function (fn) {
+  const out = [];
+  for (let i = 0; i &lt; this.length; i++) {
+    out.push(fn(this[i], i, this));
+  }
+  return out;
+};
+
+Function.prototype.myBind = function (context, ...boundArgs) {
+  const fn = this;
+  return function (...args) {
+    return fn.apply(context, [...boundArgs, ...args]);
+  };
+};
+
+function promiseAll(items) {
+  return new Promise((resolve, reject) =&gt; {
+    const results = new Array(items.length);
+    let remaining = items.length;
+    if (remaining === 0) {
+      resolve(results);
+      return;
+    }
+    items.forEach((item, i) =&gt; {
+      Promise.resolve(item).then((value) =&gt; {
+        results[i] = value;
+        remaining -= 1;
+        if (remaining === 0) resolve(results);
+      }, reject);
+    });
+  });
+}
+
+console.log([1, 2, 3].myMap((x) =&gt; x * 2).join(","));
+function greet(greeting, punct) { return greeting + ", " + this.name + punct; }
+const bob = greet.myBind({ name: "Bob" }, "Hello");
+console.log(bob("!"));
+promiseAll([1, Promise.resolve(2), new Promise((r) =&gt; setTimeout(() =&gt; r(3), 5))])
+  .then((values) =&gt; console.log(values.join(" ")));</code></pre>
+  <pre class="output">2,4,6
+Hello, Bob!
+1 2 3</pre>
+  <p>Three points matter in an interview. The myMap polyfill passes the index and the array as the extra arguments, as the real method does, and it skips holes only if you add that check. The myBind polyfill puts the bound arguments first, then the call arguments, so <code>bob("!")</code> is the same as calling greet with "Hello" and "!". Neither polyfill supports <code>new</code> on a bound function, which the real bind does. The promiseAll polyfill returns results in input order even when promises finish in a different order, because it writes each value to its index. It resolves immediately for an empty array, which is an edge case people forget.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Forgetting that promiseAll must reject on the first failure. The example above passes reject to each then, so the outer promise rejects as soon as any input rejects.</p></div>
+
+  <details class="check"><summary>Why does the promiseAll polyfill store results by index instead of pushing them?</summary><div class="ans"><p>Promises settle in whatever order their work finishes, but the result array must match the input order. Writing results[i] puts each value in the right position no matter when it arrives, while pushing would give results in completion order.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question aloud before opening the model answer.</p>
+
+  <details class="check"><summary>What is the difference between var, let and const?</summary><div class="ans"><p>var is function-scoped, hoisted with the value undefined, and can be redeclared. let and const are block-scoped and sit in the temporal dead zone until their declaration runs. const also prevents reassigning the binding, though it does not freeze an object.</p></div></details>
+
+  <details class="check"><summary>What is the temporal dead zone?</summary><div class="ans"><p>It is the period between the start of a block and the execution of a let or const declaration. Reading the variable in that period throws a ReferenceError, which protects against using a value before it has been set.</p></div></details>
+
+  <details class="check"><summary>What does typeof null return, and why?</summary><div class="ans"><p>It returns "object". This is a bug from the first version of JavaScript, kept for compatibility. To test for null, compare with === null.</p></div></details>
+
+  <details class="check"><summary>When should you use == instead of ===?</summary><div class="ans"><p>Almost never. The one common exception is value == null, which is true for both null and undefined. Otherwise use === so that no hidden conversion happens.</p></div></details>
+
+  <details class="check"><summary>In what order do these run: a setTimeout of 0, a resolved promise's then, and synchronous code?</summary><div class="ans"><p>Synchronous code first, then the promise callback (a microtask), then the timer (a macrotask). Microtasks drain completely before the next timer runs.</p></div></details>
+
+  <details class="check"><summary>What does an arrow function do with this?</summary><div class="ans"><p>It has no this of its own. It uses the this of the surrounding scope, which is fixed when the arrow is created. It cannot be changed with call, apply or bind.</p></div></details>
+
+  <details class="check"><summary>What is the difference between a microtask and a macrotask?</summary><div class="ans"><p>Macrotasks are timers, I/O callbacks and user events. Microtasks are promise callbacks and queueMicrotask callbacks. After each macrotask the engine runs every queued microtask before taking the next macrotask.</p></div></details>
+
+  <details class="check"><summary>How does event delegation work?</summary><div class="ans"><p>One listener on a parent receives bubbling events from its children. The handler identifies the target with event.target.closest(selector). It covers elements added later and reduces the number of listeners.</p></div></details>
+
+  <details class="check"><summary>Why does debounce differ from throttle?</summary><div class="ans"><p>Debounce runs once after calls stop for a delay, so the last call wins. Throttle runs at most once per window, so calls are sampled at a steady rate. Search boxes usually debounce, and scroll handlers usually throttle.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: design problems (LRU, min stack, nested iterator, LFU)</h2>
+  <p>Design problems ask you to build a data structure that supports several operations, each with a time target. Start by listing the operations and their cost goals. Then choose the structures that meet each goal, and keep them consistent with each other. Most solutions combine a hash map (O(1) lookup) with a second structure that tracks order, a minimum, or a stack of states.</p>
+  <ol>
+    <li><strong>Name the operations</strong> and the complexity each must have, such as O(1) get and put.</li>
+    <li><strong>Pick one structure per need</strong>: a hash map for lookup, a linked list or stack for order, and extra data for a value such as the minimum.</li>
+    <li><strong>Write the invariant</strong> that must hold after every operation, and check each method keeps it.</li>
+    <li><strong>Test the sequence</strong> the problem gives, and one edge case, such as an update of an existing key.</li>
+  </ol>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/lru-cache/">
+    <h3>LRU Cache (LeetCode 146)</h3>
+    <div class="statement"><p>Design a cache with a fixed capacity. get(key) returns the value or -1 if the key is absent, and it marks the key as recently used. put(key, value) inserts or updates a key, and when the cache is full it first evicts the least recently used key. Both operations must run in O(1) time.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Two rules: the cache never holds more than capacity keys, and recency changes on every get and put.</li>
+      <li><strong>Brute force.</strong> Keep a list of keys ordered by recency. Each get searches the list, O(n), and each move shifts elements.</li>
+      <li><strong>Find the waste.</strong> Finding a key is a lookup (a hash map does it in O(1)), and reordering needs to unlink and relink one node (a doubly linked list does it in O(1) when we hold the node).</li>
+      <li><strong>Optimise.</strong> Combine both: the hash map maps keys to nodes, and the doubly linked list keeps nodes from most to least recent. Dummy head and tail nodes remove the edge cases at the ends. The least recent real node sits just before the tail.</li>
+      <li><strong>Dry run.</strong> With capacity 2, put 1 and put 2 give the order 2, 1 (most recent first). get 1 gives the order 1, 2. put 3 evicts 2, so the order is 3, 1. The later get calls return -1 for evicted keys, matching the expected output.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, key=0, value=0):
+        self.key = key
+        self.value = value
+        self.prev = None
+        self.next = None
+
+
+class LRUCache:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.map = {}                  # key to Node
+        self.head = Node()             # dummy: head.next is the most recent node
+        self.tail = Node()             # dummy: tail.prev is the least recent node
+        self.head.next = self.tail
+        self.tail.prev = self.head
+
+    def _unlink(self, node):
+        node.prev.next = node.next
+        node.next.prev = node.prev
+
+    def _push_front(self, node):
+        node.prev = self.head
+        node.next = self.head.next
+        self.head.next.prev = node
+        self.head.next = node
+
+    def get(self, key):
+        node = self.map.get(key)
+        if node is None:
+            return -1
+        self._unlink(node)
+        self._push_front(node)
+        return node.value
+
+    def put(self, key, value):
+        node = self.map.get(key)
+        if node is not None:
+            node.value = value
+            self._unlink(node)
+            self._push_front(node)
+            return
+        if len(self.map) == self.capacity:
+            lru = self.tail.prev       # least recently used real node
+            self._unlink(lru)
+            del self.map[lru.key]
+        node = Node(key, value)
+        self.map[key] = node
+        self._push_front(node)
+
+
+cache = LRUCache(2)
+cache.put(1, 1)
+cache.put(2, 2)
+results = [cache.get(1)]
+cache.put(3, 3)
+results.append(cache.get(2))
+cache.put(4, 4)
+results.append(cache.get(1))
+results.append(cache.get(3))
+results.append(cache.get(4))
+print(results)
+cache.put(3, 30)
+print(cache.get(3))</code></pre>
+    <pre class="output">[1, -1, -1, 3, 4]
+30</pre>
+    <p class="cx">Time O(1) per operation · Space O(capacity)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Hash map for finding, doubly linked list for ordering. Whenever a design needs O(1) lookup and O(1) reordering, the pair is the usual answer.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/min-stack/">
+    <h3>Min Stack (LeetCode 155)</h3>
+    <div class="statement"><p>Design a stack that supports push, pop, top and getMin, each in constant time. getMin returns the smallest value currently in the stack. For example, after pushing -2, 0 and -3, getMin returns -3. After popping -3, getMin returns -2.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The minimum must be correct after every pop, not only after pushes.</li>
+      <li><strong>Brute force.</strong> Scan the whole stack in getMin. That is O(n).</li>
+      <li><strong>Find the waste.</strong> The minimum only changes when a value is pushed or popped. If each stack entry remembers the minimum of everything at or below it, popping restores the previous minimum without any search.</li>
+      <li><strong>Optimise.</strong> Store pairs (value, minimum so far). A push computes the new minimum from the previous top's minimum. A pop removes the pair, which exposes the previous minimum automatically.</li>
+      <li><strong>Dry run.</strong> Push -2 gives pair (-2, -2). Push 0 gives (0, -2). Push -3 gives (-3, -3). getMin returns -3. After pop, the top is (0, -2), so getMin returns -2.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class MinStack:
+    def __init__(self):
+        self.items = []                # (value, minimum of this value and everything below)
+
+    def push(self, val):
+        if self.items:
+            current_min = min(val, self.items[-1][1])
+        else:
+            current_min = val
+        self.items.append((val, current_min))
+
+    def pop(self):
+        self.items.pop()
+
+    def top(self):
+        return self.items[-1][0]
+
+    def get_min(self):
+        return self.items[-1][1]
+
+
+s = MinStack()
+s.push(-2)
+s.push(0)
+s.push(-3)
+out = [s.get_min()]
+s.pop()
+out.append(s.top())
+out.append(s.get_min())
+print(out)</code></pre>
+    <pre class="output">[-3, 0, -2]</pre>
+    <p class="cx">Time O(1) per operation · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Keeping one global minimum variable and updating it only on push. After popping the minimum, the variable is wrong. Storing the minimum per entry fixes it.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a stack must answer an aggregate question (minimum, maximum, sum) in O(1), store the aggregate with each entry, computed from the entry below it.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/flatten-nested-list-iterator/">
+    <h3>Flatten Nested List Iterator (LeetCode 341)</h3>
+    <div class="statement"><p>You are given a list whose elements are either integers or other lists. Build an iterator with hasNext() and next() that returns every integer in order, left to right, flattening nested lists. For example, [[1, 1], 2, [1, 1]] yields 1, 1, 2, 1, 1. LeetCode provides a NestedInteger interface, and the code below includes a small stand-in with the same three methods so it can run.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The iterator must be lazy: it should not flatten the whole structure up front. next() is only called after hasNext() returns true.</li>
+      <li><strong>Brute force.</strong> Flatten everything into a list in the constructor, then walk it. That is correct, but it uses memory for the entire result and does work the caller may never need.</li>
+      <li><strong>Find the waste.</strong> We only need to expand a nested list when the next integer is inside it.</li>
+      <li><strong>Optimise.</strong> Keep a stack of pending NestedInteger items, with the next one on top. In hasNext(), while the top is a list, pop it and push its elements in reverse, so the first element ends up on top. Stop when the top is an integer or the stack is empty.</li>
+      <li><strong>Dry run.</strong> For [[1, 1], 2, [1, 1]], the stack starts as [list2, 2, list1] with list1 on top. hasNext expands list1 and sees 1 on top, so next returns 1. The second 1 follows the same way, then 2, then the last list.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>class NestedInteger:
+    """A stand-in for the NestedInteger interface that LeetCode provides."""
+    def __init__(self, value):
+        self.value = value             # an int, or a list of NestedInteger
+
+    def isInteger(self):
+        return isinstance(self.value, int)
+
+    def getInteger(self):
+        return self.value
+
+    def getList(self):
+        return self.value
+
+
+class NestedIterator:
+    def __init__(self, nested_list):
+        self.stack = list(reversed(nested_list))    # the top of the stack is the next item
+
+    def hasNext(self):
+        while self.stack:
+            top = self.stack[-1]
+            if top.isInteger():
+                return True
+            self.stack.pop()
+            self.stack.extend(reversed(top.getList()))   # expand the list in place
+        return False
+
+    def next(self):
+        return self.stack.pop().getInteger()          # call hasNext() first
+
+
+def wrap(x):
+    if isinstance(x, int):
+        return NestedInteger(x)
+    return NestedInteger([wrap(item) for item in x])
+
+
+def flatten_all(nested):
+    it = NestedIterator(wrap(nested).getList())
+    out = []
+    while it.hasNext():
+        out.append(it.next())
+    return out
+
+
+print(flatten_all([[1, 1], 2, [1, 1]]))
+print(flatten_all([1, [4, [6]]]))
+print(flatten_all([[], [[]], 7]))</code></pre>
+    <pre class="output">[1, 1, 2, 1, 1]
+[1, 4, 6]
+[7]</pre>
+    <p class="cx">Time O(total elements) overall, O(depth) extra space per step, amortised O(1) per next</p>
+    <div class="note trap"><p><span class="t">Trap</span>Expanding a nested list inside next() and forgetting that hasNext() may be called several times. Keeping the expansion in hasNext() makes repeated calls safe, because the expansion only happens once for each list.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>A stack of pending work, with the next item on top, gives a lazy depth-first traversal. Pushing children in reverse order keeps the left-to-right order.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/lfu-cache/">
+    <h3>LFU Cache (LeetCode 460)</h3>
+    <div class="statement"><p>Design a cache with a fixed capacity that evicts the least frequently used key. Each get or put of a key counts as a use. When the cache is full, evict the key with the lowest use count, and if several keys tie, evict the least recently used among them. get returns -1 for a missing key. Both operations must run in O(1) time.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Two orderings matter: first by use count, then by recency inside the same count. A put of an existing key counts as a use and updates its value.</li>
+      <li><strong>Brute force.</strong> Store each key's count and time of last use, and scan for the minimum on eviction. Eviction is O(n).</li>
+      <li><strong>Find the waste.</strong> The keys with the same count form a group, and inside a group the order is recency. If every count has its own LRU ordering, eviction only needs the group for the smallest count.</li>
+      <li><strong>Optimise.</strong> Keep three structures: a map from key to value, a map from key to count, and a map from count to an ordered set of keys (an OrderedDict, oldest first). Track min_freq, the smallest count present. Touching a key moves it from its count bucket to the next one, and if its old bucket becomes empty while it was the minimum, min_freq increases by one, because the key now sits in the next bucket. Eviction takes the oldest key in the min_freq bucket.</li>
+      <li><strong>Dry run.</strong> Capacity 2: put 1 and put 2 put both keys in bucket 1 (order 1, 2). get 1 moves key 1 to bucket 2, leaving bucket 1 with key 2. put 3 evicts key 2 (the only key at the minimum count of 1). get 3 moves key 3 to bucket 2, which empties bucket 1 and makes min_freq 2.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import OrderedDict, defaultdict
+
+
+class LFUCache:
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.values = {}                          # key to value
+        self.freq = {}                            # key to use count
+        self.buckets = defaultdict(OrderedDict)   # count to keys, oldest first
+        self.min_freq = 0
+
+    def _touch(self, key):
+        f = self.freq[key]
+        del self.buckets[f][key]
+        if not self.buckets[f]:
+            del self.buckets[f]
+            if self.min_freq == f:
+                self.min_freq += 1
+        self.freq[key] = f + 1
+        self.buckets[f + 1][key] = None
+
+    def get(self, key):
+        if key not in self.values:
+            return -1
+        self._touch(key)
+        return self.values[key]
+
+    def put(self, key, value):
+        if self.capacity == 0:
+            return
+        if key in self.values:
+            self.values[key] = value
+            self._touch(key)
+            return
+        if len(self.values) == self.capacity:
+            bucket = self.buckets[self.min_freq]
+            victim, _ = bucket.popitem(last=False)   # least recent among the least used
+            if not bucket:
+                del self.buckets[self.min_freq]
+            del self.values[victim]
+            del self.freq[victim]
+        self.values[key] = value
+        self.freq[key] = 1
+        self.buckets[1][key] = None
+        self.min_freq = 1
+
+
+cache = LFUCache(2)
+cache.put(1, 1)
+cache.put(2, 2)
+out = [cache.get(1)]
+cache.put(3, 3)
+out.append(cache.get(2))
+out.append(cache.get(3))
+cache.put(4, 4)
+out.append(cache.get(1))
+out.append(cache.get(3))
+out.append(cache.get(4))
+print(out)</code></pre>
+    <pre class="output">[1, -1, 3, -1, 3, 4]</pre>
+    <p class="cx">Time O(1) per operation · Space O(capacity)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting to reset min_freq to 1 after inserting a new key. A new key has count 1, which is always the smallest possible, so the minimum must go back to 1.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When eviction depends on two keys (frequency, then recency), group by the first key and keep each group in recency order. Track the smallest group so eviction is one lookup.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>var</dt><dd>Function-scoped declaration, hoisted and set to undefined.</dd></div>
+    <div><dt>let and const</dt><dd>Block-scoped declarations that sit in the temporal dead zone until they run.</dd></div>
+    <div><dt>Hoisting</dt><dd>The engine sets up declarations before the code in a scope runs.</dd></div>
+    <div><dt>Closure</dt><dd>A function that keeps access to the variables of the scope where it was created.</dd></div>
+    <div><dt>Coercion</dt><dd>Automatic conversion of a value to another type when an operation needs it.</dd></div>
+    <div><dt>null and undefined</dt><dd>null is an assigned "no value"; undefined means a value was never set.</dd></div>
+    <div><dt>Truthy and falsy</dt><dd>The values that become true or false in a boolean context; the falsy six are false, 0, empty string, null, undefined and NaN.</dd></div>
+    <div><dt>Strict equality</dt><dd>=== compares type and value with no conversion.</dd></div>
+    <div><dt>this</dt><dd>The object a function is called on, decided at the call site, or the surrounding this for an arrow function.</dd></div>
+    <div><dt>bind</dt><dd>Returns a new function with this and some arguments fixed.</dd></div>
+    <div><dt>Prototype chain</dt><dd>The links an object follows to find properties not stored on itself.</dd></div>
+    <div><dt>class and extends</dt><dd>Syntax over prototypes, with super calling the parent's methods.</dd></div>
+    <div><dt>Event loop</dt><dd>The mechanism that runs one task at a time and drains microtasks between tasks.</dd></div>
+    <div><dt>Microtask</dt><dd>A promise callback or queueMicrotask callback, run before the next timer.</dd></div>
+    <div><dt>Macrotask</dt><dd>A timer, I/O callback or user event.</dd></div>
+    <div><dt>Promise</dt><dd>An object that is pending, then fulfilled or rejected.</dd></div>
+    <div><dt>async and await</dt><dd>Syntax that pauses a function until a promise settles, without blocking the thread.</dd></div>
+    <div><dt>Promise.all</dt><dd>Resolves with all values, or rejects on the first failure.</dd></div>
+    <div><dt>Event delegation</dt><dd>One listener on a parent handles events bubbling from its children.</dd></div>
+    <div><dt>Debounce</dt><dd>Runs a function once after calls stop for a set delay.</dd></div>
+    <div><dt>Throttle</dt><dd>Runs a function at most once per time window.</dd></div>
+    <div><dt>Polyfill</dt><dd>Code that provides a standard feature to a runtime that lacks it.</dd></div>
+    <div><dt>Module</dt><dd>A file with its own scope, loaded with require (CommonJS) or import (ES modules).</dd></div>
+    <div><dt>TypeScript</dt><dd>JavaScript with static types, checked at compile time and removed when it runs.</dd></div>
+    <div><dt>LRU cache</dt><dd>Evicts the least recently used key using a hash map and a doubly linked list.</dd></div>
+    <div><dt>LFU cache</dt><dd>Evicts the least frequently used key, with recency as the tie-breaker.</dd></div>
+    <div><dt>Invariant</dt><dd>A condition that must hold after every operation of a data structure.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td>Promise.resolve(v)</td><td>Creates a promise already fulfilled with v</td><td><code>Promise.resolve(1).then(console.log)</code></td></tr>
+    <tr><td>queueMicrotask(fn)</td><td>Queues fn as a microtask</td><td><code>queueMicrotask(() =&gt; {})</code></td></tr>
+    <tr><td>Promise.allSettled(list)</td><td>Waits for every promise, with status for each</td><td><code>await Promise.allSettled([p])</code></td></tr>
+    <tr><td>fn.bind(obj, ...args)</td><td>Returns a function with this and leading arguments fixed</td><td><code>greet.bind(user, "Hi")</code></td></tr>
+    <tr><td>fn.call(obj, ...args)</td><td>Calls fn now with a chosen this</td><td><code>greet.call(user)</code></td></tr>
+    <tr><td>Object.getPrototypeOf(o)</td><td>Returns the prototype of an object</td><td><code>Object.getPrototypeOf(dog) === Dog.prototype</code></td></tr>
+    <tr><td>x ?? y</td><td>y only when x is null or undefined</td><td><code>0 ?? 10</code> gives 0</td></tr>
+    <tr><td>x?.y</td><td>Reads y only if x is not null or undefined</td><td><code>user.profile?.age</code></td></tr>
+    <tr><td>Number.isNaN(x)</td><td>True only for NaN, with no conversion</td><td><code>Number.isNaN("abc")</code> gives false</td></tr>
+    <tr><td>el.closest(sel)</td><td>Nearest ancestor (or self) matching a selector</td><td><code>event.target.closest("li")</code></td></tr>
+    <tr><td>clearTimeout(id)</td><td>Cancels a pending timer</td><td><code>clearTimeout(timer)</code></td></tr>
+    <tr><td>OrderedDict.popitem(last=False)</td><td>Removes the oldest entry (Python)</td><td><code>od.popitem(last=False)</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 33?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 33 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-32.html"><small>Previous, day 32</small>Web fundamentals: HTML, CSS, browser</a><a class="next" href="day-34.html"><small>Next, day 34</small>React</a></nav>
+</main><script src="assets/app.js"></script></body></html>

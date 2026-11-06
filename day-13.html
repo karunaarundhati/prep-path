@@ -1,0 +1,549 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 13: Virtualization, Docker, Kubernetes</title><meta name="description" content="Today covers how one physical machine can run many isolated systems, how Docker packages an application into an image that runs the same way on any Linux host, and how Kubernetes keeps many containers running across many machines. The second half is sorting, the divide and conquer toolkit that interviewers use to test how you reason about cost, stability and edge cases."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="13" data-key="13" data-noun="day" data-num="13" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Virtualization, Docker, Kubernetes</h1>
+<p class="lede">Today covers how one physical machine can run many isolated systems, how Docker packages an application into an image that runs the same way on any Linux host, and how Kubernetes keeps many containers running across many machines. The second half is sorting, the divide and conquer toolkit that interviewers use to test how you reason about cost, stability and edge cases.</p>
+<div class="station"><b>13</b><span>Sat 14 Nov 2026 · Systems · DSA: Sorting algorithms</span></div>
+<ul class="topics"><li>Hypervisors and virtual machines</li><li>Containers, namespaces and cgroups</li><li>Docker images, layers and volumes</li><li>Kubernetes architecture and objects</li><li>Merge sort, quick sort, counting smaller numbers</li><li>Dutch national flag and quickselect style heaps</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Virtualization">
+  <h2>Virtualization: many machines on one computer</h2>
+  <p><strong>Virtualization</strong> is a technique where software makes one physical computer behave like several separate computers. Each separate computer is called a <strong>virtual machine</strong> (VM). A VM has its own virtual CPU, memory, disk and network card, and it runs its own operating system, called the <strong>guest OS</strong>. Nothing inside the VM can directly touch the real hardware. Every access goes through the software layer that created it.</p>
+  <p>The software that creates and runs VMs is called a <strong>hypervisor</strong>, also known as a virtual machine monitor (VMM). Its job is to share the real CPU, memory and devices among the guests and to keep the guests isolated from each other. Hypervisors are classified by where they sit in the software stack.</p>
+  <h3>Type 1 and type 2 hypervisors</h3>
+  <p>A <strong>type 1 hypervisor</strong> (also called bare-metal) runs directly on the hardware, with no general-purpose operating system underneath it. VMware ESXi, Microsoft Hyper-V and Xen are common examples. KVM is built into the Linux kernel, so the Linux kernel itself becomes a type 1 hypervisor; it is usually classed as type 1 as well. Data centers mostly use type 1 hypervisors because there is one less layer between the guests and the hardware.</p>
+  <p>A <strong>type 2 hypervisor</strong> (also called hosted) runs as an ordinary application on top of a host operating system. VirtualBox and VMware Workstation are examples. They are very convenient on a laptop, because you can run a Linux VM inside Windows or macOS, but every guest instruction has to pass through the host OS as well, so they usually carry more overhead.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not say "type 1 is always faster". The usual, correct statement is that type 1 has less overhead because there is no host operating system in the middle, and this matters most in servers that run many VMs.</p></div>
+  <h3>Types of virtualization</h3>
+  <p>The three words you will hear most are full, para and hardware-assisted virtualization. They describe how the guest is presented to the hypervisor, not how far it is isolated.</p>
+  <ul>
+    <li><strong>Full virtualization.</strong> The guest OS is completely unmodified. It believes it owns the whole machine. The hypervisor catches the guest's privileged instructions (the instructions only the kernel is allowed to run, such as ones that change page tables) and handles them safely. Older hypervisors did this with binary translation, rewriting those instructions on the fly. Modern hypervisors do it much faster with hardware support.</li>
+    <li><strong>Paravirtualization.</strong> The guest OS is modified to know it is virtualized. Instead of issuing a privileged instruction and hoping it is caught, the guest makes an explicit call to the hypervisor, called a <strong>hypercall</strong>. The Xen hypervisor's paravirtual mode is the classic example. The guest is faster, but it must be modified, so you cannot run an arbitrary closed-source OS this way.</li>
+    <li><strong>Hardware-assisted virtualization.</strong> CPUs contain special support for running guests, such as Intel VT-x and AMD-V. The CPU runs most guest instructions directly at full speed and only switches back to the hypervisor when the guest does something that needs control. This is what makes modern full virtualization fast, and it is what KVM depends on.</li>
+  </ul>
+  <p>There is also <strong>OS-level virtualization</strong>, which is what containers use. It does not run a separate guest kernel at all. Section 2 explains it.</p>
+  <div class="tablewrap"><table><thead><tr><th>Approach</th><th>Guest kernel</th><th>Guest modified?</th><th>Typical example</th></tr></thead><tbody><tr><td>Full virtualization (hardware-assisted)</td><td>Its own, unmodified</td><td>No</td><td>KVM, VMware ESXi, Hyper-V guests</td></tr><tr><td>Paravirtualization</td><td>Its own, modified</td><td>Yes</td><td>Xen paravirtual guests</td></tr><tr><td>OS-level virtualization</td><td>Shared with the host</td><td>No (the app is packaged, not the kernel)</td><td>Docker, containerd, Podman</td></tr></tbody></table></div>
+  <p>Virtualization gives you consolidation (fewer physical servers), isolation (a crashed guest does not take down its neighbours) and flexibility (you can snapshot, move and clone a VM as a set of files). Its cost is that every VM carries a full operating system, which means gigabytes of disk, a few gigabytes of memory and boot times measured in seconds to minutes.</p>
+  <details class="check"><summary>What is the difference between a type 1 and a type 2 hypervisor?</summary><div class="ans"><p>A type 1 hypervisor runs directly on the hardware, so there is no host operating system between it and the machine. A type 2 hypervisor runs as an application on top of a host operating system. Type 1 is the usual choice for servers because it has less overhead.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Containers">
+  <h2>Containers versus virtual machines</h2>
+  <p>A <strong>container</strong> is an ordinary process, or a small group of processes, that the Linux kernel has been told to isolate. It does not have its own kernel. It shares the host's kernel and uses two kernel features to pretend it is alone: <strong>namespaces</strong> and <strong>cgroups</strong>. The difference from a VM is the boundary. A VM is cut off by virtual hardware and a guest kernel. A container is cut off by the kernel itself, which is one piece of software, so the container is lighter and starts faster, but the isolation is weaker.</p>
+  <p>Because a container is just a process, starting one takes milliseconds to seconds, and a small container image can be a few megabytes. There is no boot sequence, no init system to wait for and no second kernel in memory.</p>
+  <h3>Namespaces: what a process can see</h3>
+  <p>A <strong>namespace</strong> wraps one kind of global system resource so that a process only sees its own copy. Linux has several namespace types, and a container usually gets a fresh copy of each of these:</p>
+  <ul>
+    <li><strong>PID namespace.</strong> The process gets its own process numbering. The first process inside becomes PID 1, even though on the host it might be PID 48213. From inside, <code>ps</code> shows only the container's processes.</li>
+    <li><strong>NET namespace.</strong> The container gets its own network interfaces, routing table, firewall rules and port space. Two containers can both listen on port 80 because each has its own port space.</li>
+    <li><strong>MNT namespace.</strong> The container gets its own view of the filesystem mount points. The root directory it sees is the image's filesystem, not the host's.</li>
+    <li><strong>UTS namespace.</strong> The container gets its own hostname and domain name.</li>
+    <li><strong>IPC namespace.</strong> Shared memory and message queues are private to the container.</li>
+    <li><strong>USER namespace.</strong> User IDs can be mapped so that root inside the container is an unprivileged user on the host. This is an important hardening option.</li>
+    <li><strong>CGROUP namespace.</strong> The container sees its own part of the control group hierarchy, so it cannot see how the host is arranged.</li>
+  </ul>
+  <h3>cgroups: how much a process can use</h3>
+  <p>A <strong>control group</strong> (cgroup) limits, accounts for and prioritises the resources a group of processes may use. Namespaces answer "what can I see?" and cgroups answer "how much can I consume?". Typical limits are CPU time, memory, disk and network bandwidth, and the number of processes.</p>
+  <p>Docker exposes these as flags:</p>
+  <pre class="code" data-lang="bash"><code>docker run --memory=256m --cpus=1.5 nginx</code></pre>
+  <p>This starts an nginx container that may use at most 256 MB of memory and about one and a half CPU cores. If the container tries to use more memory than its limit, the kernel's out-of-memory killer ends one of its processes. Docker reports this as exit code 137, which is 128 plus 9, the number of the SIGKILL signal.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A container is an isolated process, not a small computer. Namespaces control what it can see, cgroups control what it can use, and both are features of the one shared Linux kernel.</p></div>
+  <h3>Containers versus VMs side by side</h3>
+  <div class="tablewrap"><table><thead><tr><th>Property</th><th>Virtual machine</th><th>Container</th></tr></thead><tbody><tr><td>Kernel</td><td>Each VM has its own guest kernel</td><td>All containers share the host kernel</td></tr><tr><td>Isolation boundary</td><td>Virtual hardware, hypervisor</td><td>Namespaces and cgroups in the kernel</td></tr><tr><td>Startup time</td><td>Seconds to minutes</td><td>Milliseconds to seconds</td></tr><tr><td>Size</td><td>Gigabytes (full OS)</td><td>Megabytes (app and its libraries)</td></tr><tr><td>Different OS per guest</td><td>Yes (a Windows VM on a Linux host)</td><td>Only a compatible kernel (Linux containers need a Linux kernel)</td></tr><tr><td>Security strength</td><td>Stronger, since the boundary is smaller and hardware-backed</td><td>Weaker, since a kernel bug can break out of the container</td></tr></tbody></table></div>
+  <div class="note trap"><p><span class="t">Trap</span>"Containers are secure VMs" is wrong. Because the kernel is shared, a kernel vulnerability can affect every container on the host. Hardened setups add user namespaces, seccomp profiles and, for untrusted workloads, a VM underneath.</p></div>
+  <details class="check"><summary>What does a namespace do, and what does a cgroup do?</summary><div class="ans"><p>A namespace gives a process its own view of a global resource, such as process IDs, network interfaces or the filesystem mounts, so it cannot see the host's copy. A cgroup limits and accounts for how much CPU, memory, I/O or processes a group of processes may use. Namespaces control visibility; cgroups control consumption.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Docker">
+  <h2>Docker: images, layers, volumes and networks</h2>
+  <p><strong>Docker</strong> is a set of tools that builds, stores and runs containers. Its central idea is the <strong>image</strong>: a read-only package that contains an application and everything it needs to run, such as the runtime, libraries and configuration. A <strong>container</strong> is a running instance of an image. When Docker starts a container, it adds one thin writable layer on top of the image, and every change the running process makes goes into that layer. The image itself never changes.</p>
+  <p>This split is why one image can start many identical containers at once, and why deleting a container throws away its changes but leaves the image in place.</p>
+  <h3>Layers and the build cache</h3>
+  <p>An image is built from <strong>layers</strong>. Each instruction in a Dockerfile that changes the filesystem creates a new layer that stores only the difference from the layer below. Layers are identified by a SHA-256 digest of their contents, so two images that share a base layer store it only once on disk and download it only once from a registry.</p>
+  <p>Docker also caches layers. If an instruction and its inputs have not changed since the last build, Docker reuses the cached layer instead of running the instruction again. The important rule is that a changed layer invalidates every layer after it. This is why the order of instructions matters, as the next example shows.</p>
+  <h3>The Dockerfile</h3>
+  <p>A <strong>Dockerfile</strong> is a text file of instructions that describes how to build an image. Here is a typical one for a small Python web app, with a line-by-line explanation:</p>
+  <pre class="code" data-lang="dockerfile"><code>FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 8000
+CMD ["python", "app.py"]</code></pre>
+  <ul>
+    <li><code>FROM</code> chooses the base image. Every later instruction adds a layer on top of it.</li>
+    <li><code>WORKDIR /app</code> sets the directory for the following instructions and creates it if it is missing.</li>
+    <li><code>COPY requirements.txt .</code> copies only the dependency list into the image first.</li>
+    <li><code>RUN pip install ...</code> installs the dependencies. This layer is slow, so it is placed before the source code. As long as <code>requirements.txt</code> is unchanged, Docker reuses this layer on every rebuild.</li>
+    <li><code>COPY . .</code> copies the rest of the source. Your code changes often, and this layer is rebuilt each time, but the slow install above is not.</li>
+    <li><code>EXPOSE 8000</code> documents the port the app listens on. It does not publish the port by itself.</li>
+    <li><code>CMD</code> is the default command to run when a container starts from the image. The JSON array form runs the program directly, without a shell in between.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>Copying the whole source before installing dependencies (COPY . . above RUN pip install) forces the slow install to run on every code change. Copy the dependency file first.</p></div>
+  <p>Other instructions you should recognise are <code>ENV</code> (sets an environment variable), <code>ARG</code> (a build-time variable), <code>USER</code> (the user the container runs as, which should not be root in production), <code>ENTRYPOINT</code> (the fixed program, with <code>CMD</code> supplying default arguments) and <code>ADD</code> (like <code>COPY</code> but with extra features such as extracting archives; prefer <code>COPY</code> unless you need them).</p>
+  <div class="note trap"><p><span class="t">Trap</span>Deleting a file in a later layer does not remove it from the image. The earlier layer still stores it, and anyone who pulls the image can extract it. Never copy a password or a private key into an image, even if you delete it in the next line.</p></div>
+  <p>The commands to build and run it look like this:</p>
+  <pre class="code" data-lang="bash"><code>docker build -t myapp:1.0 .
+docker run -d -p 8000:8000 --name web myapp:1.0
+docker ps
+docker logs web
+docker exec -it web sh
+docker stop web
+docker rm web</code></pre>
+  <p><code>docker build -t myapp:1.0 .</code> builds the image in the current directory and tags it with a name and version. <code>-d</code> runs the container in the background. <code>-p 8000:8000</code> publishes the container's port 8000 on port 8000 of the host, in the form <code>host:container</code>. <code>docker exec -it web sh</code> opens an interactive shell inside a running container.</p>
+  <h3>Volumes: data that outlives a container</h3>
+  <p>The container's writable layer disappears when the container is removed. Anything that must survive, such as a database's files, belongs in a <strong>volume</strong>. A named volume is storage created and managed by Docker. A <strong>bind mount</strong> maps a directory from the host into the container. A <code>tmpfs</code> mount keeps data in memory only.</p>
+  <pre class="code" data-lang="bash"><code>docker volume create pgdata
+docker run -d -v pgdata:/var/lib/postgresql/data --name db postgres:16
+docker run -d -v "$(pwd)/site:/usr/share/nginx/html:ro" -p 8080:80 nginx</code></pre>
+  <p>The first run mounts the named volume <code>pgdata</code> at the path where the database keeps its files. The second run is a bind mount: the host's <code>site</code> folder is mounted read-only (the <code>:ro</code> suffix) into nginx's web root. Removing the <code>db</code> container leaves <code>pgdata</code> intact, so a new container can attach to the same data.</p>
+  <h3>Networks: how containers find each other</h3>
+  <p>Docker creates networks for containers. The three you will meet are <strong>bridge</strong> (the default for standalone containers, which gives each container a private address behind a virtual switch on the host), <strong>host</strong> (the container shares the host's network stack, with no isolation) and <strong>none</strong> (no networking at all).</p>
+  <p>A <strong>user-defined bridge network</strong> is the one you should create for multi-container apps. Containers on the same user-defined network can reach each other by container name, because Docker runs a small DNS server for the network. The legacy default bridge does not provide this name lookup.</p>
+  <pre class="code" data-lang="bash"><code>docker network create appnet
+docker run -d --network appnet --name db postgres:16
+docker run -d --network appnet --name api myapp:1.0
+# inside the api container, the database is reachable at the hostname "db"</code></pre>
+  <div class="note key"><p><span class="t">Key idea</span>Publishing a port (<code>-p</code>) is for traffic from outside the host. Container-to-container traffic on a shared user-defined network does not need published ports at all.</p></div>
+  <h3>Docker Compose: several containers as one file</h3>
+  <p><strong>Docker Compose</strong> describes a multi-container application in one YAML file. Each entry under <code>services</code> is a container, and Compose creates the networks and volumes it names. One command starts everything:</p>
+  <pre class="code" data-lang="yaml"><code>services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_HOST: db
+    depends_on:
+      - db
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:</code></pre>
+  <p>Compose puts both services on a shared network, so <code>web</code> can reach the database at the name <code>db</code>. The value <code>${DB_PASSWORD}</code> is read from the shell or a <code>.env</code> file, which keeps the secret out of the committed YAML. Use <code>docker compose up -d</code> to start the stack and <code>docker compose down</code> to stop and remove its containers and networks. The named volume survives <code>down</code> unless you add <code>-v</code>. The modern command is <code>docker compose</code> (a plugin); the older standalone tool <code>docker-compose</code> is legacy.</p>
+  <details class="check"><summary>Why should the dependency install come before COPY . . in a Dockerfile?</summary><div class="ans"><p>Docker caches each layer and rebuilds a layer whenever its inputs change, and every later layer is rebuilt with it. Source code changes on almost every build, so if the source is copied first, the dependency install below it is re-run every time. Copying only the dependency file first keeps the slow install cached until the dependencies actually change.</p></div></details>
+  <details class="check"><summary>Why does a user-defined network matter for multi-container apps?</summary><div class="ans"><p>On a user-defined bridge network, Docker's embedded DNS resolves container names, so an API container can connect to a database simply at the host name db. The legacy default bridge does not provide this name resolution, so you would need to use IP addresses or links.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Kubernetes">
+  <h2>Kubernetes: running containers across many machines</h2>
+  <p>Docker runs containers on one host. Production systems need dozens or thousands of containers across many hosts, which raises new questions: which machine should run each container, what happens when a machine dies, how do you roll out a new version without downtime, and how does one service find another when its containers keep moving. <strong>Kubernetes</strong> (often written K8s) answers these questions. You describe the state you want, and Kubernetes keeps reality matching that description.</p>
+  <h3>Architecture: control plane and nodes</h3>
+  <p>A Kubernetes installation is a <strong>cluster</strong>. It has two kinds of machines. The <strong>control plane</strong> makes global decisions. <strong>Nodes</strong> (worker machines) run the containers.</p>
+  <ul>
+    <li><strong>kube-apiserver</strong> is the front door. Every command, including those from the <code>kubectl</code> tool, is a REST request to this server. It validates requests and is the only component that reads and writes the cluster state directly.</li>
+    <li><strong>etcd</strong> is a consistent key-value store that holds the whole cluster state: which objects exist and what they contain.</li>
+    <li><strong>kube-scheduler</strong> decides which node should run each new pod, by checking resource requests, node labels and rules you define.</li>
+    <li><strong>kube-controller-manager</strong> runs the controllers, which watch the state and push it toward what you asked for.</li>
+    <li><strong>kubelet</strong> runs on every node. It makes sure the containers described for that node are running and reports their health back to the control plane.</li>
+    <li><strong>kube-proxy</strong> runs on every node and maintains the network rules that send traffic addressed to a Service to one of its healthy pods.</li>
+    <li><strong>The container runtime</strong>, such as containerd or CRI-O, actually creates and runs the containers. Kubernetes talks to it through a standard interface.</li>
+  </ul>
+  <h3>The declarative model and the reconciliation loop</h3>
+  <p>Kubernetes is <strong>declarative</strong>. You do not write "start three containers now". You write "the cluster should have three copies of this container running", and you store that as an object. Each controller then runs a <strong>reconciliation loop</strong>: it reads the desired state from the API server, observes the actual state, and takes actions to close the gap. If a pod crashes, the actual count drops to two, the controller notices, and it creates a replacement. Nobody has to press a button.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Kubernetes does not run commands in sequence. It stores a description of the desired state and keeps comparing reality with it forever. Almost every object behaves this way.</p></div>
+  <h3>The main objects</h3>
+  <ul>
+    <li><strong>Pod.</strong> The smallest unit Kubernetes schedules. A pod holds one or more containers that share a network namespace (one IP address and one port space) and can share volumes. Most pods hold a single container. A pod is ephemeral: when it dies, it is replaced by a new pod with a new IP address, never revived.</li>
+    <li><strong>ReplicaSet.</strong> Keeps a fixed number of identical pods running. You rarely write one yourself.</li>
+    <li><strong>Deployment.</strong> The object you use for stateless applications. It manages a ReplicaSet and adds rolling updates and rollbacks: when you change the image, it creates pods with the new image and removes old ones gradually, and you can roll back to the previous ReplicaSet.</li>
+    <li><strong>Service.</strong> A stable virtual IP address and DNS name in front of a set of pods. Clients use the Service name, and traffic is spread across the pods that match its selector. Pod IPs change; the Service name does not. Service types include <code>ClusterIP</code> (reachable only inside the cluster, the default), <code>NodePort</code> and <code>LoadBalancer</code>.</li>
+    <li><strong>Ingress.</strong> HTTP and HTTPS routing rules from outside the cluster to Services, based on host name and path. An Ingress does nothing on its own; a running ingress controller has to implement the rules.</li>
+    <li><strong>ConfigMap.</strong> Non-secret configuration, stored as key-value pairs and injected into pods as environment variables or files.</li>
+    <li><strong>Secret.</strong> Sensitive values such as passwords and tokens, injected the same way as ConfigMaps.</li>
+    <li><strong>Labels and selectors.</strong> Labels are key-value tags on objects, such as <code>app: web</code>. Selectors query by label. A Deployment finds its pods, and a Service finds its backends, this way. Labels are the glue of Kubernetes.</li>
+  </ul>
+  <h3>Writing objects as YAML</h3>
+  <p>Objects are usually written in YAML. Every object has <code>apiVersion</code> (the API group and version), <code>kind</code> (the object type), <code>metadata</code> (name and labels) and <code>spec</code> (the desired state). Here is a Deployment and a Service that exposes it:</p>
+  <pre class="code" data-lang="yaml"><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.27
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 80</code></pre>
+  <p>The Deployment asks for three replicas of an nginx pod, and labels each pod <code>app: web</code>. The <code>selector</code> must match the template's labels, or the Deployment would never find its own pods. The <code>readinessProbe</code> asks the kubelet to call <code>GET /</code> on port 80. Until the probe succeeds, the pod is not added to Service endpoints, so no traffic reaches a container that is still starting. The Service selects every pod labelled <code>app: web</code>, gives them one stable address, and forwards port 80 to port 80 on each pod.</p>
+  <h4>ConfigMaps and Secrets</h4>
+  <p>A Secret stores its values base64-encoded. Base64 is an encoding that turns binary data into printable characters so it can be written in YAML or JSON. It is not encryption, because anyone who can read the Secret can decode it instantly. Encryption at rest must be enabled separately in the cluster, and access must be limited with role-based access control (RBAC).</p>
+  <pre class="code" data-lang="python"><code>import base64
+
+secret = "s3cret-pass"
+encoded = base64.b64encode(secret.encode("utf-8")).decode("ascii")
+print(encoded)
+print(base64.b64decode(encoded).decode("utf-8"))</code></pre>
+  <pre class="output">czNjcmV0LXBhc3M=
+s3cret-pass</pre>
+  <p>The first line is the encoded form. The second line decodes it back, which proves the point: a Secret is readable by anyone with access to it. In Kubernetes you would create one with <code>kubectl create secret generic db-secret --from-literal=password=s3cret-pass</code>, and the cluster stores the value encoded.</p>
+  <h3>Running and inspecting the cluster</h3>
+  <p><code>kubectl</code> is the command-line client for the API server. These are the commands you will use most often:</p>
+  <pre class="code" data-lang="bash"><code>kubectl apply -f deployment.yaml      # create or update objects described in the file
+kubectl get pods                      # list pods in the current namespace
+kubectl get deploy,svc                # list Deployments and Services together
+kubectl describe pod web-7d9f8-abcde  # events and status, the first place to look when a pod fails
+kubectl logs web-7d9f8-abcde          # standard output of the container
+kubectl scale deployment web --replicas=5
+kubectl rollout status deployment/web
+kubectl rollout undo deployment/web  # return to the previous ReplicaSet
+kubectl port-forward svc/web 8080:80 # local test access to a Service</code></pre>
+  <p><code>kubectl apply</code> is declarative: running it twice with the same file changes nothing the second time. <code>kubectl rollout undo</code> is the fast way to recover from a bad release, because the previous ReplicaSet still exists and Kubernetes only has to scale it back up.</p>
+  <h3>Health probes</h3>
+  <p>Kubernetes uses two probes to check containers. A <strong>liveness probe</strong> asks "is this container stuck?". If it fails repeatedly, the kubelet restarts the container. A <strong>readiness probe</strong> asks "can this container take traffic right now?". If it fails, the pod stays running but is removed from the Service's endpoints, so no requests reach it. A slow-starting app needs a readiness probe so traffic waits for it, and a deadlocked app needs a liveness probe so it gets restarted.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not point the liveness probe at a dependency such as the database. If the database is briefly down, every pod fails its liveness check and is restarted, which makes recovery slower. Liveness should check only the container itself.</p></div>
+  <h3>Typical mistakes</h3>
+  <ul>
+    <li><strong>Storing data in the container.</strong> Pods are replaceable, so data must go to a PersistentVolume or to an external service.</li>
+    <li><strong>Connecting to pod IP addresses.</strong> Pod IPs change every time a pod is replaced. Connect through a Service name.</li>
+    <li><strong>Creating bare pods for production.</strong> A pod created directly is not replaced when its node fails. Use a Deployment, whose ReplicaSet keeps the count correct.</li>
+    <li><strong>Trusting base64 Secrets.</strong> Enable encryption at rest and restrict who can read Secrets.</li>
+  </ul>
+  <details class="check"><summary>What is the difference between a Deployment and a Pod?</summary><div class="ans"><p>A pod is the smallest unit Kubernetes runs: one or more containers sharing a network address. A Deployment is a controller that manages a set of identical pods through a ReplicaSet. It keeps the requested number of pods running, replaces failed ones and performs rolling updates. A bare pod has no controller, so nothing recreates it if its node fails.</p></div></details>
+  <details class="check"><summary>What does a Service give you that a pod IP does not?</summary><div class="ans"><p>A pod's IP address changes whenever the pod is replaced. A Service provides a stable virtual IP and DNS name, selects the healthy pods that match its labels, and spreads traffic across them. Clients connect to the Service name and never need to know which pods exist.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <details class="check"><summary>What is a hypervisor, and what is the difference between type 1 and type 2?</summary><div class="ans"><p>A hypervisor is software that creates and runs virtual machines and isolates them from each other. A type 1 hypervisor runs directly on the hardware, as in VMware ESXi, Hyper-V and Xen. A type 2 hypervisor runs as an application on a host operating system, as in VirtualBox. Type 1 has less overhead, which is why servers use it.</p></div></details>
+  <details class="check"><summary>What is the difference between a VM and a container?</summary><div class="ans"><p>A VM includes its own guest kernel and virtual hardware, so it is heavier, takes longer to start and is isolated by the hypervisor. A container is an isolated process that shares the host kernel. It starts in milliseconds and is small, but the isolation is provided by the shared kernel, so it is weaker. Containers must use a compatible kernel, while VMs can run a different operating system.</p></div></details>
+  <details class="check"><summary>What do namespaces and cgroups each do?</summary><div class="ans"><p>Namespaces control what a process can see: its process IDs, network interfaces, mounts, hostname and more. Cgroups control how much a process can use: CPU, memory, I/O and the number of processes. Together they are the foundation of Linux containers.</p></div></details>
+  <details class="check"><summary>What is an image, and how is it different from a container?</summary><div class="ans"><p>An image is a read-only template built from layers. A container is a running instance of an image with one extra writable layer on top. Many containers can run from one image, and removing a container discards its writable layer but leaves the image.</p></div></details>
+  <details class="check"><summary>Why does the order of instructions in a Dockerfile matter?</summary><div class="ans"><p>Docker caches each layer, and a changed layer invalidates all the layers after it. Put instructions that change rarely, such as installing dependencies, before instructions that change often, such as copying source code. This keeps the build cache useful.</p></div></details>
+  <details class="check"><summary>What is the difference between a named volume and a bind mount?</summary><div class="ans"><p>A named volume is storage created and managed by Docker, referenced by a name, and is the usual choice for application data. A bind mount maps a specific directory on the host into the container, which is common for development. Both survive when the container is removed.</p></div></details>
+  <details class="check"><summary>What is the role of the Kubernetes scheduler and the controller manager?</summary><div class="ans"><p>The scheduler chooses a node for each new pod based on resource requests, labels and placement rules. The controller manager runs controllers that compare the desired state with the actual state and act to close the gap, such as creating replacement pods when some have failed.</p></div></details>
+  <details class="check"><summary>What is the difference between a Service and an Ingress?</summary><div class="ans"><p>A Service gives a set of pods a stable IP address and DNS name inside the cluster, and load balances across them. An Ingress holds HTTP and HTTPS routing rules, based on host name and path, that send outside traffic to Services. An ingress controller has to be running to enforce the rules.</p></div></details>
+  <details class="check"><summary>Are Kubernetes Secrets encrypted?</summary><div class="ans"><p>Not by default. Secret values are base64-encoded, which is an encoding anyone can reverse. You must enable encryption at rest in the cluster and restrict access with RBAC. Base64 hides nothing.</p></div></details>
+  <details class="check"><summary>What is the difference between a liveness probe and a readiness probe?</summary><div class="ans"><p>A liveness probe decides whether a container should be restarted because it is stuck. A readiness probe decides whether a pod should receive traffic. A failing readiness probe removes the pod from its Service without restarting it.</p></div></details>
+  <details class="check"><summary>Why does quick sort have an O(n^2) worst case, and how do real implementations avoid it?</summary><div class="ans"><p>Quick sort's speed depends on its pivot splitting the data roughly in half. If the pivot is always the smallest or largest element, one side is empty and the recursion does n levels of work, giving O(n^2). Choosing a random pivot, or the median of three values, makes the bad case extremely unlikely for any input. Introsort switches to heap sort when the recursion gets too deep.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Sorting algorithms</h2>
+  <p>Sorting is the classic place to practise <strong>divide and conquer</strong>: split a problem into smaller copies of itself, solve the copies, then combine the answers. Merge sort and quick sort are the two algorithms you must be able to write from memory, and interviewers often ask you to compare them. Before the problems, here is the vocabulary you need.</p>
+  <ul>
+    <li><strong>Comparison sort.</strong> Sorts only by comparing two elements at a time. No comparison sort can beat O(n log n) comparisons in the worst case.</li>
+    <li><strong>In-place.</strong> Uses only a constant amount of extra memory, beyond the input array.</li>
+    <li><strong>Stable.</strong> Equal elements keep their original relative order. This matters when you sort records by one key after sorting by another.</li>
+  </ul>
+  <div class="tablewrap"><table><thead><tr><th>Algorithm</th><th>Best</th><th>Average</th><th>Worst</th><th>Extra space</th><th>Stable</th></tr></thead><tbody><tr><td>Merge sort</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n)</td><td>Yes</td></tr><tr><td>Quick sort</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n^2)</td><td>O(log n) stack, on average</td><td>No (typical versions)</td></tr><tr><td>Heap sort</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(1)</td><td>No</td></tr><tr><td>Counting sort</td><td>O(n + k)</td><td>O(n + k)</td><td>O(n + k)</td><td>O(k)</td><td>Yes</td></tr></tbody></table></div>
+  <p>In the table, k is the range of the values. Counting sort is not a comparison sort, so the O(n log n) lower bound does not apply to it, but it works only when the values are small integers. Python's built-in <code>sorted</code> uses Timsort, which is stable and runs in O(n log n) worst case. In an interview, you use the built-in only if the question allows it; otherwise write the algorithm.</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/sort-an-array/">
+    <h3>Sort an Array (LeetCode 912)</h3>
+    <div class="statement"><p>Given an array of integers <code>nums</code>, sort it in ascending order. The problem asks you to do it without relying on a library sort, so the point is to write the algorithm yourself. For example, <code>[5, 2, 3, 1]</code> becomes <code>[1, 2, 3, 5]</code>. The array can hold up to 50,000 values, so an O(n^2) algorithm is too slow.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Values can be negative and can repeat. The input can be large, so the expected cost is O(n log n). Returning a new list or sorting in place are both acceptable.</li>
+      <li><strong>Brute force.</strong> Selection sort or bubble sort: repeatedly find the smallest remaining element and move it forward. Correct, but each pass scans the rest of the array, so the cost is O(n^2).</li>
+      <li><strong>Find the waste.</strong> Selection sort compares pairs of elements many times and never reuses what it learned from earlier comparisons. Divide and conquer avoids this: sorting two halves independently is cheaper, and merging two sorted halves takes only linear time.</li>
+      <li><strong>Optimise.</strong> Merge sort splits the array in half, sorts each half recursively, and merges the results with two pointers. The depth of the recursion is log n and each level does O(n) work, so the total is O(n log n). Quick sort instead picks a pivot, partitions the array into smaller and larger values, and recurses. Its average cost is O(n log n).</li>
+      <li><strong>Dry run.</strong> Merging [1, 5] with [2, 3]: compare 1 and 2, take 1; compare 5 and 2, take 2; compare 5 and 3, take 3; the left side is not finished, so take 5 at the end. Result: [1, 2, 3, 5].</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def merge_sort(nums):
+    """Return a new sorted list using divide and conquer."""
+    if len(nums) &lt;= 1:
+        return nums[:]                # a list of length 0 or 1 is already sorted
+    mid = len(nums) // 2
+    left = merge_sort(nums[:mid])     # sort the left half
+    right = merge_sort(nums[mid:])    # sort the right half
+    merged = []
+    i = j = 0
+    while i &lt; len(left) and j &lt; len(right):
+        if left[i] &lt;= right[j]:        # &lt;= keeps equal items in order (stable)
+            merged.append(left[i])
+            i += 1
+        else:
+            merged.append(right[j])
+            j += 1
+    merged.extend(left[i:])           # at most one of these two is non-empty
+    merged.extend(right[j:])
+    return merged
+
+
+def quick_sort(nums):
+    """Return a new sorted list by partitioning around a pivot."""
+    if len(nums) &lt;= 1:
+        return nums[:]
+    pivot = nums[len(nums) // 2]      # the middle value is the pivot
+    smaller = [x for x in nums if x &lt; pivot]
+    equal = [x for x in nums if x == pivot]
+    larger = [x for x in nums if x &gt; pivot]
+    return quick_sort(smaller) + equal + quick_sort(larger)
+
+
+def quick_sort_in_place(nums, lo=0, hi=None):
+    """Sort nums[lo..hi] in place using Lomuto partitioning."""
+    if hi is None:
+        hi = len(nums) - 1
+    if lo &gt;= hi:
+        return nums
+    mid = (lo + hi) // 2
+    nums[mid], nums[hi] = nums[hi], nums[mid]   # move the middle value to the end as pivot
+    pivot = nums[hi]
+    i = lo                            # nums[lo:i] holds values smaller than pivot
+    for j in range(lo, hi):
+        if nums[j] &lt; pivot:
+            nums[i], nums[j] = nums[j], nums[i]
+            i += 1
+    nums[i], nums[hi] = nums[hi], nums[i]       # put the pivot in its final place
+    quick_sort_in_place(nums, lo, i - 1)
+    quick_sort_in_place(nums, i + 1, hi)
+    return nums
+
+
+print(merge_sort([5, 2, 3, 1]))
+print(quick_sort([5, 1, 1, 2, 0, 0]))
+print(quick_sort_in_place([-3, 7, 0, 7, -1]))</code></pre>
+    <pre class="output">[1, 2, 3, 5]
+[0, 0, 1, 1, 2, 5]
+[-3, -1, 0, 7, 7]</pre>
+    <p class="cx">Merge sort: time O(n log n) · space O(n) · stable. Quick sort (list version): time O(n log n) on average, O(n^2) worst · space O(n).</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you see "sort" with a target of n log n, think divide and conquer: halve, solve each half, merge in linear time.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/sort-colors/">
+    <h3>Sort Colors (LeetCode 75)</h3>
+    <div class="statement"><p>You get an array whose values are only 0, 1 or 2, standing for red, white and blue. Sort the array so that all 0s come first, then all 1s, then all 2s. Do it in one pass with constant extra space. For example, <code>[2, 0, 2, 1, 1, 0]</code> becomes <code>[0, 0, 1, 1, 2, 2]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> There are only three possible values, which is a strong hint. The result is determined entirely by how many 0s, 1s and 2s there are, but the problem asks for an in-place rearrangement.</li>
+      <li><strong>Brute force.</strong> Count the 0s, 1s and 2s, then overwrite the array. That is two passes and O(1) extra space, which is acceptable, but the problem asks for a one-pass solution.</li>
+      <li><strong>Find the waste.</strong> Counting is an extra pass. Better is to partition the array into three zones while scanning it once.</li>
+      <li><strong>Optimise.</strong> This is the Dutch national flag algorithm, named after the flag's three bands. Keep three pointers: <code>low</code> marks the end of the 0 zone, <code>high</code> marks the start of the 2 zone, and <code>mid</code> scans the unknown middle. If the value at <code>mid</code> is 0, swap it into the 0 zone and advance both <code>low</code> and <code>mid</code>. If it is 1, leave it and advance <code>mid</code>. If it is 2, swap it into the 2 zone and move <code>high</code> left without advancing <code>mid</code>, because the value swapped in has not been examined yet. The loop ends when <code>mid</code> passes <code>high</code>.</li>
+      <li><strong>Dry run.</strong> Start with [2, 0, 1], low = 0, mid = 0, high = 2. Each row shows the state before one step.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Step</th><th>Array</th><th>low</th><th>mid</th><th>high</th><th>Action</th></tr></thead><tbody><tr><td>1</td><td>[2, 0, 1]</td><td>0</td><td>0</td><td>2</td><td>value 2, swap with high, high becomes 1</td></tr><tr><td>2</td><td>[1, 0, 2]</td><td>0</td><td>0</td><td>1</td><td>value 1, advance mid</td></tr><tr><td>3</td><td>[1, 0, 2]</td><td>0</td><td>1</td><td>1</td><td>value 0, swap with low, advance low and mid</td></tr><tr><td>4</td><td>[0, 1, 2]</td><td>1</td><td>2</td><td>1</td><td>mid is past high, stop</td></tr></tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def sort_colors(nums):
+    """Dutch national flag: 0s to the front, 2s to the back, 1s in the middle."""
+    low = 0                       # nums[:low] are all 0
+    mid = 0                       # nums[low:mid] are all 1; nums[mid] is the scanner
+    high = len(nums) - 1          # nums[high + 1:] are all 2
+    while mid &lt;= high:
+        if nums[mid] == 0:
+            nums[low], nums[mid] = nums[mid], nums[low]
+            low += 1
+            mid += 1
+        elif nums[mid] == 1:
+            mid += 1
+        else:                     # the value is 2
+            nums[mid], nums[high] = nums[high], nums[mid]
+            high -= 1             # do not advance mid: the swapped-in value is unchecked
+    return nums                   # LeetCode's version returns nothing and edits in place
+
+
+print(sort_colors([2, 0, 2, 1, 1, 0]))
+print(sort_colors([2, 0, 1]))
+print(sort_colors([]))</code></pre>
+    <pre class="output">[0, 0, 1, 1, 2, 2]
+[0, 1, 2]
+[]</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note trap"><p><span class="t">Trap</span>When the value at mid is 2, do not advance mid. Advancing it would skip a value that was just swapped in from the end and has never been examined.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you must partition an array into groups in one pass, keep one pointer per boundary and a scanner. This is the same idea behind the partition step of quick sort.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/kth-largest-element-in-an-array/">
+    <h3>Kth Largest Element in an Array (LeetCode 215)</h3>
+    <div class="statement"><p>Given an unsorted array <code>nums</code> and an integer <code>k</code>, return the kth largest element in sorted order. Duplicates count separately. For example, with <code>nums = [3, 2, 1, 5, 6, 4]</code> and <code>k = 2</code>, the answer is 5, because the values in descending order are 6, 5, 4, 3, 2, 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> You do not need the whole array in order, only one element. The value k is at least 1 and at most the length of the array.</li>
+      <li><strong>Brute force.</strong> Sort the array in descending order and take index k minus 1. Correct, and the cost is O(n log n) because of the sort.</li>
+      <li><strong>Find the waste.</strong> Sorting orders all n elements, but you only need the top k. Everything below the top k is wasted work.</li>
+      <li><strong>Optimise.</strong> Keep a <strong>min-heap</strong> of size k. A min-heap gives the smallest element in O(1) and inserts or removes in O(log k). Push each number; whenever the heap holds more than k items, pop the smallest. At the end the heap holds the k largest numbers, and its root is the smallest of them, which is the kth largest. The cost is O(n log k). Quickselect, a partition-based method, gives O(n) on average, and it is a good follow-up to mention.</li>
+      <li><strong>Dry run.</strong> With k = 2 and the values 3, 2, 1, 5, 6, 4 in order: push 3, then push 2 (the heap is 2, 3). Push 1, which makes three items, so pop 1 and keep 2, 3. Push 5 and pop 2, leaving 3, 5. Push 6 and pop 3, leaving 5, 6. Push 4 and pop 4, leaving 5, 6. The root, 5, is the answer.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>import heapq
+
+
+def find_kth_largest(nums, k):
+    """Return the kth largest value using a min-heap of size k."""
+    heap = []                     # a min-heap: heap[0] is always the smallest item
+    for x in nums:
+        heapq.heappush(heap, x)
+        if len(heap) &gt; k:
+            heapq.heappop(heap)   # drop the smallest, keeping only the k largest
+    return heap[0]                # the smallest of the k largest is the kth largest
+
+
+print(find_kth_largest([3, 2, 1, 5, 6, 4], 2))
+print(find_kth_largest([3, 2, 3, 1, 2, 4, 5, 5, 6], 4))
+print(find_kth_largest([7], 1))</code></pre>
+    <pre class="output">5
+4
+7</pre>
+    <p class="cx">Time O(n log k) · Space O(k)</p>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>Can you do better than O(n log k)? Quickselect runs in O(n) on average by partitioning like quick sort but recursing into only one side. Its worst case is O(n^2), which random pivots make very unlikely.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need the top k or the kth element and k is much smaller than n, keep a heap of size k rather than sorting everything.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/count-of-smaller-numbers-after-self/">
+    <h3>Count of Smaller Numbers After Self (LeetCode 315)</h3>
+    <div class="statement"><p>Given an integer array <code>nums</code>, return an array <code>counts</code> where <code>counts[i]</code> is the number of elements to the right of position i that are strictly smaller than <code>nums[i]</code>. For example, with <code>nums = [5, 2, 6, 1]</code>, the answer is <code>[2, 1, 1, 0]</code>. For the 5, the smaller numbers to its right are 2 and 1, so the count is 2. For the 2, only 1 is smaller, so the count is 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> "Strictly smaller" means equal values do not count. The answer has one number per position, and the array can be large, so the target is O(n log n).</li>
+      <li><strong>Brute force.</strong> For each i, scan every j after it and count the smaller values. This is O(n^2). It is simple and correct, and a good first answer to say out loud.</li>
+      <li><strong>Find the waste.</strong> Each comparison is repeated for many positions. If we could sort the right part as we go, the counts would come almost for free.</li>
+      <li><strong>Optimise.</strong> Use merge sort, and during each merge count the smaller values that the merge passes over. Suppose the merge places a left value a. Every right value already placed was strictly smaller than a, because we only place a right value when it is strictly smaller than the current left value. Those right values all sit to the right of a in the original array, so they are exactly the smaller elements after a. Add the number of right values placed so far to a's count. To keep track of original positions, the merge sorts indices rather than values. The cost is O(n log n).</li>
+      <li><strong>Dry run.</strong> Split [5, 2, 6, 1] into [5, 2] and [6, 1]. Merging [5, 2] places 2 first, then 5 is placed after one right value has gone, so 5 gets 1. Merging [6, 1] places 1 first, so 6 gets 1. Now merge [2, 5] with [1, 6]. The 1 is placed first, so it is counted as one right value taken. The 2 is placed next and gets 1 in this merge, and the 5 is placed and gets 1 more, so 5 has 2 in total. The 6 keeps the 1 from its own merge. Original order: 5 gets 2, 2 gets 1, 6 gets 1, 1 gets 0, giving [2, 1, 1, 0].</li>
+    </ol>
+    <div class="note trap"><p><span class="t">Trap</span>Place the left value when it is less than or equal to the right value, not strictly less. Placing the right value on a tie would count equal numbers as smaller, which the problem does not allow.</p></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def count_smaller_brute(nums):
+    """O(n^2): for each position, scan everything to its right."""
+    n = len(nums)
+    result = []
+    for i in range(n):
+        result.append(sum(1 for j in range(i + 1, n) if nums[j] &lt; nums[i]))
+    return result
+
+
+def count_smaller(nums):
+    """O(n log n): merge sort on indices, counting right-side values during each merge."""
+    n = len(nums)
+    counts = [0] * n
+    order = list(range(n))        # order holds original indices, sorted by their values
+
+    def sort_range(lo, hi):
+        if hi - lo &lt;= 1:
+            return
+        mid = (lo + hi) // 2
+        sort_range(lo, mid)
+        sort_range(mid, hi)
+        merged = []
+        i, j = lo, mid
+        right_taken = 0           # right-half values already placed before the current left value
+        while i &lt; mid or j &lt; hi:
+            take_left = j &gt;= hi or (i &lt; mid and nums[order[i]] &lt;= nums[order[j]])
+            if take_left:
+                counts[order[i]] += right_taken
+                merged.append(order[i])
+                i += 1
+            else:
+                merged.append(order[j])
+                j += 1
+                right_taken += 1
+        order[lo:hi] = merged
+
+    sort_range(0, n)
+    return counts
+
+
+print(count_smaller_brute([5, 2, 6, 1]))
+print(count_smaller([5, 2, 6, 1]))
+print(count_smaller([2, 0, 1]))
+print(count_smaller([1, 1, 1]))</code></pre>
+    <pre class="output">[2, 1, 1, 0]
+[2, 1, 1, 0]
+[2, 0, 0]
+[0, 0, 0]</pre>
+    <p class="cx">Brute force: time O(n^2) · space O(n). Merge sort version: time O(n log n) · space O(n)</p>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>Is there another way? Yes. A Fenwick tree (binary indexed tree) over the compressed values counts smaller elements as you scan from right to left, also in O(n log n). Mentioning it shows you know more than one technique.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>Merge sort is not only a sorting tool. Any question that counts pairs (i, j) with i before j and a comparison between their values can often be answered by counting during the merge.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Virtualization</dt><dd>Software that makes one physical machine act like several isolated machines.</dd></div>
+    <div><dt>Hypervisor</dt><dd>The software that creates and runs virtual machines and keeps them isolated.</dd></div>
+    <div><dt>Type 1 hypervisor</dt><dd>Runs directly on the hardware, such as ESXi, Hyper-V or Xen.</dd></div>
+    <div><dt>Type 2 hypervisor</dt><dd>Runs as an application on a host operating system, such as VirtualBox.</dd></div>
+    <div><dt>Virtual machine (VM)</dt><dd>A guest with virtual hardware and its own operating system and kernel.</dd></div>
+    <div><dt>Paravirtualization</dt><dd>A modified guest OS that makes hypercalls to the hypervisor instead of privileged instructions.</dd></div>
+    <div><dt>Hardware-assisted virtualization</dt><dd>CPU features, such as Intel VT-x and AMD-V, that let guests run at near full speed.</dd></div>
+    <div><dt>Container</dt><dd>An isolated process that shares the host kernel, with namespaces and cgroups.</dd></div>
+    <div><dt>Namespace</dt><dd>A kernel feature that gives a process its own view of a global resource, such as PIDs or network interfaces.</dd></div>
+    <div><dt>cgroup</dt><dd>A kernel feature that limits and accounts for CPU, memory, I/O and process counts.</dd></div>
+    <div><dt>Image</dt><dd>A read-only template, built from layers, from which containers are started.</dd></div>
+    <div><dt>Layer</dt><dd>A cached filesystem difference created by one Dockerfile instruction, identified by its digest.</dd></div>
+    <div><dt>Dockerfile</dt><dd>A text file of instructions that describes how to build an image.</dd></div>
+    <div><dt>Writable layer</dt><dd>The thin layer added on top of an image when a container starts; lost when the container is removed.</dd></div>
+    <div><dt>Volume</dt><dd>Storage managed by Docker that survives container removal.</dd></div>
+    <div><dt>Bind mount</dt><dd>A host directory mapped into a container.</dd></div>
+    <div><dt>User-defined network</dt><dd>A Docker network on which containers resolve each other by name.</dd></div>
+    <div><dt>Docker Compose</dt><dd>A YAML file that describes and starts a multi-container application.</dd></div>
+    <div><dt>Cluster</dt><dd>A set of machines managed by Kubernetes: a control plane and worker nodes.</dd></div>
+    <div><dt>kube-apiserver</dt><dd>The REST front door of the control plane, through which all cluster changes pass.</dd></div>
+    <div><dt>etcd</dt><dd>The consistent key-value store that holds the cluster state.</dd></div>
+    <div><dt>kubelet</dt><dd>The node agent that makes sure the containers for its node are running and healthy.</dd></div>
+    <div><dt>Reconciliation loop</dt><dd>A controller's cycle of comparing desired state with actual state and acting on the difference.</dd></div>
+    <div><dt>Pod</dt><dd>The smallest schedulable unit: one or more containers sharing a network address.</dd></div>
+    <div><dt>ReplicaSet</dt><dd>A controller that keeps a fixed number of identical pods running.</dd></div>
+    <div><dt>Deployment</dt><dd>A controller that manages a ReplicaSet and provides rolling updates and rollbacks.</dd></div>
+    <div><dt>Service</dt><dd>A stable IP and DNS name that load balances across the pods matching its selector.</dd></div>
+    <div><dt>Ingress</dt><dd>HTTP and HTTPS routing rules from outside the cluster to Services.</dd></div>
+    <div><dt>ConfigMap and Secret</dt><dd>Objects that inject configuration into pods; Secrets are base64-encoded, not encrypted by default.</dd></div>
+    <div><dt>Label and selector</dt><dd>Key-value tags on objects, and queries that match them; the glue between objects.</dd></div>
+    <div><dt>Liveness and readiness probes</dt><dd>Liveness restarts a stuck container; readiness removes a pod from Service traffic until it is ready.</dd></div>
+    <div><dt>Divide and conquer</dt><dd>Split a problem into smaller copies, solve each, and combine the answers.</dd></div>
+    <div><dt>Merge sort</dt><dd>Sorts by splitting in half, sorting each half, and merging in linear time; O(n log n) and stable.</dd></div>
+    <div><dt>Quick sort</dt><dd>Partitions around a pivot and recurses; O(n log n) on average, O(n^2) worst case.</dd></div>
+    <div><dt>Stable sort</dt><dd>A sort that keeps equal elements in their original relative order.</dd></div>
+    <div><dt>Dutch national flag</dt><dd>A one-pass three-way partition that sorts an array of three distinct values.</dd></div>
+    <div><dt>Min-heap</dt><dd>A binary heap whose root is the smallest item, used to track the k largest values.</dd></div>
+    <div><dt>Counting smaller elements</dt><dd>Counting, during a merge, how many right-side values are placed before each left value.</dd></div>
+  </dl>
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>docker build -t name:tag .</code></td><td>Builds an image from the Dockerfile in the current directory</td><td><code>docker build -t myapp:1.0 .</code></td></tr>
+    <tr><td><code>docker run -d -p host:container</code></td><td>Starts a container in the background and publishes a port</td><td><code>docker run -d -p 8000:8000 myapp:1.0</code></td></tr>
+    <tr><td><code>docker run -v name:/path</code></td><td>Mounts a named volume into the container</td><td><code>docker run -v pgdata:/var/lib/postgresql/data postgres:16</code></td></tr>
+    <tr><td><code>docker run --network net</code></td><td>Attaches the container to a network so names resolve</td><td><code>docker run --network appnet --name api myapp:1.0</code></td></tr>
+    <tr><td><code>docker ps</code> and <code>docker logs name</code></td><td>Lists running containers and shows their output</td><td><code>docker logs web</code></td></tr>
+    <tr><td><code>docker exec -it name sh</code></td><td>Opens a shell in a running container</td><td><code>docker exec -it web sh</code></td></tr>
+    <tr><td><code>docker compose up -d</code> and <code>down</code></td><td>Starts or stops every service in the Compose file</td><td><code>docker compose up -d</code></td></tr>
+    <tr><td><code>FROM</code>, <code>COPY</code>, <code>RUN</code>, <code>CMD</code></td><td>Dockerfile instructions for base image, files, build commands and the default start command</td><td><code>COPY requirements.txt .</code></td></tr>
+    <tr><td><code>kubectl apply -f file.yaml</code></td><td>Creates or updates the objects in a file</td><td><code>kubectl apply -f deployment.yaml</code></td></tr>
+    <tr><td><code>kubectl get</code> and <code>describe</code></td><td>Lists objects, and shows their details and events</td><td><code>kubectl describe pod web-abc</code></td></tr>
+    <tr><td><code>kubectl logs pod</code></td><td>Shows the standard output of a container in a pod</td><td><code>kubectl logs web-abc</code></td></tr>
+    <tr><td><code>kubectl scale deployment</code></td><td>Changes the number of replicas</td><td><code>kubectl scale deployment web --replicas=5</code></td></tr>
+    <tr><td><code>kubectl rollout undo deployment/name</code></td><td>Returns a Deployment to its previous ReplicaSet</td><td><code>kubectl rollout undo deployment/web</code></td></tr>
+    <tr><td><code>heapq.heappush</code> and <code>heappop</code></td><td>Adds an item to a min-heap, and removes the smallest</td><td><code>heapq.heappush(h, 4)</code></td></tr>
+    <tr><td><code>sorted(items)</code></td><td>Returns a new sorted list (Timsort, stable)</td><td><code>sorted([3, 1, 2])</code> gives <code>[1, 2, 3]</code></td></tr>
+    <tr><td><code>base64.b64encode(data)</code></td><td>Encodes bytes as base64 text, which is not encryption</td><td><code>base64.b64encode(b"hi")</code> gives <code>b'aGk='</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 13?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 13 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-12.html"><small>Previous, day 12</small>OS 3: Memory, virtual memory, storage, Linux</a><a class="next" href="day-14.html"><small>Next, day 14</small>Sunday: Aptitude, review, Mock 2, resume and HR</a></nav>
+</main><script src="assets/app.js"></script></body></html>

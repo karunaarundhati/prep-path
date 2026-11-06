@@ -1,0 +1,740 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 36: Python data stack + Math for ML</title><meta name="description" content="Today is the Python data stack and the maths behind machine learning. You will learn how NumPy stores and computes on arrays (broadcasting, views versus copies, vectorisation), how Pandas organises tables (selection, groupby, merge, pivot, missing data), how to plot and run a first exploratory analysis, and the linear algebra, calculus and probability that explain why models learn. Interviewers ask about these ideas constantly, often as short calculations you should be able to do on paper."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="36" data-key="36" data-noun="day" data-num="36" data-track="ai">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Python data stack + Math for ML</h1>
+<p class="lede">Today is the Python data stack and the maths behind machine learning. You will learn how NumPy stores and computes on arrays (broadcasting, views versus copies, vectorisation), how Pandas organises tables (selection, groupby, merge, pivot, missing data), how to plot and run a first exploratory analysis, and the linear algebra, calculus and probability that explain why models learn. Interviewers ask about these ideas constantly, often as short calculations you should be able to do on paper.</p>
+<div class="station"><b>36</b><span>Mon 7 Dec 2026 · AI &amp; ML · DSA: Mixed set: trees and graphs</span></div>
+<ul class="topics"><li>NumPy: broadcasting and views</li><li>Pandas: selection, groupby, merge</li><li>Plots and EDA</li><li>Eigen and SVD</li><li>Gradients and gradient descent</li><li>Bayes, MLE and cross-entropy</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="NumPy">
+  <h2>NumPy: fast arrays for numerical work</h2>
+
+  <p>Python lists are flexible but slow for numerical work. Each element is a full Python object, and a loop over a million numbers sends every step through the interpreter. <strong>NumPy</strong> provides the <code>ndarray</code>, an array in which every element has the same type (the <strong>dtype</strong>) and the values sit side by side in memory. Operations on whole arrays run in compiled code. That is why NumPy is the foundation of the Python data stack: Pandas, scikit-learn and most plotting libraries use arrays under the hood, and PyTorch tensors follow the same ideas.</p>
+
+  <p>The usual import is <code>import numpy as np</code>. The <code>np</code> alias is a convention you will see in every tutorial, and interviewers expect it.</p>
+
+  <h3>Shapes, creation and axes</h3>
+  <p>An array has a <strong>shape</strong>, a tuple that gives the length along each axis. A one-dimensional array of three numbers has shape <code>(3,)</code>. A two-dimensional array with two rows and three columns has shape <code>(2, 3)</code>. Common constructors are <code>np.array</code> (from a list), <code>np.arange(start, stop, step)</code> (like <code>range</code>, but it returns an array), <code>np.zeros</code>, <code>np.ones</code>, <code>np.linspace</code> (evenly spaced values that include both ends) and <code>np.random.default_rng(seed)</code> for random numbers. A fixed seed makes random results reproducible.</p>
+
+  <p>The <strong>axis</strong> argument chooses the direction of an operation. For a two-dimensional array, <code>axis=0</code> runs down the rows, so it works column by column. <code>axis=1</code> runs across the columns, so it works row by row. Many candidates mix these up, so say the direction out loud when you answer.</p>
+
+  <pre class="code" data-lang="python"><code>import numpy as np
+
+a = np.array([1, 2, 3])                # shape (3,)
+b = np.array([[1, 2, 3], [4, 5, 6]])   # shape (2, 3)
+b.reshape(3, 2)    # shape (3, 2), the same six values in a new layout
+b.sum(axis=0)      # array([5, 7, 9]), one sum per column
+b.sum(axis=1)      # array([ 6, 15]), one sum per row</code></pre>
+
+  <p>These examples do not print, so no output block follows them. The comments show the values that NumPy returns. Note that <code>reshape</code> does not copy the data when it can avoid it. It only changes how the same values are indexed.</p>
+
+  <h3>Broadcasting: arithmetic on arrays of different shapes</h3>
+  <p><strong>Broadcasting</strong> is NumPy's rule for combining arrays whose shapes differ. Here is the rule, step by step. Line up the shapes from the right. For each pair of dimensions, they are compatible if they are equal, or if one of them is 1. A missing leading dimension counts as 1. NumPy then stretches the size-1 dimensions to match the other array, without copying the data in memory.</p>
+
+  <p>Worked example: adding a row vector of shape <code>(3,)</code> to a matrix of shape <code>(2, 3)</code>. The row is treated as shape <code>(1, 3)</code>, and the first dimension stretches from 1 to 2. So the same row is added to each of the two rows of the matrix. A column of shape <code>(3, 1)</code> plus a row of shape <code>(4,)</code> gives a grid of shape <code>(3, 4)</code>, where each cell is the column value plus the row value.</p>
+
+  <pre class="code" data-lang="python"><code>import numpy as np
+
+col = np.array([[1], [2], [3]])   # shape (3, 1)
+row = np.array([10, 20, 30, 40]) # shape (4,), treated as (1, 4)
+grid = col + row                 # shape (3, 4)
+# grid[0] is array([11, 21, 31, 41])
+# grid[2] is array([13, 23, 33, 43])</code></pre>
+
+  <p>To see what broadcasting does without NumPy, here is the same row addition written with plain Python lists. NumPy does this loop in compiled code, without building the intermediate lists:</p>
+
+  <pre class="code" data-lang="python"><code>matrix = [[1, 2, 3], [4, 5, 6]]
+row = [10, 20, 30]
+result = [[x + y for x, y in zip(line, row)] for line in matrix]
+print(result)</code></pre>
+  <pre class="output">[[11, 22, 33], [14, 25, 36]]</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Shapes that look close are not compatible. A shape <code>(3,)</code> cannot be added to <code>(4,)</code>, and NumPy raises a ValueError. The usual fix is to reshape one operand so that the dimension you want to stretch is 1 and the others line up.</p></div>
+
+  <h3>Vectorisation: replace loops with whole-array expressions</h3>
+  <p><strong>Vectorisation</strong> means writing an operation on whole arrays instead of a Python loop over the elements. It is shorter, easier to read and much faster, because the work happens inside NumPy's compiled code. The following code computes the total cost of several items. The loop version is correct too, but it is slower and longer.</p>
+
+  <pre class="code" data-lang="python"><code>import numpy as np
+
+prices = np.array([120.0, 45.5, 300.0])
+quantities = np.array([2, 10, 1])
+
+# Vectorised: one expression, no Python loop
+total = np.sum(prices * quantities)   # 995.0
+
+# The same idea as a loop, for comparison
+total_loop = 0.0
+for p, q in zip(prices, quantities):
+    total_loop += p * q               # also 995.0</code></pre>
+
+  <p>An interviewer may ask why vectorised code is faster. The answer has three parts: the loop over elements runs inside compiled code rather than the interpreter, the data is stored contiguously so the processor reads it efficiently, and the operation avoids creating a Python object for every element.</p>
+
+  <h3>Views versus copies</h3>
+  <p>This is the most common NumPy trap. A <strong>view</strong> is an array that shares memory with another array. A <strong>copy</strong> owns its own memory. Slicing with a range, such as <code>a[1:4]</code>, returns a view. Indexing with a list of positions (fancy indexing) or with a boolean mask returns a copy. Changing a view changes the original array.</p>
+
+  <pre class="code" data-lang="python"><code>import numpy as np
+
+a = np.arange(6)     # array([0, 1, 2, 3, 4, 5])
+b = a[1:4]           # a slice: a view that shares memory with a
+b[0] = 99            # this also changes a, because b is a view
+# a is now array([0, 99, 2, 3, 4, 5])
+
+c = a[[0, 2]]        # a list of positions: fancy indexing gives a copy
+c[0] = -1            # a is unchanged by this line
+
+d = a[a &gt; 3].copy()  # a boolean mask gives a copy; .copy() makes it explicit</code></pre>
+
+  <p>To check whether two arrays share memory, use <code>np.shares_memory(a, b)</code>. The rule to remember: a basic slice is a view, and fancy or boolean indexing is a copy. If you need to keep the original values, call <code>.copy()</code> on the slice first.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A function that receives an array slice can modify the caller's data without making it obvious. If a function must not change its input, copy the array at the start of the function.</p></div>
+
+  <details class="check"><summary>What is the difference between a view and a copy in NumPy, and which indexing creates which?</summary><div class="ans"><p>A view shares memory with the array it came from, so writing to it changes the original. A copy has its own memory. Basic slicing such as <code>a[1:4]</code> returns a view, while fancy indexing with a list of positions and boolean masking return copies. Use <code>.copy()</code> when you need an independent array.</p></div></details>
+
+  <details class="check"><summary>Explain broadcasting for an array of shape (3, 1) plus an array of shape (4,).</summary><div class="ans"><p>Align the shapes from the right. The last dimensions are 1 and 4, so the 1 stretches to 4. The first dimensions are 3 and missing, which counts as 1, so the result has 3 rows. The result has shape (3, 4), and each cell is the column value plus the row value.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Pandas">
+  <h2>Pandas: tables for data work</h2>
+
+  <p><strong>Pandas</strong> builds on NumPy and adds labelled tables. A <strong>DataFrame</strong> is a table with named columns and a row index. A <strong>Series</strong> is one column with its index. Pandas is where most real data cleaning happens, so interviewers often ask you to explain what a selection or a join returns.</p>
+
+  <pre class="code" data-lang="python"><code>import pandas as pd
+
+df = pd.DataFrame({
+    "name": ["Asha", "Ravi", "Meera", "Dev"],
+    "city": ["Pune", "Delhi", "Pune", "Chennai"],
+    "score": [82, 67, 91, None],
+})</code></pre>
+
+  <p>The table this creates looks like this. The first column is the index, which pandas adds automatically. The <code>None</code> in the score column is treated as a missing value, which pandas shows as <code>NaN</code> (not a number). Because a numeric column with a missing value must store floating-point numbers, the score column becomes a float column, and the integers display with a decimal point.</p>
+
+  <div class="tablewrap"><table><thead><tr><th>index</th><th>name</th><th>city</th><th>score</th></tr></thead><tbody>
+    <tr><td>0</td><td>Asha</td><td>Pune</td><td>82.0</td></tr>
+    <tr><td>1</td><td>Ravi</td><td>Delhi</td><td>67.0</td></tr>
+    <tr><td>2</td><td>Meera</td><td>Pune</td><td>91.0</td></tr>
+    <tr><td>3</td><td>Dev</td><td>Chennai</td><td>NaN</td></tr>
+  </tbody></table></div>
+
+  <h3>Inspecting data first</h3>
+  <p>Before any analysis, look at the data. <code>df.head()</code> shows the first rows, <code>df.shape</code> gives the number of rows and columns, <code>df.dtypes</code> lists each column's type, <code>df.info()</code> summarises types and non-missing counts, and <code>df.describe()</code> gives count, mean, standard deviation, minimum, quartiles and maximum for numeric columns. <code>df.isna().sum()</code> counts the missing values in each column. These checks take a minute and prevent most surprises later.</p>
+
+  <h3>Selection: loc versus iloc</h3>
+  <p>Selection is the most tested pandas skill. <code>loc</code> selects by <strong>label</strong>, and <code>iloc</code> selects by integer <strong>position</strong>. The difference matters at the ends of a slice. With <code>loc</code>, a slice includes the end label. With <code>iloc</code>, it excludes the end position, as in plain Python.</p>
+
+  <pre class="code" data-lang="python"><code>df["score"]                        # one column, returned as a Series
+df[["name", "score"]]              # several columns, returned as a DataFrame
+df.loc[1, "score"]                 # row labelled 1, column score: 67.0
+df.iloc[0:2]                       # positions 0 and 1 only: Asha and Ravi
+df.loc[0:2]                        # labels 0, 1 and 2: Asha, Ravi and Meera
+df.loc[df["score"] &gt; 80, "name"]   # boolean mask: Asha and Meera</code></pre>
+
+  <p>These examples do not print, so no output block follows them. The comments give the results. In the last line, Dev has a missing score, and a comparison with a missing value is false, so Dev is not selected.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Chained indexing, such as <code>df[df["score"] &gt; 80]["name"] = "x"</code>, may write to a temporary copy and change nothing, and pandas warns about it. Assign with one call instead: <code>df.loc[df["score"] &gt; 80, "name"] = "x"</code>.</p></div>
+
+  <h3>groupby: split, apply, combine</h3>
+  <p><code>groupby</code> splits the table into groups by a key, applies an aggregate to each group, and combines the results. The pattern is often described as split-apply-combine. Here the average score for each city:</p>
+
+  <pre class="code" data-lang="python"><code>df.groupby("city")["score"].mean()</code></pre>
+
+  <p>The result is a Series indexed by city, in alphabetical order. Chennai shows NaN because its only row has a missing score, and the mean skips missing values, so the group has nothing left to average. Delhi has one score of 67.0, and Pune has the scores 82 and 91, so its mean is 86.5. To count rows per group instead, use <code>df.groupby("city").size()</code>. To apply several aggregates at once, use <code>.agg(["mean", "max"])</code>.</p>
+
+  <h3>merge: joining tables on a key</h3>
+  <p><code>merge</code> joins two tables on matching key columns, like a SQL join. The <code>how</code> argument chooses which rows are kept. Suppose a second table maps cities to states:</p>
+
+  <pre class="code" data-lang="python"><code>states = pd.DataFrame({"city": ["Pune", "Delhi"], "state": ["Maharashtra", "Delhi"]})
+
+df.merge(states, on="city", how="left")    # keep every row of df
+df.merge(states, on="city", how="inner")   # keep only cities found in both tables</code></pre>
+
+  <p>With <code>how="left"</code>, all four people stay. Asha, Ravi and Meera get their states, and Dev gets NaN in the state column because Chennai is not in the states table. With <code>how="inner"</code>, Dev is dropped entirely and the result has three rows. The other options are <code>"right"</code>, which keeps every row of the second table, and <code>"outer"</code>, which keeps every row from both.</p>
+
+  <h3>pivot: reshaping from long to wide</h3>
+  <p>A <strong>long</strong> table has one row per observation, and a <strong>wide</strong> table spreads one variable across columns. <code>pivot</code> turns long data into wide data. For example, <code>df.pivot(index="name", columns="city", values="score")</code> gives one row per name and one column per city, with the score in each cell. Cells with no matching row are NaN. Pivot needs each index and column pair to be unique. When duplicates exist, use <code>pivot_table</code>, which aggregates them with a function such as the mean.</p>
+
+  <h3>Missing data: find it, then decide</h3>
+  <p>Missing values appear as NaN for numbers and None or NaN for objects. The rule is that NaN is not equal to anything, not even to itself, so you must test for missing values with <code>isna()</code> and never with <code>== np.nan</code>. Three tools handle most cases:</p>
+  <ul>
+    <li><strong>dropna()</strong> removes rows (or columns) that contain missing values. It is simple, but it can throw away a lot of data.</li>
+    <li><strong>fillna(value)</strong> replaces missing values with a constant, or with a column mean or median. Carrying the previous value forward is a separate call, <code>ffill()</code>.</li>
+    <li><strong>interpolate()</strong> estimates missing numbers from their neighbours, which suits ordered data such as time series.</li>
+  </ul>
+
+  <pre class="code" data-lang="python"><code>df.dropna()                                          # Dev is removed
+df.assign(score=df["score"].fillna(df["score"].mean()))  # Dev gets 80.0</code></pre>
+
+  <p>The mean of the three known scores is (82 + 67 + 91) / 3 = 80.0, so filling Dev's score with the mean gives 80.0. Mean imputation keeps the average unchanged for that column but reduces its spread, which is a trade-off to mention in an interview. Always decide why a value is missing before you fill it. A missing score might mean the test was not taken, which is different from a score of zero.</p>
+
+  <details class="check"><summary>What is the difference between loc and iloc, and what does each include at the end of a slice?</summary><div class="ans"><p>loc selects by label and iloc selects by integer position. A loc slice includes the end label, so <code>df.loc[0:2]</code> returns labels 0, 1 and 2. An iloc slice excludes the end position, so <code>df.iloc[0:2]</code> returns positions 0 and 1. This difference matters whenever the index is not the default 0, 1, 2 sequence.</p></div></details>
+
+  <details class="check"><summary>What does groupby do, and why does Chennai show NaN in the mean?</summary><div class="ans"><p>groupby splits the rows into groups by a key, applies an aggregate to each group, and combines the results into one object. Chennai has only one row, and its score is missing. The mean skips missing values, so the group has no values left, and its result is NaN.</p></div></details>
+
+  <details class="check"><summary>What do the how options of merge mean, and when would you use an inner join?</summary><div class="ans"><p>how="left" keeps all rows of the left table and fills missing matches with NaN. how="right" keeps all rows of the right table. how="outer" keeps all rows of both. how="inner" keeps only rows whose key exists in both tables. Use inner when you need complete records only, and left when the main table must stay complete.</p></div></details>
+
+  <details class="check"><summary>Why must you test for missing values with isna() rather than with equality?</summary><div class="ans"><p>NaN is not equal to any value, including itself, so an expression such as <code>x == np.nan</code> is always false. The reliable test is <code>isna()</code>, which returns True for each missing value. It is the test that works for both NaN and None in object columns.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Plots and EDA">
+  <h2>Plots and exploratory data analysis</h2>
+
+  <p><strong>Exploratory data analysis (EDA)</strong> is the stage where you examine the data before modelling. Its goals are to find errors, understand the distributions, see how variables relate, and form hypotheses. A good EDA is cheap, and it often shows that the question needs a different answer than the one first asked.</p>
+
+  <h3>Matplotlib: the figure and the axes</h3>
+  <p><strong>Matplotlib</strong> is the base plotting library. Its object-oriented style is the one to use in code and in interviews. A <strong>figure</strong> is the whole picture, and an <strong>axes</strong> is one plot inside it. You create both with <code>plt.subplots()</code>, draw on the axes with methods such as <code>ax.hist</code> and <code>ax.scatter</code>, and label the axes with <code>ax.set_title</code>, <code>ax.set_xlabel</code> and <code>ax.set_ylabel</code>.</p>
+
+  <pre class="code" data-lang="python"><code>import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.hist(df["score"].dropna(), bins=5)
+ax.set_title("Distribution of scores")
+ax.set_xlabel("Score")
+ax.set_ylabel("Number of students")
+plt.show()</code></pre>
+
+  <p>The histogram counts how many values fall into each bin. Always label the axes, because a plot without units or titles is hard to trust. Pass <code>dropna()</code> first, because the histogram cannot draw missing values.</p>
+
+  <h3>Seaborn: statistical plots from a DataFrame</h3>
+  <p><strong>Seaborn</strong> is built on Matplotlib and works directly with DataFrames. You name the columns, and it takes care of grouping, colours and confidence intervals. It is the quickest way to draw distributions, box plots, scatter plots and correlation heatmaps.</p>
+
+  <pre class="code" data-lang="python"><code>import seaborn as sns
+
+sns.histplot(data=df, x="score", bins=5)
+sns.boxplot(data=df, x="city", y="score")
+
+numeric = df.select_dtypes("number")
+sns.heatmap(numeric.corr(), annot=True)</code></pre>
+
+  <p>A box plot shows the median, the middle half of the data (the box), and the points far from the box, which are candidate outliers. A heatmap of <code>corr()</code> shows the correlation between each pair of numeric columns. Correlation only measures linear association, so a strong curved relationship can show a correlation near zero.</p>
+
+  <h3>Choosing the right chart</h3>
+  <div class="tablewrap"><table><thead><tr><th>Question</th><th>Good chart</th><th>Why</th></tr></thead><tbody>
+    <tr><td>How is one numeric variable distributed?</td><td>Histogram or KDE</td><td>Shows shape, skew and multiple peaks</td></tr>
+    <tr><td>Are there outliers, and how do groups compare?</td><td>Box plot</td><td>Shows median, spread and extreme points for each group</td></tr>
+    <tr><td>How do two numeric variables relate?</td><td>Scatter plot</td><td>Shows direction, strength and non-linear shapes</td></tr>
+    <tr><td>How do many variables relate at once?</td><td>Correlation heatmap or pair plot</td><td>Summarises all pairs in one view</td></tr>
+    <tr><td>How many items are in each category?</td><td>Bar chart</td><td>Lengths are easy to compare</td></tr>
+  </tbody></table></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>A bar chart whose axis does not start at zero exaggerates small differences. For bars, keep the baseline at zero. For scatter plots and line charts, a narrower range is acceptable, but say so in the title.</p></div>
+
+  <h3>An EDA workflow you can follow every time</h3>
+  <ol>
+    <li><strong>State the question.</strong> Write down what decision the analysis should support.</li>
+    <li><strong>Load and inspect.</strong> Check the shape, the column types, the first rows and the summary statistics with <code>describe()</code>.</li>
+    <li><strong>Check quality.</strong> Count missing values, look for duplicate rows with <code>df.duplicated().sum()</code>, and check that categories are spelled consistently.</li>
+    <li><strong>Look at each variable alone.</strong> Plot distributions, and note skew, impossible values and suspicious spikes.</li>
+    <li><strong>Look at relationships.</strong> Compare groups with <code>groupby</code>, plot pairs of variables, and inspect the correlation matrix.</li>
+    <li><strong>Decide about outliers.</strong> Keep, cap or remove them, but record the reason. An outlier can be a data-entry error or the most important case.</li>
+    <li><strong>Clean and create features.</strong> Fix types, handle missing values, and create columns that express the question more directly.</li>
+    <li><strong>Write down hypotheses.</strong> List the patterns that a model or a test should check, and note what you still do not know.</li>
+  </ol>
+
+  <details class="check"><summary>What is the difference between a figure and an axes in Matplotlib?</summary><div class="ans"><p>The figure is the whole canvas, and it can hold several plots. The axes is one plot inside a figure, with its own x and y ranges, labels and drawing methods. You draw on the axes, and you lay out or save the figure.</p></div></details>
+
+  <details class="check"><summary>Which chart would you use to find outliers in a numeric column for several groups?</summary><div class="ans"><p>A box plot with one box per group. It shows the median, the interquartile range and the points beyond the whiskers, which makes outliers and differences in spread easy to compare across groups.</p></div></details>
+
+  <details class="check"><summary>Why is a correlation of 0 not proof that two variables are unrelated?</summary><div class="ans"><p>The Pearson correlation measures only linear association. Two variables can have a strong non-linear relationship, such as y equal to x squared on values symmetric around zero, and still show a correlation of 0. A scatter plot reveals such patterns.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Linear algebra">
+  <h2>Linear algebra for machine learning</h2>
+
+  <p>Linear algebra is the language of data and models. A row of features is a <strong>vector</strong>, a table of rows is a <strong>matrix</strong>, and most model computations are matrix products. Three ideas come up again and again in interviews: the dot product, eigenvectors and the singular value decomposition.</p>
+
+  <h3>Vectors and the dot product</h3>
+  <p>The <strong>dot product</strong> of two vectors of the same length multiplies matching entries and adds the results: a dot b equals the sum of a_i times b_i. For example, <code>[1, 2, 3]</code> dot <code>[4, 5, 6]</code> is 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32. The dot product of a weight vector and a feature vector is exactly the score a linear model computes. The <strong>cosine similarity</strong> divides the dot product by the two vector lengths. It measures the angle between vectors, not their size, and it is the standard way to compare text embeddings.</p>
+
+  <h3>Matrix multiplication</h3>
+  <p>A matrix of shape (m, n) times a matrix of shape (n, p) gives shape (m, p). The inner sizes must match, and the outer sizes give the result. Each result entry (i, j) is the dot product of row i of the left matrix and column j of the right matrix. For example, <code>[[1, 2], [3, 4]]</code> times <code>[[0, 1], [1, 0]]</code> gives <code>[[2, 1], [4, 3]]</code>. Entry (1, 1) is row (1, 2) dot column (0, 1), which is 0 + 2 = 2.</p>
+
+  <p>Matrix multiplication is not commutative: A times B is usually different from B times A. A linear model with many examples is written as y = Xw, where X holds one row per example and w is the weight vector. The whole prediction is one matrix-vector product.</p>
+
+  <h3>Eigenvalues and eigenvectors</h3>
+  <p>A matrix usually rotates and stretches a vector. An <strong>eigenvector</strong> is a special vector that keeps its direction when the matrix is applied, so only its length changes. The change in length is the <strong>eigenvalue</strong> lambda. The definition is A v = lambda v. For a symmetric matrix, all eigenvalues are real, and eigenvectors for different eigenvalues are perpendicular.</p>
+
+  <p>In data science, the covariance matrix of centred data is symmetric. Its eigenvectors are the <strong>principal components</strong>, the directions of greatest variance, and its eigenvalues tell how much variance lies along each direction. <strong>Principal component analysis (PCA)</strong> keeps the top eigenvectors and drops the rest. The fraction of variance kept by component i is lambda_i divided by the sum of all eigenvalues.</p>
+
+  <p>Here is a small check with a symmetric matrix <code>[[2, 1], [1, 2]]</code>. Its eigenvalues come from the characteristic equation lambda squared minus the trace times lambda plus the determinant equals zero. The trace is 4 and the determinant is 3, so the eigenvalues are 3 and 1. The vector (1, 1) is an eigenvector with eigenvalue 3.</p>
+
+  <pre class="code" data-lang="python"><code>import math
+
+# Symmetric matrix A = [[2, 1], [1, 2]]
+a, b, c, d = 2, 1, 1, 2
+trace = a + d
+det = a * d - b * c
+disc = trace * trace - 4 * det
+l1 = (trace + math.sqrt(disc)) / 2
+l2 = (trace - math.sqrt(disc)) / 2
+print("eigenvalues:", l1, l2)
+
+# Check that A v = lambda v for v = (1, 1)
+v1 = (1, 1)
+Av1 = (a * v1[0] + b * v1[1], c * v1[0] + d * v1[1])
+print("A v1 =", Av1, "lambda1 * v1 =", (l1 * v1[0], l1 * v1[1]))</code></pre>
+  <pre class="output">eigenvalues: 3.0 1.0
+A v1 = (3, 3) lambda1 * v1 = (3.0, 3.0)</pre>
+
+  <p>The output confirms the definition. Applying A to (1, 1) gives (3, 3), which is three times the original vector, so the eigenvalue is 3.</p>
+
+  <h3>Singular value decomposition (SVD)</h3>
+  <p>The <strong>singular value decomposition</strong> factors any matrix A, even a rectangular one, as A = U times Sigma times V transpose. U and V have orthonormal columns, and Sigma is a diagonal matrix of non-negative <strong>singular values</strong>, sorted from largest to smallest. The singular values are the square roots of the eigenvalues of A transpose times A. SVD underlies PCA, low-rank approximation, recommender systems and the pseudo-inverse used in least squares.</p>
+
+  <p>The most useful consequence is the <strong>truncated SVD</strong>. Keeping only the largest k singular values gives the best rank-k approximation of A in the least squares sense, which is the Eckart-Young theorem. This is how image compression and latent-factor models work: the data is replaced by a smaller set of directions that captures most of its energy.</p>
+
+  <p>The next program computes the singular values of <code>[[1, 2], [3, 4]]</code> from the eigenvalues of A transpose times A, using only the standard library:</p>
+
+  <pre class="code" data-lang="python"><code>import math
+
+M = [[1, 2], [3, 4]]
+AtA = [[sum(M[k][i] * M[k][j] for k in range(2)) for j in range(2)] for i in range(2)]
+tr = AtA[0][0] + AtA[1][1]
+dt = AtA[0][0] * AtA[1][1] - AtA[0][1] * AtA[1][0]
+dd = math.sqrt(tr * tr - 4 * dt)
+s1 = math.sqrt((tr + dd) / 2)
+s2 = math.sqrt((tr - dd) / 2)
+print("A^T A =", AtA)
+print("singular values:", round(s1, 4), round(s2, 4))</code></pre>
+  <pre class="output">A^T A = [[10, 14], [14, 20]]
+singular values: 5.465 0.366</pre>
+
+  <p>The singular values are about 5.465 and 0.366. The first is much larger, so most of the matrix's energy lies in one direction. A rank-one approximation built from the first singular value and its vectors would keep most of the information, which is the idea behind truncated SVD.</p>
+
+  <details class="check"><summary>What is an eigenvector, and why does a symmetric covariance matrix matter for PCA?</summary><div class="ans"><p>An eigenvector is a non-zero vector whose direction does not change when the matrix is applied, so A v = lambda v, and lambda is its eigenvalue. The covariance matrix of centred data is symmetric, so it has real eigenvalues and perpendicular eigenvectors. PCA uses those eigenvectors as the principal components and the eigenvalues as the variance along each one.</p></div></details>
+
+  <details class="check"><summary>How are singular values related to eigenvalues, and what is truncated SVD used for?</summary><div class="ans"><p>The singular values of A are the square roots of the eigenvalues of A transpose times A. Keeping only the k largest singular values gives the best rank-k approximation of A in the least squares sense. It is used for compression, denoising, latent-factor models and dimensionality reduction.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Calculus">
+  <h2>Calculus: gradients and gradient descent</h2>
+
+  <p>Training a model means choosing parameters that make a <strong>loss function</strong> small. The loss measures how wrong the predictions are. Calculus tells you which way to move the parameters. The derivative of the loss with respect to a parameter is the slope of the loss at the current value, so moving against the slope lowers the loss.</p>
+
+  <h3>Derivatives and the chain rule</h3>
+  <p>The <strong>derivative</strong> of f at x, written f'(x), is the instantaneous rate of change of f. For f(x) = x squared, f'(x) = 2x. At x = 3 the slope is 6, so increasing x increases f at that point. A function of several variables has <strong>partial derivatives</strong>, one per variable, obtained by treating the others as constants. The vector of all partial derivatives is the <strong>gradient</strong>. It points in the direction in which the function increases fastest.</p>
+
+  <p>The <strong>chain rule</strong> computes the derivative of a function built from other functions. If y = g(u) and u = h(x), then dy/dx = (dy/du) times (du/dx). Here is a worked example: f(x) = (3x + 1) squared. Let u = 3x + 1, so f = u squared. Then df/du = 2u and du/dx = 3, so df/dx = 6u = 6(3x + 1). At x = 1, the derivative is 6 times 4, which is 24. <strong>Backpropagation</strong>, the algorithm that trains neural networks, is the chain rule applied layer by layer, from the output back to the input, reusing intermediate results.</p>
+
+  <h3>Gradient descent</h3>
+  <p><strong>Gradient descent</strong> repeatedly moves the parameters a small step against the gradient. The update rule is w_new = w_old minus eta times the gradient, where eta is the <strong>learning rate</strong>. A learning rate that is too small makes progress slow. One that is too large overshoots the minimum and can diverge. For a loss computed over many examples, the gradient can be taken over all examples (batch gradient descent), over one example at a time (stochastic), or over small groups (mini-batch). Mini-batch training is the usual choice for deep learning because it balances cost and noise.</p>
+
+  <p>Take the simple function f(w) = (w - 3) squared. Its minimum is at w = 3, and its derivative is 2(w - 3). Starting at w = 0 with learning rate 0.1, each step moves w toward 3. The following program prints the first five steps, using only the standard library:</p>
+
+  <pre class="code" data-lang="python"><code>w = 0.0
+lr = 0.1
+for step in range(1, 6):
+    grad = 2 * (w - 3)          # derivative of (w - 3) ** 2
+    w = w - lr * grad           # move against the gradient
+    print(f"step {step}: w = {w:.4f}")</code></pre>
+  <pre class="output">step 1: w = 0.6000
+step 2: w = 1.0800
+step 3: w = 1.4640
+step 4: w = 1.7712
+step 5: w = 2.0170</pre>
+
+  <p>Each step moves w closer to 3, and the steps shrink as the slope flattens. Increasing the learning rate to 0.5 would make the first step jump to exactly 3, while a rate above 1 for this function would overshoot further on every step and diverge. That is the trade-off you describe in an interview.</p>
+
+  <details class="check"><summary>Why does gradient descent subtract the gradient instead of adding it?</summary><div class="ans"><p>The gradient points in the direction in which the loss increases fastest. To decrease the loss, the parameters must move in the opposite direction, so the update subtracts the learning rate times the gradient.</p></div></details>
+
+  <details class="check"><summary>Differentiate f(x) = (3x + 1) squared and evaluate it at x = 1.</summary><div class="ans"><p>Use the chain rule. With u = 3x + 1, the derivative is 2u times 3, which is 6(3x + 1). At x = 1, u = 4, so the derivative is 6 times 4, which is 24.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Probability">
+  <h2>Probability: Bayes, maximum likelihood and cross-entropy</h2>
+
+  <p>Machine learning is applied probability. A classifier estimates the chance of each class, a training procedure chooses parameters that make the observed data most likely, and the loss function is often a probability measured in bits or nats. The ideas below appear in almost every ML interview.</p>
+
+  <h3>Conditional probability and Bayes theorem</h3>
+  <p><strong>Conditional probability</strong> P(A given B) is the probability of A when we already know B happened. It is defined as P(A and B) divided by P(B). Rearranging gives the product rule, and combining it with the symmetric version gives <strong>Bayes theorem</strong>: P(A given B) equals P(B given A) times P(A), divided by P(B). The denominator P(B) is found with the law of total probability, which adds up the chance of B under each possible cause of A.</p>
+
+  <p>The classic example is a medical test. Suppose 1 in 100 people has a disease, the test detects it 99% of the time, and it gives a false positive for 5% of healthy people. If you test positive, what is the probability you have the disease? Most people guess 99%, but the answer is much lower because the disease is rare. Work it out step by step. P(positive) = 0.99 times 0.01 plus 0.05 times 0.99 = 0.0099 plus 0.0495 = 0.0594. Then P(disease given positive) = 0.0099 divided by 0.0594, which is 1/6, or about 16.7%.</p>
+
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+prevalence = Fraction(1, 100)      # P(disease)
+sensitivity = Fraction(99, 100)    # P(positive | disease)
+false_alarm = Fraction(5, 100)     # P(positive | no disease)
+
+p_positive = sensitivity * prevalence + false_alarm * (1 - prevalence)
+posterior = sensitivity * prevalence / p_positive
+print("P(positive) =", p_positive)
+print("P(disease | positive) =", posterior, "about", f"{float(posterior):.4f}")</code></pre>
+  <pre class="output">P(positive) = 297/5000
+P(disease | positive) = 1/6 about 0.1667</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>The base rate matters. A test with 99% sensitivity can still produce mostly false positives when the condition is rare. Bayes theorem is the tool that combines the base rate with the test evidence.</p></div>
+
+  <h3>Maximum likelihood estimation (MLE)</h3>
+  <p>A model with parameters theta assigns a probability to the observed data. The <strong>likelihood</strong> is that probability, viewed as a function of theta. <strong>Maximum likelihood estimation</strong> picks the theta that makes the observed data most probable. In practice we maximise the <strong>log-likelihood</strong> instead. The logarithm turns products of many small probabilities into sums, which avoids numerical underflow, and it does not move the maximum because log is increasing.</p>
+
+  <p>For a coin, each flip is a Bernoulli trial with heads probability p. With h heads in n flips, the log-likelihood is h log p plus (n - h) log(1 - p). Setting its derivative to zero gives p = h / n. So the MLE for a coin is simply the observed fraction of heads. For a Gaussian distribution, the MLE of the mean is the sample mean, and the MLE of the variance divides the sum of squared deviations by n, not n - 1. Dividing by n - 1 gives the unbiased estimate, which is what most statistics software reports by default. Mentioning that distinction is a good interview point.</p>
+
+  <p>The next program checks the coin result by brute force. It evaluates the log-likelihood on a grid of candidate values for p, using eight flips with six heads:</p>
+
+  <pre class="code" data-lang="python"><code>import math
+
+flips = [1, 0, 1, 1, 0, 1, 1, 1]          # 1 = heads, 0 = tails
+
+def log_likelihood(p):
+    return sum(math.log(p) if f == 1 else math.log(1 - p) for f in flips)
+
+grid = [i / 20 for i in range(1, 20)]    # candidate values 0.05, 0.10, ..., 0.95
+best = max(grid, key=log_likelihood)
+print("best p on grid:", best, "log-likelihood:", f"{log_likelihood(best):.4f}")
+print("sample mean:", sum(flips) / len(flips))</code></pre>
+  <pre class="output">best p on grid: 0.75 log-likelihood: -4.4987
+sample mean: 0.75</pre>
+
+  <h3>Cross-entropy: the loss used for classification</h3>
+  <p>Suppose a classifier outputs a probability for each class, and the true class is known. The <strong>cross-entropy</strong> between the true distribution p and the predicted distribution q is H(p, q) = minus the sum of p_i times log q_i. When the true label is one-hot (1 for the correct class, 0 elsewhere), this collapses to minus the log of the probability given to the correct class. The loss is small when the model gives the correct class a high probability, and it grows without bound as that probability approaches zero.</p>
+
+  <p>The link to MLE is the key idea. Minimising cross-entropy over a training set is the same as maximising the likelihood of the labels under the model, because the negative log-likelihood is the sum of the negative logs of the probabilities given to the correct labels. This is why logistic regression and neural network classifiers are trained with cross-entropy, often called log loss in scikit-learn. Predicted probabilities usually come from a softmax, which turns raw scores into positive numbers that sum to 1.</p>
+
+  <pre class="code" data-lang="python"><code>import math
+
+probs = [0.1, 0.7, 0.2]    # predicted probabilities for three classes
+true_index = 1             # the correct class is class 1
+
+loss = -math.log(probs[true_index])
+print(f"loss when the true class has 0.7: {loss:.4f}")
+print(f"loss when the true class has 0.1: {-math.log(0.1):.4f}")</code></pre>
+  <pre class="output">loss when the true class has 0.7: 0.3567
+loss when the true class has 0.1: 2.3026</pre>
+
+  <p>The two losses show the behaviour clearly. Giving the correct class 0.7 costs about 0.36, while giving it only 0.1 costs about 2.30. Confident wrong predictions are punished heavily, which pushes the model to spread its probability sensibly.</p>
+
+  <details class="check"><summary>Explain Bayes theorem with the disease test example, and why the answer is about 17%.</summary><div class="ans"><p>Bayes theorem says P(disease given positive) equals P(positive given disease) times P(disease), divided by P(positive). The disease is rare (1%), so most positives come from the large healthy group, even though the false positive rate is only 5%. The numbers give 0.0099 divided by 0.0594, which is 1/6, about 16.7%.</p></div></details>
+
+  <details class="check"><summary>What is the maximum likelihood estimate for a coin with 6 heads in 8 flips, and why do we use the log-likelihood?</summary><div class="ans"><p>The MLE is the observed fraction of heads, 6 divided by 8, which is 0.75. The log-likelihood is used because it turns a product of probabilities into a sum, which is numerically stable, and log is increasing so the maximiser is the same.</p></div></details>
+
+  <details class="check"><summary>Why is cross-entropy the standard loss for classification?</summary><div class="ans"><p>For a one-hot label, cross-entropy is minus the log of the probability given to the correct class. Minimising it is equivalent to maximising the likelihood of the labels under the model, which is the principled MLE objective. It also gives strong gradients for confidently wrong predictions, which speeds up learning.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question in two or three sentences before reading the model answer. Where a question asks for a calculation, do the calculation on paper first.</p>
+
+  <details class="check"><summary>What is broadcasting in NumPy?</summary><div class="ans"><p>Broadcasting lets arrays of different shapes combine in an element-wise operation. Shapes are aligned from the right, and a dimension of size 1 (or a missing dimension) is stretched to match the other operand, without copying data. A shape (2, 3) array plus a shape (3,) array adds the vector to each row.</p></div></details>
+
+  <details class="check"><summary>Why are vectorised NumPy operations faster than Python loops?</summary><div class="ans"><p>The element-wise loop runs in compiled code rather than the interpreter, the data is stored contiguously in memory, and no Python object is created for each element. Writing the operation on whole arrays lets NumPy use all of these advantages.</p></div></details>
+
+  <details class="check"><summary>What is the difference between a Series and a DataFrame?</summary><div class="ans"><p>A Series is a one-dimensional labelled array, such as one column. A DataFrame is a two-dimensional table whose columns are Series that share the same row index. Selecting one column with a single bracket returns a Series, and selecting several returns a DataFrame.</p></div></details>
+
+  <details class="check"><summary>What does groupby followed by an aggregate do, step by step?</summary><div class="ans"><p>It first splits the rows into groups by the key columns. Then it applies the aggregate, such as mean or sum, to each group separately. Finally it combines the group results into a new object indexed by the group keys. Missing values are usually skipped by the aggregate.</p></div></details>
+
+  <details class="check"><summary>When would you use an inner merge rather than a left merge?</summary><div class="ans"><p>Use an inner merge when a row is only useful if it has a match in both tables, such as orders that must have a known customer. Use a left merge when the main table must keep every row, and missing matches can be filled with NaN or a default value.</p></div></details>
+
+  <details class="check"><summary>What is PCA, and what do its eigenvectors and eigenvalues mean?</summary><div class="ans"><p>PCA finds the directions along which centred data varies most. The directions are the eigenvectors of the covariance matrix, and the eigenvalues are the variances along them. Keeping the top k eigenvectors reduces the dimensions while keeping the largest share of the variance, which is the sum of the top k eigenvalues over the total.</p></div></details>
+
+  <details class="check"><summary>What does the chain rule have to do with training a neural network?</summary><div class="ans"><p>A network is a long composition of functions, one per layer. Its loss depends on each weight through a chain of intermediate values. The chain rule multiplies the local derivatives along that chain, and backpropagation does this efficiently from the output back to the input, reusing intermediate results.</p></div></details>
+
+  <details class="check"><summary>Explain the effect of the learning rate in gradient descent.</summary><div class="ans"><p>The learning rate scales each step. A small rate converges slowly but safely. A large rate can overshoot the minimum, oscillate or diverge. In practice it is tuned, often with a schedule that reduces it over time.</p></div></details>
+
+  <details class="check"><summary>What is the maximum likelihood estimate of the variance for a Gaussian, and how does it differ from the unbiased estimate?</summary><div class="ans"><p>The MLE divides the sum of squared deviations from the sample mean by n. The unbiased estimate divides by n minus 1, which corrects for the fact that the sample mean is estimated from the same data. The MLE is slightly too small on average, but the difference shrinks as n grows.</p></div></details>
+
+  <details class="check"><summary>Why do we use cross-entropy instead of accuracy as a training loss?</summary><div class="ans"><p>Accuracy is piecewise constant, so a small change in parameters often does not change it, and its gradient is zero almost everywhere. Cross-entropy is smooth and differentiable, and it rewards higher probabilities on the correct class, so it gives a useful gradient at every step. Accuracy is still reported as a metric.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: mixed trees and graphs</h2>
+
+  <p>Today's set is about trees and grids. Two problems use depth-first search with return values, and one uses breadth-first search with coordinates. Two ideas recur: a node's answer can be built from its children's answers, and a traversal can carry extra information such as a position. Every Python program below is complete, runs on its own and prints its results.</p>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/">
+    <h3>Lowest Common Ancestor of a Binary Tree (LeetCode 236)</h3>
+    <div class="statement"><p>Given a binary tree and two nodes <code>p</code> and <code>q</code> that are in the tree and are different, return their lowest common ancestor (LCA). The LCA is the deepest node that has both p and q as descendants, where a node counts as its own descendant. Example 1: in the tree with values 3, 5, 1, 6, 2, 0, 8, 7 and 4 (the level-order list <code>[3, 5, 1, 6, 2, 0, 8, null, null, 7, 4]</code>), the LCA of 5 and 1 is 3. Example 2: the LCA of 5 and 4 is 5, because 5 is an ancestor of 4, so 5 counts as its own descendant.</p></div>
+
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Both nodes exist and are distinct, so the answer always exists. A node is allowed to be the answer even when it is one of the two targets. Values are not unique in general, so compare node references, not values.</li>
+      <li><strong>Brute force.</strong> Find the path from the root to p and the path from the root to q, each as a list of nodes. Then walk both lists together and keep the last node they share. This is correct and runs in O(n) time, but it needs two full searches and two lists of up to n nodes.</li>
+      <li><strong>Find the waste.</strong> The two searches and the stored paths are only needed to find where the paths split. The split can be found in one pass, if each call reports what it found in its subtree.</li>
+      <li><strong>Optimise.</strong> Run a post-order search. Each call returns the node it found: p, q, or the LCA, or None if neither is below it. If the left and right calls both return a node, one target is in each subtree, so the current node is the LCA. If only one side returns a node, that node moves up unchanged. If the current node is p or q, return it immediately. This is correct even when the other target is below it, because the search stops at the ancestor, which is the answer.</li>
+      <li><strong>Dry run.</strong> Trace LCA(5, 1) and LCA(5, 4) in the example tree.</li>
+    </ol>
+
+    <div class="tablewrap"><table><thead><tr><th>Call</th><th>What it sees</th><th>Returns</th></tr></thead><tbody>
+      <tr><td>node 5 (it is p)</td><td>Returns at once, without searching its children</td><td>5</td></tr>
+      <tr><td>node 1 (it is q)</td><td>Returns at once</td><td>1</td></tr>
+      <tr><td>node 3 (root) for LCA(5, 1)</td><td>Left returned 5 and right returned 1, so both sides found a target</td><td>3</td></tr>
+      <tr><td>node 3 (root) for LCA(5, 4)</td><td>Left returned 5. The right subtree under 1 holds neither target, so it returns None. Only one side has a result</td><td>5</td></tr>
+    </tbody></table></div>
+
+    <p>In the LCA(5, 4) case, the search never visits node 4. That is safe, because node 5 is returned as soon as it is found, and 5 is an ancestor of 4, so 5 is the answer.</p>
+
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+def build_tree(values):
+    # LeetCode-style level order: None marks a missing child
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+def find_node(root, val):
+    if root is None:
+        return None
+    if root.val == val:
+        return root
+    return find_node(root.left, val) or find_node(root.right, val)
+
+def lowest_common_ancestor(root, p, q):
+    # Returns p or q when it is found, and None when neither is below this node
+    if root is None or root is p or root is q:
+        return root
+    left = lowest_common_ancestor(root.left, p, q)
+    right = lowest_common_ancestor(root.right, p, q)
+    if left and right:
+        return root        # p and q were found in different subtrees
+    return left if left else right
+
+root = build_tree([3, 5, 1, 6, 2, 0, 8, None, None, 7, 4])
+five, one, four, six = find_node(root, 5), find_node(root, 1), find_node(root, 4), find_node(root, 6)
+print("LCA(5, 1) =", lowest_common_ancestor(root, five, one).val)
+print("LCA(5, 4) =", lowest_common_ancestor(root, five, four).val)
+print("LCA(6, 4) =", lowest_common_ancestor(root, six, four).val)</code></pre>
+    <pre class="output">LCA(5, 1) = 3
+LCA(5, 4) = 5
+LCA(6, 4) = 5</pre>
+
+    <p class="cx">Time O(n) · Space O(h) for the recursion stack, where h is the height of the tree</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When an answer depends on both subtrees, let each call return a result upward and decide at the node where two results meet. Returning a value up the tree often replaces a second pass and stored paths.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/pacific-atlantic-water-flow/">
+    <h3>Pacific Atlantic Water Flow (LeetCode 417)</h3>
+    <div class="statement"><p>You are given a grid of heights. Water can flow from a cell to a neighbouring cell (up, down, left or right) whose height is less than or equal to its own. The Pacific Ocean touches the top and left edges, and the Atlantic Ocean touches the bottom and right edges. Return every cell from which water can flow to both oceans. Example: <code>[[1, 2, 2, 3, 5], [3, 2, 3, 4, 4], [2, 4, 5, 3, 1], [6, 7, 1, 4, 5], [5, 1, 1, 2, 4]]</code> gives <code>[[0, 4], [1, 3], [1, 4], [2, 2], [3, 0], [3, 1], [4, 0]]</code>, with the coordinates in row and column order.</p></div>
+
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Water moves downhill or flat. A cell reaches an ocean if it can reach an edge cell of that ocean by a path that never goes uphill. The answer lists cells, so the grid coordinates matter.</li>
+      <li><strong>Brute force.</strong> For each cell, run a search over downhill moves and check whether it reaches the Pacific edge and the Atlantic edge. With m rows and n columns there are m times n cells, and each search can visit all of them, so the cost is O((mn) squared).</li>
+      <li><strong>Find the waste.</strong> Every search repeats work that other searches already did. Reverse the direction of flow instead. Ask which cells the ocean can reach by moving uphill from its edge, because water that starts at those cells can flow back down to the ocean.</li>
+      <li><strong>Optimise.</strong> Run two searches, each starting from all the edge cells of one ocean. From a cell, step to a neighbour only if the neighbour is at least as high. Mark every visited cell. The cells marked by both searches are the answer. Each search visits each cell at most once, so the total time is O(m times n).</li>
+      <li><strong>Dry run.</strong> Use the 2 by 2 grid <code>[[1, 2], [4, 3]]</code>. Its answer is <code>[[0, 1], [1, 0], [1, 1]]</code>.</li>
+    </ol>
+
+    <div class="tablewrap"><table><thead><tr><th>Cell (row, col)</th><th>Height</th><th>Reached from Pacific edge</th><th>Reached from Atlantic edge</th><th>In answer</th></tr></thead><tbody>
+      <tr><td>(0, 0)</td><td>1</td><td>Yes, it is on the top and left edges</td><td>No, both neighbours are higher, so uphill climbing from the Atlantic side cannot reach it</td><td>No</td></tr>
+      <tr><td>(0, 1)</td><td>2</td><td>Yes, it is on the top edge</td><td>Yes, it is on the right edge</td><td>Yes</td></tr>
+      <tr><td>(1, 0)</td><td>4</td><td>Yes, it is on the left edge</td><td>Yes, it is on the bottom edge</td><td>Yes</td></tr>
+      <tr><td>(1, 1)</td><td>3</td><td>Yes, the search climbs from (0, 1), height 2, to height 3</td><td>Yes, it is on the bottom and right edges</td><td>Yes</td></tr>
+    </tbody></table></div>
+
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def pacific_atlantic(heights):
+    if not heights or not heights[0]:
+        return []
+    rows, cols = len(heights), len(heights[0])
+    pacific = [[False] * cols for _ in range(rows)]
+    atlantic = [[False] * cols for _ in range(rows)]
+
+    def climb(starts, reached):
+        # Walk uphill from the ocean edge: a cell that can climb to an edge cell
+        # can let water flow back down to that edge.
+        stack = []
+        for r, c in starts:
+            reached[r][c] = True
+            stack.append((r, c))
+        while stack:
+            r, c = stack.pop()
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nr, nc = r + dr, c + dc
+                if 0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and not reached[nr][nc]:
+                    if heights[nr][nc] &gt;= heights[r][c]:
+                        reached[nr][nc] = True
+                        stack.append((nr, nc))
+
+    pacific_edge = [(0, c) for c in range(cols)] + [(r, 0) for r in range(rows)]
+    atlantic_edge = [(rows - 1, c) for c in range(cols)] + [(r, cols - 1) for r in range(rows)]
+    climb(pacific_edge, pacific)
+    climb(atlantic_edge, atlantic)
+    return [[r, c] for r in range(rows) for c in range(cols) if pacific[r][c] and atlantic[r][c]]
+
+print(pacific_atlantic([[1, 2, 2, 3, 5], [3, 2, 3, 4, 4], [2, 4, 5, 3, 1], [6, 7, 1, 4, 5], [5, 1, 1, 2, 4]]))
+print(pacific_atlantic([[1, 2], [4, 3]]))
+print(pacific_atlantic([[1]]))</code></pre>
+    <pre class="output">[[0, 4], [1, 3], [1, 4], [2, 2], [3, 0], [3, 1], [4, 0]]
+[[0, 1], [1, 0], [1, 1]]
+[[0, 0]]</pre>
+
+    <p>The last call is an edge case: a single cell touches both oceans, so it is in the answer. The rows and columns are both checked, so no special case is needed.</p>
+
+    <p class="cx">Time O(m · n) · Space O(m · n) for the two reached tables and the stacks</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When many starting points must reach a common target, reverse the direction of the edges and search once from the target side. Two reversed searches replace many forward searches.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/vertical-order-traversal-of-a-binary-tree/">
+    <h3>Vertical Order Traversal of a Binary Tree (LeetCode 987)</h3>
+    <div class="statement"><p>Give each node a position: the root is at column 0 and row 0, a left child is at column minus one and the next row, and a right child is at column plus one and the next row. Return the values grouped by column, from the leftmost column to the rightmost. Inside a column, list the values from top row to bottom row. If two nodes share the same row and column, list the smaller value first. Example 1: <code>[3, 9, 20, null, null, 15, 7]</code> gives <code>[[9], [3, 15], [20], [7]]</code>. Example 2: <code>[1, 2, 3, 4, 5, 6, 7]</code> gives <code>[[4], [2], [1, 5, 6], [3], [7]]</code>.</p></div>
+
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Each output list is a column. The order has three levels: column from left to right, row from top to bottom, then value for ties. The root's column is 0, and columns can be negative.</li>
+      <li><strong>Brute force.</strong> Walk the tree with a depth-first search, and record a triple of (column, row, value) for every node. Then sort all triples by column, row and value, and group them. This is correct. It costs O(n log n) for the sort, and it stores every triple before grouping.</li>
+      <li><strong>Find the waste.</strong> The sort does work that a traversal can provide. A breadth-first search visits the nodes row by row, from top to bottom, so within each column the rows arrive in order already. The only ordering left to fix is the value tie-break inside the same row.</li>
+      <li><strong>Optimise.</strong> Use a queue that carries (node, column, row). Append each node's value to a list for its column, using a dictionary keyed by column. Children go to columns one less or one more, one row lower. When the queue is empty, visit the columns in sorted order, and sort each column's list of (row, value) pairs so that ties are ordered by value. Each node is visited once, and each sort is over one column.</li>
+      <li><strong>Dry run.</strong> Trace Example 2, where the tree has 1 at the root, 2 and 3 as its children, and 4, 5, 6 and 7 at the next levels.</li>
+    </ol>
+
+    <div class="tablewrap"><table><thead><tr><th>Value</th><th>Parent path</th><th>Column</th><th>Row</th><th>Note</th></tr></thead><tbody>
+      <tr><td>1</td><td>root</td><td>0</td><td>0</td><td>Starts column 0</td></tr>
+      <tr><td>2</td><td>left of 1</td><td>-1</td><td>1</td><td>Starts column -1</td></tr>
+      <tr><td>3</td><td>right of 1</td><td>1</td><td>1</td><td>Starts column 1</td></tr>
+      <tr><td>4</td><td>left of 2</td><td>-2</td><td>2</td><td>Leftmost column</td></tr>
+      <tr><td>5</td><td>right of 2</td><td>0</td><td>2</td><td>Joins column 0 below the root</td></tr>
+      <tr><td>6</td><td>left of 3</td><td>0</td><td>2</td><td>Also joins column 0, same row as 5, so the smaller value comes first</td></tr>
+      <tr><td>7</td><td>right of 3</td><td>2</td><td>2</td><td>Rightmost column</td></tr>
+    </tbody></table></div>
+
+    <p>Column 0 therefore holds 1 (row 0), then 5 and 6 (row 2, sorted by value). Reading the columns from -2 to 2 gives [4], [2], [1, 5, 6], [3] and [7].</p>
+
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import defaultdict, deque
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+def build_tree(values):
+    # LeetCode-style level order: None marks a missing child
+    if not values or values[0] is None:
+        return None
+    root = TreeNode(values[0])
+    queue = deque([root])
+    i = 1
+    while queue and i &lt; len(values):
+        node = queue.popleft()
+        if i &lt; len(values) and values[i] is not None:
+            node.left = TreeNode(values[i])
+            queue.append(node.left)
+        i += 1
+        if i &lt; len(values) and values[i] is not None:
+            node.right = TreeNode(values[i])
+            queue.append(node.right)
+        i += 1
+    return root
+
+def vertical_order(root):
+    if root is None:
+        return []
+    columns = defaultdict(list)           # column -> list of (row, value)
+    queue = deque([(root, 0, 0)])         # (node, column, row)
+    while queue:
+        node, col, row = queue.popleft()  # breadth-first: top rows come first
+        columns[col].append((row, node.val))
+        if node.left:
+            queue.append((node.left, col - 1, row + 1))
+        if node.right:
+            queue.append((node.right, col + 1, row + 1))
+    result = []
+    for col in sorted(columns):           # left to right
+        # top to bottom, and smaller value first for the same row
+        result.append([val for row, val in sorted(columns[col])])
+    return result
+
+print(vertical_order(build_tree([3, 9, 20, None, None, 15, 7])))
+print(vertical_order(build_tree([1, 2, 3, 4, 5, 6, 7])))
+print(vertical_order(build_tree([])))</code></pre>
+    <pre class="output">[[9], [3, 15], [20], [7]]
+[[4], [2], [1, 5, 6], [3], [7]]
+[]</pre>
+
+    <p class="cx">Time O(n log n) in the worst case, from sorting the columns · Space O(n) for the queue and the column lists</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When output must be grouped by a position, carry that position with each node during a breadth-first search. The traversal already gives the row order, and a sort is needed only for ties.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Read these definitions aloud. If one takes more than a moment, reread its section before moving on.</p>
+
+  <dl>
+    <div><dt>ndarray</dt><dd>A NumPy array in which every element has the same dtype and the values are stored contiguously.</dd></div>
+    <div><dt>Shape</dt><dd>A tuple giving the length of an array along each axis.</dd></div>
+    <div><dt>Axis</dt><dd>The direction along which an operation runs, such as down the rows with axis 0.</dd></div>
+    <div><dt>Broadcasting</dt><dd>Stretching size-1 or missing dimensions so that arrays of different shapes combine.</dd></div>
+    <div><dt>Vectorisation</dt><dd>Writing an operation on whole arrays instead of a Python loop over elements.</dd></div>
+    <div><dt>View</dt><dd>An array that shares memory with another array, so changes show in both.</dd></div>
+    <div><dt>Copy</dt><dd>An array with its own memory, which does not change the original.</dd></div>
+    <div><dt>DataFrame</dt><dd>A labelled two-dimensional table whose columns are Series.</dd></div>
+    <div><dt>loc</dt><dd>Selection by label, with the end label included in slices.</dd></div>
+    <div><dt>iloc</dt><dd>Selection by integer position, with the end position excluded in slices.</dd></div>
+    <div><dt>groupby</dt><dd>Splitting rows into groups, applying an aggregate to each, and combining the results.</dd></div>
+    <div><dt>merge</dt><dd>Joining two tables on key columns, with a choice of left, right, inner or outer rows.</dd></div>
+    <div><dt>Pivot</dt><dd>Reshaping long data into wide data, with one column per category.</dd></div>
+    <div><dt>NaN</dt><dd>The marker for a missing number, which is not equal to any value, including itself.</dd></div>
+    <div><dt>EDA</dt><dd>Exploratory data analysis: inspecting, cleaning and plotting data before modelling.</dd></div>
+    <div><dt>Figure and axes</dt><dd>The figure is the whole canvas, and the axes is one plot inside it.</dd></div>
+    <div><dt>Box plot</dt><dd>A plot of the median, the middle half of the data and the outlying points.</dd></div>
+    <div><dt>Dot product</dt><dd>The sum of the products of matching entries of two vectors.</dd></div>
+    <div><dt>Matrix product</dt><dd>A matrix of shape (m, n) times one of shape (n, p) gives shape (m, p).</dd></div>
+    <div><dt>Eigenvector</dt><dd>A vector whose direction does not change when a matrix is applied to it.</dd></div>
+    <div><dt>Eigenvalue</dt><dd>The factor by which a matrix scales its eigenvector.</dd></div>
+    <div><dt>PCA</dt><dd>Projecting data onto the eigenvectors of its covariance matrix with the largest eigenvalues.</dd></div>
+    <div><dt>SVD</dt><dd>Factoring a matrix into orthonormal matrices and a diagonal matrix of singular values.</dd></div>
+    <div><dt>Derivative</dt><dd>The instantaneous rate of change of a function.</dd></div>
+    <div><dt>Gradient</dt><dd>The vector of partial derivatives, pointing in the direction of steepest increase.</dd></div>
+    <div><dt>Chain rule</dt><dd>The derivative of a composed function is the product of the derivatives along the chain.</dd></div>
+    <div><dt>Gradient descent</dt><dd>Repeatedly moving the parameters a small step against the gradient.</dd></div>
+    <div><dt>Learning rate</dt><dd>The step size in gradient descent.</dd></div>
+    <div><dt>Conditional probability</dt><dd>The probability of A given that B has happened, equal to P(A and B) over P(B).</dd></div>
+    <div><dt>Bayes theorem</dt><dd>P(A given B) equals P(B given A) times P(A), divided by P(B).</dd></div>
+    <div><dt>Likelihood</dt><dd>The probability of the observed data, viewed as a function of the parameters.</dd></div>
+    <div><dt>Maximum likelihood estimation</dt><dd>Choosing parameters that maximise the probability of the observed data.</dd></div>
+    <div><dt>Cross-entropy</dt><dd>Minus the sum of the true probabilities times the log of the predicted ones, used as a classification loss.</dd></div>
+    <div><dt>Lowest common ancestor</dt><dd>The deepest node that has both target nodes as descendants, counting a node as its own descendant.</dd></div>
+    <div><dt>Vertical order</dt><dd>Grouping tree nodes by column, from left to right, with rows from top to bottom.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td>np.array</td><td>Creates an array from a list</td><td><code>np.array([1, 2, 3])</code></td></tr>
+    <tr><td>np.arange</td><td>Creates an array of evenly stepped values</td><td><code>np.arange(0, 10, 2)</code> gives 0, 2, 4, 6, 8</td></tr>
+    <tr><td>reshape</td><td>Gives the same values a new shape</td><td><code>a.reshape(3, 2)</code></td></tr>
+    <tr><td>sum(axis=...)</td><td>Sums along the chosen axis</td><td><code>b.sum(axis=0)</code> sums each column</td></tr>
+    <tr><td>np.shares_memory</td><td>Tests whether two arrays share memory</td><td><code>np.shares_memory(a, a[1:3])</code> is True</td></tr>
+    <tr><td>np.linalg.eig</td><td>Computes eigenvalues and eigenvectors</td><td><code>vals, vecs = np.linalg.eig(A)</code></td></tr>
+    <tr><td>np.linalg.svd</td><td>Computes the singular value decomposition</td><td><code>U, s, Vt = np.linalg.svd(A)</code></td></tr>
+    <tr><td>pd.read_csv</td><td>Loads a CSV file into a DataFrame</td><td><code>df = pd.read_csv("data.csv")</code></td></tr>
+    <tr><td>df.head, df.info, df.describe</td><td>Inspect rows, types and summary statistics</td><td><code>df.describe()</code></td></tr>
+    <tr><td>df.loc and df.iloc</td><td>Select by label or by position</td><td><code>df.loc[df["score"] &gt; 80, "name"]</code></td></tr>
+    <tr><td>groupby(...).agg</td><td>Aggregates each group</td><td><code>df.groupby("city")["score"].mean()</code></td></tr>
+    <tr><td>merge</td><td>Joins two tables on key columns</td><td><code>df.merge(s, on="city", how="left")</code></td></tr>
+    <tr><td>pivot</td><td>Reshapes long data to wide</td><td><code>df.pivot(index="name", columns="city", values="score")</code></td></tr>
+    <tr><td>isna and fillna</td><td>Find and fill missing values</td><td><code>df["score"].fillna(0)</code></td></tr>
+    <tr><td>plt.subplots</td><td>Creates a figure and axes in Matplotlib</td><td><code>fig, ax = plt.subplots()</code></td></tr>
+    <tr><td>sns.histplot and sns.boxplot</td><td>Draw distribution and group plots from a DataFrame</td><td><code>sns.boxplot(data=df, x="city", y="score")</code></td></tr>
+    <tr><td>math.log</td><td>Natural logarithm, used in likelihood and cross-entropy</td><td><code>math.log(0.7)</code></td></tr>
+    <tr><td>fractions.Fraction</td><td>Exact arithmetic on fractions</td><td><code>Fraction(1, 6)</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 36?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 36 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-35.html"><small>Previous, day 35</small>Sunday: Aptitude, review, Mock 5, resume and HR</a><a class="next" href="day-37.html"><small>Next, day 37</small>Machine learning + Explainable AI</a></nav>
+</main><script src="assets/app.js"></script></body></html>

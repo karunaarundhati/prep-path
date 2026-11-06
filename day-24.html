@@ -1,0 +1,533 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 24: Software engineering practices and testing</title><meta name="description" content="Today is about the habits that separate a working program from a maintainable one. You will cover clean code and refactoring, debugging and profiling, releasing safely with semantic versioning and feature flags, and the testing toolkit from unit tests to browser automation. The DSA part moves to two-dimensional dynamic programming, the pattern behind string alignment and grid counting."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="24" data-key="24" data-noun="day" data-num="24" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Software engineering practices and testing</h1>
+<p class="lede">Today is about the habits that separate a working program from a maintainable one. You will cover clean code and refactoring, debugging and profiling, releasing safely with semantic versioning and feature flags, and the testing toolkit from unit tests to browser automation. The DSA part moves to two-dimensional dynamic programming, the pattern behind string alignment and grid counting.</p>
+<div class="station"><b>24</b><span>Wed 25 Nov 2026 · Programming · DSA: Dynamic programming 2 (2D, knapsack, LCS)</span></div>
+<ul class="topics"><li>Clean code, code smells and refactoring, technical debt</li><li>Linters, formatters, code review etiquette, documentation</li><li>Debugging, profiling, semantic versioning, feature flags</li><li>Test pyramid, unit, integration and E2E tests, TDD and BDD</li><li>Mocking with unittest.mock, coverage, load testing basics</li><li>Selenium and Playwright for browser tests</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Clean code">
+  <h2>Clean code, refactoring and code health</h2>
+  <p><strong>Clean code</strong> is code that a colleague can read, change and trust without help from its author. It is not a set of tricks. It is a set of habits: names say what things are, each function does one job, and repeated logic lives in one place. Interviewers ask about these habits because they predict how a candidate will work in a real codebase.</p>
+
+  <h3>Readable names and small functions</h3>
+  <p>A name should tell the reader what a value means, not how it is stored. <code>d</code> is a poor name; <code>days_since_signup</code> is a good one. A function should do one thing at one level of detail. If you need the word "and" to describe it, it probably has two jobs. Short functions are easier to test, easier to name and easier to reuse.</p>
+  <p>Comments should explain <em>why</em>, because the code already says <em>what</em>. A comment that repeats the next line is noise. A comment that records a surprising business rule is gold.</p>
+
+  <h3>Code smells and refactoring</h3>
+  <p>A <strong>code smell</strong> is a sign that the code may have a deeper problem. Smells are not bugs. They are warnings. Common ones are a long function, duplicated code, a long parameter list, <em>magic numbers</em> (unexplained literals such as 0.85 in the middle of a formula), and <em>feature envy</em> (a method that uses another object's data more than its own).</p>
+  <p><strong>Refactoring</strong> changes the structure of code without changing its behaviour. The safe way to refactor is to have tests first, make one small change, run the tests, and repeat. The most common refactorings are renaming, extracting a function, replacing a magic number with a named constant, and removing duplication. The example below shows the last two.</p>
+  <pre class="code" data-lang="python"><code>DISCOUNT_BY_TIER = {"vip": 0.20, "member": 0.10}   # named rates instead of magic numbers
+
+def price_after_discount(price, tier):
+    """Return the price after the discount for the customer's tier."""
+    rate = DISCOUNT_BY_TIER.get(tier, 0.0)           # unknown tiers get no discount
+    return round(price * (1 - rate), 2)
+
+print(price_after_discount(100, "vip"))
+print(price_after_discount(80, "member"))
+print(price_after_discount(50, "guest"))</code></pre>
+  <pre class="output">80.0
+72.0
+50.0</pre>
+  <p>The before-version of this code was a chain of <code>if</code> statements, each with its own literal rate. Adding a tier meant editing the logic. Now adding a tier is one line of data. The behaviour is the same for the three example customers, which is exactly what a refactoring must preserve.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Refactoring is changing the shape of code while keeping its behaviour. Tests are what make that claim believable.</p></div>
+
+  <h3>Technical debt</h3>
+  <p><strong>Technical debt</strong> is a metaphor from Ward Cunningham: shipping a quick solution is like borrowing money. It is sometimes the right choice, such as to meet a deadline, but the code then pays <em>interest</em>, meaning every future change takes longer. Debt is <em>deliberate</em> when the team knows and records the shortcut, and <em>inadvertent</em> when nobody noticed it was there. Good teams track debt, pay down the expensive parts, and do not treat every imperfection as urgent.</p>
+
+  <h3>Linters, formatters and documentation</h3>
+  <p>A <strong>linter</strong> reports likely problems: unused variables, suspicious comparisons, undefined names. A <strong>formatter</strong> rewrites layout (indentation, line breaks, quotes) so that style is never debated in review. Common Python tools include flake8, pylint, ruff and black. Running them automatically, for example through a pre-commit hook or a CI step, keeps the codebase consistent without anyone policing it by hand.</p>
+  <p>Documentation has three layers: docstrings for functions and classes, a README that explains how to run the project, and short decision records (for example, architecture decision records) that explain why something was built a certain way. Docstrings can also double as tests. The <code>doctest</code> module runs the examples written inside a docstring and fails if the printed result changes.</p>
+  <pre class="code" data-lang="python"><code>import doctest
+
+def average(numbers):
+    """Return the arithmetic mean of a non-empty list.
+
+    >>> average([2, 4, 6])
+    4.0
+    >>> average([1, 2])
+    1.5
+    """
+    return sum(numbers) / len(numbers)
+
+print(doctest.testmod())</code></pre>
+  <pre class="output">TestResults(failed=0, attempted=2)</pre>
+  <p><code>doctest.testmod()</code> runs every example it finds in the module. It prints nothing when all examples pass, so the outcome shown here comes from the <code>print</code> around it, which reports how many failed and how many were attempted. If you change <code>average</code> to return something different, the count of failed examples becomes non-zero.</p>
+
+  <h3>Code review etiquette</h3>
+  <p>Earlier you saw how review works on pull requests. The etiquette matters just as much. Reviews should be fast (a small change should not wait a week), specific (say which line and why), and kind (criticise the code, not the author). Label minor preferences as optional, and separate blocking issues from suggestions. When you receive a review, assume good intent, answer every comment, and push back politely with evidence when you disagree.</p>
+
+  <details class="check"><summary>What is the difference between refactoring and rewriting?</summary><div class="ans"><p>Refactoring changes the structure of code in small steps, keeping behaviour the same and checked by tests after each step. A rewrite replaces the code wholesale, which usually changes behaviour in ways nobody fully tracks. Refactoring is safer because each step is small enough to review and undo.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Debugging and releases">
+  <h2>Debugging, profiling, semantic versioning and feature flags</h2>
+  <p>This unit covers three practical skills: finding the cause of a bug, finding where a slow program spends its time, and shipping changes without fear.</p>
+
+  <h3>Debugging: a method, not a guess</h3>
+  <p>Good debugging follows a loop. First, <strong>reproduce</strong> the bug reliably, ideally with a small input. Second, <strong>read the error</strong> completely, because the message and the traceback usually name the line. Third, form a <strong>hypothesis</strong> about the cause and test it with the smallest experiment you can. Fourth, <strong>fix</strong> the cause, not the symptom, and add a test that would have caught it.</p>
+  <p>The simplest tool is a clear error message. The next is a breakpoint: in Python 3.7 and later, <code>breakpoint()</code> pauses the program in the debugger <code>pdb</code>, where you can inspect variables and step through lines. Logging and the bisect tool from the Git unit are also debugging tools.</p>
+  <pre class="code" data-lang="python"><code>def average_of(values):
+    return sum(values) / len(values)
+
+try:
+    average_of([])
+except ZeroDivisionError as error:
+    print("caught:", error)</code></pre>
+  <pre class="output">caught: division by zero</pre>
+  <p>Reading the message is the first step. It says the division needed a non-zero divisor, and the traceback would point to the line. The real fix is a decision: should an empty list return 0, return <code>None</code>, or raise a clearer error? The code should make that choice explicit instead of letting a generic error escape.</p>
+
+  <h3>Profiling: measure before you optimise</h3>
+  <p><strong>Profiling</strong> measures where a program spends its time. A <strong>profiler</strong> records how many times each function runs and how long it takes. Python's built-in profiler is run with <code>python -m cProfile -s cumtime script.py</code>, which sorts functions by cumulative time. The usual rule is to find the hot spot first, because most programs spend nearly all their time in a few places. Optimising anywhere else is wasted effort, and it makes the code harder to read.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Optimising by intuition. Developers are often wrong about where time goes. Profile, change one thing, and measure again.</p></div>
+
+  <h3>Semantic versioning</h3>
+  <p><strong>Semantic versioning</strong> (SemVer) gives a version number the meaning of a promise. The version has three parts, MAJOR.MINOR.PATCH. Increase <strong>PATCH</strong> for backward-compatible bug fixes, <strong>MINOR</strong> for backward-compatible new features, and <strong>MAJOR</strong> for changes that break existing users. Pre-release labels such as 2.0.0-rc.1 mark versions that are not yet final.</p>
+  <p>Comparing versions as text is a classic bug. The strings "1.10.0" and "1.2.3" sort in the wrong order if you compare them character by character. Parse them into integer tuples instead, because tuples compare element by element. The program below does that and also checks compatibility: a dependency is compatible if the major version matches and the installed version is at least the required one.</p>
+  <pre class="code" data-lang="python"><code>def parse_version(text):
+    major, minor, patch = (int(part) for part in text.split("."))
+    return (major, minor, patch)
+
+def is_compatible(required, installed):
+    r, i = parse_version(required), parse_version(installed)
+    return i[0] == r[0] and i &gt;= r      # same major version, and not older
+
+versions = ["1.10.0", "1.2.3", "2.0.0", "1.2.10"]
+print(sorted(versions, key=parse_version))
+print(sorted(versions))                 # plain string sort gets the order wrong
+print(is_compatible("1.2.0", "1.10.0"))
+print(is_compatible("1.2.0", "2.0.0"))</code></pre>
+  <pre class="output">['1.2.3', '1.2.10', '1.10.0', '2.0.0']
+['1.10.0', '1.2.10', '1.2.3', '2.0.0']
+True
+False</pre>
+  <p>The second line is the trap. Plain string sorting puts "1.10.0" before "1.2.3", because the character "1" sorts before "2". The tuple key fixes it. The compatibility check accepts 1.10.0 for a requirement of 1.2.0 because the major version is the same, and rejects 2.0.0 because a major change may break callers.</p>
+
+  <h3>Feature flags</h3>
+  <p>A <strong>feature flag</strong> is a switch in code that turns a behaviour on or off at runtime, usually from configuration. Flags separate <em>deploying</em> code (putting it on the servers) from <em>releasing</em> it (letting users see it). You can deploy a half-finished feature behind a flag, turn it on for staff first, then roll it out to a percentage of users, and turn it off instantly if it misbehaves.</p>
+  <p>Rollouts need a stable answer per user. If a user flips between enabled and disabled on each request, the product feels broken. The usual approach is to hash the user ID together with the flag name into a number from 0 to 99, then enable the flag for buckets below the rollout percentage. The same user always lands in the same bucket.</p>
+  <pre class="code" data-lang="python"><code>import hashlib
+
+FLAGS = {"new-checkout": {"enabled": True, "rollout_percent": 25}}
+
+def bucket(user_id, flag):
+    """A stable number from 0 to 99 for this user and flag."""
+    digest = hashlib.sha256(f"{flag}:{user_id}".encode()).hexdigest()
+    return int(digest[:8], 16) % 100
+
+def is_enabled(flag, user_id):
+    cfg = FLAGS.get(flag)
+    if not cfg or not cfg["enabled"]:
+        return False                                  # unknown or off: safe default
+    return bucket(user_id, flag) &lt; cfg["rollout_percent"]
+
+for user in ["u1", "u2", "u3", "u4", "u5", "u6", "u7", "u8"]:
+    print(user, bucket(user, "new-checkout"), is_enabled("new-checkout", user))
+print("unknown flag:", is_enabled("missing", "u1"))</code></pre>
+  <pre class="output">u1 16 True
+u2 46 False
+u3 70 False
+u4 86 False
+u5 12 True
+u6 37 False
+u7 58 False
+u8 71 False
+unknown flag: False</pre>
+
+</section>
+
+<section class="unit" id="c3" data-title="Testing foundations">
+  <h2>Testing foundations: the pyramid, TDD and BDD</h2>
+  <p>Tests are the safety net that makes refactoring and frequent releases possible. The first question is how many tests of each kind to write. The <strong>test pyramid</strong> answers it with a shape:</p>
+  <ul>
+    <li><strong>Unit tests</strong> check one function or class in isolation. They are fast (milliseconds), numerous, and point straight at the faulty line. Most of your tests should be here.</li>
+    <li><strong>Integration tests</strong> check that several parts work together, such as a repository and a real test database. They are slower and fewer.</li>
+    <li><strong>End-to-end (E2E) tests</strong> drive the whole system through its user interface or public API. They are the most realistic, and the slowest and most fragile. Keep only a few, for the journeys that matter most.</li>
+  </ul>
+  <p>The pyramid is about cost and feedback speed. A failing E2E test takes minutes to diagnose, while a failing unit test names the function.</p>
+
+  <h3>Test-driven development</h3>
+  <p><strong>Test-driven development</strong> (TDD) reverses the usual order: you write a failing test first, then the code that makes it pass. Its loop has three steps, often called red, green and refactor. Red: write a test for the next small behaviour and watch it fail. Green: write the simplest code that passes. Refactor: tidy the code while the tests stay green. Here is a small example. The tests come first in the file so you can read the specification before the implementation.</p>
+  <pre class="code" data-lang="python"><code>def is_leap_year(year):
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+assert is_leap_year(2024) is True
+assert is_leap_year(2023) is False
+assert is_leap_year(1900) is False
+assert is_leap_year(2000) is True
+print("all tests passed")</code></pre>
+  <pre class="output">all tests passed</pre>
+  <p>The four asserts cover the rules that matter: ordinary leap years, ordinary non-leap years, a century that is not a leap year, and a century divisible by 400 that is. Writing the century cases first is what drives the second condition in the function.</p>
+  <p>If any one of them were false, Python would stop with an <code>AssertionError</code> that names the failing line.</p>
+
+  <p><strong>Behaviour-driven development</strong> (BDD) takes the same idea and writes the examples in plain language, so product owners and developers share one description. Scenarios use the Given, When, Then pattern:</p>
+  <pre class="code" data-lang="text"><code>Feature: Member discount
+  Scenario: A member pays 10 percent less
+    Given a member with a cart worth 80
+    When the member checks out
+    Then the total charged is 72</code></pre>
+  <p>Tools such as Cucumber and pytest-bdd turn these scenarios into executable tests. The value is the conversation the scenarios force, not the tool.</p>
+
+  <h3>Coverage: useful, but not proof</h3>
+  <p><strong>Coverage</strong> measures which lines (and often branches) of code run during the tests. Tools such as coverage.py report it as a percentage. Coverage tells you which code is <em>never</em> executed, which is useful. It does not tell you whether the tests check anything. A test that calls a function and asserts nothing gives full coverage and catches no bugs. Treat coverage as a map of gaps, not as a quality score, and do not chase a number at the cost of meaningful assertions.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Saying "we have 100 percent coverage, so the code is correct". Coverage shows which lines ran, not whether the results were checked.</p></div>
+
+  <details class="check"><summary>Why does the test pyramid recommend few end-to-end tests?</summary><div class="ans"><p>End-to-end tests are slow, depend on many components at once, and fail for many unrelated reasons such as network or data problems. Unit tests are fast and pinpoint the cause. Keeping most checks at the bottom gives quick feedback, and E2E tests are kept for the few journeys that must work end to end.</p></div></details>
+
+  <details class="check"><summary>What are the red, green and refactor steps in TDD?</summary><div class="ans"><p>Red: write a test for the next behaviour and watch it fail, which proves the test can fail. Green: write the simplest code that makes it pass. Refactor: improve the code's structure while the tests stay green. Then repeat for the next behaviour.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Mocking">
+  <h2>Mocking with unittest.mock</h2>
+  <p>A unit test should not depend on the network, a real payment provider or the clock. A <strong>test double</strong> is an object that stands in for a real dependency. The general term covers several kinds: a <em>stub</em> returns fixed answers, a <em>fake</em> is a simple working implementation (such as an in-memory repository), and a <em>mock</em> records how it was called so that the test can check the interaction. Python's standard <code>unittest.mock</code> module provides <code>Mock</code>, which can be any of these, and <code>patch</code>, which temporarily replaces a name in a module.</p>
+
+  <h3>A mock that records calls</h3>
+  <p>The function under test receives a gateway object. The test gives it a <code>Mock</code>, sets what the mock returns, and then checks what it was called with. No real payment happens.</p>
+  <pre class="code" data-lang="python"><code>from unittest.mock import Mock, patch
+import os
+
+def checkout(cart, gateway):
+    total = sum(cart)
+    return gateway.charge(total)
+
+gateway = Mock()
+gateway.charge.return_value = "approved"       # the stub part: a fixed answer
+print(checkout([10, 15], gateway))
+gateway.charge.assert_called_once_with(25)     # the mock part: check the call
+print(gateway.charge.call_count)
+
+with patch("os.getcwd", return_value="/fake/dir"):   # temporarily replace a function
+    print(os.getcwd())                                 # the patched value is seen here</code></pre>
+  <pre class="output">approved
+1
+/fake/dir</pre>
+  <p><code>assert_called_once_with(25)</code> fails if the gateway was called with any other value, or more than once. That is the strength of a mock: it tests the conversation between the code and its dependency. The <code>patch</code> context manager restores the original <code>os.getcwd</code> when the block ends, so other tests are unaffected.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Patching where the function is defined instead of where it is used. Patch the name in the module that imports it, for example <code>"myapp.payments.gateway"</code>, not <code>"gateway_library.Client"</code>.</p></div>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"When do you mock and when do you not?" Mock slow, unreliable or external dependencies, and mock things you do not own. Do not mock the code under test, and avoid mocking so much that the test only checks the mock.</p></div>
+
+  <details class="check"><summary>What is the difference between a stub, a fake and a mock?</summary><div class="ans"><p>A stub returns canned answers so the code under test can continue. A fake is a working but simplified implementation, such as an in-memory dictionary in place of a database. A mock records calls so the test can assert on how the dependency was used. A Mock object in unittest.mock can act as any of the three.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Load and browser tests">
+  <h2>Load testing basics, Selenium and Playwright</h2>
+  <p>Two more kinds of testing complete the picture. Load testing checks how a system behaves under expected or heavy traffic. Browser automation checks the user interface by driving a real browser.</p>
+
+  <h3>Load testing basics</h3>
+  <p>A <strong>load test</strong> sends realistic traffic to a system and measures what happens. Tools such as k6, Locust and JMeter generate the requests. Three numbers matter most. <strong>Throughput</strong> is requests per second the system completes. <strong>Latency</strong> is how long each request takes. <strong>Error rate</strong> is the share of requests that fail.</p>
+  <p>Latency should be reported as percentiles, not as an average. The 50th percentile (p50) is the typical request, and the 95th (p95) is the slow tail that one user in twenty sees. An average can look healthy while the tail is terrible. The nearest-rank method below computes a percentile from sorted measurements.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def percentile(sorted_values, pct):
+    """Nearest-rank percentile: the value at position ceil(pct/100 * n), counting from 1."""
+    rank = math.ceil(pct / 100 * len(sorted_values))
+    return sorted_values[rank - 1]
+
+latencies_ms = sorted([120, 95, 310, 88, 101, 97, 1500, 110, 99, 105])
+print("p50:", percentile(latencies_ms, 50))
+print("p90:", percentile(latencies_ms, 90))
+print("p95:", percentile(latencies_ms, 95))
+print("mean:", sum(latencies_ms) / len(latencies_ms))</code></pre>
+  <pre class="output">p50: 101
+p90: 310
+p95: 1500
+mean: 262.5</pre>
+  <p>The mean is 262.5 ms, a number that describes no real request. Four of the ten requests took about 100 ms, and the single 1,500 ms request pulls the mean up while the median stays at 101 ms. The p95 rank lands on that slow request, which is exactly what a load test should surface. In a real test you would also watch error rates and throughput, and increase the load step by step until latency or errors grow.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Running a load test against production without agreement, or against a shared staging system that other teams are using. Load tests can take a service down.</p></div>
+
+  <h3>Browser automation: Selenium and Playwright</h3>
+  <p>Some behaviour can only be checked in a real browser, such as a login form that redirects, JavaScript that updates the page, or a checkout that depends on the layout. <strong>Selenium</strong> and <strong>Playwright</strong> are libraries that control a browser from code. Both can click, type, read text and wait for elements. They differ mainly in how they manage the browser and waiting.</p>
+  <p>Selenium has been the standard for many years. It talks to a browser driver through the WebDriver protocol, and it needs explicit waits (for example WebDriverWait) when the page is still loading. Playwright is newer, ships its own browser builds, and waits automatically before each action on an element. The examples below show the same login flow in each tool. They need a browser and a live site, so they are shown without printed output.</p>
+  <pre class="code" data-lang="python"><code>from selenium import webdriver
+from selenium.webdriver.common.by import By
+
+driver = webdriver.Chrome()                          # starts a Chrome browser
+driver.get("https://example.com/login")
+driver.find_element(By.ID, "email").send_keys("ada@example.com")
+driver.find_element(By.CSS_SELECTOR, "button[type=submit]").click()
+driver.quit()                                         # always close the browser</code></pre>
+  <pre class="code" data-lang="python"><code>from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto("https://example.com/login")
+    page.fill("#email", "ada@example.com")           # waits for the field to be ready
+    page.click("button[type=submit]")                # waits for the button to be clickable
+    browser.close()</code></pre>
+
+  <div class="note tip"><p><span class="t">Tip</span>Select elements by stable attributes such as data-testid, not by long CSS paths or by text that a designer might change. Brittle selectors are the main cause of flaky browser tests.</p></div>
+
+  <details class="check"><summary>Why are browser tests usually at the top of the pyramid?</summary><div class="ans"><p>They start a real browser, load real pages and depend on timing, so they are the slowest and most prone to flakiness. Teams keep a small number of them for critical user journeys and cover the rest of the logic with faster unit and integration tests.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before opening the model answer. Interviewers listen for the trade-off, not for a memorised definition.</p>
+
+  <details class="check"><summary>What is a code smell, and how does refactoring respond to one?</summary><div class="ans"><p>A code smell is a surface sign of a deeper design problem, such as duplicated logic or a magic number. Refactoring responds with a small, behaviour-preserving change, such as extracting a function or naming a constant, and tests confirm that behaviour did not change.</p></div></details>
+
+  <details class="check"><summary>What is technical debt, and when is it acceptable?</summary><div class="ans"><p>It is the extra future cost created by a shortcut, like interest on a loan. It is acceptable when the team knows it, records it and has a plan to repay it, for example to meet a deadline that has real value. It is dangerous when it is unknown or never repaid.</p></div></details>
+
+  <details class="check"><summary>Explain semantic versioning with an example.</summary><div class="ans"><p>A version is MAJOR.MINOR.PATCH. Going from 2.4.1 to 2.4.2 is a bug fix, to 2.5.0 is a backward-compatible feature, and to 3.0.0 is a breaking change. Consumers can rely on the rule that a higher major number may break them, while a higher minor or patch number should not.</p></div></details>
+
+  <details class="check"><summary>What is the difference between deploying and releasing, and how do feature flags help?</summary><div class="ans"><p>Deploying puts code on the servers. Releasing makes a feature visible to users. A feature flag lets you deploy first and release later, to a few users or a percentage of users, and switch it off without redeploying.</p></div></details>
+
+  <details class="check"><summary>What is the test pyramid?</summary><div class="ans"><p>It is a guideline for how many tests of each kind to write: many fast unit tests at the base, fewer integration tests in the middle, and few slow end-to-end tests at the top. The shape keeps the feedback loop fast and makes failures easy to diagnose.</p></div></details>
+
+  <details class="check"><summary>What is the difference between a unit test and an integration test?</summary><div class="ans"><p>A unit test checks one unit, such as a function, with its dependencies replaced by test doubles, so it is fast and isolated. An integration test checks that real components work together, such as a repository talking to a real database.</p></div></details>
+
+  <details class="check"><summary>Why is high coverage not the same as good tests?</summary><div class="ans"><p>Coverage shows which lines ran, not whether the results were checked. A test that calls code without asserting anything raises coverage and catches nothing. Good tests make specific assertions about behaviour, and coverage is useful mainly for finding untested code.</p></div></details>
+
+  <details class="check"><summary>When would you use mock.patch?</summary><div class="ans"><p>When the code under test calls something slow, external or nondeterministic, such as a network call, the clock or a random number. patch temporarily replaces that name with a Mock during the test, and it must patch the name where the code looks it up.</p></div></details>
+
+  <details class="check"><summary>Why report latency as percentiles instead of an average?</summary><div class="ans"><p>An average hides the slow tail. A system can have a healthy mean while one request in twenty takes seconds. The p95 and p99 show what the unlucky users experience, and that is what load tests and service level objectives usually track.</p></div></details>
+
+  <details class="check"><summary>What is the difference between Selenium and Playwright?</summary><div class="ans"><p>Both automate real browsers from code. Selenium uses the WebDriver protocol and usually needs explicit waits. Playwright ships its own browser builds and waits automatically before actions, which makes it less flaky by default. The choice depends on the team's existing tooling and languages.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Dynamic programming, two dimensions</h2>
+  <p>A two-dimensional DP table answers a question about two things at once: a prefix of the first input and a prefix of the second, a position in a grid, or a total and a number of items. Each cell <code>dp[i][j]</code> stores the answer for one pair, and each cell is built from a few neighbouring cells that are already filled.</p>
+
+  <h3>The table, step by step</h3>
+  <ol>
+    <li><strong>State.</strong> Write down the meaning of <code>dp[i][j]</code> in words, for example "the length of the longest common subsequence of the first i letters of A and the first j letters of B".</li>
+    <li><strong>Size.</strong> Make the table one larger than the inputs in each dimension, so row 0 and column 0 represent the empty prefix.</li>
+    <li><strong>Base cases.</strong> Fill row 0 and column 0 directly. They usually hold zeros, ones, or the number of ways to do nothing.</li>
+    <li><strong>Recurrence and order.</strong> Fill cells row by row, left to right, so that the cells a cell depends on are already known.</li>
+    <li><strong>Answer.</strong> Read the bottom-right cell (or wherever the problem points).</li>
+  </ol>
+  <p>Once the table works, check whether a cell needs only the previous row. If so, keep two rows instead of the whole table. This reduces space from O(m times n) to O(n) without changing the logic.</p>
+
+  <h3>Medium: Longest Common Subsequence (LeetCode 1143)</h3>
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/longest-common-subsequence/">
+    <h3>Longest Common Subsequence (LeetCode 1143)</h3>
+    <div class="statement"><p>A subsequence keeps the order of the original string but may skip letters. Given two strings, return the length of the longest subsequence they share. Example: "abcde" and "ace" share "ace", so the answer is 3. Unlike a substring, the letters do not need to be next to each other.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Order matters, gaps are allowed, and the answer can be zero.</li>
+      <li><strong>Brute force.</strong> Each letter of the first string is either used or skipped, and so is each letter of the second. Checking every combination is exponential.</li>
+      <li><strong>Find the waste.</strong> The question "LCS of A[i:] and B[j:]" appears again and again when the recursion branches. Only about m times n distinct pairs exist.</li>
+      <li><strong>Optimise.</strong> Let dp[i][j] be the LCS of the first i letters of A and the first j letters of B. If A[i-1] equals B[j-1], that letter can extend the best answer for the shorter prefixes, so dp[i][j] = dp[i-1][j-1] + 1. Otherwise, drop one letter from either side and take the better result: dp[i][j] = max(dp[i-1][j], dp[i][j-1]).</li>
+      <li><strong>Dry run.</strong> A = "ace", B = "abc". The table below shows rows for A (with an empty row first) and columns for B. Only matching letters add one to the diagonal.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th></th><th>(empty)</th><th>a</th><th>b</th><th>c</th></tr></thead><tbody>
+    <tr><th>(empty)</th><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+    <tr><th>a</th><td>0</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><th>c</th><td>0</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><th>e</th><td>0</td><td>1</td><td>1</td><td>2</td></tr>
+    </tbody></table></div>
+    <p>The bottom-right cell is 2, which is the length of "ac". Reading the table shows why: the "a" and "c" matches add one to the diagonal, and "e" never matches.</p>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def longest_common_subsequence(text1, text2):
+    m, n = len(text1), len(text2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]   # row 0 and column 0 stay 0
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if text1[i - 1] == text2[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1      # the letters match: extend
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])   # drop one letter
+    return dp[m][n]
+
+print(longest_common_subsequence("abcde", "ace"))
+print(longest_common_subsequence("abc", "abc"))
+print(longest_common_subsequence("abc", "def"))
+print(longest_common_subsequence("ezupkr", "ubmrapg"))</code></pre>
+    <pre class="output">3
+3
+0
+2</pre>
+    <p class="cx">Time O(m · n) · Space O(m · n), or O(n) if only the previous row is kept</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When two sequences must be compared letter by letter with skipping allowed, build a table over prefixes: match adds one on the diagonal, mismatch takes the better neighbour.</p></div>
+  </article>
+
+  <h3>Medium: Target Sum (LeetCode 494)</h3>
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/target-sum/">
+    <h3>Target Sum (LeetCode 494)</h3>
+    <div class="statement"><p>You have a list of non-negative integers. For each number you may put a plus or a minus sign in front of it. Count the sign assignments whose total equals the target. Example: nums = [1, 1, 1, 1, 1] and target 3 give 5 ways, because exactly one of the five 1s must be negative.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Every number is used exactly once, with either sign. We count assignments, not distinct totals.</li>
+      <li><strong>Brute force.</strong> There are 2 to the power n sign patterns. Trying each one and summing is exponential.</li>
+      <li><strong>Find the waste.</strong> Split the numbers into a positive group P and a negative group N. The sum of P minus the sum of N equals the target, and the sum of P plus the sum of N equals the total. Adding the two equations gives sum of P = (total + target) / 2. So the problem becomes: count the subsets whose sum is that value. That is a classic knapsack-style count.</li>
+      <li><strong>Optimise.</strong> dp[i][s] is the number of subsets of the first i numbers that sum to s. Base case dp[0][0] = 1 (the empty subset). For each number x, a subset either leaves x out (dp[i-1][s]) or includes it (dp[i-1][s-x], when s is at least x). Add the two.</li>
+      <li><strong>Dry run.</strong> nums = [1, 1], target 0. Total is 2 and the goal is (2 + 0) / 2 = 1. Row 0: dp = [1, 0]. After the first 1: dp[1] = [1, 1] (empty subset, or the single 1). After the second 1: dp[2][1] = dp[1][1] + dp[1][0] = 1 + 1 = 2. Answer 2: +1 -1 and -1 +1.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def find_target_sum_ways(nums, target):
+    total = sum(nums)
+    if abs(target) &gt; total or (total + target) % 2:
+        return 0                          # no assignment can reach the target
+    goal = (total + target) // 2          # the sum of the positive group
+    n = len(nums)
+    dp = [[0] * (goal + 1) for _ in range(n + 1)]
+    dp[0][0] = 1                          # one way to make 0 from nothing
+    for i in range(1, n + 1):
+        x = nums[i - 1]
+        for s in range(goal + 1):
+            dp[i][s] = dp[i - 1][s]       # x is left out of the positive group
+            if s &gt;= x:
+                dp[i][s] += dp[i - 1][s - x]   # x is put in the positive group
+    return dp[n][goal]
+
+print(find_target_sum_ways([1, 1, 1, 1, 1], 3))
+print(find_target_sum_ways([1], 1))
+print(find_target_sum_ways([1], 2))
+print(find_target_sum_ways([0, 0, 0, 0, 0, 0, 0, 0, 1], 1))</code></pre>
+    <pre class="output">5
+1
+0
+256</pre>
+    <p class="cx">Time O(n · goal) · Space O(n · goal). The rolling-row trick reduces space to O(goal)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When signs or choices must reach a target, turn the problem into a subset-sum count with a 2D table over (items used, sum reached).</p></div>
+  </article>
+
+  <h3>Medium: Unique Paths (LeetCode 62)</h3>
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/unique-paths/">
+    <h3>Unique Paths (LeetCode 62)</h3>
+    <div class="statement"><p>A robot starts at the top-left corner of an m by n grid and wants to reach the bottom-right corner. It can move only right or down. Return the number of distinct paths. Example: a 3 by 7 grid has 28 paths.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Only right and down moves, so every path has the same number of moves.</li>
+      <li><strong>Brute force.</strong> Try every sequence of moves. The count of sequences is a binomial coefficient, and enumerating them is far too slow for large grids.</li>
+      <li><strong>Find the waste.</strong> The number of paths to a cell is the same whatever route led to it. Every cell can be reached from above or from the left, so its count is the sum of those two.</li>
+      <li><strong>Optimise.</strong> dp[r][c] = dp[r-1][c] + dp[r][c-1]. The first row and first column are all 1, because there is only one way to walk straight along an edge.</li>
+      <li><strong>Dry run.</strong> On a 3 by 3 grid, the table starts as rows [1, 1, 1], [1, ?, ?], [1, ?, ?]. Cell (1,1) = 1 + 1 = 2. Cell (1,2) = 1 + 2 = 3. Cell (2,1) = 2 + 1 = 3. Cell (2,2) = 3 + 3 = 6. Answer 6.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def unique_paths(m, n):
+    dp = [[1] * n for _ in range(m)]        # first row and column stay 1
+    for r in range(1, m):
+        for c in range(1, n):
+            dp[r][c] = dp[r - 1][c] + dp[r][c - 1]   # from above plus from the left
+    return dp[m - 1][n - 1]
+
+print(unique_paths(3, 7))
+print(unique_paths(3, 2))
+print(unique_paths(1, 1))
+print(unique_paths(10, 10))</code></pre>
+    <pre class="output">28
+3
+1
+48620</pre>
+    <p class="cx">Time O(m · n) · Space O(m · n), or O(n) with one row reused</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>On a grid with moves only forward, the count at a cell is the sum of the counts at the cells it can be entered from.</p></div>
+  </article>
+
+  <h3>Hard: Regular Expression Matching (LeetCode 10)</h3>
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/regular-expression-matching/">
+    <h3>Regular Expression Matching (LeetCode 10)</h3>
+    <div class="statement"><p>Implement matching for a pattern that supports two symbols: <code>.</code> matches any single character, and <code>*</code> matches zero or more of the element right before it. The match must cover the whole string. Examples: "aa" does not match "a"; "aa" matches "a*"; "ab" matches ".*"; "aab" matches "c*a*b".</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The whole string must match, not a part of it. A <code>*</code> always belongs to the character before it, so the pattern is read in pairs when a star appears. The star can match zero copies, which is what makes it tricky.</li>
+      <li><strong>Brute force.</strong> Recurse on the first character. If the next pattern symbol is a star, try matching zero copies (skip the pair) or one more copy (consume one string character and keep the same pattern). Without memory, the same pairs of positions are explored again and again.</li>
+      <li><strong>Find the waste.</strong> Whether the string from position i matches the pattern from position j depends only on i and j. That is at most (m + 1) times (n + 1) questions.</li>
+      <li><strong>Optimise.</strong> dp[i][j] is true when the first i characters of the string match the first j pattern symbols. Base: dp[0][0] is true. Empty string against a pattern like "a*b*" is true when each star removes its pair, so dp[0][j] = dp[0][j-2] when the pattern symbol at j is a star. For the rest: if the pattern symbol equals the string character or is a dot, dp[i][j] = dp[i-1][j-1]. If it is a star, dp[i][j] = dp[i][j-2] (zero copies) or, if the character before the star matches the current string character, dp[i][j] = dp[i][j] or dp[i-1][j] (one more copy).</li>
+      <li><strong>Dry run.</strong> s = "aa", p = "a*". dp[0][0] is true. The star at p[1] gives dp[0][2] = dp[0][0] = true. For i=1, j=1, "a" matches "a", so dp[1][1] is true. For i=1, j=2 (star): zero copies gives dp[1][0] = false, but the star's element "a" matches s[0], so dp[1][2] = dp[1][2] or dp[0][2] = true. For i=2, j=2: the element "a" matches s[1], so dp[2][2] = dp[1][2] = true. The answer is true.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def is_match(s, p):
+    m, n = len(s), len(p)
+    dp = [[False] * (n + 1) for _ in range(m + 1)]
+    dp[0][0] = True                       # empty string matches empty pattern
+    for j in range(2, n + 1):
+        if p[j - 1] == "*":
+            dp[0][j] = dp[0][j - 2]       # a star with its element can match nothing
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if p[j - 1] in (s[i - 1], "."):
+                dp[i][j] = dp[i - 1][j - 1]          # plain match on the last character
+            elif p[j - 1] == "*":
+                dp[i][j] = dp[i][j - 2]              # use the star for zero copies
+                if p[j - 2] in (s[i - 1], "."):
+                    dp[i][j] = dp[i][j] or dp[i - 1][j]   # or one more copy of p[j-2]
+    return dp[m][n]
+
+print(is_match("aa", "a"))
+print(is_match("aa", "a*"))
+print(is_match("ab", ".*"))
+print(is_match("mississippi", "mis*is*p*."))
+print(is_match("aab", "c*a*b"))</code></pre>
+    <pre class="output">False
+True
+True
+False
+True</pre>
+    <p class="cx">Time O(m · n) · Space O(m · n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting that a star can match zero copies. A pattern like "c*a*b" matches "b" only because both stars are skipped, so the dp[i][j-2] branch must always be tried.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For matching with optional or repeated symbols, let dp[i][j] mean "the first i characters match the first j pattern symbols", and handle each symbol type with its own transition.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Revise from these one-line definitions. Each term is explained in the unit it names.</p>
+  <dl>
+    <div><dt>Clean code</dt><dd>Code a colleague can read and change safely, with clear names and single-purpose functions.</dd></div>
+    <div><dt>Code smell</dt><dd>A surface sign of a deeper design problem, such as duplication, magic numbers or a long function.</dd></div>
+    <div><dt>Refactoring</dt><dd>Changing code structure in small steps while keeping its behaviour, checked by tests.</dd></div>
+    <div><dt>Magic number</dt><dd>An unexplained literal in code, best replaced by a named constant.</dd></div>
+    <div><dt>Technical debt</dt><dd>The future cost created by shortcuts, paid back as interest through slower changes.</dd></div>
+    <div><dt>Linter</dt><dd>A tool that reports likely bugs and suspicious code without changing it.</dd></div>
+    <div><dt>Formatter</dt><dd>A tool that rewrites layout so style is consistent and never debated in review.</dd></div>
+    <div><dt>Docstring and doctest</dt><dd>A documentation string, and a test runner that checks the examples written inside it.</dd></div>
+    <div><dt>Debugging loop</dt><dd>Reproduce, read the error, hypothesise, test the smallest experiment, fix the cause and add a test.</dd></div>
+    <div><dt>Profiling</dt><dd>Measuring where a program spends its time, so optimisation targets real hot spots.</dd></div>
+    <div><dt>Semantic versioning</dt><dd>MAJOR.MINOR.PATCH, where major means breaking, minor means compatible features and patch means fixes.</dd></div>
+    <div><dt>Feature flag</dt><dd>A runtime switch that separates deploying code from releasing it to users.</dd></div>
+    <div><dt>Percentage rollout</dt><dd>Enabling a flag for a stable share of users, chosen by hashing the user ID.</dd></div>
+    <div><dt>Test pyramid</dt><dd>Many unit tests, fewer integration tests and few end-to-end tests.</dd></div>
+    <div><dt>Unit test</dt><dd>A test of one unit in isolation, with dependencies replaced by test doubles.</dd></div>
+    <div><dt>Integration test</dt><dd>A test that checks several real components working together.</dd></div>
+    <div><dt>End-to-end test</dt><dd>A test that drives the whole system through its user interface or public API.</dd></div>
+    <div><dt>TDD</dt><dd>Test-driven development: write a failing test, make it pass, then refactor.</dd></div>
+    <div><dt>BDD</dt><dd>Behaviour-driven development: examples written as Given, When, Then scenarios.</dd></div>
+    <div><dt>Test double</dt><dd>A stand-in for a dependency: a stub, a fake or a mock.</dd></div>
+    <div><dt>Mock</dt><dd>A test double that records calls so the test can assert how it was used.</dd></div>
+    <div><dt>Coverage</dt><dd>The share of lines or branches that ran during tests. It shows gaps, not correctness.</dd></div>
+    <div><dt>Throughput</dt><dd>How many requests per second a system completes under load.</dd></div>
+    <div><dt>Latency percentile</dt><dd>The value below which a given share of requests finish, such as p50 or p95.</dd></div>
+    <div><dt>Selenium</dt><dd>A library that controls browsers through the WebDriver protocol, usually with explicit waits.</dd></div>
+    <div><dt>Playwright</dt><dd>A library that controls bundled browsers and waits automatically before actions.</dd></div>
+    <div><dt>Subsequence</dt><dd>A sequence that keeps the original order but may skip elements.</dd></div>
+    <div><dt>2D dynamic programming</dt><dd>A table over two dimensions, where each cell is built from neighbouring cells.</dd></div>
+    <div><dt>Knapsack-style count</dt><dd>Counting subsets that reach a total, filled in a table of items used against sums reached.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+    <tr><td><code>doctest.testmod</code></td><td>Runs the examples inside docstrings and reports the results</td><td><code>print(doctest.testmod())</code></td></tr>
+    <tr><td><code>breakpoint()</code></td><td>Pauses the program in the debugger (Python 3.7 and later)</td><td><code>breakpoint()</code></td></tr>
+    <tr><td><code>python -m cProfile</code></td><td>Profiles a script and prints time per function</td><td><code>python -m cProfile -s cumtime app.py</code></td></tr>
+    <tr><td><code>unittest.mock.Mock</code></td><td>A test double that records its calls</td><td><code>gateway = Mock()</code></td></tr>
+    <tr><td><code>Mock.assert_called_once_with</code></td><td>Fails unless the mock was called exactly once with these arguments</td><td><code>gateway.charge.assert_called_once_with(25)</code></td></tr>
+    <tr><td><code>unittest.mock.patch</code></td><td>Temporarily replaces a name, restoring it afterwards</td><td><code>with patch("os.getcwd", return_value="/x"):</code></td></tr>
+    <tr><td><code>math.ceil</code></td><td>Rounds up to the next whole number, used in nearest-rank percentiles</td><td><code>math.ceil(9.5)</code></td></tr>
+    <tr><td><code>hashlib.sha256</code></td><td>Computes a stable hash, used to bucket users for flags</td><td><code>hashlib.sha256(b"x").hexdigest()</code></td></tr>
+    <tr><td><code>sorted(..., key=)</code></td><td>Sorts by a key function, such as parsed version tuples</td><td><code>sorted(v, key=parse_version)</code></td></tr>
+    <tr><td><code>webdriver.Chrome</code></td><td>Starts a Chrome browser under Selenium</td><td><code>driver = webdriver.Chrome()</code></td></tr>
+    <tr><td><code>sync_playwright</code></td><td>Starts Playwright for synchronous scripts</td><td><code>with sync_playwright() as p:</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 24?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 24 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-23.html"><small>Previous, day 23</small>Git and GitHub</a><a class="next" href="day-25.html"><small>Next, day 25</small>Cloud and AWS 1: Core services</a></nav>
+</main><script src="assets/app.js"></script></body></html>

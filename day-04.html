@@ -1,0 +1,692 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 4: C 2: Structs, build process, OOP in C</title><meta name="description" content="Today finishes the C half of the language track. You will learn how structs, unions and enums group data, how the compiler lays out memory (padding and bit fields), how the preprocessor and the four build stages turn source files into a program, how files are read and written, how object-style design works in plain C, and which undefined behaviour traps sit behind most C output questions. The DSA topic is two pointers, which turns many nested loops into a single pass."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="4" data-key="4" data-noun="day" data-num="4" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>C 2: <em>Structs, build process, OOP in C</em></h1>
+<p class="lede">Today finishes the C half of the language track. You will learn how structs, unions and enums group data, how the compiler lays out memory (padding and bit fields), how the preprocessor and the four build stages turn source files into a program, how files are read and written, how object-style design works in plain C, and which undefined behaviour traps sit behind most C output questions. The DSA topic is two pointers, which turns many nested loops into a single pass.</p>
+<div class="station"><b>4</b><span>Thu 5 Nov 2026 · Programming · DSA: Two pointers</span></div>
+<ul class="topics"><li>Structs, unions, enums</li><li>Padding and bit fields</li><li>Preprocessor and build</li><li>File handling</li><li>OOP in C</li><li>Undefined behaviour</li><li>Two pointers</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Structs and enums">
+  <h2>Structs, unions and enums</h2>
+  <p>C has no classes, so when you need to keep related values together you use a <strong>struct</strong>. A struct is a named group of variables, called <em>members</em>, that the compiler stores one after another in memory. Each member has its own type and its own name. The struct itself is a new type, so you can declare variables of it, pass it to functions and return it from functions.</p>
+
+  <h3>Declaring and using a struct</h3>
+  <p>The keyword <code>struct</code> followed by a tag name defines the type. You then create variables with that type and set members with the dot operator (<code>.</code>). When you have a pointer to a struct, you use the arrow operator (<code>-&gt;</code>), which is shorthand for dereferencing the pointer and then taking the member: <code>p-&gt;x</code> means <code>(*p).x</code>. Here is a complete program that shows both operators and the most important fact about struct assignment: assigning one struct to another copies every member.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+struct Point {
+    int x;
+    int y;
+};
+
+typedef struct {
+    char name[16];
+    int age;
+} Person;
+
+int main(void) {
+    struct Point p = {3, 4};
+    struct Point q = p;          /* copies every member, not a reference */
+    q.x = 10;                    /* changing q does not change p */
+    printf("p = (%d, %d)\n", p.x, p.y);
+    printf("q = (%d, %d)\n", q.x, q.y);
+
+    struct Point *ptr = &amp;p;
+    ptr-&gt;y = 7;                    /* same as (*ptr).y = 7 */
+    printf("p.y after ptr-&gt;y = 7: %d\n", p.y);
+
+    Person person = {"Asha", 21};
+    printf("%s is %d\n", person.name, person.age);
+    return 0;
+}</code></pre>
+<pre class="output">p = (3, 4)
+q = (10, 4)
+p.y after ptr-&gt;y = 7: 7
+Asha is 21</pre>
+
+  <p>Read the program line by line. <code>struct Point p = {3, 4};</code> is an initializer: the first value goes to <code>x</code> and the second to <code>y</code>. <code>struct Point q = p;</code> creates a second, independent struct with the same values. Changing <code>q.x</code> therefore leaves <code>p.x</code> at 3. The <code>typedef</code> on the anonymous struct lets us write <code>Person</code> instead of <code>struct Person</code>, which is the usual style in C code bases.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Use <code>.</code> when you hold the struct itself and <code>-&gt;</code> when you hold a pointer to it. The compiler rejects the wrong one, so the error message tells you which operator to use.</p></div>
+
+  <h3>Unions: one block of memory, several views</h3>
+  <p>A <strong>union</strong> looks like a struct, but all of its members start at the same address. Only one member is meaningful at a time, because writing one member overwrites the bytes the others would read. The size of a union is the size of its largest member (plus any padding needed for alignment, covered in the next section). Unions save memory when a value can be only one of several kinds.</p>
+  <p>The usual pattern in real C code is a <em>tagged union</em>: a small field, called the tag, records which member is active, and the program checks the tag before it reads the union. This is how many parsers and interpreters store values that might be an integer or a string.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+enum Kind { KIND_INT, KIND_TEXT };
+
+struct Token {
+    enum Kind kind;              /* the tag: says which member of "as" is active */
+    union {
+        int number;
+        const char *text;
+    } as;
+};
+
+static void print_token(const struct Token *t) {
+    switch (t-&gt;kind) {
+        case KIND_INT:
+            printf("int token: %d\n", t-&gt;as.number);
+            break;
+        case KIND_TEXT:
+            printf("text token: %s\n", t-&gt;as.text);
+            break;
+    }
+}
+
+int main(void) {
+    struct Token a = { KIND_INT,  { .number = 42 } };
+    struct Token b = { KIND_TEXT, { .text = "hello" } };
+    print_token(&amp;a);
+    print_token(&amp;b);
+    return 0;
+}</code></pre>
+<pre class="output">int token: 42
+text token: hello</pre>
+
+  <p>The <code>switch</code> reads the tag first and then reads only the member that the tag names. The braces with <code>.number</code> and <code>.text</code> are <em>designated initializers</em>, a C99 feature that says which member the value belongs to.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Reading a union member you did not last write gives you bytes reinterpreted under another type, and the result depends on the machine. Always keep a tag, or be sure which member was written last.</p></div>
+
+  <h3>Enums: named integer constants</h3>
+  <p>An <strong>enum</strong> defines a type whose values are named integer constants. If you do not give a value, the first name is 0 and each following name is one more than the previous one. If you give a value, the next names continue counting from it. Enums make code readable because <code>BLUE</code> says more than <code>2</code>.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+enum Color { RED, GREEN = 5, BLUE };
+
+int main(void) {
+    enum Color c = BLUE;
+    printf("RED=%d GREEN=%d BLUE=%d\n", RED, GREEN, BLUE);
+    printf("c=%d\n", c);
+    if (c == BLUE) {
+        printf("c is blue\n");
+    }
+    return 0;
+}</code></pre>
+<pre class="output">RED=0 GREEN=5 BLUE=6
+c=6
+c is blue</pre>
+
+  <p>RED starts at 0. GREEN is given 5 explicitly. BLUE has no value, so it is the previous value plus one, which is 6. The names are just integers after compilation, so you can compare an enum with <code>==</code>, but C will also let you store any integer in an enum variable. That is a weakness compared with other languages, so treat enums as a naming aid, not as a strict set of allowed values.</p>
+
+  <details class="check"><summary>Why does an enum without explicit values start at 0, and what value does the name after GREEN get?</summary><div class="ans"><p>The first enumerator defaults to 0. Every later enumerator without an explicit value is the previous enumerator plus one. After <code>GREEN = 5</code>, the next name gets 6, so <code>enum Color { RED, GREEN = 5, BLUE }</code> makes BLUE equal to 6.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Padding and bit fields">
+  <h2>Memory layout: padding, alignment and bit fields</h2>
+  <p>A struct's members are stored in the order you declare them, but the compiler may leave unused gaps between them. Understanding those gaps explains why <code>sizeof</code> of a struct is sometimes bigger than the sum of its members, and why reordering members can shrink a struct without changing what the program does.</p>
+
+  <h3>Alignment and padding</h3>
+  <p>Most processors read an <code>int</code> fastest, or sometimes only, when its address is a multiple of its size. This requirement is called <strong>alignment</strong>. To satisfy it, the compiler inserts unused bytes called <strong>padding</strong>. A <code>char</code> needs alignment 1, an <code>int</code> usually needs alignment 4, and a <code>double</code> usually needs alignment 8 on a typical 64-bit system. The compiler also adds <em>tail padding</em> at the end of a struct so that an array of such structs keeps every element aligned.</p>
+
+  <p>The next program measures two structs that hold the same three members in different orders. The numbers below are what a typical 64-bit x86 compiler produces. The C standard does not fix the exact layout, so always check with <code>sizeof</code> and <code>offsetof</code> rather than guessing.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;stddef.h&gt;
+
+struct Bad {
+    char a;      /* offset 0, 1 byte, then 3 bytes padding so b is aligned */
+    int b;       /* offset 4, 4 bytes */
+    char c;      /* offset 8, 1 byte, then 3 bytes of tail padding */
+};
+
+struct Good {
+    int b;       /* offset 0, 4 bytes */
+    char a;      /* offset 4, 1 byte */
+    char c;      /* offset 5, 1 byte, then 2 bytes of tail padding */
+};
+
+int main(void) {
+    printf("Bad  size=%zu offsetof(b)=%zu offsetof(c)=%zu\n",
+           sizeof(struct Bad), offsetof(struct Bad, b), offsetof(struct Bad, c));
+    printf("Good size=%zu offsetof(a)=%zu\n",
+           sizeof(struct Good), offsetof(struct Good, a));
+    return 0;
+}</code></pre>
+<pre class="output">Bad  size=12 offsetof(b)=4 offsetof(c)=8
+Good size=8 offsetof(a)=4</pre>
+
+  <p>Walk through <code>Bad</code>. <code>a</code> sits at offset 0. <code>b</code> needs an address that is a multiple of 4, so the compiler skips offsets 1, 2 and 3. <code>b</code> is at offset 4 and occupies bytes 4 to 7. <code>c</code> is at offset 8. The struct now has 9 bytes of data, but the struct as a whole must be a multiple of its largest alignment (4), so 3 bytes of tail padding bring the size to 12. <code>offsetof</code>, defined in <code>stddef.h</code>, returns the byte offset of a member, which lets you see the layout directly.</p>
+
+  <p>Now <code>Good</code> has the same data with the largest member first. <code>b</code> is at 0, <code>a</code> at 4 and <code>c</code> at 5, so no gap is needed between members. Only 2 bytes of tail padding are needed, and the size drops from 12 to 8. If you build an array of a million of these structs, that is 4 MB saved for a one-line change.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Order members from largest alignment to smallest to remove most padding. The compiler never reorders members for you in C, because the order is part of the program's visible layout.</p></div>
+
+  <h3>Bit fields: members measured in bits</h3>
+  <p>A <strong>bit field</strong> is a struct member with a width given in bits after a colon. It is useful for hardware registers and flag sets where each flag needs one or a few bits. Bit fields must have an integer type. The compiler packs them into a storage unit, usually an <code>unsigned int</code> here.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+struct Flags {
+    unsigned int ready : 1;   /* 1 bit: values 0 to 1 */
+    unsigned int mode  : 3;   /* 3 bits: values 0 to 7 */
+    unsigned int level : 4;   /* 4 bits: values 0 to 15 */
+};
+
+int main(void) {
+    struct Flags f = {0};
+    f.ready = 1;
+    f.mode = 5;
+    f.level = 9;
+    printf("ready=%d mode=%d level=%d\n", f.ready, f.mode, f.level);
+
+    f.mode = 9;               /* 9 is 1001 in binary, only 3 bits fit, so the top bit is lost */
+    printf("mode after storing 9: %d\n", f.mode);
+    printf("sizeof(struct Flags)=%zu\n", sizeof(struct Flags));
+    return 0;
+}</code></pre>
+<pre class="output">ready=1 mode=5 level=9
+mode after storing 9: 1
+sizeof(struct Flags)=4</pre>
+
+  <p>Read the bit-field program with care. <code>ready</code> takes one bit, so it can hold only 0 or 1. <code>mode</code> takes three bits, so it holds 0 to 7. <code>f.mode = 9</code> is the interesting line. The binary form of 9 is <code>1001</code>. Only the three lowest bits fit into <code>mode</code>, so the value stored is <code>001</code>, which is 1. Unsigned bit fields wrap around like this in a defined way. The three members together use 8 bits, and they fit in one 4-byte <code>unsigned int</code>, which is why <code>sizeof</code> reports 4.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Storing a value too large for a signed bit field is a different story: the result is implementation-defined. Use <code>unsigned</code> bit fields when you want the wrap-around behaviour shown above, and check the value range before you store it.</p></div>
+
+  <p>Bit fields also have limits you should know before using them in an interview answer. You cannot take the address of a single bit field with <code>&amp;</code>. The order of bit fields inside the storage unit is implementation-defined. For this reason, bit fields are fine for a program's own flags but are a poor choice for data that must match a fixed binary layout, such as a file format. Use explicit masks and shifts for that job.</p>
+
+  <details class="check"><summary>Why is the size of struct Bad 12 and not 9 when its members add up to 6 bytes of data?</summary><div class="ans"><p>The members are char, int and char, which hold 1 + 4 + 1 = 6 bytes of data. Padding is added, not removed. The int needs an address that is a multiple of 4, so 3 bytes are skipped after the first char, which puts the total at 9 bytes of data and offsets. The struct size must also be a multiple of its strictest alignment, 4, so 3 bytes of tail padding bring the size to 12.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Preprocessor and build">
+  <h2>The preprocessor and the build process</h2>
+  <p>A C program does not go straight from source text to a running program. The work happens in stages, and each stage has its own tool. Knowing the stages helps you read compiler errors, because the error message tells you which stage failed.</p>
+
+  <h3>The four stages</h3>
+  <p>The <strong>preprocessor</strong> runs first. It is a text tool that handles lines starting with <code>#</code>. It copies the contents of header files named by <code>#include</code>, replaces names defined by <code>#define</code>, and keeps or removes blocks of code depending on <code>#if</code>, <code>#ifdef</code> and <code>#else</code>. The <strong>compiler</strong> then translates the preprocessed text into assembly language. The <strong>assembler</strong> turns the assembly into an <em>object file</em> that holds machine code, but with unresolved references to functions and variables defined elsewhere. The <strong>linker</strong> joins the object files and the standard library, fixes those references, and writes the final executable.</p>
+
+<pre class="code" data-lang="bash"><code>gcc -E hello.c -o hello.i   # stage 1: preprocess (expand #include, #define, #if)
+gcc -S hello.i -o hello.s   # stage 2: compile to assembly text
+gcc -c hello.s -o hello.o   # stage 3: assemble to an object file
+gcc hello.o -o hello        # stage 4: link into an executable</code></pre>
+
+  <p>In practice <code>gcc hello.c -o hello</code> runs all four stages in one command. The split commands above are useful for seeing what each stage produces, and <code>gcc -E</code> in particular is a good way to see what a macro really expanded to.</p>
+
+  <h3>Macros with #define</h3>
+  <p>A <strong>macro</strong> defined with <code>#define</code> is a text substitution. The preprocessor replaces every occurrence of the name with the replacement text before the compiler sees the code. Macros have no types and no function-call overhead, which is why they were popular before <code>inline</code> functions. The price is that they follow text rules, not C rules, and that causes the classic traps shown below.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+#define SQUARE_BAD(x)  x * x
+#define SQUARE_OK(x)   ((x) * (x))
+#define DEBUG 1
+
+int main(void) {
+    int a = 5;
+    printf("bad:  %d\n", SQUARE_BAD(a + 1));
+    printf("good: %d\n", SQUARE_OK(a + 1));
+#if DEBUG
+    printf("debug build\n");
+#else
+    printf("release build\n");
+#endif
+    return 0;
+}</code></pre>
+<pre class="output">bad:  11
+good: 36
+debug build</pre>
+
+  <p>The macro <code>SQUARE_BAD(a + 1)</code> is replaced by the text <code>a + 1 * a + 1</code>. Multiplication binds tighter than addition, so the expression becomes <code>5 + 1 * 5 + 1</code>, which is 11. <code>SQUARE_OK</code> wraps every parameter in parentheses, so the text becomes <code>((a + 1) * (a + 1))</code>, which is 36. The rule is simple: put parentheses around each parameter and around the whole macro body.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A macro argument with side effects runs more than once. <code>SQUARE_OK(i++)</code> increments <code>i</code> twice. Use a real function or an <code>inline</code> function when the argument has side effects.</p></div>
+
+  <h3>Header guards and linking</h3>
+  <p>A header file usually holds declarations: function prototypes, struct definitions and <code>extern</code> variables. When two source files include the same header, the declarations can appear twice in one compilation, which is an error. An <strong>include guard</strong> prevents that. The header below is a typical example. It is shown on its own because it is not a program; a complete example appears later in this unit.</p>
+
+<pre class="code" data-lang="c"><code>/* math_utils.h */
+#ifndef MATH_UTILS_H
+#define MATH_UTILS_H
+
+int add(int a, int b);     /* a declaration: says the function exists */
+
+#endif</code></pre>
+
+  <p>The first time the preprocessor sees the header, <code>MATH_UTILS_H</code> is not defined, so it keeps the code and defines the name. A second include finds the name already defined and skips the whole block. The definitions of <code>add</code> go into one <code>.c</code> file, and the linker connects each call to that single definition. If a call has no matching definition, you get an <em>undefined reference</em> error from the linker, not a compiler error. That message means "the compiler was happy, but no object file defines this name."</p>
+
+  <details class="check"><summary>What is the difference between a compiler error and a linker error, and which stage produces an "undefined reference" message?</summary><div class="ans"><p>A compiler error means the source text breaks C rules, such as a missing semicolon or a wrong type. An "undefined reference" message comes from the linker. It means a function or variable was declared and used, but no object file or library supplies its definition.</p></div></details>
+</section>
+<section class="unit" id="c4" data-title="File handling">
+  <h2>File handling</h2>
+  <p>A program keeps data in memory while it runs, but many programs must also read and write files. In C, the standard library handles files through a pointer to a <code>FILE</code> object. You open a file with <code>fopen</code>, which takes a name and a <em>mode</em> string and returns a <code>FILE *</code>. The most common modes are <code>"r"</code> to read an existing file, <code>"w"</code> to create or truncate a file for writing, and <code>"a"</code> to append to the end of a file. Adding a <code>b</code>, as in <code>"rb"</code>, selects binary mode, which matters on systems that translate line endings.</p>
+
+  <p>The usual pattern has four steps. First, call <code>fopen</code> and check that the result is not <code>NULL</code>. Second, read or write with functions such as <code>fgets</code>, <code>fread</code>, <code>fprintf</code> or <code>fwrite</code>. Third, check for errors when the work is done. Fourth, call <code>fclose</code>, which flushes buffered output and releases the file handle. <code>fgets</code> reads one line into a buffer and keeps the newline character at the end, so programs often remove it, as the example does.</p>
+
+  <p>The example below uses <code>tmpfile</code>, a standard function that creates a temporary file, opens it for reading and writing, and deletes it when closed. That lets the program run without leaving files behind. The same steps apply to <code>fopen</code> on a named file.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+#include &lt;string.h&gt;
+
+int main(void) {
+    FILE *fp = tmpfile();          /* temporary file, removed automatically on fclose */
+    if (fp == NULL) {
+        perror("tmpfile");         /* prints the reason the system gave */
+        return EXIT_FAILURE;
+    }
+
+    fprintf(fp, "alpha 1\nbeta 2\n");   /* write two lines */
+    rewind(fp);                         /* move back to the start before reading */
+
+    char line[64];
+    int count = 0;
+    while (fgets(line, sizeof line, fp) != NULL) {
+        line[strcspn(line, "\n")] = '\0';   /* remove the newline, if present */
+        count++;
+        printf("%d: %s\n", count, line);
+    }
+
+    if (ferror(fp)) {
+        perror("read");
+    }
+    fclose(fp);
+    return 0;
+}</code></pre>
+<pre class="output">1: alpha 1
+2: beta 2</pre>
+
+  <p>Look at what each call does. <code>fprintf</code> works like <code>printf</code>, but its first argument is the file. After writing, the file position is at the end, so <code>rewind</code> moves it back to the start, which lets <code>fgets</code> read from the top. The <code>strcspn</code> call finds the first newline, and assigning <code>'\0'</code> there cuts the string short. The loop stops when <code>fgets</code> returns <code>NULL</code>, which happens at the end of the file or on an error. The <code>ferror</code> check after the loop tells those two cases apart.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Forgetting to check the result of <code>fopen</code> is the most common file bug in C. If the file does not exist or you lack permission, the result is <code>NULL</code>, and the first read or write crashes. Check for <code>NULL</code> right away and report the problem with <code>perror</code>.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>When you switch from writing to reading on the same stream, call <code>rewind</code> or <code>fseek</code> in between. Mixing reads and writes on one stream without a positioning call is undefined behaviour.</p></div>
+
+  <details class="check"><summary>What does fgets keep at the end of a line, and why does the program remove it?</summary><div class="ans"><p>fgets keeps the newline character at the end of the line, as long as the buffer has room for it. The program replaces that newline with the null terminator so that the printed line and any later comparison see only the text.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="OOP in C">
+  <h2>OOP concepts in C</h2>
+  <p>C has no classes, inheritance or virtual functions. It is still possible to organize a C program around objects, and many real systems do exactly that, including the Linux kernel and parts of the Python interpreter. The four pillars of object-oriented design can be built by convention:</p>
+  <ul>
+    <li><strong>Encapsulation</strong>: keep a struct's fields behind functions. Callers receive a pointer to an <em>opaque</em> type whose layout they cannot see, so only the module's own functions touch the fields.</li>
+    <li><strong>Abstraction</strong>: callers use a small set of operations, such as <code>area</code> or <code>name</code>, and ignore how they are done.</li>
+    <li><strong>Inheritance</strong>: a common prefix. Structs that begin with the same members can be treated as the base type.</li>
+    <li><strong>Polymorphism</strong>: a struct holds a pointer to a table of function pointers. Different tables give different behaviour behind the same call.</li>
+  </ul>
+  <p>The third pillar is the weakest in C, because the compiler does not check it for you. The fourth pillar is the important one for interviews, because it is how C++ virtual functions work underneath, as you will see in the C++ unit tomorrow.</p>
+
+  <h3>Function pointers as a method table</h3>
+  <p>A <strong>function pointer</strong> stores the address of a function. Its declaration names the return type and parameter list inside parentheses: <code>double (*area)(const struct Shape *self)</code> is a pointer named <code>area</code> that points to a function taking a <code>const struct Shape *</code> and returning a <code>double</code>. Grouping several function pointers into a struct gives a <em>method table</em>, called a vtable in C++ terminology. Each object stores a pointer to one table. Calling <code>shape-&gt;ops-&gt;area(shape)</code> therefore picks the right function at run time.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+struct Shape;
+
+struct ShapeOps {
+    double (*area)(const struct Shape *self);
+    const char *(*name)(const struct Shape *self);
+};
+
+struct Shape {
+    const struct ShapeOps *ops;   /* the method table for this object */
+    double w, h;
+};
+
+static double rect_area(const struct Shape *s) { return s-&gt;w * s-&gt;h; }
+static const char *rect_name(const struct Shape *s) { (void)s; return "rectangle"; }
+static const struct ShapeOps rect_ops = { rect_area, rect_name };
+
+static double tri_area(const struct Shape *s) { return 0.5 * s-&gt;w * s-&gt;h; }
+static const char *tri_name(const struct Shape *s) { (void)s; return "triangle"; }
+static const struct ShapeOps tri_ops = { tri_area, tri_name };
+
+int main(void) {
+    struct Shape shapes[2] = {
+        { &amp;rect_ops, 3.0, 4.0 },
+        { &amp;tri_ops,  3.0, 4.0 },
+    };
+    for (int i = 0; i &lt; 2; i++) {
+        printf("%s area = %.2f\n",
+               shapes[i].ops-&gt;name(&amp;shapes[i]),
+               shapes[i].ops-&gt;area(&amp;shapes[i]));
+    }
+    return 0;
+}</code></pre>
+<pre class="output">rectangle area = 12.00
+triangle area = 6.00</pre>
+
+  <p>Trace one loop iteration. For <code>i = 0</code>, <code>shapes[0].ops</code> points to <code>rect_ops</code>. The expression <code>shapes[0].ops-&gt;area</code> is therefore <code>rect_area</code>, and calling it with <code>&amp;shapes[0]</code> computes 3.0 times 4.0, which is 12.00. For <code>i = 1</code>, the same source line finds <code>tri_ops</code> instead, so the same line of code runs a different function. This is runtime polymorphism in plain C. The loop does not know which shape it has, and it does not need to.</p>
+
+  <p>Notice that both functions take the object as the first argument. This is the convention C++ uses internally: a method is a function that receives <code>this</code> as a hidden first parameter. Writing it by hand makes the mechanism visible, which is why interviewers like this question.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you get polymorphism in C? Answer: store a pointer to a table of function pointers in each object, and call through the table. The call site stays the same while the table decides the behaviour.</p></div>
+
+  <details class="check"><summary>In the shape example, why is the pointer to the table declared const, and why is the table itself declared static const?</summary><div class="ans"><p>The table is the same for every rectangle, so it is created once and never changes. Declaring it <code>static const</code> places it in read-only memory and keeps its name private to the file. Objects store a pointer to it, and the pointer targets the constant table, so the methods cannot be replaced by accident.</p></div></details>
+</section>
+<section class="unit" id="c6" data-title="Undefined behaviour">
+  <h2>Undefined behaviour and output questions</h2>
+  <p>The C standard describes three kinds of behaviour that a program can have when a rule is broken or a result is not fixed. <strong>Implementation-defined</strong> behaviour is allowed to vary, but the compiler must document its choice, such as the size of <code>int</code>. <strong>Unspecified</strong> behaviour allows several outcomes without documentation, such as the order in which function arguments are evaluated. <strong>Undefined behaviour</strong>, usually shortened to UB, means the standard places no requirements at all. The compiler may produce a crash, a wrong answer, or code that appears to work today and breaks after an upgrade.</p>
+
+  <p>UB is the cause of most "what does this print?" interview questions. The usual sources are these:</p>
+  <ul>
+    <li><strong>Signed integer overflow</strong>, such as adding 1 to <code>INT_MAX</code>. Unsigned overflow wraps around and is defined.</li>
+    <li><strong>Out-of-bounds access</strong>, reading or writing past the end of an array.</li>
+    <li><strong>Use after free</strong>, reading memory after <code>free</code> has released it.</li>
+    <li><strong>Uninitialized reads</strong>, using a local variable before any value was stored in it.</li>
+    <li><strong>Modifying a string literal</strong>, such as writing into <code>"hello"</code> through a <code>char *</code>.</li>
+    <li><strong>Unsequenced side effects</strong>, changing one variable twice without a sequence point between, such as <code>i = i++</code> or <code>x++ + ++x</code>.</li>
+    <li><strong>Null pointer dereference</strong>, following a pointer that is <code>NULL</code>.</li>
+  </ul>
+
+  <p>A program that contains UB is wrong, even if the output looks right on your machine. Compilers are allowed to assume UB never happens and optimize based on that assumption, so a bug can appear far away from its cause. The safe approach is to write code that is defined and to check tools such as warnings with <code>-Wall -Wextra</code>.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Expressions such as <code>i = i++</code> and <code>a[i] = i++</code> are UB because one variable is changed twice with no sequence point between the changes. Write the steps on separate lines and the question disappears.</p></div>
+
+  <h3>Output questions with defined behaviour</h3>
+  <p>Output questions often mix promotion rules, integer division and character types. The program below uses only defined behaviour, so every line is predictable. Each comment gives the reason for the result, which is the part interviewers listen for.</p>
+
+<pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;limits.h&gt;
+
+int main(void) {
+    printf("%d\n", 7 / 2);                      /* 3: integer division drops the fraction */
+    printf("%d\n", -7 / 2);                     /* -3: C99 truncates toward zero */
+    printf("%d\n", -7 % 3);                     /* -1: the remainder takes the sign of the left operand */
+    printf("%d\n", 'A' + 1);                    /* 66: 'A' is an int with the value 65 */
+    printf("%d\n", sizeof('a') == sizeof(int)); /* 1: a character constant has type int in C */
+
+    int a[] = {10, 20, 30};
+    printf("%d %d\n", *(a + 2), 2[a]);          /* 30 30: a[i] means *(a + i), so 2[a] also works */
+
+    unsigned int u = 0;
+    u = u - 1;                                  /* unsigned arithmetic wraps around */
+    printf("%d\n", u == UINT_MAX);              /* 1 */
+
+    int i = 0;
+    if (0 &amp;&amp; i++) {                             /* the right side is skipped, so i stays 0 */
+    }
+    printf("%d\n", i);                          /* 0 */
+    printf("%zu\n", sizeof("abc"));             /* 4: three letters plus the terminating '\0' */
+    return 0;
+}</code></pre>
+<pre class="output">3
+-3
+-1
+66
+1
+30 30
+1
+0
+4</pre>
+
+  <p>Three ideas explain almost every line. First, division of two integers truncates toward zero, so <code>-7 / 2</code> is -3 and not -4. Second, a character constant such as <code>'A'</code> is an <code>int</code> in C, not a <code>char</code>, which is why <code>'A' + 1</code> is 66 and why <code>sizeof('a')</code> equals <code>sizeof(int)</code>. Third, the short-circuit operators <code>&amp;&amp;</code> and <code>||</code> do not evaluate the right side when the left side already decides the answer, so <code>i++</code> never runs.</p>
+
+  <div class="tablewrap"><table><thead><tr><th>Expression</th><th>Result</th><th>Why</th></tr></thead><tbody><tr><td><code>5 / 2</code></td><td>2</td><td>Integer division drops the fraction.</td></tr><tr><td><code>-5 % 2</code></td><td>-1</td><td>The remainder has the sign of the left operand.</td></tr><tr><td><code>'0' + 1</code></td><td>49</td><td>'0' is 48 in ASCII, and the result is an int.</td></tr><tr><td><code>0u - 1</code></td><td>UINT_MAX</td><td>Unsigned values wrap around.</td></tr><tr><td><code>1 &amp;&amp; 0</code></td><td>0</td><td>The logical AND is false because one side is false.</td></tr></tbody></table></div>
+
+  <div class="note key"><p><span class="t">Key idea</span>Before answering any output question, ask three things: is there a conversion or promotion, is there integer division, and is any variable changed twice. Those three checks catch most traps.</p></div>
+
+  <details class="check"><summary>Why does sizeof('a') give the size of int in C, and what would it give in C++?</summary><div class="ans"><p>In C, a character constant written with single quotes has type int, so <code>sizeof('a')</code> equals <code>sizeof(int)</code>, usually 4. In C++, a character literal has type char, so the same expression gives 1. The difference is a common interview question about C versus C++.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Each answer below is written as you would say it in an interview: short, precise, and followed by the reason. Read the question, say the answer out loud, then open the answer to compare.</p>
+
+  <details class="check"><summary>What is the difference between a struct and a union?</summary><div class="ans"><p>All members of a struct have their own storage, so its size is at least the sum of the member sizes. All members of a union share the same storage, so its size is the size of the largest member, plus padding. A struct can hold all of its members at once, while a union holds one meaningful member at a time.</p></div></details>
+
+  <details class="check"><summary>Why can sizeof a struct be larger than the sum of its members?</summary><div class="ans"><p>The compiler inserts padding so each member starts at an address that suits its alignment, and it adds tail padding so the total size is a multiple of the strictest alignment. Reordering members from largest to smallest usually reduces the padding.</p></div></details>
+
+  <details class="check"><summary>What is a bit field, and what should you avoid when using one?</summary><div class="ans"><p>A bit field is a struct member with a width in bits. It is useful for flags and hardware registers. Avoid using bit fields for data with a fixed external layout, because the order and packing of bit fields are implementation-defined, and you cannot take the address of one.</p></div></details>
+
+  <details class="check"><summary>Why should you put parentheses around macro parameters?</summary><div class="ans"><p>A macro is text substitution, so without parentheses an argument such as <code>a + 1</code> joins with the operators around it by normal precedence. Wrapping each parameter, and the whole body, in parentheses keeps the expansion grouped the way the caller intended.</p></div></details>
+
+  <details class="check"><summary>What are the four stages that turn a C source file into an executable?</summary><div class="ans"><p>Preprocessing expands directives such as include and define. Compilation translates the result into assembly. Assembling turns the assembly into an object file. Linking joins object files and libraries, resolves references between them, and writes the executable.</p></div></details>
+
+  <details class="check"><summary>What is an include guard, and why is it needed?</summary><div class="ans"><p>An include guard is a pair of preprocessor lines, an <code>#ifndef</code> test and a matching <code>#endif</code>, around a header's contents. The first include defines a macro name, and later includes skip the block. This stops declarations from appearing twice when several files include the same header.</p></div></details>
+
+  <details class="check"><summary>Why must you check the result of fopen?</summary><div class="ans"><p>fopen returns NULL when the file cannot be opened, for example when it does not exist or permission is denied. Using the NULL pointer in a read or write call is undefined behaviour, usually a crash. Check the result, report the reason with perror, and return an error.</p></div></details>
+
+  <details class="check"><summary>How do you get runtime polymorphism in C?</summary><div class="ans"><p>Store a pointer to a table of function pointers in each object, and call functions through that table. Each object can point to a different table, so the same call runs different code. This is the same mechanism C++ uses for virtual functions.</p></div></details>
+
+  <details class="check"><summary>What is undefined behaviour, and why is i = i++ an example?</summary><div class="ans"><p>Undefined behaviour is code the standard does not define, so the compiler may do anything. The expression i = i++ changes i twice without a sequence point between the changes, so the final value is not defined.</p></div></details>
+
+  <details class="check"><summary>What does the statement sizeof("abc") evaluate to, and why?</summary><div class="ans"><p>It evaluates to 4. A string literal is an array of characters that includes the terminating null character, so three letters plus one terminator make four bytes. Note that strlen("abc") gives 3, because strlen does not count the terminator.</p></div></details>
+
+  <details class="check"><summary>Why does the two-pointer solution to 3Sum start by sorting the array?</summary><div class="ans"><p>Sorting makes the sum of the three values change in a known direction when a pointer moves. If the total is too small, moving the left pointer right increases it. If the total is too big, moving the right pointer left decreases it. Without sorting, moving a pointer would not tell you which way the total changes.</p></div></details>
+</section>
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: two pointers</h2>
+  <p>The <strong>two pointers</strong> technique keeps two indexes into one sequence and moves them according to a rule. The most common version starts one pointer at the left end and one at the right end, then moves them toward each other. Another version has both pointers move forward at different speeds, which is used for cycle detection in linked lists. Both versions share one idea: each step rules out work that can never produce the answer, so the whole scan costs O(n) instead of the O(n^2) of trying every pair.</p>
+
+  <p>Two pointers works when you can decide, from the values at the two pointers, which pointer to move. Sorted input often makes that decision obvious. Before you code, ask: if the current pair is too small, which pointer should move to make it bigger? If the answer is clear, two pointers will work.</p>
+
+  <div class="note key"><p><span class="t">Pattern to remember</span>When you see a sorted array, a palindrome check, or a pair or triple with a target condition, think of two pointers that close in from both ends.</p></div>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/valid-palindrome/">
+    <h3>Valid Palindrome (LeetCode 125)</h3>
+    <div class="statement"><p>A phrase is a palindrome if, after you turn every uppercase letter into lowercase and remove every character that is not a letter or digit, it reads the same forwards and backwards. Given a string, return True if it is a palindrome. For example, "A man, a plan, a canal: Panama" is a palindrome, and "race a car" is not.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Punctuation and spaces are ignored, and case does not matter. An empty string or a string with no letters counts as a palindrome.</li>
+      <li><strong>Brute force.</strong> Build a cleaned copy of the string, then compare it with its reverse. That takes O(n) extra space for the copy and the reverse.</li>
+      <li><strong>Find the waste.</strong> The cleaned copy is not needed. You can compare the original characters directly, skipping the ones you should ignore.</li>
+      <li><strong>Optimise.</strong> Put one pointer at the left end and one at the right end. Skip characters that are not alphanumeric, compare the two, and move both inward. This needs O(1) extra space.</li>
+      <li><strong>Dry run.</strong> Take "ab_a". Left is 0 ("a"), right is 3 ("a"): they match, so move to 1 and 2. Left is "b" and right is "_", which is skipped, so right moves to 1. Left and right now both point to "b", the loop ends, and the answer is True.</li>
+    </ol>
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>def is_palindrome(s):
+    left, right = 0, len(s) - 1
+    while left &lt; right:
+        while left &lt; right and not s[left].isalnum():
+            left += 1
+        while left &lt; right and not s[right].isalnum():
+            right -= 1
+        if s[left].lower() != s[right].lower():
+            return False
+        left += 1
+        right -= 1
+    return True
+
+print(is_palindrome("A man, a plan, a canal: Panama"))
+print(is_palindrome("race a car"))
+print(is_palindrome(" "))</code></pre>
+<pre class="output">True
+False
+True</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you must skip some characters, keep the skip loops inside the main loop and check <code>left &lt; right</code> in each one, so the pointers never cross.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/3sum/">
+    <h3>3Sum (LeetCode 15)</h3>
+    <div class="statement"><p>Given an array of integers, return all unique triplets of values that add up to 0. Each triplet must be a list of three numbers taken from different positions, and the same triplet must not appear twice. For example, [-1, 0, 1, 2, -1, -4] gives [[-1, -1, 2], [-1, 0, 1]].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The answer is a list of value triplets, not index triplets, so duplicate values must not produce duplicate triplets. The array can be in any order and can contain repeats.</li>
+      <li><strong>Brute force.</strong> Three nested loops try every triple. That is O(n^3), too slow for large inputs.</li>
+      <li><strong>Find the waste.</strong> Fix the first number, then look for two numbers that add up to the negative of it. That is a pair search, which two pointers solve in one pass once the rest is sorted.</li>
+      <li><strong>Optimise.</strong> Sort the array. For each index i, put left at i + 1 and right at the last index. If the sum is negative, the left value is too small, so move left right. If the sum is positive, move right left. When the sum is 0, record the triplet and move both pointers. Skip repeated values for i, left and right so that each triplet appears once.</li>
+      <li><strong>Dry run.</strong> Sorted, the array is [-4, -1, -1, 0, 1, 2]. With i = 1 (value -1), left starts at 2 (value -1) and right at 5 (value 2). The sum is -1 + -1 + 2 = 0, so [-1, -1, 2] is recorded. Then left moves to 3 (value 0) and right to 4 (value 1). The sum is -1 + 0 + 1 = 0, so [-1, 0, 1] is recorded. Left and right cross, and the loop for i = 1 ends.</li>
+    </ol>
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>def three_sum(nums):
+    nums = sorted(nums)
+    result = []
+    n = len(nums)
+    for i in range(n - 2):
+        if i &gt; 0 and nums[i] == nums[i - 1]:
+            continue                      # skip a first value we have already used
+        left, right = i + 1, n - 1
+        while left &lt; right:
+            total = nums[i] + nums[left] + nums[right]
+            if total &lt; 0:
+                left += 1
+            elif total &gt; 0:
+                right -= 1
+            else:
+                result.append([nums[i], nums[left], nums[right]])
+                left += 1
+                right -= 1
+                while left &lt; right and nums[left] == nums[left - 1]:
+                    left += 1
+                while left &lt; right and nums[right] == nums[right + 1]:
+                    right -= 1
+    return result
+
+print(three_sum([-1, 0, 1, 2, -1, -4]))
+print(three_sum([0, 1, 1]))
+print(three_sum([0, 0, 0]))</code></pre>
+<pre class="output">[[-1, -1, 2], [-1, 0, 1]]
+[]
+[[0, 0, 0]]</pre>
+    <p class="cx">Time O(n^2) · Space O(1) beyond the sorted copy and the output</p>
+    <div class="note trap"><p><span class="t">Trap</span>Skipping duplicates after a match is what keeps the output unique. Forgetting it returns [-1, 0, 1] several times for an input with repeated -1 values.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/container-with-most-water/">
+    <h3>Container With Most Water (LeetCode 11)</h3>
+    <div class="statement"><p>You are given a list of heights, where each value is the height of a vertical line at that index. Choose two lines. Together with the x-axis they form a container, and its capacity is the width (the distance between the indexes) times the smaller of the two heights. Return the largest capacity. For [1, 8, 6, 2, 5, 4, 8, 3, 7], the answer is 49, from the lines of height 8 at index 1 and height 7 at index 8.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Capacity depends on the shorter line, so a tall line next to a short one gives little water. The answer must be at least 1 when the list has two or more lines.</li>
+      <li><strong>Brute force.</strong> Try every pair of indexes and keep the best area. That is O(n^2) pairs with O(1) work each.</li>
+      <li><strong>Find the waste.</strong> Start with the widest container, the two ends. Its width is the largest possible. Moving a pointer makes the width smaller, so the only way to gain is for the height to grow. The shorter line is the limit, so moving the taller line can never help.</li>
+      <li><strong>Optimise.</strong> Put left at the start and right at the end. Compute the area. Then move the pointer that points to the shorter line inward, because that is the only line that can be replaced by something taller and make progress. This removes one line per step.</li>
+      <li><strong>Dry run.</strong> Heights [4, 3, 2, 1, 4]. Step 1: left 0 (4) and right 4 (4), width 4, area 16. Equal heights, so move right to 3. Step 2: width 3, min(4, 1) = 1, area 3. The shorter line is at right, so move right to 2. Step 3: width 2, min(4, 2) = 2, area 4. Move right to 1. Step 4: width 1, min(4, 3) = 3, area 3. The best area is 16.</li>
+    </ol>
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>def max_area(height):
+    left, right = 0, len(height) - 1
+    best = 0
+    while left &lt; right:
+        width = right - left
+        h = min(height[left], height[right])
+        best = max(best, width * h)
+        if height[left] &lt; height[right]:
+            left += 1
+        else:
+            right -= 1
+    return best
+
+print(max_area([1, 8, 6, 2, 5, 4, 8, 3, 7]))
+print(max_area([1, 1]))
+print(max_area([4, 3, 2, 1, 4]))</code></pre>
+<pre class="output">49
+1
+16</pre>
+    <p class="cx">Time O(n) · Space O(1)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a pair's value depends on a limit that only moves in one direction, start from the widest pair and move the pointer at the limit. Moving the other pointer can never help.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/trapping-rain-water/">
+    <h3>Trapping Rain Water (LeetCode 42)</h3>
+    <div class="statement"><p>You are given an elevation map: a list where each value is the height of a bar of width 1. After rain, water stays in the dips between taller bars. Return how many units of water are trapped in total. For [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1] the answer is 6. For [4, 2, 0, 3, 2, 5] it is 9.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The water above one bar at index i is the lower of two numbers minus the height at i: the tallest bar to its left and the tallest bar to its right. If that difference is negative, the bar sticks out and holds no water. Each position is independent.</li>
+      <li><strong>Brute force.</strong> For each index, scan left to find the tallest bar, scan right to find the tallest bar, and add min(left, right) minus the height. This is correct and O(n^2) because each index scans the whole array. The code below checks that idea directly on a small input.</li>
+      <li><strong>Find the waste.</strong> The left scan and the right scan repeat the same work for neighbouring indexes. The tallest bar to the left of i only grows as i moves right, so it can be remembered in one number instead of searched again.</li>
+      <li><strong>Optimise.</strong> Keep a left pointer and a right pointer, and remember the highest bar seen so far on each side. Look at whichever end is shorter. Why is that safe? If the left end is shorter than the right end, the highest bar seen on the right is at least the right end, which is taller than the left end. So the water at the left end depends only on the highest bar seen on the left. Process it, then move the pointer. This needs O(n) time and O(1) extra space.</li>
+      <li><strong>Dry run.</strong> Heights [4, 2, 0, 3, 2, 5]. Start with left 0, right 5, left_max 0, right_max 0, total 0. The table shows each step.</li>
+    </ol>
+
+<div class="tablewrap"><table><thead><tr><th>Step</th><th>left</th><th>right</th><th>height[left] vs height[right]</th><th>left_max</th><th>Action</th><th>total</th></tr></thead><tbody><tr><td>1</td><td>0</td><td>5</td><td>4 is less than 5</td><td>0</td><td>4 is a new left maximum, so left_max becomes 4. Move left.</td><td>0</td></tr><tr><td>2</td><td>1</td><td>5</td><td>2 is less than 5</td><td>4</td><td>Water above index 1: 4 - 2 = 2. Move left.</td><td>2</td></tr><tr><td>3</td><td>2</td><td>5</td><td>0 is less than 5</td><td>4</td><td>Water above index 2: 4 - 0 = 4. Move left.</td><td>6</td></tr><tr><td>4</td><td>3</td><td>5</td><td>3 is less than 5</td><td>4</td><td>Water above index 3: 4 - 3 = 1. Move left.</td><td>7</td></tr><tr><td>5</td><td>4</td><td>5</td><td>2 is less than 5</td><td>4</td><td>Water above index 4: 4 - 2 = 2. Move left.</td><td>9</td></tr></tbody></table></div>
+
+    <p>At step 5 the left pointer reaches index 5, so the loop ends with a total of 9. The right side never needed a maximum, because the right end (height 5) was always taller than the left end.</p>
+
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>def trap_bruteforce(height):
+    total = 0
+    for i in range(len(height)):
+        left_max = max(height[:i + 1])
+        right_max = max(height[i:])
+        total += min(left_max, right_max) - height[i]
+    return total
+
+def trap(height):
+    left, right = 0, len(height) - 1
+    left_max = right_max = 0
+    total = 0
+    while left &lt; right:
+        if height[left] &lt; height[right]:
+            if height[left] &gt;= left_max:
+                left_max = height[left]
+            else:
+                total += left_max - height[left]
+            left += 1
+        else:
+            if height[right] &gt;= right_max:
+                right_max = height[right]
+            else:
+                total += right_max - height[right]
+            right -= 1
+    return total
+
+print(trap([0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1]))
+print(trap([4, 2, 0, 3, 2, 5]))
+print(trap_bruteforce([4, 2, 0, 3, 2, 5]))
+print(trap([3, 0, 2]))</code></pre>
+<pre class="output">6
+9
+9
+2</pre>
+    <p class="cx">Time O(n) · Space O(1). The brute force is O(n^2) time and O(1) extra space.</p>
+    <div class="note trap"><p><span class="t">Trap</span>Updating the maximum after you use the height gives wrong answers. Compare first, then either update the maximum (the bar is a new peak and holds no water) or add the water (the bar is in a dip). Both branches must use the maximum that was known before the current bar.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When the answer at each position depends on a maximum from both sides, check which side is the limit. Process the smaller side, because the larger side is already known to be tall enough.</p></div>
+  </article>
+
+  <p>For interviews, state the three approaches in order: brute force O(n^2), prefix maxima in O(n) time and O(n) space, and two pointers in O(n) time and O(1) space. Mention that the two-pointer version is the one to code under time pressure, because it uses the same idea as the prefix approach with less memory.</p>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this list to check your memory. Each entry is one idea from today, stated briefly.</p>
+  <dl>
+    <div><dt>Struct</dt><dd>A named group of members stored in declaration order, with padding between them.</dd></div>
+    <div><dt>Member access</dt><dd>The dot operator reads a struct value; the arrow operator reads a member through a pointer.</dd></div>
+    <div><dt>Struct assignment</dt><dd>Assigning one struct to another copies every member, not a reference.</dd></div>
+    <div><dt>Union</dt><dd>Members share one block of memory; its size is the largest member plus padding.</dd></div>
+    <div><dt>Tagged union</dt><dd>A union paired with a field that records which member is active.</dd></div>
+    <div><dt>Enum</dt><dd>Named integer constants; unnamed values count up from the previous one, starting at 0.</dd></div>
+    <div><dt>Alignment</dt><dd>The requirement that a value's address is a multiple of its size for fast or valid access.</dd></div>
+    <div><dt>Padding</dt><dd>Unused bytes the compiler inserts to satisfy alignment, inside and at the end of a struct.</dd></div>
+    <div><dt>Member ordering</dt><dd>Putting larger members first usually reduces padding and struct size.</dd></div>
+    <div><dt>Bit field</dt><dd>A struct member with a width given in bits, used for flags and register layouts.</dd></div>
+    <div><dt>Implementation-defined</dt><dd>Behaviour the standard lets the compiler choose, but the compiler must document.</dd></div>
+    <div><dt>Preprocessor</dt><dd>The first build stage, which expands include, define and conditional directives.</dd></div>
+    <div><dt>Macro</dt><dd>A text substitution made by the preprocessor, with no type checking.</dd></div>
+    <div><dt>Include guard</dt><dd>A preprocessor test that stops a header from being processed twice.</dd></div>
+    <div><dt>Compiler</dt><dd>Translates preprocessed C text into assembly language.</dd></div>
+    <div><dt>Assembler</dt><dd>Turns assembly into an object file of machine code with unresolved references.</dd></div>
+    <div><dt>Linker</dt><dd>Joins object files and libraries and resolves their references into an executable.</dd></div>
+    <div><dt>Undefined reference</dt><dd>A linker error: a name is used but no object file defines it.</dd></div>
+    <div><dt>FILE pointer</dt><dd>The handle that the standard I/O functions use for an open file.</dd></div>
+    <div><dt>fopen mode</dt><dd>The string that selects reading, writing, appending and binary mode.</dd></div>
+    <div><dt>NULL check</dt><dd>Test the result of fopen before using it, and report failures with perror.</dd></div>
+    <div><dt>Function pointer</dt><dd>A variable that stores the address of a function, called through the pointer.</dd></div>
+    <div><dt>Method table</dt><dd>A struct of function pointers that objects share, giving runtime polymorphism in C.</dd></div>
+    <div><dt>Undefined behaviour</dt><dd>Code the standard does not define, so the compiler may do anything with it.</dd></div>
+    <div><dt>Sequence point</dt><dd>A point where all earlier side effects are finished, which separates the steps of an expression.</dd></div>
+    <div><dt>Two pointers</dt><dd>A technique that moves two indexes by a rule so each step discards work that cannot help.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>sizeof</code></td><td>Gives the size in bytes of a type or object.</td><td><code>sizeof(struct Point)</code></td></tr>
+    <tr><td><code>offsetof</code></td><td>Gives the byte offset of a member (in stddef.h).</td><td><code>offsetof(struct Bad, b)</code></td></tr>
+    <tr><td><code>.</code> and <code>-&gt;</code></td><td>Access a member of a struct or through a pointer.</td><td><code>p.x</code> and <code>ptr-&gt;x</code></td></tr>
+    <tr><td><code>union</code></td><td>Declares a type whose members share storage.</td><td><code>union Value { int i; double d; };</code></td></tr>
+    <tr><td><code>enum</code></td><td>Declares named integer constants.</td><td><code>enum Color { RED, GREEN = 5, BLUE };</code></td></tr>
+    <tr><td><code>#define</code></td><td>Defines a text macro.</td><td><code>#define MAX 100</code></td></tr>
+    <tr><td><code>#ifndef</code> and <code>#endif</code></td><td>Build an include guard around a header.</td><td><code>#ifndef H_GUARD</code></td></tr>
+    <tr><td><code>gcc -E</code></td><td>Runs only the preprocessor and prints the result.</td><td><code>gcc -E hello.c</code></td></tr>
+    <tr><td><code>fopen</code></td><td>Opens a file and returns a FILE pointer, or NULL.</td><td><code>fopen("data.txt", "r")</code></td></tr>
+    <tr><td><code>fgets</code></td><td>Reads one line into a buffer, keeping the newline.</td><td><code>fgets(buf, sizeof buf, fp)</code></td></tr>
+    <tr><td><code>fprintf</code></td><td>Writes formatted text to a file.</td><td><code>fprintf(fp, "%d\n", n)</code></td></tr>
+    <tr><td><code>rewind</code></td><td>Moves a file position back to the start.</td><td><code>rewind(fp)</code></td></tr>
+    <tr><td><code>fclose</code></td><td>Flushes and closes a file.</td><td><code>fclose(fp)</code></td></tr>
+    <tr><td><code>tmpfile</code></td><td>Creates a temporary file removed on close.</td><td><code>FILE *fp = tmpfile();</code></td></tr>
+    <tr><td><code>perror</code></td><td>Prints a message with the system's reason for the last error.</td><td><code>perror("fopen")</code></td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 4?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 4 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-03.html"><small>Previous, day 3</small>C 1: Fundamentals, pointers, memory</a><a class="next" href="day-05.html"><small>Next, day 5</small>OOP: principles, C++ OOP, SOLID, design patterns</a></nav>
+</main><script src="assets/app.js"></script></body></html>

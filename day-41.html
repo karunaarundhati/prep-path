@@ -1,0 +1,670 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 41: ML and LLM system design + data engineering</title><meta name="description" content="Today covers how to design machine learning systems end to end: a repeatable framework for ML system design interviews, then worked designs for recommendation systems, fraud detection, predictive maintenance, RAG chatbots and agent platforms, plus the cost and latency trade-offs that decide them. The second half covers the data engineering tools behind those systems: ETL and ELT, Spark, Kafka and Airflow."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="41" data-key="41" data-noun="day" data-num="41" data-track="ai">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>ML and LLM system design + data engineering</h1>
+<p class="lede">Today covers how to design machine learning systems end to end: a repeatable framework for ML system design interviews, then worked designs for recommendation systems, fraud detection, predictive maintenance, RAG chatbots and agent platforms, plus the cost and latency trade-offs that decide them. The second half covers the data engineering tools behind those systems: ETL and ELT, Spark, Kafka and Airflow.</p>
+<div class="station"><b>41</b><span>Sat 12 Dec 2026 · AI &amp; ML · DSA: Mixed set: medium problems</span></div>
+<ul class="topics"><li>ML system design framework</li><li>Recommendation systems</li><li>Fraud detection and predictive maintenance</li><li>RAG chatbot and agent platform design</li><li>Cost and latency trade-offs</li><li>ETL vs ELT</li><li>Spark, Kafka and Airflow</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="ML design framework">
+  <h2>A framework for ML system design</h2>
+
+  <p>An ML system design question, such as "design a feed ranking system" or "design a fraud check for card payments", is open-ended on purpose. The interviewer wants to see how you turn a vague goal into a buildable system and how you reason about trade-offs. A repeatable framework keeps you from jumping straight to a model name. Use the same six steps for every question, and say each step out loud.</p>
+
+  <h3>Step 1: clarify the problem</h3>
+  <p>Ask questions before drawing anything. Who are the users, and what decision does the system make? How many requests per second are expected at peak, and how many items or users exist? What is the latency budget, meaning how long a user or upstream service can wait for an answer? How fresh must the data be: a nightly batch is fine for some products, but a fraud decision must use the transaction within milliseconds. Are there privacy, fairness or regulatory constraints? Write the answers as functional requirements (what it must do) and non-functional requirements (how well it must do it).</p>
+
+  <h3>Step 2: define success metrics</h3>
+  <p>Use three layers of metrics and be clear about which is which:</p>
+  <ul>
+    <li><strong>Business metrics</strong>: the outcome the company cares about, such as revenue per session, fraud losses, or support cost per ticket.</li>
+    <li><strong>Online metrics</strong>: measured on live traffic, such as click-through rate, conversion, or the share of blocked fraud that is later confirmed. Usually measured with an A/B test.</li>
+    <li><strong>Offline metrics</strong>: measured on a stored dataset before deployment, such as precision at k, ROC-AUC, or RMSE. They are cheap to compute, but they do not always predict online results.</li>
+  </ul>
+  <p>Add <strong>guardrail metrics</strong>, the things that must not get worse: latency, cost per request, and fairness across user groups.</p>
+
+  <h3>Step 3: data</h3>
+  <p>Identify the sources (logs, transactions, sensors, documents), the labels (the correct answers the model learns from), and how labels arrive. Labels are often delayed: a card fraud chargeback can take weeks to appear. Label delay affects training windows and evaluation. Then check for <strong>data leakage</strong>, the most common silent failure, where a feature contains information that would not be available at prediction time. For time-dependent data, split train and test by time, not at random. A random split lets the model see the future.</p>
+
+  <h3>Step 4: baseline first</h3>
+  <p>Propose a simple baseline before a complex model: a popularity list, a rule, or logistic regression with a few features. A baseline gives you a number to beat, shows the value of each added complexity, and is often what ships first. Interviewers reward candidates who say "I would start with X because it is easy to debug, then measure whether Y improves it".</p>
+
+  <h3>Step 5: architecture</h3>
+  <p>Draw the main parts: a data pipeline that builds training sets, a feature pipeline (sometimes a shared feature store so training and serving compute features the same way), a training job, a model registry that stores versions, an online serving layer with an API, a cache where it helps, and logging that records each prediction and its inputs. Decide batch versus online serving. Precomputed batch predictions are cheap and simple. Online predictions are needed when inputs change within seconds.</p>
+
+  <h3>Step 6: rollout and monitoring</h3>
+  <p>Describe how a new model reaches users: offline evaluation, then <em>shadow mode</em> (the new model runs but its output is not shown), then a small <em>canary</em> share of traffic, then an A/B test, then a full rollout with a rollback plan. Monitor three things: data drift (the input distribution changes), prediction drift (the output distribution changes), and performance decay (online metrics fall). Mention <strong>feedback loops</strong>: a recommender that only shows what it already predicts well never learns about new interests.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Spend time on steps 1 and 2. Most weak answers jump to architecture with a vague metric, and a strong answer shows that the metric decides the model.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"How would you start a design you know nothing about?" Clarify the goal and metrics, then build the simplest baseline, then add complexity only where measurements show a gap.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Design order: problem, metrics, data, baseline, architecture, rollout and monitoring. Each step narrows the next.</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="Recommendation systems">
+  <h2>Recommendation systems</h2>
+
+  <h3>The two-stage design</h3>
+  <p>A recommender must pick a few items from millions, quickly. Scoring every item with a heavy model is far too slow, so production systems use two stages:</p>
+  <ul>
+    <li><strong>Candidate generation (retrieval)</strong>: a cheap method picks a few hundred plausible items from the full catalogue. Common tools are co-occurrence lists ("people who bought X also bought Y"), embedding nearest-neighbour search, and popularity or recency lists.</li>
+    <li><strong>Ranking</strong>: a richer model scores only those candidates using many features, such as the user's recent clicks, item age, price, and context. Gradient-boosted trees and neural networks are common here.</li>
+    <li><strong>Re-ranking</strong>: a final pass applies business rules and diversity, for example limiting one author per page or removing items the user has already seen.</li>
+  </ul>
+  <p>The stages trade recall for precision. Retrieval must not miss good items, because the ranker cannot score what was never retrieved. The ranker must order what it receives well, because only the top few are shown.</p>
+
+  <h3>Collaborative and content-based filtering</h3>
+  <p><strong>Collaborative filtering</strong> uses the pattern of user behaviour: users who agreed in the past will agree in the future. It needs no knowledge of what items are about. <strong>Content-based filtering</strong> uses item features, such as genre or description, and recommends items similar to what the user liked. Hybrid systems combine both, which helps when one signal is weak.</p>
+  <p><strong>Cold start</strong> is the problem of a new user or a new item with no history. Common answers: show popularity or trending items to new users, ask for preferences during onboarding, and use content features for new items until interaction data arrives. Name cold start in every recommender design, because interviewers almost always ask about it.</p>
+
+  <h3>Item-item similarity, step by step</h3>
+  <p>A classic collaborative method represents each item as a vector of the ratings users gave it, then measures similarity with <strong>cosine similarity</strong>: the dot product of two vectors divided by the product of their lengths. The result is between minus 1 and 1, and it measures the angle between the vectors, not their size. To score an unseen item for a user, take a weighted average of the user's own ratings, weighted by how similar each rated item is to the candidate. The program below does exactly that on a tiny dataset of three users.</p>
+
+<pre class="code" data-lang="python"><code>import math
+
+ratings = {
+    "alice": {"book": 5, "lamp": 3, "mug": 4},
+    "bob": {"book": 4, "mug": 5, "desk": 2},
+    "cara": {"lamp": 4, "desk": 5},
+}
+
+def item_vectors(ratings):
+    # item -&gt; {user: rating}, so each item becomes a vector over users
+    items = {}
+    for user, prefs in ratings.items():
+        for item, score in prefs.items():
+            items.setdefault(item, {})[user] = score
+    return items
+
+def cosine(a, b):
+    common = set(a) &amp; set(b)
+    if not common:
+        return 0.0
+    dot = sum(a[u] * b[u] for u in common)
+    na = math.sqrt(sum(v * v for v in a.values()))
+    nb = math.sqrt(sum(v * v for v in b.values()))
+    return dot / (na * nb)
+
+def recommend(user, ratings, k=2):
+    items = item_vectors(ratings)
+    seen = ratings[user]
+    scores = {}
+    for cand in items:
+        if cand in seen:
+            continue
+        total = 0.0
+        weight = 0.0
+        for liked, r in seen.items():
+            sim = cosine(items[cand], items[liked])
+            total += sim * r
+            weight += abs(sim)
+        if weight:
+            scores[cand] = total / weight
+    return sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))[:k]
+
+for item, score in recommend("cara", ratings):
+    print(item, round(score, 2))</code></pre>
+<pre class="output">mug 4.44
+book 4.33</pre>
+
+  <p>Read the program in order. <code>item_vectors</code> turns the user-by-item table into an item-by-user table, because similarity is measured between items. <code>cosine</code> looks only at users who rated both items (the intersection of the keys), multiplies their ratings, and divides by the two vector lengths. If the items have no common users, the similarity is 0. In <code>recommend</code>, Cara has already rated the lamp and the desk, so the candidates are the book and the mug. Each candidate is scored by how similar it is to Cara's liked items, weighted by those similarities. The final sort puts the highest score first and breaks ties by name, which keeps the output stable. The book's strongest similarity is to the lamp, which Cara rated 4, so its average leans toward 4. The mug is closer to the desk, which Cara rated 5, so its average leans toward 5, and the mug edges ahead.</p>
+  <p>This code is for learning only. Real systems use sparse matrices, millions of users, and learned embeddings. The logic, though, is the same: similar items are found from behaviour, and the score is an average of the user's own signals.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Offline ranking metrics can look good while online results disappoint, because the historical data only contains items the old system chose. This is position bias and exposure bias. Test with A/B experiments before you claim a gain.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"How do you handle a new user with no clicks?" Use popularity or trending items for the first session, collect explicit preferences, and switch to personalised candidates as interaction data builds up.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Retrieve cheaply from the whole catalogue, rank richly among the candidates, then apply business rules.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="Fraud and maintenance">
+  <h2>Fraud detection and predictive maintenance</h2>
+
+  <h3>Fraud detection: the class imbalance problem</h3>
+  <p>Fraud is rare. If one transaction in a thousand is fraudulent, a model that approves everything is 99.9 percent accurate and useless. This is the <strong>class imbalance</strong> problem, and it is the first thing to say about any fraud design. Measure the system with precision (of the transactions we flagged, how many were fraud), recall (of all the fraud, how much we caught), and a precision-recall curve or its area. ROC-AUC is also common, but it can look flattering when positives are rare.</p>
+  <p>Precision and recall pull against each other, and the <strong>threshold</strong> chooses the trade-off. A transaction is flagged when its risk score is at or above the threshold. A low threshold catches more fraud but blocks more good customers. A high threshold is the reverse. Choose the threshold from business costs: the loss from one missed fraud compared with the cost of one blocked good payment and the support work it causes.</p>
+  <p>The program below uses ten made-up transactions. It applies three thresholds and computes the four confusion-matrix counts (true positives, false positives, false negatives, true negatives) and the two metrics.</p>
+
+<pre class="code" data-lang="python"><code># 10 transactions: 1 = fraud, 0 = legitimate. Scores are model risk scores.
+labels = [1, 0, 0, 1, 0, 0, 0, 1, 0, 0]
+scores = [0.92, 0.15, 0.40, 0.70, 0.05, 0.55, 0.20, 0.30, 0.10, 0.60]
+
+def evaluate(threshold):
+    tp = fp = fn = tn = 0
+    for y, s in zip(labels, scores):
+        pred = 1 if s &gt;= threshold else 0
+        if pred == 1 and y == 1:
+            tp += 1
+        elif pred == 1 and y == 0:
+            fp += 1
+        elif pred == 0 and y == 1:
+            fn += 1
+        else:
+            tn += 1
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    return tp, fp, fn, tn, precision, recall
+
+for t in (0.25, 0.5, 0.65):
+    tp, fp, fn, tn, p, r = evaluate(t)
+    print(f"threshold={t:.2f} TP={tp} FP={fp} FN={fn} TN={tn} precision={p:.2f} recall={r:.2f}")</code></pre>
+<pre class="output">threshold=0.25 TP=3 FP=3 FN=0 TN=4 precision=0.50 recall=1.00
+threshold=0.50 TP=2 FP=2 FN=1 TN=5 precision=0.50 recall=0.67
+threshold=0.65 TP=2 FP=0 FN=1 TN=7 precision=1.00 recall=0.67</pre>
+
+  <p>Follow the first threshold. At 0.25, six transactions have a score of at least 0.25. All three real frauds are among them, so TP is 3 and FN is 0. The other three flagged transactions are legitimate, so FP is 3. That gives precision 3 out of 6, which is 0.50, and recall 3 out of 3, which is 1.00. Raising the threshold to 0.65 removes the false positives but misses the fraud with score 0.30, so recall drops to two thirds. The table of counts is the honest summary a business owner needs, and the precision and recall are derived from it.</p>
+  <p>Two practical points matter in production. First, features must use only information available at the time of the transaction. A feature such as "number of transactions in the next hour" is leakage. Second, velocity features (counts and totals over rolling windows, such as transactions in the last ten minutes) are powerful, but they must be computed from the past only. Fraud also adapts: attackers change behaviour after a rule is deployed, so monitor the flagged rate and retrain on fresh confirmed labels.</p>
+
+  <h3>Predictive maintenance</h3>
+  <p>Predictive maintenance uses sensor data (temperature, vibration, pressure, current) from machines to predict failure before it happens, so repairs are scheduled instead of emergencies. Frame the problem first. Two common framings are <strong>classification</strong> ("will this machine fail within the next 7 days?") and <strong>regression</strong> ("how many hours of useful life remain?", called remaining useful life). The framing decides the labels, the metrics and the action.</p>
+  <ul>
+    <li><strong>Features</strong> are usually rolling statistics over time windows (mean and standard deviation of vibration over the last hour), trends (the slope of temperature over a day), and maintenance history (hours since the last service).</li>
+    <li><strong>Labels</strong> come from failure logs. Be careful how you label the period before a failure, because the window you choose changes what the model learns.</li>
+    <li><strong>Splits</strong> must be by time, and ideally by machine, so the test set looks like the future.</li>
+    <li><strong>Costs</strong> are asymmetric: a missed failure can cost a production line, while a false alarm costs an inspection. Choose the threshold with those costs in view, as in fraud.</li>
+  </ul>
+  <p>When failures are extremely rare, anomaly detection (learning what normal looks like and flagging deviations) is an alternative to supervised classification. Mention it as a fallback when labelled failures are scarce.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A random train and test split on time-series data leaks the future into training. The model can look excellent offline and fail in production. Always split by time.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Accuracy is 99 percent, is the model good?" Not necessarily. Ask for the base rate, precision, recall at the chosen threshold, and the cost of each error type.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>With rare events, the metric and the threshold carry the design, not the model family.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="RAG and agent platforms">
+  <h2>RAG chatbot and agent platform design</h2>
+
+  <h3>The RAG chatbot architecture</h3>
+  <p><strong>Retrieval-augmented generation</strong> (RAG) answers questions from a document collection. Day 39 covered the pipeline (chunking, embedding, retrieval, reranking). In a design interview, describe it as two flows that share a store.</p>
+  <ul>
+    <li><strong>Ingestion (offline or streaming)</strong>: documents are parsed, split into chunks, embedded, and indexed in a vector store and a keyword index. Each chunk stores metadata, especially the access permissions of its source document, the document version and the update time.</li>
+    <li><strong>Query (online)</strong>: the question is embedded, the system retrieves candidates with hybrid search (vector and keyword together), filters them by the user's permissions, reranks them, builds a prompt with the top chunks and source IDs, and calls the model. The answer returns with citations.</li>
+    <li><strong>Around both</strong>: an input check for prompt injection, an output check for leaked data or unsupported claims, caching of frequent questions, logging of every stage, and an evaluation set that runs before each release.</li>
+  </ul>
+  <p>The most important design point is <strong>permissions at retrieval time</strong>. A user who may not read a document must never receive its chunks, because a model cannot be trusted to hide what it was given. Filter by access rules in the retrieval query itself, and log which chunks each answer used.</p>
+  <p>Evaluate the pipeline in parts. Retrieval recall asks whether the right chunk was retrieved at all. Faithfulness asks whether the answer is supported by the retrieved text. Answer relevance asks whether it addresses the question. A failing answer is usually a retrieval failure, so measure retrieval before you blame the model.</p>
+
+  <h3>The agent platform</h3>
+  <p>An agent platform lets many teams build agents on shared infrastructure. Its parts are a <strong>tool registry</strong> (the approved tools, often exposed as MCP servers from day 40), a <strong>sandbox</strong> for code execution, a <strong>permission and approval layer</strong> that decides which tool calls need a human, <strong>versioned prompts and agent configurations</strong>, <strong>quotas</strong> per team for tokens and tool calls, <strong>tracing</strong> for every run, and an <strong>evaluation gate</strong> that blocks a release when the scores fall. Long tasks run as background jobs with checkpoints, so a crash does not restart them from zero.</p>
+  <p>Security is a platform responsibility, not each team's problem. Enforce tool allowlists, least privilege credentials, and approval rules centrally. Give each agent its own identity, so audit logs show which agent did what.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Putting "do not reveal restricted documents" in the prompt is not an access control. Enforce permissions in the retrieval filter and in each tool's own authorisation check.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"How do you know the chatbot is getting better?" Name the evaluation set, the three measures above, the online feedback signal (thumbs, escalations to a human), and the release gate.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>In RAG, retrieval quality and permission filtering matter more than the choice of generator model. Measure each stage separately.</p></div>
+</section>
+
+<section class="unit" id="c5" data-title="Cost and latency">
+  <h2>Cost and latency trade-offs</h2>
+
+  <h3>Estimating cost before you build</h3>
+  <p>Most LLM costs come from tokens. A token is a word piece, and providers bill input tokens (the prompt) and output tokens (the answer) at different prices. Output tokens are usually priced higher. The cost of one request is therefore <code>(input tokens × input price + output tokens × output price)</code>, with prices quoted per million tokens. Multiply by requests per day and days per month to get a monthly estimate. Interviewers expect a rough estimate with clear assumptions, not an exact figure.</p>
+  <p>Levers that reduce cost, roughly in order of how often they help:</p>
+  <ul>
+    <li><strong>Send fewer tokens</strong>: shorter instructions, fewer retrieved chunks, trimmed history.</li>
+    <li><strong>Route by difficulty</strong>: a small, cheap model handles easy requests, and a large model handles the hard ones. A classifier or the small model decides.</li>
+    <li><strong>Cache</strong>: reuse answers to repeated questions, and use provider prompt caching for a long shared prefix such as a system prompt, which is billed at a discount after the first call.</li>
+    <li><strong>Batch offline work</strong>: nightly summaries can use batch interfaces that cost less and wait longer.</li>
+    <li><strong>Limit output</strong>: cap the output length and ask for structured answers.</li>
+  </ul>
+
+  <h3>Latency</h3>
+  <p>Latency is the time a user waits. For a RAG request it is the sum of the stages that run one after another: embedding the question, searching, reranking, and generating. Parallelise stages that do not depend on each other. Streaming helps the user feel the response is fast, because the first token appears early, even though the total time is the same. Time to first token and total generation time are different metrics, so state which one your budget uses. Always set timeouts and a fallback, such as a cached answer or a simpler model, so one slow dependency cannot stall the whole request.</p>
+
+  <p>The program below estimates cost for practice. The prices are made-up numbers for the exercise, not any vendor's real prices. It prints the cost of one request, the monthly cost, the effect of caching half the input, and a simple latency budget.</p>
+
+<pre class="code" data-lang="python"><code># Made-up practice prices, not any vendor's real prices: dollars per 1 million tokens.
+PRICE_IN = 1.00
+PRICE_OUT = 4.00
+
+def request_cost(input_tokens, output_tokens):
+    return (input_tokens * PRICE_IN + output_tokens * PRICE_OUT) / 1_000_000
+
+def monthly_cost(requests_per_day, input_tokens, output_tokens, days=30):
+    return requests_per_day * days * request_cost(input_tokens, output_tokens)
+
+def with_cache(cost, cached_share, cache_discount):
+    # cached tokens are billed at cache_discount times the normal price
+    return cost * (1 - cached_share) + cost * cached_share * cache_discount
+
+def total_latency_ms(retrieval_ms, model_ms, rerank_ms=0):
+    return retrieval_ms + model_ms + rerank_ms
+
+print(f"{request_cost(2000, 300):.4f}")
+print(f"{monthly_cost(10000, 2000, 300):.2f}")
+print(f"{with_cache(monthly_cost(10000, 2000, 300), 0.5, 0.1):.2f}")
+print(total_latency_ms(120, 900, 60))</code></pre>
+<pre class="output">0.0032
+960.00
+528.00
+1080</pre>
+
+  <p>Walk through the arithmetic. One request has 2,000 input tokens and 300 output tokens. The input part is 2,000 times 1.00 and the output part is 300 times 4.00, which is 1,200. Together that is 3,200 divided by one million, or 0.0032 dollars. Ten thousand requests a day for 30 days is 300,000 requests, and 300,000 times 0.0032 is 960 dollars. Suppose half of the input is a cached prefix billed at a tenth of the price. The cost of the uncached half is 480 and the cached half costs 48, so the total is 528. The latency function is just a sum because the stages run in sequence. If retrieval and reranking ran in parallel with some other work, the sum would change, which is the reason to draw the dependency graph before estimating latency.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Quoting a cost from memory is risky because prices change. In an interview, say "I would check current pricing, and here is the formula and my assumptions".</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Your quality is good but the bill is too high. What do you do?" Measure token use per stage, shorten prompts and context, route easy requests to a smaller model, cache, and check the quality impact of each change on the evaluation set.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Cost is tokens times price, latency is the sum along the critical path, and every quality gain should be checked against both.</p></div>
+</section>
+
+<section class="unit" id="c6" data-title="ETL vs ELT">
+  <h2>Data engineering: ETL and ELT</h2>
+
+  <p>Machine learning systems depend on data pipelines. A pipeline moves data from sources to a place where analysts and models can use it. Its two main shapes are named after the order of their steps. <strong>ETL</strong> means extract, transform, load: data is cleaned and reshaped before it reaches the destination. <strong>ELT</strong> means extract, load, transform: raw data lands in the destination first, and transformations run there, usually with SQL.</p>
+  <p>ETL was the standard when storage and compute in the destination were expensive, so you wanted to load only clean, small data. ELT became common with cheap cloud storage and powerful warehouses. Raw data is kept, so a bug in a transformation can be fixed and rerun without re-extracting from the source. Choose ETL when data must be cleaned before storage for privacy or size reasons, and ELT when you want a replayable raw history and SQL-based transformations.</p>
+
+  <p>The program below shows both shapes on the same tiny input. The first part is ETL: Python cleans the rows, then loads only the good ones into an in-memory SQLite database. The second part is ELT: the raw text lands in a table first, and SQL cleans it on the way out. The in-memory database keeps the example self-contained.</p>
+
+<pre class="code" data-lang="python"><code>import csv, io, sqlite3
+
+RAW = """order_id,amount,currency
+1,19.99,usd
+2, 5.00 ,USD
+3,,usd
+4,12.50,eur
+"""
+
+def extract():
+    return list(csv.DictReader(io.StringIO(RAW)))
+
+def transform(rows):
+    clean = []
+    for r in rows:
+        if not r["amount"].strip():     # drop rows with a missing amount
+            continue
+        clean.append((int(r["order_id"]), float(r["amount"]), r["currency"].strip().upper()))
+    return clean
+
+def load(conn, rows):
+    conn.execute("CREATE TABLE orders (order_id INTEGER, amount REAL, currency TEXT)")
+    conn.executemany("INSERT INTO orders VALUES (?, ?, ?)", rows)
+
+# ETL: transform in Python first, then load only clean rows
+conn = sqlite3.connect(":memory:")
+load(conn, transform(extract()))
+for row in conn.execute("SELECT currency, COUNT(*), ROUND(SUM(amount), 2) FROM orders GROUP BY currency ORDER BY currency"):
+    print(row)
+
+# ELT: load the raw text first, then transform inside the database with SQL
+conn2 = sqlite3.connect(":memory:")
+conn2.execute("CREATE TABLE raw_orders (order_id TEXT, amount TEXT, currency TEXT)")
+conn2.executemany("INSERT INTO raw_orders VALUES (?, ?, ?)",
+                  [(r["order_id"], r["amount"], r["currency"]) for r in extract()])
+for row in conn2.execute("SELECT upper(trim(currency)), COUNT(*) FROM raw_orders WHERE trim(amount) != '' GROUP BY 1 ORDER BY 1"):
+    print(row)</code></pre>
+<pre class="output">('EUR', 1, 12.5)
+('USD', 2, 24.99)
+('EUR', 1)
+('USD', 2)</pre>
+
+  <p>In the ETL part, <code>csv.DictReader</code> turns each line into a dictionary keyed by the header names. The text <code>" 5.00 "</code> has spaces, and <code>float</code> accepts them, while <code>strip</code> removes the spaces from the currency. The row with an empty amount is dropped before loading. The summary query groups by currency and rounds the sum, which avoids printing floating-point noise. The ELT part keeps every raw row, including the empty amount, and the <code>WHERE</code> clause removes it in SQL. Both parts give the same counts, which is the point: the transformation's location changes, but the logic and the result should be the same.</p>
+  <p>In both shapes, a production pipeline should be <strong>idempotent</strong>: running it twice for the same day must produce the same result as running it once. Use overwrite-by-partition or upserts instead of blind appends, and check row counts and totals against the source after each run. Schema changes need a plan too, because a new column in the source can break a fixed transformation.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Appending the same batch twice doubles every total. Idempotent loads (overwrite a partition, or upsert on a key) are the fix, and they are a common interview follow-up.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"ETL or ELT for a new analytics warehouse?" ELT usually, because raw history allows reprocessing when logic changes. Mention cost, data privacy, and team skills as the reasons to choose otherwise.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>ETL transforms before loading, ELT loads raw and transforms inside the destination. Either way, pipelines must be idempotent and checked.</p></div>
+</section>
+
+<section class="unit" id="c7" data-title="Spark, Kafka, Airflow">
+  <h2>Spark, Kafka and Airflow</h2>
+
+  <h3>Apache Spark and PySpark</h3>
+  <p><strong>Apache Spark</strong> is a distributed engine for large data processing. A large dataset is split into <strong>partitions</strong>, and many executor processes work on different partitions in parallel. Its main data structure is the <strong>DataFrame</strong>, a table with named columns. <strong>PySpark</strong> is the Python API for it.</p>
+  <p>Spark uses <strong>lazy evaluation</strong>. Transformations such as <code>filter</code>, <code>select</code> and <code>groupBy</code> only describe the work and build a plan. Nothing runs until an <strong>action</strong> asks for a result, such as <code>count</code>, <code>show</code> or a write to storage. The optimiser can then combine steps and push filters down to the data source. Two performance points come up in interviews. A <strong>shuffle</strong> moves data between executors, typically for <code>groupBy</code> and joins, and it is expensive. A <strong>Python UDF</strong> (a user-defined function written in Python) runs row by row outside the optimiser, so built-in functions are faster when they exist. Columnar formats such as Parquet let Spark read only the columns it needs.</p>
+
+<pre class="code" data-lang="python"><code>from pyspark.sql import SparkSession, functions as F
+
+spark = SparkSession.builder.appName("orders-etl").getOrCreate()
+
+# Lazy: reading and transforming only build a plan, nothing runs yet.
+orders = spark.read.parquet("s3://example-bucket/raw/orders/")
+daily = (
+    orders.filter(F.col("amount") &gt; 0)
+          .groupBy("order_date", "currency")
+          .agg(F.sum("amount").alias("revenue"), F.count("*").alias("orders"))
+)
+
+# The write is an action, so the whole plan runs here.
+daily.write.mode("overwrite").partitionBy("order_date").parquet("s3://example-bucket/curated/daily/")</code></pre>
+
+  <p>Read the program as a plan. The read, the filter, the group-by and the aggregation are all lazy. The final <code>write</code> is an action, which triggers the distributed job. The <code>overwrite</code> mode with <code>partitionBy</code> replaces the output for the partitions it writes, which makes a daily rerun idempotent. The bucket names are examples, not real resources, and the program is not run here because it needs a Spark cluster.</p>
+
+  <h3>Apache Kafka</h3>
+  <p><strong>Apache Kafka</strong> is a distributed event log. Producers append records to a <strong>topic</strong>, and consumers read them. A topic is split into <strong>partitions</strong>, each an ordered, append-only sequence. Three rules matter in interviews:</p>
+  <ul>
+    <li><strong>Ordering</strong> is guaranteed only within one partition. Records with the same key (for example, the same user ID) go to the same partition, so their order is preserved.</li>
+    <li><strong>Retention</strong> keeps records for a configured time or size, whether or not consumers have read them. A new consumer can replay history by reading from an earlier offset.</li>
+    <li><strong>Consumer groups</strong> share a topic's partitions among members, so adding consumers increases throughput up to the number of partitions. Each group tracks its own offsets.</li>
+  </ul>
+  <p>Delivery guarantees depend on configuration. By default, a consumer that crashes after processing but before committing its offset will see the record again, which is <strong>at-least-once</strong> delivery. <strong>Exactly-once</strong> processing needs idempotent producers, transactions, or idempotent consumers that ignore duplicates, such as a database write keyed by event ID.</p>
+
+<pre class="code" data-lang="python"><code>import json
+from kafka import KafkaProducer
+
+producer = KafkaProducer(
+    bootstrap_servers="localhost:9092",
+    key_serializer=lambda k: k.encode("utf-8"),
+    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+)
+
+# Same key, same partition: this user's events keep their order.
+producer.send("payments", key="user-42", value={"event": "payment_made", "amount": 19.99})
+producer.flush()   # wait until the broker has acknowledged the records</code></pre>
+
+  <p>The serializers convert keys and values to bytes, because Kafka stores bytes. The key <code>user-42</code> decides the partition, which is the mechanism behind the ordering rule. <code>flush</code> blocks until pending records are sent, which matters before a short script exits. This program needs a running Kafka broker and the client library, so it is not run here.</p>
+
+  <h3>Apache Airflow</h3>
+  <p><strong>Apache Airflow</strong> is a workflow orchestrator. You define a <strong>DAG</strong> (directed acyclic graph) in Python: a set of tasks with dependencies, a schedule, and retry rules. Airflow's scheduler runs each task when its upstream tasks succeed, retries failed tasks, and supports <strong>backfills</strong> (running past dates again). Airflow decides when and in what order work runs. It does not process large data itself; a task usually calls Spark, a warehouse query, or a script. That separation is the key idea.</p>
+
+<pre class="code" data-lang="python"><code>from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+def extract_orders(**context):
+    ...   # call the source API for the run's date, write raw files
+
+def build_daily_table(**context):
+    ...   # trigger the Spark job or warehouse query for the same date
+
+with DAG(
+    dag_id="orders_daily",
+    start_date=datetime(2026, 1, 1),
+    schedule="@daily",
+    catchup=False,
+    default_args={"retries": 2, "retry_delay": timedelta(minutes=5)},
+) as dag:
+    extract = PythonOperator(task_id="extract", python_callable=extract_orders)
+    build = PythonOperator(task_id="build", python_callable=build_daily_table)
+    extract &gt;&gt; build   # build runs only after extract succeeds</code></pre>
+
+  <p>The <code>with DAG(...)</code> block declares the workflow. <code>schedule="@daily"</code> runs it once per day, and <code>catchup=False</code> stops Airflow from creating runs for every day since the start date when the DAG is first enabled. <code>default_args</code> gives every task two retries with a five-minute delay. The <code>&gt;&gt;</code> operator declares that the build task depends on the extract task. Tasks should be idempotent, because retries and backfills run them again for the same date.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Kafka is not a database and Airflow is not a data engine. Using Kafka as a long-term query store, or doing heavy joins inside Airflow's Python tasks, are common design mistakes.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>"Why does Spark feel slow on small data?" Its startup and planning overhead are fixed costs, so it pays off only when data and parallel work are large. For small data, a single-machine tool is faster.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Spark processes data in parallel, Kafka moves ordered events between systems, and Airflow schedules and retries the jobs that do the work.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before you open the answer. Name the trade-off and one concrete number or example where you can.</p>
+
+  <details class="check"><summary>Walk through your framework for designing a feed ranking system.</summary><div class="ans"><p>Clarify users, scale and latency first. Define business metrics (engagement), online metrics (click-through and time spent, measured by A/B test) and offline metrics (ranking quality on logged data), plus guardrails. Check the data for label delay and leakage, and split by time. Start with a popularity or simple model baseline. Describe retrieval, ranking and re-ranking, then the feature pipeline, serving, shadow mode and canary rollout, and monitoring for drift and feedback loops.</p></div></details>
+
+  <details class="check"><summary>Why do recommenders use two stages instead of one model?</summary><div class="ans"><p>Scoring millions of items with a heavy model for each request is too slow. A cheap retrieval stage narrows the catalogue to a few hundred candidates, and a richer ranking model scores only those. The retrieval stage must have high recall, because the ranker cannot score items that were never retrieved.</p></div></details>
+
+  <details class="check"><summary>How do you handle the cold start problem?</summary><div class="ans"><p>For new users, show popular or trending items, ask for preferences during onboarding, and use context such as location or device. For new items, use content features until interaction data arrives. Explore a small share of traffic on new items so they can collect signals.</p></div></details>
+
+  <details class="check"><summary>Why is accuracy a misleading metric for fraud detection?</summary><div class="ans"><p>Fraud is rare, so a model that never flags anything can score very high accuracy while catching no fraud. Use precision, recall, and a precision-recall curve, and choose the threshold from the cost of missed fraud compared with the cost of blocking good customers.</p></div></details>
+
+  <details class="check"><summary>How do you prevent leakage in time-based features and splits?</summary><div class="ans"><p>Compute every feature using only data that existed before the prediction time, such as rolling windows that end at the transaction time. Split train, validation and test by time, not at random, and make sure labels for the test period were known at the time of prediction.</p></div></details>
+
+  <details class="check"><summary>How do you enforce per-user document permissions in a RAG chatbot?</summary><div class="ans"><p>Store access control metadata with each chunk and apply it as a filter in the retrieval query, before any chunk reaches the prompt. Do not rely on instructions in the prompt, because the model can leak what it was given. Log which chunks each answer used so access can be audited.</p></div></details>
+
+  <details class="check"><summary>What are the main levers for reducing LLM cost and latency?</summary><div class="ans"><p>For cost: send fewer tokens, route easy requests to smaller models, cache repeated answers and shared prompt prefixes, batch offline work, and cap output length. For latency: run independent stages in parallel, stream the output so the first token arrives early, set timeouts with fallbacks, and use a smaller model where quality allows. Check each change against the evaluation set.</p></div></details>
+
+  <details class="check"><summary>When would you choose ETL over ELT?</summary><div class="ans"><p>Choose ETL when raw data must not be stored in the destination, for example for privacy, or when the destination cannot afford raw volumes. Choose ELT when cheap storage and SQL-based transformation are available, because the raw history allows reprocessing after a logic change.</p></div></details>
+
+  <details class="check"><summary>What does lazy evaluation mean in Spark, and what triggers execution?</summary><div class="ans"><p>Transformations such as filter and groupBy only build a plan. Execution starts at an action, such as count, show or a write. Spark can then optimise the whole plan before running it on the partitions.</p></div></details>
+
+  <details class="check"><summary>What ordering and delivery guarantees does Kafka give?</summary><div class="ans"><p>Kafka orders records only within a partition, so records with the same key go to the same partition. Records are retained for a configured time and can be replayed by offset. The default is at-least-once delivery, so consumers should be idempotent to approach exactly-once results.</p></div></details>
+
+  <details class="check"><summary>What is Airflow, and what is it not?</summary><div class="ans"><p>Airflow is an orchestrator. It schedules DAGs of tasks, handles dependencies, retries and backfills. It is not a data processing engine. Heavy processing belongs in Spark, a warehouse or another engine that a task calls.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: three mixed problems (two Medium, one Hard)</h2>
+  <p>Today's problems each rely on a different data structure idea. Snapshot Array stores only the changes to each cell, so it can answer "what was this value at snapshot k" with a binary search. Time-Based Key-Value Store uses the same binary search idea on timestamps. Maximum Frequency Stack keeps one stack per frequency, so the most frequent value is always on top of its group.</p>
+  <p>For each problem, write the brute force first, identify what it stores or recomputes repeatedly, and then choose the structure that answers the query directly. Binary search over a sorted list of changes is a pattern worth remembering, because it appears in many "value at time t" questions.</p>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/snapshot-array/">
+    <h3>Snapshot Array (LeetCode 1146)</h3>
+    <div class="statement"><p>Implement a class <code>SnapshotArray(length)</code> that starts with all values 0. It supports <code>set(index, val)</code>, which changes one value, and <code>snap()</code>, which saves the current state and returns its snapshot ID. The first snapshot returns 0, the next returns 1, and so on. <code>get(index, snap_id)</code> returns the value at that index as it was when the given snapshot was taken. For example, with length 3, after <code>set(0, 5)</code> and <code>snap()</code> returning 0, then <code>set(0, 6)</code> and <code>get(0, 0)</code> returns 5.</p></div>
+
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A snapshot is a frozen copy. Between two snapshots, a value can be changed many times, but only its value at snapshot time matters. The length can be large, but the number of changes is what matters for memory.</li>
+      <li><strong>Brute force.</strong> On every <code>snap()</code>, copy the whole array into a list of lists. <code>get</code> is then a simple lookup. But each snapshot costs O(length) time and memory, even if only one value changed.</li>
+      <li><strong>Find the waste.</strong> Most cells do not change between snapshots, so copying them is repeated work. What we really need is the history of each cell, and only its changes.</li>
+      <li><strong>Optimise.</strong> For each index, keep a list of pairs <code>(snap_id, value)</code>, sorted by snap ID. A <code>set</code> appends a pair tagged with the current snapshot ID, or overwrites the last pair if it already has this ID. To answer <code>get(index, k)</code>, find the last pair whose snap ID is at most k. Binary search finds it in O(log s) time, where s is the number of changes to that index.</li>
+      <li><strong>Dry run.</strong> Length 3. Index 0 starts with <code>[(0, 0)]</code>. The current snap ID is 0.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Operation</th><th>Current snap ID</th><th>History of index 0</th></tr></thead><tbody>
+      <tr><td>set(0, 5)</td><td>0</td><td>[(0, 5)] (overwrote the initial 0)</td></tr>
+      <tr><td>snap() returns 0</td><td>becomes 1</td><td>[(0, 5)]</td></tr>
+      <tr><td>set(0, 6)</td><td>1</td><td>[(0, 5), (1, 6)]</td></tr>
+      <tr><td>get(0, 0)</td><td>1</td><td>last pair with snap ID at most 0 is (0, 5), so 5</td></tr>
+      <tr><td>snap() returns 1</td><td>becomes 2</td><td>unchanged</td></tr>
+      <tr><td>get(0, 1)</td><td>2</td><td>last pair with snap ID at most 1 is (1, 6), so 6</td></tr>
+    </tbody></table></div>
+
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>import bisect
+
+class SnapshotArray:
+    def __init__(self, length):
+        # history[i] is a list of (snap_id, value) pairs, sorted by snap_id
+        self.history = [[(0, 0)] for _ in range(length)]
+        self.snap_id = 0
+
+    def set(self, index, val):
+        records = self.history[index]
+        if records[-1][0] == self.snap_id:
+            records[-1] = (self.snap_id, val)     # overwrite within the same snapshot
+        else:
+            records.append((self.snap_id, val))
+
+    def snap(self):
+        self.snap_id += 1
+        return self.snap_id - 1
+
+    def get(self, index, snap_id):
+        records = self.history[index]
+        pos = bisect.bisect_right(records, (snap_id, float("inf"))) - 1
+        return records[pos][1]
+
+snap = SnapshotArray(3)
+snap.set(0, 5)
+print(snap.snap())
+snap.set(0, 6)
+print(snap.get(0, 0))
+print(snap.snap())
+print(snap.get(0, 1))
+snap.set(1, 9)
+print(snap.get(1, 0))
+print(snap.snap())
+print(snap.get(1, 2))
+print(snap.get(0, 2))</code></pre>
+<pre class="output">0
+5
+1
+6
+0
+2
+9
+6</pre>
+
+    <p><code>snap()</code> returns the ID of the snapshot just taken and then moves the counter forward, so the first call returns 0. In <code>set</code>, a list stored for each index always has at most one pair per snapshot ID, because a second write in the same snapshot replaces the first. That keeps the list sorted by ID, which binary search needs. In <code>get</code>, <code>bisect_right</code> with the key <code>(snap_id, inf)</code> finds the position just after all pairs with ID at most <code>snap_id</code>. Subtracting one gives the last such pair. The tuple <code>(snap_id, inf)</code> works because every real value is smaller than infinity, so a pair with the same ID is counted as "at most". The sequence of prints matches the dry-run table, and the last two values show that index 0 at snapshot 2 still holds 6, while index 1 at snapshot 2 holds 9.</p>
+
+    <p class="cx">Time O(1) per snap, O(1) per set, O(log s) per get · Space O(total set calls)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need the value of something at an earlier time, store only the changes with their timestamps, then binary search for the last change at or before the query time.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting that several <code>set</code> calls before one <code>snap</code> must produce one record. Without the overwrite step, the list has duplicate IDs and the lookup can return an intermediate value.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/time-based-key-value-store/">
+    <h3>Time Based Key-Value Store (LeetCode 981)</h3>
+    <div class="statement"><p>Design a store that holds many values for each key, each tagged with a timestamp. <code>set(key, value, timestamp)</code> saves a value. <code>get(key, timestamp)</code> returns the value whose timestamp is the largest one that is at most the requested timestamp, or the empty string if there is none. For example, after <code>set("foo", "bar", 1)</code>, <code>get("foo", 3)</code> returns "bar", and after <code>set("foo", "bar2", 4)</code>, <code>get("foo", 4)</code> returns "bar2" but <code>get("foo", 3)</code> still returns "bar".</p></div>
+
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Timestamps for one key arrive in increasing order in the problem, so each key's history is naturally sorted. An empty answer means nothing was stored at or before the requested time.</li>
+      <li><strong>Brute force.</strong> Store all pairs in a list per key, and for each <code>get</code> scan the list for the best timestamp. That is O(n) per query.</li>
+      <li><strong>Find the waste.</strong> Each query asks the same question: "where does this time fit in the sorted history?" Scanning repeats work that a sorted structure answers directly.</li>
+      <li><strong>Optimise.</strong> Keep two parallel lists per key, the timestamps and the values, in the same order. A <code>get</code> uses <code>bisect_right</code> to find how many timestamps are at most the requested time, subtracts one, and returns the value at that index. The same binary search pattern as Snapshot Array applies.</li>
+      <li><strong>Dry run.</strong> After <code>set("foo", "bar", 1)</code>, the timestamps for "foo" are <code>[1]</code>. <code>get("foo", 3)</code> runs <code>bisect_right([1], 3)</code>, which is 1, minus 1 gives index 0, and the value is "bar". After <code>set("foo", "bar2", 4)</code> the lists are <code>[1, 4]</code> and <code>["bar", "bar2"]</code>. <code>get("foo", 4)</code> runs <code>bisect_right([1, 4], 4)</code>, which is 2, minus 1 gives index 1, so "bar2".</p></li>
+    </ol>
+
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>import bisect
+
+class TimeMap:
+    def __init__(self):
+        self.times = {}   # key -&gt; sorted list of timestamps
+        self.values = {}  # key -&gt; values, in the same order as the timestamps
+
+    def set(self, key, value, timestamp):
+        ts = self.times.setdefault(key, [])
+        vs = self.values.setdefault(key, [])
+        pos = bisect.bisect_right(ts, timestamp)   # keeps the list sorted
+        ts.insert(pos, timestamp)
+        vs.insert(pos, value)
+
+    def get(self, key, timestamp):
+        ts = self.times.get(key)
+        if not ts:
+            return ""
+        pos = bisect.bisect_right(ts, timestamp) - 1   # last timestamp at most the requested one
+        if pos &lt; 0:
+            return ""
+        return self.values[key][pos]
+
+tm = TimeMap()
+tm.set("foo", "bar", 1)
+print(repr(tm.get("foo", 1)))
+print(repr(tm.get("foo", 3)))
+tm.set("foo", "bar2", 4)
+print(repr(tm.get("foo", 4)))
+print(repr(tm.get("foo", 5)))
+print(repr(tm.get("baz", 5)))</code></pre>
+<pre class="output">'bar'
+'bar'
+'bar2'
+'bar2'
+''</pre>
+
+    <p>The <code>set</code> method uses <code>bisect_right</code> to find the insertion point. Because the problem guarantees increasing timestamps per key, the insertion always lands at the end, so it is an append in practice. Inserting at the computed position keeps the lists correct even if a later version of the problem allows out-of-order writes. In <code>get</code>, <code>pos &lt; 0</code> means every stored timestamp is later than the request, which must return the empty string. The last line checks a missing key, which also returns the empty string.</p>
+
+    <p class="cx">Time O(log n) per get, O(log n) per set when timestamps arrive in increasing order · Space O(total sets)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>A value that is valid "until the next change" is answered by binary search over the change times: find the last change at or before the query.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Returning the value at the exact timestamp only. The rule is the most recent value at or before the requested time, so a query between two writes returns the earlier value.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/maximum-frequency-stack/">
+    <h3>Maximum Frequency Stack (LeetCode 895)</h3>
+    <div class="statement"><p>Design a stack-like structure with two operations. <code>push(val)</code> adds a value, which may already be present. <code>pop()</code> removes and returns the value that occurs most often in the structure. If several values tie for the highest count, it removes the one that was pushed most recently among them. For pushes of 5, 7, 5, 7, 4, 5 followed by four pops, the pops return 5, 7, 5 and 4.</p></div>
+
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Frequency means the number of copies currently in the structure. Ties go to the most recent push, which is the behaviour of a normal stack. The two rules together decide the answer.</li>
+      <li><strong>Brute force.</strong> On each <code>pop</code>, count every value's occurrences, find the maximum, scan backwards to find the most recent value with that count, and remove it. Each pop costs O(n) or more.</li>
+      <li><strong>Find the waste.</strong> The only values that can be popped are the ones at the current highest frequency. Keeping all values in one list forces a search for them each time.</li>
+      <li><strong>Optimise.</strong> Keep a count per value and a stack per frequency. A stack for frequency f holds, in push order, every value whose count has reached f. When a value is pushed and its count becomes f, append it to the stack for f. To pop, take the top of the stack for the current maximum frequency. That top is the most recent value among those with the maximum count, which is exactly the tie rule. After popping, its count drops by one, and if the stack for the maximum frequency is now empty, the maximum drops by one. Every operation is O(1).</li>
+      <li><strong>Dry run.</strong> Push 5, 7, 5, 7, 4, 5. The groups become: frequency 1 holds 5, 7, 4; frequency 2 holds 5, 7; frequency 3 holds 5. The maximum frequency is 3. Pop takes the top of group 3, which is 5, and group 3 is now empty, so the maximum becomes 2. Pop takes 7 from group 2, since it is the top of group 2 and 5 is below it (7 was pushed after the first 5 reached frequency 2). Pop takes 5 from group 2 and that group is now empty, so the maximum becomes 1. Pop takes 4 from group 1, the most recent push at that level.</li>
+    </ol>
+
+    <h4>Code</h4>
+<pre class="code" data-lang="python"><code>from collections import defaultdict
+
+class FreqStack:
+    def __init__(self):
+        self.count = defaultdict(int)     # value -&gt; how many copies are in the stack
+        self.groups = defaultdict(list)   # frequency -&gt; values that reached it, in push order
+        self.max_freq = 0
+
+    def push(self, val):
+        self.count[val] += 1
+        f = self.count[val]
+        self.groups[f].append(val)
+        self.max_freq = max(self.max_freq, f)
+
+    def pop(self):
+        val = self.groups[self.max_freq].pop()
+        self.count[val] -= 1
+        if not self.groups[self.max_freq]:
+            self.max_freq -= 1
+        return val
+
+fs = FreqStack()
+for v in [5, 7, 5, 7, 4, 5]:
+    fs.push(v)
+print(fs.pop())
+print(fs.pop())
+print(fs.pop())
+print(fs.pop())</code></pre>
+<pre class="output">5
+7
+5
+4</pre>
+
+    <p>The <code>defaultdict(list)</code> creates an empty list the first time a frequency is used, so <code>push</code> never checks for missing keys. The line <code>self.groups[self.max_freq].pop()</code> removes the last element of the top group, which is the most recent value with the highest count. Each copy of a value is recorded in the group that matches the value's count at the moment it was pushed. A pop always removes the top entry of the highest non-empty group, so it returns the most recent copy among the values with the highest count. The four printed values match the dry run.</p>
+
+    <p class="cx">Time O(1) per push and per pop · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you must pick the item with the highest count and break ties by recency, keep one stack per count and track the maximum count.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>A single priority queue with counts as keys cannot easily break ties by recency. Storing a push timestamp in the key fixes that, but the frequency stack design is simpler and O(1).</p></div>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>"Why does the top of a group always hold the right value?" Each group is a stack in push order, and every value in group f was pushed after the values below it, so the top is the most recent value that has reached frequency f.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+
+  <dl>
+    <div><dt>Problem clarification</dt><dd>The first step of an ML design: users, scale, latency budget, freshness and constraints.</dd></div>
+    <div><dt>Business metric</dt><dd>The outcome the company cares about, such as revenue or fraud losses.</dd></div>
+    <div><dt>Online metric</dt><dd>A measure taken on live traffic, usually through an A/B test.</dd></div>
+    <div><dt>Offline metric</dt><dd>A measure computed on stored data before deployment, such as ROC-AUC.</dd></div>
+    <div><dt>Guardrail metric</dt><dd>A measure that must not get worse, such as latency, cost or fairness.</dd></div>
+    <div><dt>Data leakage</dt><dd>A feature that contains information unavailable at prediction time, which inflates offline results.</dd></div>
+    <div><dt>Baseline</dt><dd>A simple model or rule that sets the number a complex model must beat.</dd></div>
+    <div><dt>Shadow mode</dt><dd>Running a new model on live inputs without showing its outputs to users.</dd></div>
+    <div><dt>Canary release</dt><dd>Sending a new version to a small share of traffic before a full rollout.</dd></div>
+    <div><dt>Data drift</dt><dd>A change in the distribution of model inputs over time.</dd></div>
+    <div><dt>Feedback loop</dt><dd>A cycle where the model's own outputs change the data it later trains on.</dd></div>
+    <div><dt>Candidate generation</dt><dd>The cheap first recommender stage that narrows millions of items to hundreds.</dd></div>
+    <div><dt>Ranking</dt><dd>The stage that scores candidates with richer features and orders them.</dd></div>
+    <div><dt>Cosine similarity</dt><dd>The dot product of two vectors divided by the product of their lengths, measuring the angle between them.</dd></div>
+    <div><dt>Cold start</dt><dd>The lack of history for a new user or item, handled with popularity, onboarding and content features.</dd></div>
+    <div><dt>Class imbalance</dt><dd>A dataset where one class, such as fraud, is much rarer than the other.</dd></div>
+    <div><dt>Precision</dt><dd>Of the items flagged positive, the fraction that are truly positive.</dd></div>
+    <div><dt>Recall</dt><dd>Of all truly positive items, the fraction that were flagged.</dd></div>
+    <div><dt>Threshold</dt><dd>The score cut-off that turns a risk score into a yes or no decision.</dd></div>
+    <div><dt>Remaining useful life</dt><dd>The predicted operating time left before a machine needs repair.</dd></div>
+    <div><dt>Retrieval-augmented generation</dt><dd>Answering questions with a model after fetching relevant document chunks into the prompt.</dd></div>
+    <div><dt>Faithfulness</dt><dd>Whether an answer is supported by the retrieved text.</dd></div>
+    <div><dt>Permission filter</dt><dd>An access rule applied in the retrieval query so unauthorised chunks never reach the model.</dd></div>
+    <div><dt>Tool registry</dt><dd>The approved list of tools an agent platform exposes to agents, often as MCP servers.</dd></div>
+    <div><dt>Input and output tokens</dt><dd>The tokens sent to the model and generated by it, usually billed at different prices.</dd></div>
+    <div><dt>Prompt caching</dt><dd>Reusing the processed form of a repeated prompt prefix to lower its billed cost.</dd></div>
+    <div><dt>Model routing</dt><dd>Sending requests to different models depending on difficulty or cost.</dd></div>
+    <div><dt>Time to first token</dt><dd>The delay before the first piece of a streamed answer appears.</dd></div>
+    <div><dt>ETL</dt><dd>Extract, transform, load: cleaning happens before data is stored in the destination.</dd></div>
+    <div><dt>ELT</dt><dd>Extract, load, transform: raw data is stored first and transformed inside the destination.</dd></div>
+    <div><dt>Idempotent pipeline</dt><dd>A pipeline whose repeated runs produce the same result as one run.</dd></div>
+    <div><dt>Lazy evaluation</dt><dd>Spark's behaviour of building a plan and running it only when an action is called.</dd></div>
+    <div><dt>Shuffle</dt><dd>Moving data between executors, usually for group-bys and joins, which is expensive.</dd></div>
+    <div><dt>Kafka topic and partition</dt><dd>A named event stream split into ordered, append-only partitions.</dd></div>
+    <div><dt>Consumer group</dt><dd>A set of consumers that share a topic's partitions and track their own offsets.</dd></div>
+    <div><dt>At-least-once delivery</dt><dd>Each record is processed one or more times, so duplicates must be handled.</dd></div>
+    <div><dt>DAG</dt><dd>A directed acyclic graph of tasks, the unit of work in Airflow.</dd></div>
+    <div><dt>Backfill</dt><dd>Running a scheduled workflow again for past dates.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>bisect.bisect_right(list, x)</code></td><td>Returns the insertion point after any equal values</td><td><code>bisect_right([1, 4], 4)</code> gives 2</td></tr>
+    <tr><td><code>csv.DictReader(file)</code></td><td>Reads rows as dictionaries keyed by the header</td><td><code>list(csv.DictReader(io.StringIO(text)))</code></td></tr>
+    <tr><td><code>sqlite3.connect(":memory:")</code></td><td>Opens a temporary in-memory database</td><td><code>conn.execute("SELECT 1")</code></td></tr>
+    <tr><td><code>executemany(sql, rows)</code></td><td>Runs one parameterised statement for many rows</td><td><code>INSERT INTO t VALUES (?, ?)</code></td></tr>
+    <tr><td><code>defaultdict(list)</code></td><td>A dictionary that creates a default value for new keys</td><td><code>groups[2].append(x)</code> needs no key check</td></tr>
+    <tr><td><code>spark.read.parquet(path)</code></td><td>Lazily reads a columnar dataset</td><td><code>spark.read.parquet("data/")</code></td></tr>
+    <tr><td><code>df.filter(cond)</code></td><td>Lazily keeps rows that match a condition</td><td><code>F.col("amount") &gt; 0</code></td></tr>
+    <tr><td><code>df.groupBy(...).agg(...)</code></td><td>Groups rows and computes aggregates</td><td><code>agg(F.sum("amount"))</code></td></tr>
+    <tr><td><code>df.write.partitionBy(col)</code></td><td>Writes output split into one folder per value</td><td><code>partitionBy("order_date")</code></td></tr>
+    <tr><td><code>producer.send(topic, key, value)</code></td><td>Sends a record; the key picks the partition</td><td><code>send("payments", key=b"u1", value=b"...")</code></td></tr>
+    <tr><td><code>DAG(dag_id, schedule, catchup)</code></td><td>Declares an Airflow workflow</td><td><code>schedule="@daily"</code></td></tr>
+    <tr><td><code>task_a &gt;&gt; task_b</code></td><td>Makes task_b depend on task_a</td><td>build runs after extract</td></tr>
+    <tr><td><code>round(x, n)</code></td><td>Rounds a number to n decimal places</td><td><code>round(24.989, 2)</code> gives 24.99</td></tr>
+    <tr><td><code>f"{x:.2f}"</code></td><td>Formats a number with two decimal places</td><td><code>f"{0.6667:.2f}"</code> gives 0.67</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 41?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 41 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-40.html"><small>Previous, day 40</small>AI agents: LangChain, LangGraph, MCP and frameworks</a><a class="next" href="day-42.html"><small>Next, day 42</small>Buffer day: catch up or full mock</a></nav>
+</main><script src="assets/app.js"></script></body></html>

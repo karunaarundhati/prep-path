@@ -1,0 +1,757 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 1: Python 1: Core language, data structures, functions</title><meta name="description" content="Day 1 builds the foundation of Python: how names and objects work, which built-in data structures to reach for and what each operation costs, the most useful standard library helpers (collections, heapq, bisect), how functions receive their arguments, how scope and closures work, and the mutable default argument trap that catches almost everyone once. The DSA block introduces Big O analysis and the first array patterns, the vocabulary interviewers use to judge every solution you write."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="1" data-key="1" data-noun="day" data-num="1" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Python 1: <em>Core language, data structures, functions</em></h1>
+<p class="lede">Day 1 builds the foundation of Python: how names and objects work, which built-in data structures to reach for and what each operation costs, the most useful standard library helpers (collections, heapq, bisect), how functions receive their arguments, how scope and closures work, and the mutable default argument trap that catches almost everyone once. The DSA block introduces Big O analysis and the first array patterns, the vocabulary interviewers use to judge every solution you write.</p>
+<div class="station"><b>1</b><span>Mon 2 Nov 2026 · Programming · DSA: Big O analysis + arrays basics</span></div>
+<ul class="topics"><li>Names, objects and mutability</li><li>Built-in data structures and Big O</li><li>collections, heapq and bisect</li><li>Functions and argument passing</li><li>Scope (LEGB) and closures</li><li>Mutable default argument trap</li><li>DSA: Big O and arrays</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Core language">
+  <h2>Core language: names, objects and mutability</h2>
+  <p>Python is <strong>dynamically typed</strong>. You do not declare a variable's type. Instead, a variable is a <em>name</em> that points to an <em>object</em>, and the object is what carries a type. In <code>x = 10</code>, the name <code>x</code> is attached to an int object holding 10. Writing <code>x = "ten"</code> afterwards does not change the int object. It simply attaches the name <code>x</code> to a new str object. The name is cheap and easy to move; the object is where the data lives.</p>
+  <pre class="code" data-lang="python"><code>x = 10
+print(type(x))
+x = "ten"
+print(type(x), x)</code></pre>
+  <pre class="output">&lt;class 'int'&gt;
+&lt;class 'str'&gt; ten</pre>
+
+  <h3>Objects are either mutable or immutable</h3>
+  <p>Every object is either <strong>mutable</strong> (its contents can change in place) or <strong>immutable</strong> (it can never change after it is created). This one idea explains most surprising Python behaviour, so learn it well.</p>
+  <div class="tablewrap"><table><thead><tr><th>Immutable (cannot change in place)</th><th>Mutable (can change in place)</th></tr></thead><tbody><tr><td>int, float, complex, bool, str, tuple, frozenset, bytes, None</td><td>list, dict, set, bytearray, and most instances of your own classes</td></tr></tbody></table></div>
+
+  <p>Look at what happens when a string and a list are changed.</p>
+  <pre class="code" data-lang="python"><code>s = "hi"
+t = s                # t and s now name the same str object
+s += "!"             # str cannot change, so Python builds a NEW string for s
+print(s, t)
+
+a = [1, 2]
+b = a                # b and a name the same list object
+a += [3]             # the list changes IN PLACE, so b sees the change too
+print(a, b)</code></pre>
+  <pre class="output">hi! hi
+[1, 2, 3] [1, 2, 3]</pre>
+  <p>The string case rebinds the name <code>s</code> to a brand new object, so <code>t</code> keeps the old value. The list case mutates the one shared object, so both names show the change. Only hashable objects can be dictionary keys or set members, because an object's hash must never change while it sits in the table. In practice that means immutable objects such as strings, numbers and tuples.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span><code>a += [3]</code> and <code>a = a + [3]</code> look almost the same but are not. The first mutates the list in place. The second builds a new list and rebinds <code>a</code>. For a list shared by two names, only the first one changes what both names see.</p></div>
+
+  <h3>Operators that surprise people</h3>
+  <p>The <code>/</code> operator always returns a float in Python 3, even for <code>6 / 2</code>. Floor division <code>//</code> rounds <strong>down</strong> toward negative infinity, not toward zero. This matters with negative numbers. The modulo operator <code>%</code> is defined so that <code>(a // b) * b + a % b</code> always equals <code>a</code>, which is why <code>-7 % 2</code> is 1 and not -1.</p>
+  <pre class="code" data-lang="python"><code>print(7 / 2, 7 // 2, -7 // 2, -7 % 2, 2 ** 10)
+print(0.1 + 0.2 == 0.3, round(0.1 + 0.2, 10) == 0.3)
+print(1 &lt; 3 &lt; 5, 1 &lt; 3 &gt; 5)</code></pre>
+  <pre class="output">3.5 3 -4 1 1024
+False True
+True False</pre>
+  <p>Three lessons are in that output. First, <code>-7 // 2</code> is -4 because -3.5 rounds down to -4. Second, floating point numbers cannot store 0.1 and 0.2 exactly, so their sum is slightly off from 0.3. Compare floats with a rounding step or with <code>math.isclose</code>, never with a bare <code>==</code>. Third, comparisons chain: <code>1 &lt; 3 &gt; 5</code> means <code>1 &lt; 3</code> and <code>3 &gt; 5</code>, which is False.</p>
+
+  <h3>Truthiness: what counts as False</h3>
+  <p>Python uses the same rule in <code>if</code>, <code>while</code>, <code>and</code> and <code>or</code>. An object is <strong>falsy</strong> when it is <code>None</code>, <code>False</code>, a numeric zero, or an empty collection or string. Everything else is <strong>truthy</strong>. The string <code>"0"</code> is truthy because it is a non-empty string, and the list <code>[0]</code> is truthy because it has one element.</p>
+  <pre class="code" data-lang="python"><code>for v in [0, 0.0, "", [], {}, set(), None, "0", [0], " "]:
+    print(repr(v), bool(v))</code></pre>
+  <pre class="output">0 False
+0.0 False
+'' False
+[] False
+{} False
+set() False
+None False
+'0' True
+[0] True
+' ' True</pre>
+  <p>A common habit is writing <code>if len(items) == 0</code>. The idiomatic form is <code>if not items</code>, which works for any container. Both are correct, but the second is shorter and says what you mean.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Is Python compiled or interpreted? The honest answer is both. CPython compiles source code to bytecode, which is a compact set of low-level instructions, and then a virtual machine interprets that bytecode one instruction at a time.</p></div>
+  <details class="check"><summary>What is the difference between a mutable and an immutable object? Give one example of each.</summary><div class="ans"><p>An immutable object cannot change after it is created, for example an int or a str. A mutable object can change in place, for example a list or a dict. Changing a shared mutable object is visible through every name that refers to it. Changing an immutable one always produces a new object and leaves the old one untouched.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Data structures">
+  <h2>Built-in data structures and their costs</h2>
+  <p>Python ships with four core containers that you will use in almost every solution: <strong>list</strong> (an ordered, growable sequence), <strong>tuple</strong> (an ordered, fixed sequence), <strong>dict</strong> (a mapping from keys to values) and <strong>set</strong> (an unordered collection of unique values). Knowing what each operation costs is what separates a quick, correct answer from a slow one.</p>
+
+  <h3>The cost table to memorise</h3>
+  <p>Big O notation (explained in the DSA section below) describes how the cost of an operation grows as the container grows. We write the size as n. The table gives the typical costs in CPython, the standard implementation.</p>
+  <div class="tablewrap"><table><thead><tr><th>Operation</th><th>list</th><th>dict</th><th>set</th></tr></thead><tbody>
+    <tr><td>Read by index or key</td><td>O(1)</td><td>O(1) average</td><td>not applicable</td></tr>
+    <tr><td><code>x in container</code></td><td>O(n), scans the items</td><td>O(1) average</td><td>O(1) average</td></tr>
+    <tr><td>Add at the end, or insert a new key or value</td><td>O(1) amortized</td><td>O(1) average</td><td>O(1) average</td></tr>
+    <tr><td>Insert or delete at the front (index 0)</td><td>O(n), every item shifts</td><td>not applicable</td><td>not applicable</td></tr>
+    <tr><td>Remove a given value</td><td><code>remove(x)</code> is O(n)</td><td>delete by key is O(1) average</td><td>O(1) average</td></tr>
+    <tr><td>Remove the last item</td><td><code>pop()</code> is O(1)</td><td>not applicable</td><td>not applicable</td></tr>
+    <tr><td>Sort</td><td>O(n log n)</td><td>not applicable</td><td>not applicable</td></tr>
+  </tbody></table></div>
+  <p>Two words in that table need explaining. <strong>Average</strong> is the typical case for dicts and sets, which use hash tables. A hash table turns a key into a number (its hash) and jumps straight to the slot where that key should live, so a lookup does not depend on how many keys there are. In the rare worst case, many keys land in the same slot and the cost degrades toward O(n). <strong>Amortized</strong> means an operation is occasionally expensive but cheap on average over many operations. Appending to a list is the classic example. Most appends simply write into spare room. The rare append that finds no room copies the whole array into a bigger one, but because the new array is much bigger, those copies are spread thin over many appends.</p>
+  <p>Since Python 3.7, dicts also keep their keys in insertion order. This is a guaranteed part of the language, so you can rely on it.</p>
+
+  <h3>list: the workhorse</h3>
+  <p>A list is a dynamic array. Its items sit side by side in memory, so reading by index is instant. Adding at the end is cheap. Adding or removing at the front is slow, because every other item must move one place to make room or close the gap.</p>
+  <pre class="code" data-lang="python"><code>nums = [5, 3, 8]
+nums.append(1)
+nums.insert(0, 9)
+print(nums, nums[-1], nums[1:3], nums[::-1])
+print(sorted(nums), nums.pop(), nums)
+squares = [x * x for x in range(6) if x % 2 == 0]
+print(squares)</code></pre>
+  <pre class="output">[9, 5, 3, 8, 1] 1 [5, 3] [1, 8, 3, 5, 9]
+[1, 3, 5, 8, 9] 1 [9, 5, 3, 8]
+[0, 4, 16]</pre>
+  <p>Read the first line carefully. <code>nums[-1]</code> is the last item. <code>nums[1:3]</code> is a <em>slice</em> that takes indexes 1 and 2, because the end index is excluded. <code>nums[::-1]</code> is a reversed copy. The second line shows that <code>sorted</code> returns a new list and leaves <code>nums</code> alone, while <code>pop()</code> removes the last item and returns it. Arguments are evaluated from left to right, so <code>sorted(nums)</code> runs before <code>pop()</code> removes the 1. The last line is a <em>list comprehension</em>, a compact loop that builds a list. Here it produces the squares of the even numbers from 0 to 5.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Calling <code>list.pop(0)</code> or <code>list.insert(0, x)</code> inside a loop turns an O(n) job into O(n squared). When you need a fast queue, use <code>collections.deque</code>, which is covered below.</p></div>
+
+  <h3>tuple: fixed and hashable</h3>
+  <p>A tuple cannot be changed after creation. That makes it smaller and a little faster than a list, and it lets it be used as a dictionary key. Packing and unpacking are the everyday uses.</p>
+  <pre class="code" data-lang="python"><code>point = (3, 4)
+x, y = point
+first, *rest = (1, 2, 3, 4)
+print(x, y, first, rest, (5,) == 5, type((5,)))</code></pre>
+  <pre class="output">3 4 1 [2, 3, 4] False &lt;class 'tuple'&gt;</pre>
+  <p>The star in <code>first, *rest</code> collects all the leftover items into a list. A one-element tuple needs a trailing comma. <code>(5,)</code> is a tuple, but <code>(5)</code> is only the integer 5 in parentheses. That is why <code>(5,) == 5</code> is False.</p>
+
+  <h3>dict: keys to values</h3>
+  <pre class="code" data-lang="python"><code>ages = {"asha": 21, "ravi": 23}
+ages["meena"] = 22
+print(ages.get("john"), ages.get("john", 0), "ravi" in ages)
+for name, age in ages.items():
+    print(name, age)
+print({k: v for k, v in ages.items() if v &gt; 21})</code></pre>
+  <pre class="output">None 0 True
+asha 21
+ravi 23
+meena 22
+{'ravi': 23, 'meena': 22}</pre>
+  <p>Reading <code>ages["john"]</code> directly would raise a <code>KeyError</code>, because John is not a key. The <code>get</code> method returns <code>None</code> when a key is missing, or the default value you pass as the second argument. The <code>in</code> operator checks keys, not values. The <code>items()</code> method gives key and value pairs, which the loop header unpacks into two names.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>A dict comprehension such as <code>{k: v for k, v in ...}</code> builds a dict the same way a list comprehension builds a list. The trailing <code>if</code> keeps only the pairs that match.</p></div>
+
+  <h3>set: unique values and fast membership</h3>
+  <p>A set stores each value once and answers "is this value present?" in O(1) on average. It also supports the mathematical operations of union, intersection, difference and symmetric difference.</p>
+  <pre class="code" data-lang="python"><code>a, b = {1, 2, 3}, {3, 4}
+print(a | b, a &amp; b, a - b, a ^ b)
+print(list(set([3, 1, 3, 2, 1])))</code></pre>
+  <pre class="output">{1, 2, 3, 4} {3} {1, 2} {1, 2, 4}
+[1, 2, 3]</pre>
+  <p>The operators are <code>|</code> for union (everything in either set), <code>&amp;</code> for intersection (only what both sets share), <code>-</code> for difference (in the left set but not the right), and <code>^</code> for symmetric difference (in exactly one of the two). The second line removes duplicates from a list. A set has no order guarantee, so convert it back to a sorted list when the order matters.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why does a set lookup take O(1) average time and a list lookup take O(n)? A set uses hashing to jump to the slot for a value. A list has no such shortcut, so it must compare with each item in turn.</p></div>
+  <details class="check"><summary>Why is <code>x in some_list</code> slow for a large list, and what should you use instead?</summary><div class="ans"><p>The membership test scans the list from the start until it finds x or runs out of items, which is O(n). If you need to test membership many times, build a set once from the list (O(n)) and then test with <code>in</code> on the set, which is O(1) on average for each test.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="collections, heapq, bisect">
+  <h2>The standard library helpers: collections, heapq and bisect</h2>
+  <p>The standard library contains specialised containers that remove a lot of boilerplate. Interviewers expect you to know them, because they make solutions shorter and faster. Each example below is complete, so you can copy it into a file and run it.</p>
+
+  <h3>Counter: count things</h3>
+  <p>A <code>Counter</code> is a dict subclass that counts hashable items. Missing keys return 0 instead of raising an error, and <code>most_common</code> returns the most frequent items first. When two items have the same count, they appear in the order they were first seen.</p>
+  <pre class="code" data-lang="python"><code>from collections import Counter
+
+c = Counter("mississippi")
+print(c)
+print(c.most_common(2), c["z"])</code></pre>
+  <pre class="output">Counter({'i': 4, 's': 4, 'p': 2, 'm': 1})
+[('i', 4), ('s', 4)] 0</pre>
+
+  <h3>defaultdict: no KeyError for new keys</h3>
+  <p>A <code>defaultdict</code> is a dict that creates a default value the first time you touch a missing key. You pass it a factory function such as <code>list</code>, which is called with no arguments to make each new value. This removes the common "if key not in dict, create the list first" code.</p>
+  <pre class="code" data-lang="python"><code>from collections import defaultdict
+
+groups = defaultdict(list)
+for word in ["apple", "avocado", "banana", "blueberry", "cherry"]:
+    groups[word[0]].append(word)
+print(dict(groups))</code></pre>
+  <pre class="output">{'a': ['apple', 'avocado'], 'b': ['banana', 'blueberry'], 'c': ['cherry']}</pre>
+  <p>When <code>groups["a"]</code> is first read, the dict has no such key, so <code>list()</code> is called to create an empty list, which is stored and returned. The <code>append</code> then works on that stored list.</p>
+
+  <h3>deque: fast at both ends</h3>
+  <p>A <code>deque</code> (pronounced "deck", short for double-ended queue) is a list-like container that is O(1) to add or remove at either end. It is the right tool for queues, for breadth-first search and for sliding windows. It also accepts a <code>maxlen</code>, which silently drops the oldest item when full.</p>
+  <pre class="code" data-lang="python"><code>from collections import deque
+
+d = deque([1, 2, 3])
+d.appendleft(0)
+d.append(4)
+print(d.popleft(), d)
+d.rotate(1)
+print(d)
+recent = deque(maxlen=3)
+for i in range(5):
+    recent.append(i)
+print(recent)</code></pre>
+  <pre class="output">0 deque([1, 2, 3, 4])
+deque([4, 1, 2, 3])
+deque([2, 3, 4], maxlen=3)</pre>
+  <p><code>rotate(1)</code> moves every item one step to the right, so the last item wraps around to the front. The <code>maxlen=3</code> deque keeps only the three most recent values, which is handy for "last N events" questions.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not use a plain list as a queue with <code>pop(0)</code>. Each call shifts the whole list. Use <code>deque.popleft()</code> instead.</p></div>
+
+  <h3>namedtuple: a tuple with names</h3>
+  <p>A <code>namedtuple</code> creates a small immutable class whose instances are tuples, but whose fields can also be read by name. It is lighter than writing a class by hand, and it still unpacks like any tuple.</p>
+  <pre class="code" data-lang="python"><code>from collections import namedtuple
+
+Point = namedtuple("Point", ["x", "y"])
+p = Point(3, 4)
+print(p, p.x, p[1])</code></pre>
+  <pre class="output">Point(x=3, y=4) 3 4</pre>
+
+  <h3>heapq: a min-heap built on a plain list</h3>
+  <p>A <em>heap</em> is a tree-shaped structure stored in a list in which the smallest item is always at index 0. The <code>heapq</code> module offers functions that keep this order. <code>heappush</code> and <code>heappop</code> each take O(log n). <code>heapify</code> turns an existing list into a heap in O(n). Python provides only a min-heap, so for a max-heap you store negated values.</p>
+  <pre class="code" data-lang="python"><code>import heapq
+
+nums = [5, 1, 8, 3, 2]
+heapq.heapify(nums)
+heapq.heappush(nums, 0)
+print([heapq.heappop(nums) for _ in range(len(nums))])
+print(heapq.nlargest(2, [5, 1, 8, 3, 2]), heapq.nsmallest(3, [5, 1, 8, 3, 2]))
+
+maxheap = []
+for x in [5, 1, 8]:
+    heapq.heappush(maxheap, -x)
+print(-heapq.heappop(maxheap))</code></pre>
+  <pre class="output">[0, 1, 2, 3, 5, 8]
+[8, 5] [1, 2, 3]
+8</pre>
+  <p>Popping repeatedly returns the items in ascending order, which is a simple heap sort. For a max-heap, negation is the trick: the most negative stored number is the largest original number, so the heap's minimum is the original maximum. Use a heap for "top k" questions, "k-th largest" questions, merging several sorted lists, and shortest-path algorithms such as Dijkstra.</p>
+
+  <h3>bisect: binary search on a sorted list</h3>
+  <p><code>bisect_left(a, x)</code> returns the index where x would be inserted to keep <code>a</code> sorted, placing x before any equal values. <code>bisect_right</code> (also called <code>bisect</code>) places x after equal values. <code>insort</code> inserts x at that position. All of these take O(log n) to find the position, but inserting into a list still shifts items, so the insert itself is O(n).</p>
+  <pre class="code" data-lang="python"><code>import bisect
+
+a = [1, 3, 3, 5, 8]
+print(bisect.bisect_left(a, 3), bisect.bisect_right(a, 3), bisect.bisect_left(a, 4))
+bisect.insort(a, 4)
+print(a)
+
+def grade(score, cutoffs=(60, 70, 80, 90), letters="FDCBA"):
+    return letters[bisect.bisect(cutoffs, score)]
+
+print([grade(s) for s in [59, 60, 85, 90, 100]])</code></pre>
+  <pre class="output">1 3 3
+[1, 3, 3, 4, 5, 8]
+['F', 'D', 'B', 'A', 'A']</pre>
+  <p>The <code>grade</code> function is a clean use of bisect. The cutoffs are sorted, so <code>bisect</code> returns how many cutoffs the score has reached. Score 59 reaches none and gets index 0, which is F. Score 60 reaches one cutoff, so it gets D. The cutoffs are a tuple here, which avoids the mutable default trap explained later in this page.</p>
+  <div class="note key"><p><span class="t">Key idea</span>bisect only works on a list that is already sorted. It does not sort for you, and on an unsorted list its answer is meaningless.</p></div>
+  <details class="check"><summary>When would you choose a heap over sorting the whole list?</summary><div class="ans"><p>When you need only some of the items. Keeping the k largest items seen so far in a min-heap of size k costs O(n log k), which beats the O(n log n) of a full sort when k is small. Sorting is simpler when you need every item in order anyway.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Functions">
+  <h2>Functions: parameters, arguments and first-class functions</h2>
+  <p>A function is a named block of code that takes inputs (parameters) and returns a result. When you call it, the values you pass are the <em>arguments</em>. Python's rules for matching arguments to parameters are richer than most languages, and interviewers like to probe them.</p>
+
+  <h3>Every parameter kind in one signature</h3>
+  <p>Read the signature below from left to right. The <code>/</code> and <code>*</code> markers are separators that control how callers may pass each parameter.</p>
+  <pre class="code" data-lang="python"><code>def f(a, /, b, c=3, *args, d, e=5, **kwargs):
+    print(a, b, c, args, d, e, kwargs)
+
+f(1, 2, 30, 40, 50, d=4, z=9)</code></pre>
+  <pre class="output">1 2 30 (40, 50) 4 5 {'z': 9}</pre>
+  <div class="tablewrap"><table><thead><tr><th>Part of the signature</th><th>Meaning</th></tr></thead><tbody>
+    <tr><td><code>a, /</code></td><td>Positional-only. The caller must pass <code>a</code> by position, so <code>a=1</code> is an error.</td></tr>
+    <tr><td><code>b, c=3</code></td><td>Normal parameters. They can be passed by position or by name. <code>c</code> has a default of 3.</td></tr>
+    <tr><td><code>*args</code></td><td>Collects any extra positional arguments into a tuple. Here it receives 40 and 50.</td></tr>
+    <tr><td><code>d, e=5</code> after the star</td><td>Keyword-only. These must be passed by name, as <code>d=4</code>.</td></tr>
+    <tr><td><code>**kwargs</code></td><td>Collects any extra keyword arguments into a dict. Here it receives <code>z=9</code>.</td></tr>
+  </tbody></table></div>
+  <p>Working through the call <code>f(1, 2, 30, 40, 50, d=4, z=9)</code> step by step: <code>1</code> goes to <code>a</code> because it is first. <code>2</code> goes to <code>b</code>. <code>30</code> goes to <code>c</code>. The next two positional values, 40 and 50, do not fit any named positional parameter, so they fill <code>args</code>. <code>d=4</code> matches the keyword-only <code>d</code>. Nothing supplied <code>e</code>, so it keeps its default of 5. <code>z=9</code> matches no named parameter, so it lands in <code>kwargs</code>.</p>
+  <div class="note tip"><p><span class="t">Tip</span>You will write <code>*args</code> and <code>**kwargs</code> when you wrap another function and want to pass everything through unchanged. The decorator lesson in day 2 relies on exactly this pattern.</p></div>
+
+  <h3>How arguments are passed: object references</h3>
+  <p>Python does not have "pass by value" or "pass by reference" in the C or Java sense. Each argument is passed as a reference to an object. The function gets its own new name for the same object. That leads to a rule with two halves. If the function <em>mutates</em> the object, the caller sees the change. If the function <em>reassigns</em> its name, the caller does not.</p>
+  <pre class="code" data-lang="python"><code>def modify(lst):
+    lst.append(4)      # mutates the caller's list, which is the same object
+    lst = [99]         # rebinds only the local name lst
+
+nums = [1, 2, 3]
+modify(nums)
+print(nums)</code></pre>
+  <pre class="output">[1, 2, 3, 4]</pre>
+  <p>Trace it: the name <code>nums</code> and the parameter <code>lst</code> both point at one list object. <code>append</code> changes that object, so <code>nums</code> shows the 4. Then <code>lst = [99]</code> makes the local name point at a different list, and that new list disappears when the function ends. The caller's <code>nums</code> is untouched by that line.</p>
+
+  <h3>Functions are objects</h3>
+  <p>A function is a value like any other. You can store it in a variable, pass it to another function, return it, and put it in a list. Functions that take or return functions are called <em>higher-order</em>. The built-in functions <code>sorted</code>, <code>map</code> and <code>filter</code> are all higher-order.</p>
+  <pre class="code" data-lang="python"><code>def shout(s):
+    return s.upper()
+
+def apply(func, value):
+    return func(value)
+
+print(apply(shout, "hi"), apply(lambda s: s[::-1], "hi"))
+
+words = ["kiwi", "Banana", "apple"]
+print(sorted(words))
+print(sorted(words, key=str.lower))
+print(sorted(words, key=len))
+print(list(map(len, words)), list(filter(lambda w: "a" in w, words)))</code></pre>
+  <pre class="output">HI ih
+['Banana', 'apple', 'kiwi']
+['apple', 'Banana', 'kiwi']
+['kiwi', 'apple', 'Banana']
+[4, 6, 5] ['Banana', 'apple']</pre>
+  <p><code>lambda s: s[::-1]</code> is an anonymous one-expression function. <code>key=</code> tells <code>sorted</code> what to compare by. The plain sort puts "Banana" first because uppercase letters have smaller codes than lowercase ones: 'B' is 66 and 'a' is 97. Sorting with <code>key=str.lower</code> ignores case. Sorting with <code>key=len</code> orders by length, and Python's sort is stable, so items with equal keys keep their original order.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between <code>*args</code> and <code>**kwargs</code>? <code>*args</code> collects extra positional arguments as a tuple. <code>**kwargs</code> collects extra keyword arguments as a dict. The names are only conventions; the star is what matters.</p></div>
+  <details class="check"><summary>Given <code>def f(a, *args, b=2, **kw)</code>, what are <code>a</code>, <code>args</code>, <code>b</code> and <code>kw</code> after <code>f(1, 2, 3, b=4, c=5)</code>?</summary><div class="ans"><p><code>a</code> is 1. <code>args</code> is the tuple (2, 3). <code>b</code> is 4 because it was passed by keyword. <code>kw</code> is the dict {'c': 5}, which collected the keyword that matched no named parameter.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Scope and closures">
+  <h2>Scope (LEGB) and closures</h2>
+  <p><strong>Scope</strong> is the part of a program where a name is visible. When Python meets a name, it looks it up in a fixed order called <strong>LEGB</strong>: <strong>L</strong>ocal (inside the current function), <strong>E</strong>nclosing (in any function that contains the current one), <strong>G</strong>lobal (at the top level of the module), and <strong>B</strong>uilt-in (names such as <code>len</code> and <code>print</code>). The first match wins.</p>
+  <pre class="code" data-lang="python"><code>x = "global"
+def outer():
+    x = "enclosing"
+    def inner():
+        x = "local"
+        print(x)
+    inner()
+    print(x)
+
+outer()
+print(x)</code></pre>
+  <pre class="output">local
+enclosing
+global</pre>
+  <p>Each <code>print</code> finds the nearest <code>x</code>. Inside <code>inner</code>, the local assignment wins. Back in <code>outer</code>, the enclosing assignment is found. At the module level, only the global one exists.</p>
+
+  <h3>global and nonlocal: changing a name from outside its function</h3>
+  <p>Reading a name from an outer scope is automatic. Assigning to it is not. Writing <code>x = 5</code> inside a function creates a new local <code>x</code> instead of changing the global one. Two keywords fix this. <code>global x</code> means "this name refers to the module-level <code>x</code>". <code>nonlocal x</code> means "this name refers to the nearest enclosing function's <code>x</code>".</p>
+  <pre class="code" data-lang="python"><code>count = 0
+
+def bump():
+    global count        # assign to the module-level name
+    count += 1
+
+bump()
+bump()
+print(count)</code></pre>
+  <pre class="output">2</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Any assignment to a name anywhere in a function makes that name local for the whole function. So <code>total += 1</code> inside a function fails if <code>total</code> is a global you never declared with <code>global</code>. Python reads the name as local before it has a value.</p></div>
+  <pre class="code" data-lang="python"><code>total = 0
+
+def add():
+    total += 1
+
+try:
+    add()
+except UnboundLocalError as e:
+    print("UnboundLocalError:", e)</code></pre>
+  <pre class="output">UnboundLocalError: cannot access local variable 'total' where it is not associated with a value</pre>
+  <p>The fix is to add <code>global total</code> at the top of <code>add</code>, or to pass <code>total</code> in and return the new value. Passing values in and returning results is usually the cleaner design.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Shadowing a built-in name. If you write <code>list = [1, 2]</code>, the global name <code>list</code> now hides the built-in type for the rest of the module, and calling <code>list(...)</code> breaks.</p></div>
+  <pre class="code" data-lang="python"><code>list = [1, 2]
+try:
+    list("ab")
+except TypeError as e:
+    print("TypeError:", e)</code></pre>
+  <pre class="output">TypeError: 'list' object is not callable</pre>
+  <p>Never use the names of built-ins such as <code>list</code>, <code>dict</code>, <code>str</code>, <code>id</code>, <code>sum</code> or <code>max</code> as variable names. Choose <code>items</code>, <code>mapping</code>, <code>text</code>, <code>ident</code>, <code>total</code> or <code>best</code> instead.</p>
+
+  <h3>Closures: functions that remember their surroundings</h3>
+  <p>A <strong>closure</strong> is an inner function that keeps access to variables from the enclosing function, even after that enclosing function has returned. Python attaches the captured variables to the inner function. You can inspect them through the <code>__closure__</code> attribute. Closures are the mechanism behind decorators, which you will see on day 2.</p>
+  <pre class="code" data-lang="python"><code>def make_multiplier(n):
+    def multiply(x):
+        return x * n          # n comes from the enclosing scope
+    return multiply
+
+double = make_multiplier(2)
+triple = make_multiplier(3)
+print(double(5), triple(5))
+print(double.__closure__[0].cell_contents)</code></pre>
+  <pre class="output">10 15
+2</pre>
+  <p><code>make_multiplier</code> finished running long before <code>double(5)</code> was called, yet <code>double</code> still knows <code>n</code> is 2. Each call to <code>make_multiplier</code> creates a separate <code>n</code>, which is why <code>double</code> and <code>triple</code> do not interfere.</p>
+
+  <h4>A counter with state, using nonlocal</h4>
+  <p>A closure can also change the variable it captured, as long as it declares that variable with <code>nonlocal</code>. This gives you a small piece of private state without writing a class.</p>
+  <pre class="code" data-lang="python"><code>def make_counter():
+    count = 0
+    def increment():
+        nonlocal count        # modify the enclosing variable, not a new local
+        count += 1
+        return count
+    return increment
+
+c = make_counter()
+print(c(), c(), c())</code></pre>
+  <pre class="output">1 2 3</pre>
+
+  <h4>Late binding: a classic interview trap</h4>
+  <p>A closure looks up its captured variable when it is <em>called</em>, not when it is created. Loops make this visible. The lambdas below all share the same <code>i</code>, and by the time they run, the loop has finished with <code>i</code> equal to 2.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Closures created in a loop all see the final value of the loop variable. Fix it by capturing the current value as a default argument.</p></div>
+  <pre class="code" data-lang="python"><code>funcs = [lambda: i for i in range(3)]
+print([f() for f in funcs])
+funcs = [lambda i=i: i for i in range(3)]
+print([f() for f in funcs])</code></pre>
+  <pre class="output">[2, 2, 2]
+[0, 1, 2]</pre>
+  <p>The default argument <code>i=i</code> is evaluated once, at the moment each lambda is created, so each lambda keeps its own copy of the current value. This works, but a helper function with an explicit parameter is often clearer in production code.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is a closure? An inner function that remembers variables from its enclosing scope after that scope has finished, usually created by a function that returns the inner function.</p></div>
+  <details class="check"><summary>What does <code>nonlocal</code> do that a plain assignment inside a closure does not?</summary><div class="ans"><p>A plain assignment creates a new local name in the inner function, so the enclosing variable is left alone. <code>nonlocal</code> tells Python to find the nearest enclosing variable with that name and assign to it, which is how the closure can update state shared with the outer function.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Mutable default trap">
+  <h2>The mutable default argument trap</h2>
+  <p>Python evaluates a default argument value <strong>once</strong>, when the <code>def</code> statement runs, not each time the function is called. The default object is then stored on the function and reused. If that default is a mutable object such as a list, every call that uses the default shares the same list. This is one of the most common bugs in Python code, and interviewers use it to check whether you understand evaluation time.</p>
+  <pre class="code" data-lang="python"><code>def add_item(item, bucket=[]):
+    bucket.append(item)
+    return bucket
+
+print(add_item(1))
+print(add_item(2))</code></pre>
+  <pre class="output">[1]
+[1, 2]</pre>
+  <p>The second call did not start with a fresh empty list. It received the same list that the first call built, and appended to it. The default list lives on the function object, in the attribute <code>add_item.__defaults__</code>. Each call that leaves <code>bucket</code> out gets that one shared object.</p>
+  <p>The standard fix is to use <code>None</code> as the default, a sentinel meaning "not given", and create the list inside the function when it is needed.</p>
+  <pre class="code" data-lang="python"><code>def add_item(item, bucket=None):
+    if bucket is None:
+        bucket = []          # a fresh list on every call
+    bucket.append(item)
+    return bucket
+
+print(add_item(1), add_item(2))</code></pre>
+  <pre class="output">[1] [2]</pre>
+  <div class="note trap"><p><span class="t">Trap</span>The same problem appears with dicts and sets as defaults, and with any mutable object. Immutable defaults such as numbers, strings, and tuples are safe, because you cannot change them in place.</p></div>
+  <p>Mutable defaults are not always a bug. A deliberate cache can use one, although <code>functools.lru_cache</code> is clearer and safer. The point is that the choice should be deliberate.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Default values are evaluated at definition time, once. Use <code>None</code> as the default for any mutable argument, and create the object inside the function.</p></div>
+  <details class="check"><summary>When exactly is the default value of a parameter evaluated?</summary><div class="ans"><p>When the <code>def</code> statement runs, which is normally when the module is imported. It is not evaluated on each call. That is why a mutable default is shared between calls.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question aloud before you open the answer. The model answers are short, so use them as a checklist of points rather than a script.</p>
+  <details class="check"><summary>What is the difference between a name and an object in Python?</summary><div class="ans"><p>An object is the value in memory, with a type and contents. A name is a label that refers to an object. Assigning a name does not copy the object, and two names can refer to the same object.</p></div></details>
+  <details class="check"><summary>Why can a list not be a dictionary key, while a tuple can?</summary><div class="ans"><p>A dictionary key must have a hash that never changes. A list can be modified in place, which could change its contents and break the table. A tuple can only hold immutable items, so it is safe to hash. Note that a tuple holding a list is not hashable, because it contains something mutable.</p></div></details>
+  <details class="check"><summary>What is the time complexity of <code>in</code> for a list, a set and a dict?</summary><div class="ans"><p>For a list it is O(n), because the search scans items. For a set and a dict it is O(1) on average, because the hash table jumps directly to the slot. The worst case for sets and dicts is O(n) when many keys collide.</p></div></details>
+  <details class="check"><summary>What does <code>-7 // 2</code> give, and why?</summary><div class="ans"><p>It gives -4. Floor division rounds toward negative infinity, and -3.5 rounds down to -4. Truncation toward zero would give -3, which is a different operation.</p></div></details>
+  <details class="check"><summary>Why is <code>list.pop(0)</code> slow, and what do you use for a queue?</summary><div class="ans"><p>Removing the first item forces every other item to shift one place, which is O(n). Use <code>collections.deque</code> and call <code>popleft()</code>, which is O(1).</p></div></details>
+  <details class="check"><summary>What is amortized O(1) time, and why does <code>append</code> have it?</summary><div class="ans"><p>Amortized O(1) means the average cost per operation over a long sequence is constant, even though some single operations are expensive. Appending usually writes into spare capacity. When the array is full, it copies everything into a larger array, but the capacity doubles, so the total copying over n appends is at most about 2n.</p></div></details>
+  <details class="check"><summary>What is the difference between <code>*args</code> and a regular parameter?</summary><div class="ans"><p>A regular parameter binds exactly one argument by name or position. <code>*args</code> collects any number of extra positional arguments into a tuple, so the function can accept a variable number of values.</p></div></details>
+  <details class="check"><summary>What does LEGB stand for, and in what order does Python search?</summary><div class="ans"><p>Local, Enclosing, Global, Built-in. Python searches the innermost scope first and moves outward, stopping at the first match.</p></div></details>
+  <details class="check"><summary>What is a closure, and what does <code>nonlocal</code> add?</summary><div class="ans"><p>A closure is an inner function that keeps references to variables of its enclosing function, even after that function returns. <code>nonlocal</code> lets the inner function assign to one of those variables rather than creating a new local.</p></div></details>
+  <details class="check"><summary>Explain why <code>def f(x, items=[])</code> behaves strangely when called twice without <code>items</code>.</summary><div class="ans"><p>The default list is created once when <code>def</code> runs and is shared by every call that omits the argument. Calls that append to it see each other's items. Use <code>items=None</code> and create the list inside the function.</p></div></details>
+  <details class="check"><summary>What is the difference between <code>heapq.nlargest(k, data)</code> and <code>sorted(data)[-k:]</code>?</summary><div class="ans"><p>Both give the k largest items. <code>nlargest</code> works in O(n log k) with a heap of size k, while sorting costs O(n log n). For small k and large n, the heap is faster. Sorting is simpler and fine when n is small.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Big O and the array patterns</h2>
+  <p>A <strong>data structure</strong> stores data. An <strong>algorithm</strong> is a step-by-step procedure that works on it. Interviewers want to see that you can describe how much time and memory your solution needs as the input grows. The language for that is <strong>Big O notation</strong>.</p>
+
+  <h3>What Big O measures</h3>
+  <p>Big O describes how the number of steps (time) or the amount of extra memory (space) grows as the input size n grows. It ignores constant factors and smaller terms, because they matter less as n gets large. A machine twice as fast is still the same Big O class; a solution that does n squared steps will eventually lose to one that does n steps, however fast the machine is.</p>
+  <div class="tablewrap"><table><thead><tr><th>Class</th><th>Name</th><th>Typical example</th><th>Steps when n = 1,000</th></tr></thead><tbody>
+    <tr><td>O(1)</td><td>constant</td><td>index a list, dict lookup</td><td>1</td></tr>
+    <tr><td>O(log n)</td><td>logarithmic</td><td>binary search</td><td>about 10</td></tr>
+    <tr><td>O(n)</td><td>linear</td><td>one loop over the list</td><td>1,000</td></tr>
+    <tr><td>O(n log n)</td><td>linearithmic</td><td>good sorting algorithms</td><td>about 10,000</td></tr>
+    <tr><td>O(n<sup>2</sup>)</td><td>quadratic</td><td>two nested loops over the list</td><td>1,000,000</td></tr>
+    <tr><td>O(2<sup>n</sup>)</td><td>exponential</td><td>all subsets of a set</td><td>far too many to count</td></tr>
+  </tbody></table></div>
+
+  <h4>The rules for counting</h4>
+  <ul>
+    <li>Drop constants: O(3n + 5) is O(n).</li>
+    <li>Keep only the biggest term: O(n<sup>2</sup> + n) is O(n<sup>2</sup>).</li>
+    <li>Steps in sequence add up. A loop followed by another loop is O(a + b) for lengths a and b.</li>
+    <li>Nested loops multiply. A loop inside another loop, both over n, is O(n<sup>2</sup>).</li>
+  </ul>
+  <p>Count the steps directly to see these rules at work. The two functions below count how many times the inner statement runs.</p>
+  <pre class="code" data-lang="python"><code>def steps_nested(n):
+    count = 0
+    for i in range(n):
+        for j in range(i, n):
+            count += 1
+    return count
+
+def steps_halving(n):
+    count = 0
+    while n > 1:
+        n //= 2
+        count += 1
+    return count
+
+for n in [8, 1000]:
+    print(n, steps_nested(n), steps_halving(n))</code></pre>
+  <pre class="output">8 36 3
+1000 500500 9</pre>
+  <p>The nested loop runs 1 + 2 + ... + n times, which is n(n + 1) / 2, so it grows with n squared. For n = 1000 that is 500,500 steps. The halving loop divides n by 2 each time, so it needs about log2(n) steps. For n = 1000 that is 9 steps, because 2 to the power 9 is 512 and 2 to the power 10 is 1024.</p>
+
+  <h4>Amortized O(1): why append is fast</h4>
+  <p>The Big O of a single <code>append</code> is not always O(1). When the internal array is full, Python allocates a bigger one and copies every item. The trick is that the new array is much bigger, so such copies are rare. The function below simulates a dynamic array that doubles its capacity, and counts how many item copies happen over n appends.</p>
+  <pre class="code" data-lang="python"><code>def copies_for_appends(n):
+    capacity, size, copies = 1, 0, 0
+    for _ in range(n):
+        if size == capacity:          # the array is full: copy into a bigger one
+            copies += size
+            capacity *= 2
+        size += 1
+    return copies
+
+for n in [10, 100, 1000]:
+    c = copies_for_appends(n)
+    print(n, c, round(c / n, 2))</code></pre>
+  <pre class="output">10 15 1.5
+100 127 1.27
+1000 1023 1.02</pre>
+
+
+  <p>The amortized argument is easy to check with the output. Ten appends cost 15 copies, 100 appends cost 127, and 1000 appends cost 1023. The copies per append settle near 1, which is constant. Each append costs O(1) amortized, while any single append in the middle of a growth step may cost O(n). Interviewers often ask the difference between worst case and amortized cost, so keep this example in mind.</p>
+
+  <h4>The array patterns you will use all week</h4>
+  <p>Most array questions reduce to one of a few patterns. Recognising the pattern is half of the solution.</p>
+  <ul>
+    <li><strong>Hash map lookup.</strong> When a question asks for a pair, a count or a "seen before" check, store what you have seen in a dict or set, so each check is O(1).</li>
+    <li><strong>Running values.</strong> Keep the best, smallest or largest value seen so far while you scan once.</li>
+    <li><strong>Prefix sums.</strong> Precompute running totals once, so any range sum becomes a subtraction.</li>
+    <li><strong>Two pointers.</strong> Use two indexes that move through the array together, often to rearrange items in place.</li>
+    <li><strong>Index as a hash.</strong> When values are bounded by the array length, the array itself can record what has been seen.</li>
+  </ul>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/two-sum/">
+    <h3>Two Sum (LeetCode 1)</h3>
+    <div class="statement"><p>Given an array <code>nums</code> and an integer <code>target</code>, return the indices of two different elements whose values add up to <code>target</code>. Exactly one answer exists, and you may not use the same element twice. For <code>nums = [2, 7, 11, 15]</code> and <code>target = 9</code>, the answer is <code>[0, 1]</code>, because 2 + 7 = 9.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> We need indices, not values. The two indices must be different. Negative numbers and duplicate values are allowed.</li>
+      <li><strong>Brute force.</strong> Try every pair with two nested loops. That is O(n squared) time and O(1) extra space.</li>
+      <li><strong>Find the waste.</strong> The inner loop searches the whole array for <code>target - x</code>, which is a lookup. A lookup is what a dict is good at, but the brute force does a linear scan for it every time.</li>
+      <li><strong>Optimise.</strong> Walk the array once. For each value x, check whether <code>target - x</code> has already been seen. If yes, we have the pair. If no, remember x with its index. The dict turns each check into O(1) on average, so the whole job is O(n).</li>
+      <li><strong>Dry run.</strong> With <code>nums = [2, 7, 11, 15]</code> and <code>target = 9</code>, the table shows the state at each step.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>i</th><th>x</th><th>need = target - x</th><th>Is need in seen?</th><th>seen after the step</th></tr></thead><tbody>
+      <tr><td>0</td><td>2</td><td>7</td><td>no, seen is empty</td><td>{2: 0}</td></tr>
+      <tr><td>1</td><td>7</td><td>2</td><td>yes, at index 0, return [0, 1]</td><td>not reached</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def two_sum(nums, target):
+    seen = {}                        # value -&gt; index where we saw it
+    for i, x in enumerate(nums):
+        need = target - x
+        if need in seen:
+            return [seen[need], i]
+        seen[x] = i                  # remember this value for later elements
+    return []
+
+print(two_sum([2, 7, 11, 15], 9))
+print(two_sum([3, 2, 4], 6))
+print(two_sum([1, 2], 7))</code></pre>
+    <pre class="output">[0, 1]
+[1, 2]
+[]</pre>
+    <p class="cx">Time O(n) · Space O(n)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When you need a pair that satisfies a condition, ask "what do I need to find for this element?" and store what you have seen in a dict.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/product-of-array-except-self/">
+    <h3>Product of Array Except Self (LeetCode 238)</h3>
+    <div class="statement"><p>Given an integer array <code>nums</code>, return an array <code>answer</code> where <code>answer[i]</code> is the product of every element of <code>nums</code> except <code>nums[i]</code>. You must do it in O(n) time and you may not use division. For <code>nums = [1, 2, 3, 4]</code>, the answer is <code>[24, 12, 8, 6]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The output has the same length as the input. Zeros and negative numbers are possible. Division is forbidden, which rules out the shortcut "total product divided by nums[i]", because that breaks on zeros.</li>
+      <li><strong>Brute force.</strong> For each i, multiply all the other elements. That is O(n squared) time.</li>
+      <li><strong>Find the waste.</strong> For each i, the product splits into two parts: everything to the left of i, and everything to the right of i. Both parts are recomputed from scratch for every i, even though they only change by one element from one i to the next.</li>
+      <li><strong>Optimise.</strong> Compute the left products in one pass, storing each one directly in the answer. Then compute the right products in a second pass from the other end, multiplying each one into the answer. Both passes carry one running product, so the extra space is O(1), not counting the output.</li>
+      <li><strong>Dry run.</strong> The table below follows <code>[1, 2, 3, 4]</code>. In the left pass, <code>prefix</code> holds the product of everything before i. In the right pass, <code>suffix</code> holds the product of everything after i.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Pass</th><th>i</th><th>nums[i]</th><th>What happens</th><th>answer after the step</th></tr></thead><tbody>
+      <tr><td>Left</td><td>0</td><td>1</td><td>answer[0] = prefix = 1, then prefix = 1 * 1 = 1</td><td>[1, 1, 1, 1]</td></tr>
+      <tr><td>Left</td><td>1</td><td>2</td><td>answer[1] = prefix = 1, then prefix = 1 * 2 = 2</td><td>[1, 1, 1, 1]</td></tr>
+      <tr><td>Left</td><td>2</td><td>3</td><td>answer[2] = prefix = 2, then prefix = 2 * 3 = 6</td><td>[1, 1, 2, 1]</td></tr>
+      <tr><td>Left</td><td>3</td><td>4</td><td>answer[3] = prefix = 6, then prefix = 6 * 4 = 24</td><td>[1, 1, 2, 6]</td></tr>
+      <tr><td>Right</td><td>3</td><td>4</td><td>answer[3] = 6 * suffix = 6 * 1 = 6, then suffix = 1 * 4 = 4</td><td>[1, 1, 2, 6]</td></tr>
+      <tr><td>Right</td><td>2</td><td>3</td><td>answer[2] = 2 * 4 = 8, then suffix = 4 * 3 = 12</td><td>[1, 1, 8, 6]</td></tr>
+      <tr><td>Right</td><td>1</td><td>2</td><td>answer[1] = 1 * 12 = 12, then suffix = 12 * 2 = 24</td><td>[1, 12, 8, 6]</td></tr>
+      <tr><td>Right</td><td>0</td><td>1</td><td>answer[0] = 1 * 24 = 24</td><td>[24, 12, 8, 6]</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def product_except_self(nums):
+    n = len(nums)
+    answer = [1] * n
+    prefix = 1
+    for i in range(n):                  # answer[i] = product of everything LEFT of i
+        answer[i] = prefix
+        prefix *= nums[i]
+    suffix = 1
+    for i in range(n - 1, -1, -1):      # multiply in everything RIGHT of i
+        answer[i] *= suffix
+        suffix *= nums[i]
+    return answer
+
+print(product_except_self([1, 2, 3, 4]))
+print(product_except_self([-1, 1, 0, -3, 3]))</code></pre>
+    <pre class="output">[24, 12, 8, 6]
+[0, 0, 9, 0, 0]</pre>
+    <p class="cx">Time O(n) · Space O(1) extra, not counting the output array</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When each answer depends on everything to its left and everything to its right, make two passes that each carry one running value, instead of recomputing either side for every position.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/longest-consecutive-sequence/">
+    <h3>Longest Consecutive Sequence (LeetCode 128)</h3>
+    <div class="statement"><p>Given an unsorted array of integers <code>nums</code>, return the length of the longest run of consecutive integers that can be formed from its values. The order of the values in the array does not matter, and you must solve it in O(n) time. For <code>nums = [100, 4, 200, 1, 3, 2]</code>, the answer is 4, from the run 1, 2, 3, 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Duplicates should not count twice. Each run is a set of values with no gaps, such as 1, 2, 3, 4. The answer for an empty array is 0.</li>
+      <li><strong>Brute force.</strong> Sort the array and scan for the longest run. Sorting costs O(n log n), which is too slow for the O(n) requirement. A second brute force starts from every value and counts upward with a linear search, which is O(n squared).</li>
+      <li><strong>Find the waste.</strong> Each run is discovered again from every one of its members. Starting from 2 repeats the work done from 1, even though both lead to the same run.</li>
+      <li><strong>Optimise.</strong> Put all the values in a set, so each membership test is O(1). Then only start counting from a value x when x - 1 is not in the set. That value must be the start of its run. Counting upward from it visits each value of that run once. Values in the middle of a run are skipped as starts, so no value is counted twice. The total work is O(n).</li>
+      <li><strong>Dry run.</strong> The table follows <code>[100, 4, 200, 1, 3, 2]</code>. It shows which values start a run and how long each run is.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>x</th><th>Is x - 1 in the set?</th><th>Action</th><th>best so far</th></tr></thead><tbody>
+      <tr><td>100</td><td>no</td><td>start a run, 101 is missing, length 1</td><td>1</td></tr>
+      <tr><td>4</td><td>yes (3)</td><td>skip, 4 is in the middle of a run</td><td>1</td></tr>
+      <tr><td>200</td><td>no</td><td>start a run, 201 is missing, length 1</td><td>1</td></tr>
+      <tr><td>1</td><td>no</td><td>start a run: 2, 3, 4 are present, 5 is missing, length 4</td><td>4</td></tr>
+      <tr><td>3</td><td>yes (2)</td><td>skip</td><td>4</td></tr>
+      <tr><td>2</td><td>yes (1)</td><td>skip</td><td>4</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def longest_consecutive(nums):
+    values = set(nums)                   # O(1) membership tests
+    best = 0
+    for x in values:
+        if x - 1 not in values:          # only a run's first value starts a count
+            length = 1
+            while x + length in values:
+                length += 1
+            best = max(best, length)
+    return best
+
+print(longest_consecutive([100, 4, 200, 1, 3, 2]))
+print(longest_consecutive([0, 3, 7, 2, 5, 8, 4, 6, 0, 1]))
+print(longest_consecutive([]))</code></pre>
+    <pre class="output">4
+9
+0</pre>
+    <p class="cx">Time O(n) · Space O(n) for the set</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To avoid repeated work on runs of values, put them in a set and only start counting at values whose predecessor is missing.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/first-missing-positive/">
+    <h3>First Missing Positive (LeetCode 41)</h3>
+    <div class="statement"><p>Given an unsorted integer array <code>nums</code>, return the smallest positive integer that does not appear in it. You must run in O(n) time and use O(1) auxiliary space, which means you may change the array but not allocate a large new structure. Examples: <code>[1, 2, 0]</code> gives 3, <code>[3, 4, -1, 1]</code> gives 2, and <code>[7, 8, 9, 11, 12]</code> gives 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Negative numbers, zero and values larger than the array are irrelevant to the answer. The answer always lies between 1 and n + 1 for an array of length n, because n values can cover at most n of the numbers 1 to n. If all of 1 to n are present, the answer is n + 1.</li>
+      <li><strong>Brute force.</strong> Try candidates 1, 2, 3 and so on, and for each one scan the whole list to see whether it is present. The cost is O(n) per candidate and up to n + 1 candidates, so O(n squared) in the worst case, which is too slow.</li>
+      <li><strong>Find the waste.</strong> Each membership check is a linear scan. Sorting would make the scan faster but costs O(n log n). A set would give O(1) checks, but it uses O(n) extra space, which breaks the requirement.</li>
+      <li><strong>Optimise.</strong> Use the array itself as the hash table. Every useful value v lies in 1 to n, so it has a home slot at index v - 1. Move each value into its home slot by swapping, then scan once. Each swap places one value permanently in its home slot, so there are at most n swaps in total, which keeps the algorithm at O(n). The first index that does not hold its own number tells us the answer.</li>
+      <li><strong>Dry run.</strong> The table traces <code>[3, 4, -1, 1]</code>. The value 3 belongs at index 2, and so on. The check <code>nums[v - 1] != v</code> stops the swapping when a value is already home or when the value is useless.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Step</th><th>i</th><th>Array before the step</th><th>What happens</th><th>Array after</th></tr></thead><tbody>
+      <tr><td>1</td><td>0</td><td>[3, 4, -1, 1]</td><td>v = 3 belongs at index 2, which holds -1, so swap</td><td>[-1, 4, 3, 1]</td></tr>
+      <tr><td>2</td><td>0</td><td>[-1, 4, 3, 1]</td><td>v = -1 is useless, move i on</td><td>[-1, 4, 3, 1]</td></tr>
+      <tr><td>3</td><td>1</td><td>[-1, 4, 3, 1]</td><td>v = 4 belongs at index 3, which holds 1, so swap</td><td>[-1, 1, 3, 4]</td></tr>
+      <tr><td>4</td><td>1</td><td>[-1, 1, 3, 4]</td><td>v = 1 belongs at index 0, which holds -1, so swap</td><td>[1, -1, 3, 4]</td></tr>
+      <tr><td>5</td><td>1</td><td>[1, -1, 3, 4]</td><td>v = -1 is useless, move i on</td><td>[1, -1, 3, 4]</td></tr>
+      <tr><td>6 to 8</td><td>2 to 4</td><td>[1, -1, 3, 4]</td><td>3 and 4 are already home, so i just moves on to the end</td><td>[1, -1, 3, 4]</td></tr>
+      <tr><td>Final scan</td><td>1</td><td>[1, -1, 3, 4]</td><td>index 1 should hold 2, but it holds -1, so return 2</td><td>answer 2</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <p>The first version is the brute force. It is correct, and it is useful to show in an interview before you improve it.</p>
+    <pre class="code" data-lang="python"><code>def first_missing_brute(nums):
+    candidate = 1
+    while candidate in nums:            # a linear scan of nums on every check
+        candidate += 1
+    return candidate
+
+print(first_missing_brute([1, 2, 0]))
+print(first_missing_brute([3, 4, -1, 1]))
+print(first_missing_brute([7, 8, 9, 11, 12]))</code></pre>
+    <pre class="output">3
+2
+1</pre>
+    <p>The optimal version places values into their home slots in place, then looks for the first wrong slot.</p>
+    <pre class="code" data-lang="python"><code>def first_missing_positive(nums):
+    n = len(nums)
+    i = 0
+    while i &lt; n:
+        v = nums[i]
+        # v belongs at index v - 1 if it is in range and that slot is not already right
+        if 1 &lt;= v &lt;= n and nums[v - 1] != v:
+            nums[i], nums[v - 1] = nums[v - 1], nums[i]
+        else:
+            i += 1
+    for i in range(n):
+        if nums[i] != i + 1:
+            return i + 1
+    return n + 1
+
+print(first_missing_positive([1, 2, 0]))
+print(first_missing_positive([3, 4, -1, 1]))
+print(first_missing_positive([7, 8, 9, 11, 12]))</code></pre>
+    <pre class="output">3
+2
+1</pre>
+    <p>Notice the order of the checks in the condition. The range test <code>1 &lt;= v &lt;= n</code> comes first, so that <code>nums[v - 1]</code> is only read when the index is valid. Reading it with a negative or too-large index would either give a wrong answer or raise an error. The <code>i</code> index moves forward only when the current value is useless or already home, which is why the loop finishes.</p>
+    <p class="cx">Time O(n) · Space O(1) extra (the array is changed in place)</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When the values are bounded by the array length, let the array's indexes act as a hash table. Place each value in its own slot, then look for the first slot that is wrong.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this list to revise. Each entry is one idea from today. If an entry feels unfamiliar, go back to its section and read the example again.</p>
+  <dl>
+    <div><dt>Name</dt><dd>A label that refers to an object. Assigning a name does not copy the object.</dd></div>
+    <div><dt>Object</dt><dd>The value in memory, with a type and contents.</dd></div>
+    <div><dt>Mutable</dt><dd>An object whose contents can change in place, such as a list, dict or set.</dd></div>
+    <div><dt>Immutable</dt><dd>An object that cannot change after creation, such as an int, str or tuple.</dd></div>
+    <div><dt>Hashable</dt><dd>An object with a hash that never changes, so it can be a dict key or set member.</dd></div>
+    <div><dt>Truthiness</dt><dd>The rule that decides whether an object counts as True or False in a condition.</dd></div>
+    <div><dt>Slice</dt><dd>A piece of a sequence written as <code>a[start:stop:step]</code>, with the stop index excluded.</dd></div>
+    <div><dt>List comprehension</dt><dd>A compact expression that builds a list from a loop and an optional filter.</dd></div>
+    <div><dt>Dict comprehension</dt><dd>The same idea as a list comprehension, producing key and value pairs.</dd></div>
+    <div><dt>Hash table</dt><dd>A structure that jumps to a slot computed from a key, giving average O(1) lookup in dicts and sets.</dd></div>
+    <div><dt>Amortized cost</dt><dd>The average cost per operation over a long sequence, even when single operations are sometimes expensive.</dd></div>
+    <div><dt>Dynamic array</dt><dd>The structure behind a list. It keeps spare room and copies into a bigger array when full.</dd></div>
+    <div><dt>Counter</dt><dd>A dict subclass that counts hashable items and returns 0 for missing keys.</dd></div>
+    <div><dt>defaultdict</dt><dd>A dict that creates a default value on first access to a missing key.</dd></div>
+    <div><dt>deque</dt><dd>A double-ended queue with O(1) adds and removes at both ends.</dd></div>
+    <div><dt>namedtuple</dt><dd>A tuple subclass whose fields can be read by name.</dd></div>
+    <div><dt>Heap</dt><dd>A tree stored in a list where the smallest item sits at index 0. Python's heapq is a min-heap.</dd></div>
+    <div><dt>bisect</dt><dd>Binary search on a sorted list to find where a value belongs in O(log n).</dd></div>
+    <div><dt>Positional-only parameter</dt><dd>A parameter before <code>/</code> that must be passed by position.</dd></div>
+    <div><dt>Keyword-only parameter</dt><dd>A parameter after <code>*</code> or <code>*args</code> that must be passed by name.</dd></div>
+    <div><dt>*args and **kwargs</dt><dd>Collectors for extra positional arguments (a tuple) and extra keyword arguments (a dict).</dd></div>
+    <div><dt>First-class function</dt><dd>A function treated as a value that can be stored, passed and returned.</dd></div>
+    <div><dt>LEGB</dt><dd>The name lookup order: Local, Enclosing, Global, Built-in.</dd></div>
+    <div><dt>global and nonlocal</dt><dd>Keywords that let a function assign to a module-level or enclosing variable.</dd></div>
+    <div><dt>Closure</dt><dd>An inner function that remembers variables from its enclosing scope after that scope has finished.</dd></div>
+    <div><dt>Late binding</dt><dd>Closures look up their captured variables when called, not when created.</dd></div>
+    <div><dt>Mutable default argument</dt><dd>A default list or dict that is created once and shared across calls. Use <code>None</code> instead.</dd></div>
+    <div><dt>Big O</dt><dd>A description of how time or memory grows with input size n, ignoring constants.</dd></div>
+    <div><dt>Prefix sum</dt><dd>A running total stored so that any range sum becomes one subtraction.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>len(x)</code></td><td>Number of items in a container</td><td><code>len([1, 2])</code> gives 2</td></tr>
+    <tr><td><code>sorted(x, key=...)</code></td><td>Returns a new sorted list</td><td><code>sorted([3, 1])</code> gives [1, 3]</td></tr>
+    <tr><td><code>list.append(x)</code></td><td>Adds x at the end, O(1) amortized</td><td><code>a.append(4)</code></td></tr>
+    <tr><td><code>list.insert(i, x)</code></td><td>Inserts x at index i, O(n)</td><td><code>a.insert(0, 9)</code></td></tr>
+    <tr><td><code>list.pop()</code></td><td>Removes and returns the last item</td><td><code>a.pop()</code></td></tr>
+    <tr><td><code>dict.get(k, default)</code></td><td>Reads a key, returning default if missing</td><td><code>ages.get("john", 0)</code></td></tr>
+    <tr><td><code>set.add(x)</code></td><td>Adds x if not already present</td><td><code>seen.add(5)</code></td></tr>
+    <tr><td><code>Counter(x).most_common(k)</code></td><td>The k most frequent items with counts</td><td><code>Counter("aab").most_common(1)</code> gives [('a', 2)]</td></tr>
+    <tr><td><code>defaultdict(list)</code></td><td>Dict that creates an empty list for new keys</td><td><code>groups["a"].append(1)</code></td></tr>
+    <tr><td><code>deque.appendleft(x)</code></td><td>Adds x at the front, O(1)</td><td><code>d.appendleft(0)</code></td></tr>
+    <tr><td><code>deque.popleft()</code></td><td>Removes and returns the first item, O(1)</td><td><code>d.popleft()</code></td></tr>
+    <tr><td><code>deque(maxlen=k)</code></td><td>Keeps only the k most recent items</td><td><code>deque([1, 2], maxlen=2)</code></td></tr>
+    <tr><td><code>heapq.heappush(h, x)</code></td><td>Pushes x onto a min-heap, O(log n)</td><td><code>heapq.heappush(h, 5)</code></td></tr>
+    <tr><td><code>heapq.heappop(h)</code></td><td>Removes and returns the smallest item</td><td><code>heapq.heappop(h)</code></td></tr>
+    <tr><td><code>heapq.heapify(x)</code></td><td>Turns a list into a heap in O(n)</td><td><code>heapq.heapify([5, 1])</code></td></tr>
+    <tr><td><code>heapq.nlargest(k, x)</code></td><td>The k largest items, largest first</td><td><code>heapq.nlargest(2, [5, 1, 8])</code> gives [8, 5]</td></tr>
+    <tr><td><code>bisect.bisect_left(a, x)</code></td><td>Insertion index before equal values</td><td><code>bisect.bisect_left([1, 3], 3)</code> gives 1</td></tr>
+    <tr><td><code>bisect.insort(a, x)</code></td><td>Inserts x into a sorted list at the right place</td><td><code>bisect.insort(a, 4)</code></td></tr>
+    <tr><td><code>enumerate(x)</code></td><td>Pairs each item with its index</td><td><code>list(enumerate("ab"))</code> gives [(0, 'a'), (1, 'b')]</td></tr>
+    <tr><td><code>range(a, b, step)</code></td><td>Integers from a up to but not including b</td><td><code>list(range(0, 6, 2))</code> gives [0, 2, 4]</td></tr>
+    <tr><td><code>map(f, x)</code></td><td>Applies f to each item lazily</td><td><code>list(map(len, ["ab", "c"]))</code> gives [2, 1]</td></tr>
+    <tr><td><code>filter(f, x)</code></td><td>Keeps the items for which f is true</td><td><code>list(filter(None, [0, 1, 2]))</code> gives [1, 2]</td></tr>
+    <tr><td><code>itertools.accumulate(x)</code></td><td>Running totals of x</td><td><code>list(accumulate([1, 2, 3]))</code> gives [1, 3, 6]</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 1?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 1 complete</button></section>
+<nav class="pager" aria-label="Other pages"><span></span><a class="next" href="day-02.html"><small>Next, day 2</small>Python 2: OOP, advanced features, internals</a></nav>
+</main><script src="assets/app.js"></script></body></html>

@@ -1,0 +1,752 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 3: C 1: Fundamentals, pointers, memory</title><meta name="description" content="Day 3 starts the C track from the bottom up: the built-in types and their sizes, how storage classes decide where a variable lives and how long it survives, const and volatile, how functions receive arguments, every kind of pointer you must recognise, arrays and strings, manual memory with malloc, calloc, realloc and free, and the memory layout that explains all of it. C gives you direct control over memory, and interviewers test that control closely, so each idea here comes with a complete program and its exact output."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="3" data-key="3" data-noun="day" data-num="3" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>C 1: <em>Fundamentals, pointers, memory</em></h1>
+<p class="lede">Day 3 starts the C track from the bottom up: the built-in types and their sizes, how storage classes decide where a variable lives and how long it survives, const and volatile, how functions receive arguments, every kind of pointer you must recognise, arrays and strings, manual memory with malloc, calloc, realloc and free, and the memory layout that explains all of it. C gives you direct control over memory, and interviewers test that control closely, so each idea here comes with a complete program and its exact output.</p>
+<div class="station"><b>3</b><span>Wed 4 Nov 2026 · Programming · DSA: Hashing</span></div>
+<ul class="topics"><li>Types, sizes and overflow</li><li>Storage classes and scope</li><li>const and volatile</li><li>Functions and call by value</li><li>Pointers of every kind</li><li>Arrays and strings</li><li>Heap memory, leaks and memory layout</li><li>DSA: Hashing</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Types and sizes">
+  <h2>Types, sizes and integer behaviour</h2>
+  <p>C is a statically typed, compiled language. Every variable has a fixed type that is known at compile time, and that type decides how many bytes the variable occupies and how its bits are read. Unlike Python, C does not check types for you at runtime. A wrong type is simply a wrong interpretation of the same bytes, so you must know the rules.</p>
+  <p>The sizes in this unit are the ones on a typical 64-bit Linux system, which is the system the examples were run on. The C standard only guarantees minimum sizes, so the exact values can differ on other platforms. Use <code>sizeof</code> in real code instead of assuming a size.</p>
+
+  <h3>The basic types</h3>
+  <div class="tablewrap"><table><thead><tr><th>Type</th><th>Typical size</th><th>Notes</th></tr></thead><tbody>
+    <tr><td><code>char</code></td><td>1 byte</td><td>Holds a character code or a small integer. Whether it is signed is platform-defined.</td></tr>
+    <tr><td><code>short</code></td><td>2 bytes</td><td>At least 16 bits.</td></tr>
+    <tr><td><code>int</code></td><td>4 bytes</td><td>The default integer type. At least 16 bits by the standard, but 32 bits in practice here.</td></tr>
+    <tr><td><code>long</code></td><td>8 bytes on 64-bit Linux</td><td>4 bytes on Windows, which is why portable code uses fixed-width types from <code>stdint.h</code>.</td></tr>
+    <tr><td><code>long long</code></td><td>8 bytes</td><td>At least 64 bits.</td></tr>
+    <tr><td><code>float</code>, <code>double</code></td><td>4 and 8 bytes</td><td>Floating point. <code>double</code> is the default for literals such as 3.5.</td></tr>
+    <tr><td>pointers</td><td>8 bytes</td><td>The size of an address on a 64-bit system, whatever the pointed-to type is.</td></tr>
+  </tbody></table></div>
+  <p>Each integer type can be <code>signed</code> (the default for <code>int</code>) or <code>unsigned</code>. A signed type uses one bit for the sign, so it holds values from negative to positive. An unsigned type holds only zero and positive numbers, and its range starts at zero.</p>
+
+  <h3>Printing values with the right format</h3>
+  <p><code>printf</code> needs a format specifier that matches the type. A mismatch compiles with a warning and then prints garbage. The most common ones are <code>%d</code> for int, <code>%u</code> for unsigned int, <code>%zu</code> for <code>sizeof</code> results, <code>%f</code> or <code>%.2f</code> for double, <code>%c</code> for a single character and <code>%s</code> for a string.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+int main(void) {
+    printf("char=%zu short=%zu int=%zu long=%zu\n",
+           sizeof(char), sizeof(short), sizeof(int), sizeof(long));
+    printf("double=%zu\n", sizeof(double));
+
+    char c = 'A';
+    printf("%c %d\n", c, c);          /* the same byte, shown as a letter and as a number */
+    return 0;
+}</code></pre>
+  <pre class="output">char=1 short=2 int=4 long=8
+double=8
+A 65</pre>
+  <p>The character <code>'A'</code> is stored as the number 65, which is its ASCII code. Printing it with <code>%c</code> shows the letter, and printing it with <code>%d</code> shows the number. There is no separate character type in memory, only a small integer that the format string interprets.</p>
+
+  <h3>Integer division, remainder and wraparound</h3>
+  <p>Dividing two integers gives an integer result. The fraction is thrown away, which means the result is <strong>truncated toward zero</strong>. Since C99, the remainder operator <code>%</code> has the sign of the dividend, so <code>-7 % 3</code> is -1. Unsigned arithmetic wraps around modulo 2 to the power of the number of bits, which gives a predictable result.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;limits.h&gt;
+
+int main(void) {
+    printf("%d %d\n", 7 / 2, -7 / 2);
+    printf("%d %d\n", -7 % 3, 7 % -3);
+    printf("%.2f\n", 7 / 2.0);
+
+    unsigned int u = 0;
+    u = u - 1;                        /* wraps around to the largest unsigned int */
+    printf("%u\n", u);
+    printf("%d\n", INT_MAX);
+    return 0;
+}</code></pre>
+  <pre class="output">3 -3
+-1 1
+3.50
+4294967295
+2147483647</pre>
+  <p>The line <code>7 / 2.0</code> divides by a double, so the arithmetic happens in floating point and gives 3.5. Dividing by the integer 2 instead would give 3. The unsigned subtraction <code>0 - 1</code> gives 4294967295, which is 2 to the power 32 minus 1, because an unsigned int has 32 bits here.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Signed integer overflow, such as adding one to <code>INT_MAX</code>, is undefined behaviour in C. The program may do anything, including appear to work. Unsigned overflow is defined to wrap, but it can still hide bugs, such as a loop that counts down past zero and never ends.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the size of an int and of a pointer? An int is typically 4 bytes and a pointer is 8 bytes on a 64-bit system. Pointer size depends on the architecture, not on the type being pointed to.</p></div>
+  <details class="check"><summary>What is the result of <code>-7 / 2</code> and <code>-7 % 2</code> in C?</summary><div class="ans"><p>The division truncates toward zero, so the result is -3. The remainder takes the sign of the dividend, so it is -1. Together they satisfy (a / b) * b + a % b = a, which is -3 times 2 plus -1, giving -7.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Storage classes">
+  <h2>Storage classes and scope</h2>
+  <p>Every variable in C has a <strong>storage class</strong>, which decides three things: where the variable is stored in memory, how long it lives, and which parts of the program can name it. You set the storage class with a keyword in the declaration, or it is implied by where the declaration appears.</p>
+  <div class="tablewrap"><table><thead><tr><th>Keyword</th><th>Where it lives</th><th>Lifetime</th><th>Typical use</th></tr></thead><tbody>
+    <tr><td><code>auto</code> (default for locals)</td><td>The stack</td><td>From the start of its block until the block ends</td><td>Ordinary local variables</td></tr>
+    <tr><td><code>static</code> inside a function</td><td>Static storage</td><td>The whole program run, initialised once</td><td>A counter that keeps its value between calls</td></tr>
+    <tr><td><code>static</code> at file level</td><td>Static storage</td><td>The whole program run</td><td>A helper variable hidden from other files</td></tr>
+    <tr><td>file-level variable (no keyword)</td><td>Static storage</td><td>The whole program run</td><td>Shared state, visible to other files through <code>extern</code></td></tr>
+    <tr><td><code>extern</code></td><td>Declared here, defined elsewhere</td><td>As the definition</td><td>Telling this file about a variable defined in another file</td></tr>
+    <tr><td><code>register</code></td><td>A hint to keep it in a CPU register</td><td>Block</td><td>Rarely needed; modern compilers decide this well</td></tr>
+  </tbody></table></div>
+  <p><strong>Scope</strong> is where a name can be used. <strong>Lifetime</strong> is when the memory exists. They are different. A static local variable has a lifetime of the whole program but a scope of only its function. A file-level <code>static</code> variable has the whole program as its lifetime, but its scope is only the file where it is written.</p>
+
+  <h3>Static locals: state that survives a call</h3>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+int global_count = 0;             /* file-level: static storage, visible to other files */
+static int file_only = 5;         /* file-level static: visible only in this file */
+
+void tick(void) {
+    static int calls = 0;         /* initialised once, keeps its value between calls */
+    int local = 0;                /* automatic: created fresh on every call */
+    calls++;
+    local++;
+    global_count++;
+    printf("calls=%d local=%d\n", calls, local);
+}
+
+int main(void) {
+    tick();
+    tick();
+    tick();
+    printf("global_count=%d file_only=%d\n", global_count, file_only);
+    return 0;
+}</code></pre>
+  <pre class="output">calls=1 local=1
+calls=2 local=1
+calls=3 local=1
+global_count=3 file_only=5</pre>
+  <p>The output shows the difference clearly. <code>calls</code> grows from 1 to 3 because it is a static local, so the same memory is used on every call. <code>local</code> is 1 each time because a fresh automatic variable is created and set to 0 on each call, then incremented to 1. A static local initialiser runs once, before <code>main</code> starts, so the line <code>static int calls = 0</code> does not reset it on later calls.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Uninitialised automatic variables hold garbage, not zero. Only static and file-level variables are zeroed before the program starts. Always initialise your locals.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Automatic variables live on the stack and vanish when their block ends. Static variables live for the whole program. A pointer to an automatic variable is dangerous once that variable is gone.</p></div>
+  <details class="check"><summary>What is the difference between scope and lifetime, using a static local as the example?</summary><div class="ans"><p>Scope is where the name can be used, which for a static local is only inside its function. Lifetime is how long the memory exists, which for a static local is the whole program. The variable keeps its value between calls, even though no other function can name it.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="const and volatile">
+  <h2>const and volatile</h2>
+  <p><code>const</code> tells the compiler and other programmers that a value must not be changed through a particular name. The compiler enforces it, so an attempt to assign to a const variable is an error. <code>volatile</code> says the opposite kind of thing: the value may change at any time, from outside the normal flow of the program, so every read must really go to memory.</p>
+
+  <h3>Reading a const declaration</h3>
+  <p>The position of <code>const</code> relative to the <code>*</code> decides what is constant. Read the declaration from the name outward, toward the left.</p>
+  <div class="tablewrap"><table><thead><tr><th>Declaration</th><th>Meaning</th></tr></thead><tbody>
+    <tr><td><code>const int *p</code></td><td>Pointer to const int. You cannot change the int through p, but you can point p somewhere else.</td></tr>
+    <tr><td><code>int *const p</code></td><td>Const pointer to int. p must always point to the same place, but you can change the int it points to.</td></tr>
+    <tr><td><code>const int *const p</code></td><td>Const pointer to const int. Neither the pointer nor the int can change.</td></tr>
+  </tbody></table></div>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+int main(void) {
+    int a = 1, b = 2;
+    const int *p1 = &amp;a;           /* pointer to const: *p1 cannot be assigned */
+    int *const p2 = &amp;a;          /* const pointer: p2 cannot be moved */
+    const int *const p3 = &amp;b;    /* both are fixed */
+
+    p1 = &amp;b;                      /* allowed: the pointer itself is not const */
+    /* *p1 = 5;   would not compile: the int is const through p1 */
+    /* p2 = &b;   would not compile: p2 is a const pointer */
+    *p2 = 10;                       /* allowed: the int a is not const */
+
+    printf("%d %d %d\n", *p1, *p2, *p3);
+    return 0;
+}</code></pre>
+  <pre class="output">2 10 2</pre>
+  <p>Trace the program. After <code>p1 = &amp;b</code>, <code>*p1</code> reads <code>b</code>, which is still 2. <code>*p2 = 10</code> changes <code>a</code> to 10, because <code>p2</code> points to a non-const int. <code>*p3</code> reads <code>b</code>, which is 2. The two commented lines show what the compiler rejects.</p>
+  <p><code>volatile</code> is used for memory-mapped hardware registers, variables changed by a signal handler, and values changed by another thread without proper synchronisation. It stops the compiler from caching the value in a register or optimising away repeated reads. It does <strong>not</strong> make operations atomic or thread-safe. For threads, use the synchronisation tools of the language instead.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between <code>const int *p</code> and <code>int *const p</code>? The first protects the value and lets the pointer move. The second protects the pointer and lets the value change.</p></div>
+  <details class="check"><summary>Why would you declare a hardware status register as volatile?</summary><div class="ans"><p>The hardware can change the register at any moment, outside the program's visible writes. Declaring it volatile forces every read to load from memory, so the program sees the current value rather than a copy the compiler kept in a register.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Functions">
+  <h2>Functions and call by value</h2>
+  <p>A C function has a return type, a name and a parameter list. Before you call a function, the compiler must know its signature, either from a <strong>prototype</strong> (a declaration such as <code>int add(int a, int b);</code>) or from the definition itself. Since C99, calling an undeclared function is an error, which catches a whole class of mistakes at compile time.</p>
+
+  <h3>Arguments are copied: call by value</h3>
+  <p>C always passes arguments <strong>by value</strong>. The function receives a copy of each argument. Changing the copy inside the function does not change the caller's variable. To let a function change a caller's variable, pass its <em>address</em> and let the function write through a pointer. This is the only way to get "call by reference" behaviour in C.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+void swap_wrong(int x, int y) {
+    int t = x;
+    x = y;
+    y = t;                       /* swaps the local copies only */
+}
+
+void swap_right(int *x, int *y) {
+    int t = *x;
+    *x = *y;                     /* writes through the pointers, into the caller's variables */
+    *y = t;
+}
+
+int main(void) {
+    int a = 1, b = 2;
+    swap_wrong(a, b);
+    printf("after wrong: %d %d\n", a, b);
+    swap_right(&amp;a, &amp;b);
+    printf("after right: %d %d\n", a, b);
+    return 0;
+}</code></pre>
+  <pre class="output">after wrong: 1 2
+after right: 2 1</pre>
+  <p>In <code>swap_wrong</code>, the names <code>x</code> and <code>y</code> are fresh copies, so swapping them is invisible to <code>main</code>. In <code>swap_right</code>, the function receives the addresses of <code>a</code> and <code>b</code>, and <code>*x</code> is the caller's <code>a</code>. The <code>&amp;</code> operator takes an address, and <code>*</code> follows an address to the value stored there.</p>
+
+  <h3>Function pointers</h3>
+  <p>A function has an address too, and you can store it in a pointer. The declaration reads: a pointer named <code>op</code> to a function that takes two ints and returns an int. The parentheses are essential. Without them, <code>int *op(int, int)</code> would declare a function returning a pointer.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+int add(int a, int b) { return a + b; }
+int mul(int a, int b) { return a * b; }
+
+int apply(int (*op)(int, int), int a, int b) {
+    return op(a, b);             /* calls whichever function was passed in */
+}
+
+int main(void) {
+    int (*fp)(int, int) = add;   /* a function name decays to its address */
+    printf("%d %d\n", fp(3, 4), apply(mul, 3, 4));
+    return 0;
+}</code></pre>
+  <pre class="output">7 12</pre>
+  <p>Function pointers are how C implements callbacks, such as the comparison function passed to <code>qsort</code>, and simple dispatch tables. The call <code>fp(3, 4)</code> and the call <code>op(a, b)</code> inside <code>apply</code> use the same syntax as a normal call, because calling through a pointer and calling a name are the same operation.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Use a <code>typedef</code> to make function pointer types readable, for example <code>typedef int (*binop)(int, int);</code>, and then declare <code>binop op</code>.</p></div>
+  <details class="check"><summary>Why does swapping two ints through copies fail, and what is the fix?</summary><div class="ans"><p>Arguments are copied, so the function swaps its own copies, and the caller never sees the change. The fix is to pass the addresses of the variables and write through the pointers, so the function changes the caller's objects.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Pointers">
+  <h2>Pointers of every kind</h2>
+  <p>A <strong>pointer</strong> is a variable that stores the address of another object. The unary <code>&amp;</code> operator produces an address, and the unary <code>*</code> operator reads or writes the object at an address. Pointers are the most important and most error-prone part of C, so this unit goes slowly through each kind you must recognise.</p>
+
+  <h3>Address-of and dereference</h3>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+int main(void) {
+    int x = 42;
+    int *p = &amp;x;                 /* p holds the address of x */
+    int **pp = &amp;p;               /* pp holds the address of the pointer p */
+
+    printf("%d %d\n", *p, **pp);   /* two dereferences reach x */
+    *p = 7;                        /* writes into x through p */
+    printf("%d\n", x);
+    return 0;
+}</code></pre>
+  <pre class="output">42 42
+7</pre>
+  <p>The variable <code>pp</code> is a <strong>pointer to a pointer</strong>. It is used in C for things like changing a caller's pointer, for example when a function allocates memory and must return the new address through a parameter. Each <code>*</code> removes one level of pointer, so <code>**pp</code> is the int at the end of the chain.</p>
+
+  <h3>Pointer arithmetic and arrays</h3>
+  <p>Adding an integer to a pointer moves it by that many <em>elements</em>, not that many bytes. If <code>p</code> points to an int, <code>p + 1</code> points to the next int, which is four bytes further on. Subtracting two pointers into the same array gives the number of elements between them. An array name, used without brackets, <strong>decays</strong> to a pointer to its first element.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;stddef.h&gt;
+
+int main(void) {
+    int arr[4] = {10, 20, 30, 40};
+    int *q = arr;                          /* the array name decays to &amp;arr[0] */
+
+    printf("%d %d\n", *(q + 2), q[3]);     /* q[i] is the same as *(q + i) */
+    printf("%td\n", (q + 3) - q);          /* elements between the two pointers */
+    return 0;
+}</code></pre>
+  <pre class="output">30 40
+3</pre>
+  <p><code>q[3]</code> is defined as <code>*(q + 3)</code>, so the bracket notation and pointer arithmetic are two spellings of one thing. The difference of two pointers has the type <code>ptrdiff_t</code>, which is printed with <code>%td</code>. Pointer arithmetic is only defined while the pointer stays inside the same array, or one element past its end.</p>
+
+  <h3>The null pointer and the void pointer</h3>
+  <p>A <strong>null pointer</strong> holds the special value that means "points to nothing". Dereferencing it is undefined behaviour, which usually crashes the program. Always check a pointer for null before you use it, especially after <code>malloc</code>. A <strong>void pointer</strong>, declared <code>void *</code>, can hold the address of any object, but it cannot be dereferenced or used in arithmetic until it is cast back to a real pointer type.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;stddef.h&gt;
+
+int main(void) {
+    int x = 7;
+    int *np = NULL;
+    if (np == NULL) {
+        printf("np is null\n");
+    }
+
+    void *vp = &amp;x;                 /* any object address fits in a void pointer */
+    printf("%d\n", *(int *)vp);     /* cast back to int * before reading */
+    return 0;
+}</code></pre>
+  <pre class="output">np is null
+7</pre>
+
+  <h3>Pointer to array, array of pointers</h3>
+  <p>The two are easy to confuse. An <strong>array of pointers</strong> is an array whose elements are pointers, written <code>int *table[2]</code>. A <strong>pointer to an array</strong> points to a whole array, written <code>int (*pa)[4]</code>. Read the parentheses first: <code>(*pa)</code> is a pointer, and <code>[4]</code> says what it points to.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+
+int main(void) {
+    int arr[4] = {10, 20, 30, 40};
+
+    int *table[2] = {&amp;arr[0], &amp;arr[3]};     /* array of pointers */
+    printf("%d %d\n", *table[0], *table[1]);
+
+    int (*pa)[4] = &amp;arr;                     /* pointer to the whole array */
+    printf("%d\n", (*pa)[1]);
+    return 0;
+}</code></pre>
+  <pre class="output">10 40
+20</pre>
+
+  <h3>Dangling, wild and function pointers</h3>
+  <p>A <strong>dangling pointer</strong> still holds the address of memory that no longer belongs to the object, for example after <code>free(p)</code>, or after returning the address of a local variable from a function. Using it is undefined behaviour. A <strong>wild pointer</strong> is one that was never initialised, so it holds an arbitrary address. Initialise every pointer when you declare it, set it to NULL after freeing it, and never return the address of a local variable.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Returning <code>&amp;local</code> from a function gives the caller a pointer to memory that the function's return has already released. It may appear to work for a while, which makes the bug harder to find. Return values, or allocate with <code>malloc</code>, or use a static object.</p></div>
+  <p>Function pointers were covered in the functions unit. They are the third kind of pointer to know by heart, alongside data pointers and void pointers.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between <code>int *p[10]</code> and <code>int (*p)[10]</code>? The first is an array of ten int pointers. The second is a single pointer to an array of ten ints.</p></div>
+  <details class="check"><summary>If <code>p</code> points to an int, what does <code>p + 1</code> point to, and how far away is it in bytes?</summary><div class="ans"><p>It points to the next int in memory, which is <code>sizeof(int)</code> bytes further on, typically 4. The arithmetic is in elements, so the compiler scales by the size of the pointed-to type.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Arrays and strings">
+  <h2>Arrays and strings</h2>
+  <p>An array in C is a fixed block of consecutive elements of one type. The size is part of the declaration and must be known at compile time, or use dynamic memory, which comes later in this page. C does not store the length of an array anywhere. Code that wants the length must track it, or use <code>sizeof</code> on an array that is still in scope.</p>
+
+  <h3>sizeof on arrays versus pointers</h3>
+  <p><code>sizeof</code> is computed at compile time. For a true array it gives the total number of bytes, so dividing by the size of one element gives the element count. Once an array is passed to a function, it has decayed to a pointer, and <code>sizeof</code> then gives the size of the pointer. This is one of the most common interview traps.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;string.h&gt;
+
+void show_size(int a[]) {
+    /* here a is really an int *, so sizeof reports the size of a pointer */
+    printf("inside: sizeof(a)=%zu\n", sizeof(a));
+}
+
+int main(void) {
+    char word[] = "hello";          /* 5 letters plus the terminating '\0' */
+    printf("sizeof(word)=%zu strlen(word)=%zu\n", sizeof(word), strlen(word));
+
+    int nums[5] = {1, 2, 3, 4, 5};
+    printf("sizeof(nums)=%zu count=%zu\n", sizeof(nums), sizeof(nums) / sizeof(nums[0]));
+    show_size(nums);
+
+    char dest[10];
+    strcpy(dest, word);             /* copies the characters and the terminating '\0' */
+    printf("%s %d\n", dest, strcmp(dest, "hello") == 0);
+    dest[0] = 'J';
+    printf("%s\n", dest);
+    return 0;
+}</code></pre>
+  <pre class="output">sizeof(word)=6 strlen(word)=5
+sizeof(nums)=20 count=5
+inside: sizeof(a)=8
+hello 1
+Jello</pre>
+  <p>The difference between <code>sizeof(word)</code> (6) and <code>strlen(word)</code> (5) is the whole story of C strings. <code>sizeof</code> counts the array's bytes, including the terminator. <code>strlen</code> counts characters up to, but not including, the first <code>'\0'</code>. The <code>show_size</code> line prints 8 because a pointer is 8 bytes on this 64-bit system, not the 20 bytes of the array.</p>
+
+  <h3>C strings are character arrays with a terminator</h3>
+  <p>A C string is an array of <code>char</code> that ends with the byte <code>'\0'</code>, called the null terminator. Every standard string function, such as <code>strlen</code>, <code>strcpy</code> and <code>strcmp</code>, relies on that byte to know where the string ends. The literal <code>"hello"</code> therefore takes six bytes.</p>
+  <ul>
+    <li><code>strlen(s)</code> counts characters before the terminator. It scans the string, so it is O(n) each time you call it.</li>
+    <li><code>strcpy(dest, src)</code> copies src, including the terminator, into dest. It does not check the size of dest, so a long source overflows dest and corrupts memory.</li>
+    <li><code>strcmp(a, b)</code> returns 0 when the strings are equal, a negative number when a sorts before b, and a positive number otherwise. Never compare strings with <code>==</code>, because that compares the addresses.</li>
+    <li><code>strncpy</code> and <code>snprintf</code> take a size limit, which is safer. Even <code>strncpy</code> does not always add the terminator, so check it yourself.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>Writing <code>char *s = "hi"; s[0] = 'H';</code> is undefined behaviour, because string literals are not meant to be changed. Copy the literal into an array first: <code>char s[] = "hi";</code>.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Forgetting room for the terminator is the classic off-by-one. A string of 5 letters needs an array of at least 6 chars.</p></div>
+  <details class="check"><summary>Why is <code>sizeof(word)</code> 6 for <code>char word[] = "hello"</code> while <code>strlen(word)</code> is 5?</summary><div class="ans"><p><code>sizeof</code> counts all the bytes of the array, which are five letters plus the terminating <code>'\0'</code>. <code>strlen</code> counts the characters before the terminator, which are five.</p></div></details>
+
+  <h3>Passing arrays to functions</h3>
+  <p>An array parameter is really a pointer parameter, so the function receives the address of the first element and cannot see the length. That is why C functions that take arrays almost always take a length too. The caller passes the array name, which decays to its address.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why does <code>sizeof</code> of an array parameter give the pointer size? Because the parameter is adjusted to a pointer when the function is declared. The array's size information is lost at that point.</p></div>
+</section>
+
+<section class="unit" id="c7" data-title="Dynamic memory">
+  <h2>Dynamic memory: malloc, calloc, realloc and free</h2>
+  <p>Automatic variables disappear when their block ends, and their size must be fixed at compile time. When the size is known only at runtime, or the data must outlive the function that creates it, you ask for memory from the <strong>heap</strong> with the functions in <code>stdlib.h</code>. You own that memory. It stays valid until you call <code>free</code>, and you must free it exactly once.</p>
+
+  <h3>The four functions</h3>
+  <div class="tablewrap"><table><thead><tr><th>Function</th><th>What it does</th><th>Returns</th></tr></thead><tbody>
+    <tr><td><code>malloc(bytes)</code></td><td>Allocates a block of the given number of bytes. The contents are uninitialised, meaning garbage.</td><td>A pointer to the block, or NULL on failure</td></tr>
+    <tr><td><code>calloc(count, size)</code></td><td>Allocates count elements of size bytes each, and sets every byte to zero.</td><td>A pointer, or NULL</td></tr>
+    <tr><td><code>realloc(p, bytes)</code></td><td>Resizes a block to the new size. It may move the data to a new location, copying the old contents as far as they fit.</td><td>A pointer to the new block, or NULL on failure. The old pointer is then still valid.</td></tr>
+    <tr><td><code>free(p)</code></td><td>Releases a block that malloc, calloc or realloc returned.</td><td>Nothing</td></tr>
+  </tbody></table></div>
+  <p>Write the size as <code>n * sizeof *p</code>, not as a literal number. The expression is then correct for any element type, and if the type changes, the size changes with it. Always check the result of an allocation for NULL before using it.</p>
+
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main(void) {
+    int n = 5;
+    int *a = malloc(n * sizeof *a);        /* uninitialised: contents are garbage */
+    if (a == NULL) {
+        return 1;
+    }
+    for (int i = 0; i &lt; n; i++) {
+        a[i] = i * i;
+    }
+
+    int *z = calloc(n, sizeof *z);         /* every element starts at zero */
+    printf("%d %d\n", a[4], z[4]);
+
+    int *bigger = realloc(a, 2 * n * sizeof *bigger);
+    if (bigger == NULL) {                   /* the old block a is still valid here */
+        free(a);
+        free(z);
+        return 1;
+    }
+    a = bigger;                             /* the old pointer must not be used any more */
+    for (int i = n; i &lt; 2 * n; i++) {
+        a[i] = -1;
+    }
+    printf("%d %d %d\n", a[0], a[4], a[9]);
+
+    free(a);
+    free(z);
+    a = NULL;                               /* a dangling pointer is avoided by clearing it */
+    z = NULL;
+    return 0;
+}</code></pre>
+  <pre class="output">16 0
+0 16 -1</pre>
+  <p>Read the program in order. <code>malloc</code> gives five ints, which the loop fills with 0, 1, 4, 9 and 16. <code>calloc</code> gives five zeroed ints, so <code>z[4]</code> is 0. <code>realloc</code> grows the first block to ten ints and keeps the first five values. The loop fills the new half with -1. Finally both blocks are freed, and the pointers are set to NULL so that a later accidental use fails cleanly.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>After <code>realloc</code> succeeds, the old pointer may be invalid because the block moved. Assign the result to a new variable, check it, and only then overwrite the original pointer. Writing <code>a = realloc(a, ...)</code> loses the old block if the allocation fails.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Freeing the same block twice is a double free, and using a block after freeing it is a use-after-free. Both are undefined behaviour and are common sources of security bugs. Setting the pointer to NULL after <code>free</code> makes the second free harmless, because <code>free(NULL)</code> does nothing.</p></div>
+
+  <h3>Memory leaks</h3>
+  <p>A <strong>memory leak</strong> happens when a block is allocated and the program loses every pointer to it without freeing it. The memory stays reserved until the process exits, and in a long-running program it grows until the system runs out. The function below leaks its block: it returns without freeing <code>p</code>, so nothing can free it later.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdlib.h&gt;
+
+void leaky(void) {
+    int *p = malloc(100 * sizeof *p);
+    if (p == NULL) {
+        return;
+    }
+    p[0] = 1;
+    /* missing free(p): the 400 bytes stay reserved after this function returns */
+}</code></pre>
+  <p>Tools such as valgrind report leaks and invalid accesses when you run a program. In an interview, the expected habit is simple: every <code>malloc</code> has a matching <code>free</code> on every path out of the function, including the error paths.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>What is the difference between <code>malloc</code> and <code>calloc</code>? <code>calloc</code> takes two arguments and zeroes the memory. <code>malloc</code> takes one argument and leaves the contents uninitialised. Both return NULL on failure.</p></div>
+  <details class="check"><summary>Why is <code>realloc</code> dangerous when written as <code>a = realloc(a, size)</code>?</summary><div class="ans"><p>If realloc fails, it returns NULL, and the assignment overwrites the only pointer to the original block, leaking it. Store the result in a temporary pointer, check it, and only then assign it to the original variable.</p></div></details>
+</section>
+
+<section class="unit" id="c8" data-title="Memory layout">
+  <h2>Memory layout of a C program</h2>
+  <p>When a C program runs, the operating system gives it one address space divided into regions. Knowing where each variable lives explains the storage classes, the lifetime rules and the bugs in this page. The diagram below shows the usual layout from the high addresses at the top to the low addresses at the bottom. Exact placement varies by system, so treat it as the standard model.</p>
+  <pre class="code" data-lang="text"><code>high addresses
+  stack   grows downward: local (automatic) variables, function call frames
+  (free space between the stack and the heap)
+  heap    grows upward: memory from malloc, calloc and realloc
+  bss     global and static variables with no initialiser, zeroed at start
+  data    global and static variables with an initialiser
+  text    the program's machine code, usually read-only
+low addresses</code></pre>
+  <p>The stack is managed automatically. Each function call pushes a frame holding its parameters and locals, and the return pops it. The heap is managed by you, through <code>malloc</code> and <code>free</code>. Global and static variables live in the data or bss segments for the whole run. The next program shows the two static segments.</p>
+  <pre class="code" data-lang="c"><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int initialised = 10;         /* data segment: starts with this value */
+int zeroed;                   /* bss segment: zero until the program sets it */
+
+int *make_on_heap(int v) {
+    int *p = malloc(sizeof *p);
+    if (p != NULL) {
+        *p = v;               /* lives until free(), not until this function returns */
+    }
+    return p;
+}
+
+int main(void) {
+    printf("%d %d\n", initialised, zeroed);
+    int *h = make_on_heap(99);
+    if (h != NULL) {
+        printf("%d\n", *h);
+        free(h);
+    }
+    return 0;
+}</code></pre>
+  <pre class="output">10 0
+99</pre>
+  <p>The value <code>zeroed</code> is 0 without any assignment, because bss memory is cleared before <code>main</code> starts. <code>initialised</code> is 10 because its value is stored in the data segment. The block returned by <code>make_on_heap</code> survives the function's return, which is impossible for a local variable, and it is freed explicitly in <code>main</code>.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Automatic variables are on the stack and end with their block. Static and global variables last for the whole program. Heap memory lasts until you free it. Matching each allocation to a free is the whole discipline of manual memory management.</p></div>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Where does each kind of variable live? Locals on the stack, malloc'd blocks on the heap, initialised globals and statics in the data segment, uninitialised globals and statics in bss, and code in text.</p></div>
+  <details class="check"><summary>A function returns a pointer to a local array. Why is that a bug, and what are two correct alternatives?</summary><div class="ans"><p>The local array lives on the stack and is released when the function returns, so the pointer dangles. Two correct alternatives are to allocate the array with malloc and return that pointer, so the caller frees it later, or to have the caller pass in a buffer to fill.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question aloud before opening the answer. The model answers name the points to cover, so practise saying them in your own words, and try to write a small program for the trickier ones.</p>
+  <details class="check"><summary>What is the output of <code>printf("%d", -7 / 2);</code>, and why?</summary><div class="ans"><p>It prints -3. Integer division in C truncates toward zero, so the fraction -3.5 is dropped in the direction of zero.</p></div></details>
+  <details class="check"><summary>Why does a function that swaps two int parameters leave the caller unchanged?</summary><div class="ans"><p>C passes arguments by value, so the function works on copies. To change the caller's variables, pass their addresses and write through the pointers.</p></div></details>
+  <details class="check"><summary>What is the difference between <code>const int *p</code> and <code>int *const p</code>?</summary><div class="ans"><p>The first is a pointer to a constant int: the int cannot be changed through p, but p can point elsewhere. The second is a constant pointer to an int: p must keep its address, but the int it points to can change.</p></div></details>
+  <details class="check"><summary>What is a dangling pointer? Give one way to create one.</summary><div class="ans"><p>A dangling pointer holds the address of memory that has been freed or has gone out of scope. Returning the address of a local variable from a function, or using a pointer after <code>free</code>, creates one. Using it is undefined behaviour.</p></div></details>
+  <details class="check"><summary>What is the difference between <code>malloc</code> and <code>calloc</code>?</summary><div class="ans"><p><code>malloc</code> takes one size argument and leaves the memory uninitialised. <code>calloc</code> takes a count and an element size, and zeroes the memory. Both return NULL on failure.</p></div></details>
+  <details class="check"><summary>What does <code>volatile</code> mean, and what does it not guarantee?</summary><div class="ans"><p><code>volatile</code> tells the compiler the value may change outside the visible program flow, so each read must load from memory. It does not make operations atomic, and it does not provide thread synchronisation.</p></div></details>
+  <details class="check"><summary>Where does a local variable without a storage class keyword live, and how long does it last?</summary><div class="ans"><p>It is an automatic variable. It lives on the stack, is created when its block is entered, and is destroyed when the block ends. Its initial value is indeterminate unless you initialise it.</p></div></details>
+  <details class="check"><summary>What is the difference between <code>strlen</code> and <code>sizeof</code> on a char array?</summary><div class="ans"><p><code>sizeof</code> is the compile-time size of the array in bytes, including the terminator. <code>strlen</code> scans at runtime for the terminator and returns the number of characters before it.</p></div></details>
+  <details class="check"><summary>What is a memory leak, and how do you prevent one?</summary><div class="ans"><p>A leak is memory that was allocated and can no longer be reached, so it is never freed. Prevent it by pairing every allocation with a free on every exit path, including error paths, and by checking tools such as valgrind.</p></div></details>
+  <details class="check"><summary>Why does the declaration of a function pointer need parentheses around the star?</summary><div class="ans"><p>In <code>int (*fp)(int, int)</code>, the parentheses make fp a pointer to a function. Without them, <code>int *fp(int, int)</code> declares a function named fp that returns an int pointer.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: Hashing</h2>
+  <p>A <strong>hash table</strong> stores keys and values so that lookup, insertion and deletion take O(1) time on average. A hash function turns each key into a number, the hash, and the number chooses a slot. Python's <code>dict</code> and <code>set</code> are hash tables, and most hashing problems are solved by choosing what to store as the key and what to store as the value.</p>
+  <p>The three patterns in this lesson are: remember what you have seen (a set), count occurrences (a dict of counts), and record a running value so that a range becomes a difference (a prefix sum stored in a dict). The fourth problem, which is hard, uses the same idea with a normalised slope as the key.</p>
+  <ul>
+    <li><strong>Seen before?</strong> A set answers "have I seen this value" in O(1). Use it to detect duplicates in one pass.</li>
+    <li><strong>How often?</strong> A dict or <code>Counter</code> maps each value to its count, which makes frequency questions simple.</li>
+    <li><strong>How many earlier prefixes match?</strong> Store each prefix sum with its count, so that a subarray ending here with sum k corresponds to an earlier prefix equal to current minus k.</li>
+    <li><strong>Group by a canonical key.</strong> Pick a key that two things share exactly when they belong together, then count or group by that key.</li>
+  </ul>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/contains-duplicate/">
+    <h3>Contains Duplicate (LeetCode 217)</h3>
+    <div class="statement"><p>Given an integer array <code>nums</code>, return True if any value appears at least twice in the array, and False if every element is distinct. For <code>[1, 2, 3, 1]</code>, the answer is True.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> We only need a yes or no. The array can be unsorted, and negative numbers are allowed. An empty array has no duplicates.</li>
+      <li><strong>Brute force.</strong> Compare every pair of elements. With n elements that is about n squared over two comparisons, so O(n squared) time and O(1) space.</li>
+      <li><strong>Find the waste.</strong> Each comparison asks whether this value has appeared before. The brute force answers that by scanning the whole array again each time.</li>
+      <li><strong>Optimise.</strong> Walk the array once and keep a set of the values seen so far. The first value already in the set is a duplicate, so return True immediately. Each membership test is O(1) on average, so the whole job is O(n).</li>
+      <li><strong>Dry run.</strong> The table shows the set after each element of <code>[1, 2, 3, 1]</code>.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>x</th><th>Already in seen?</th><th>seen after the step</th></tr></thead><tbody>
+      <tr><td>1</td><td>no</td><td>{1}</td></tr>
+      <tr><td>2</td><td>no</td><td>{1, 2}</td></tr>
+      <tr><td>3</td><td>no</td><td>{1, 2, 3}</td></tr>
+      <tr><td>1</td><td>yes, return True</td><td>not reached</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def contains_duplicate(nums):
+    seen = set()
+    for x in nums:
+        if x in seen:              # this value has appeared before
+            return True
+        seen.add(x)
+    return False
+
+print(contains_duplicate([1, 2, 3, 1]))
+print(contains_duplicate([1, 2, 3, 4]))
+print(contains_duplicate([1, 1, 1, 3, 3, 4, 3, 2, 4, 2]))</code></pre>
+    <pre class="output">True
+False
+True</pre>
+    <p class="cx">Time O(n) · Space O(n) for the set</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To ask whether a value has been seen, keep a set and check membership before adding.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/subarray-sum-equals-k/">
+    <h3>Subarray Sum Equals K (LeetCode 560)</h3>
+    <div class="statement"><p>Given an array of integers <code>nums</code> and an integer <code>k</code>, return the number of contiguous subarrays whose elements sum to <code>k</code>. The array may contain negative numbers. For <code>[1, 1, 1]</code> and <code>k = 2</code>, the answer is 2, from the subarrays at positions 0 to 1 and 1 to 2.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A subarray is contiguous, so we count windows, not arbitrary subsets. Negative numbers rule out the simple sliding window that works for positive numbers, because a longer window can have a smaller sum.</li>
+      <li><strong>Brute force.</strong> Try every start and every end, and add up each subarray. That is O(n squared) pairs, and summing each one adds another factor of n, so O(n cubed) in the simplest form. A running sum for each start gives O(n squared).</li>
+      <li><strong>Find the waste.</strong> The sum of the subarray from i to j is the prefix sum at j minus the prefix sum at i-1. So the question becomes: how many earlier prefix sums equal the current prefix sum minus k?</li>
+      <li><strong>Optimise.</strong> Walk the array while keeping a running prefix sum. Keep a dict that counts how many times each earlier prefix sum has occurred, starting with the empty prefix 0 counted once. At each position, add the count of <code>prefix - k</code> to the answer, then record the current prefix. Each step is O(1) on average, so the total is O(n).</li>
+      <li><strong>Dry run.</strong> The table follows <code>[1, 1, 1]</code> with k = 2. The prefix sums are 1, 2 and 3.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>x</th><th>prefix after x</th><th>look up prefix - k</th><th>matches found</th><th>answer so far</th><th>seen after the step</th></tr></thead><tbody>
+      <tr><td>1</td><td>1</td><td>1 - 2 = -1</td><td>0</td><td>0</td><td>{0: 1, 1: 1}</td></tr>
+      <tr><td>1</td><td>2</td><td>2 - 2 = 0</td><td>1 (the empty prefix)</td><td>1</td><td>{0: 1, 1: 1, 2: 1}</td></tr>
+      <tr><td>1</td><td>3</td><td>3 - 2 = 1</td><td>1 (prefix 1 at the start)</td><td>2</td><td>{0: 1, 1: 1, 2: 1, 3: 1}</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def subarray_sum(nums, k):
+    count = 0
+    prefix = 0
+    seen = {0: 1}                          # the empty prefix sum 0 occurs once
+    for x in nums:
+        prefix += x
+        count += seen.get(prefix - k, 0)   # earlier prefixes that leave exactly k
+        seen[prefix] = seen.get(prefix, 0) + 1
+    return count
+
+print(subarray_sum([1, 1, 1], 2))
+print(subarray_sum([1, 2, 3], 3))
+print(subarray_sum([1, -1, 0], 0))</code></pre>
+    <pre class="output">2
+2
+3</pre>
+    <p>The third test shows why the approach works with negative numbers. The subarrays with sum 0 are [1, -1], [0], and [1, -1, 0]. The prefix sums are 0, 1, 0, 0, and the dict holds the earlier 0 values, which gives the three matches.</p>
+    <p class="cx">Time O(n) · Space O(n) for the dict</p>
+    <div class="note trap"><p><span class="t">Trap</span>Do not use a sliding window here when the array can contain negative numbers. Growing the window can lower the sum, so shrinking rules break. The prefix sum with a dict handles any sign.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For counting subarrays with a target sum, combine running prefix sums with a dict of how often each prefix has appeared.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/top-k-frequent-elements/">
+    <h3>Top K Frequent Elements (LeetCode 347)</h3>
+    <div class="statement"><p>Given an integer array <code>nums</code> and an integer <code>k</code>, return the k most frequent elements. The answer may be in any order, and the problem guarantees a unique answer. For <code>[1, 1, 1, 2, 2, 3]</code> and <code>k = 2</code>, the answer is <code>[1, 2]</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Count each value, then pick the k highest counts. Values with the same count are a tie, but the problem guarantees that the top k can be chosen unambiguously.</li>
+      <li><strong>Brute force.</strong> For each distinct value, count its occurrences by scanning the array, then sort the values by count. Counting costs O(n) per value, so the total is O(n squared) with a sort on top.</li>
+      <li><strong>Find the waste.</strong> Counting by scanning repeats work that a single dict can record in one pass. Sorting all values by count is also more than we need, because we only want the top k.</li>
+      <li><strong>Optimise.</strong> Count everything in one pass with a <code>Counter</code>. Then use bucket sort: a count can be at most n, so make n + 1 buckets, put each value into the bucket for its count, and read the buckets from the highest count down until k values are collected. This is O(n).</li>
+      <li><strong>Dry run.</strong> The table follows <code>[1, 1, 1, 2, 2, 3]</code>. The counts are 1 to 3, 2 to 2 and 3 to 1, so bucket 3 holds 1, bucket 2 holds 2 and bucket 1 holds 3.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Bucket (count)</th><th>Values in the bucket</th><th>Collected after reading this bucket</th></tr></thead><tbody>
+      <tr><td>3</td><td>[1]</td><td>[1]</td></tr>
+      <tr><td>2</td><td>[2]</td><td>[1, 2], which has k = 2 values, so stop</td></tr>
+      <tr><td>1</td><td>[3]</td><td>not reached</td></tr>
+    </tbody></table></div>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from collections import Counter
+
+def top_k_frequent(nums, k):
+    counts = Counter(nums)
+    buckets = [[] for _ in range(len(nums) + 1)]   # bucket i holds the values seen i times
+    for value, c in counts.items():
+        buckets[c].append(value)
+    result = []
+    for c in range(len(buckets) - 1, 0, -1):       # read from the highest count down
+        for value in buckets[c]:
+            result.append(value)
+            if len(result) == k:
+                return result
+    return result
+
+print(top_k_frequent([1, 1, 1, 2, 2, 3], 2))
+print(top_k_frequent([1], 1))
+print(top_k_frequent([4, 4, 4, 5, 5, 6, 6, 6, 6], 2))</code></pre>
+    <pre class="output">[1, 2]
+[1]
+[6, 4]</pre>
+    <p>The third test shows the bucket order at work. Value 6 appears four times, so it sits in the highest bucket and comes out first. Value 4 appears three times and comes next. The buckets are read from index <code>len(nums)</code> down to 1, so the highest possible count is checked first.</p>
+    <p class="cx">Time O(n) · Space O(n)</p>
+    <div class="note tip"><p><span class="t">Tip</span>In an interview, first offer the heap approach, which is O(n log k) with <code>heapq.nlargest(k, counts, key=counts.get)</code>. Then improve it to bucket sort when the interviewer asks for O(n).</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When counts are bounded by n, bucket sort by count gives the top k in linear time.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/max-points-on-a-line/">
+    <h3>Max Points on a Line (LeetCode 149)</h3>
+    <div class="statement"><p>Given an array <code>points</code>, where each element <code>[x, y]</code> is a point on the plane, return the largest number of points that lie on one straight line. For <code>[[1, 1], [2, 2], [3, 3]]</code>, the answer is 3, because all three points are on the line y = x. For <code>[[1, 1], [3, 2], [5, 3], [4, 1], [2, 3], [1, 4]]</code>, the answer is 4, from the points (3, 2), (4, 1), (2, 3) and (1, 4), which all lie on x + y = 5.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Any two distinct points define exactly one line, so an answer of at least 2 exists when there are two or more points. Points can repeat, and a repeated point lies on every line through its twin. The coordinates can be negative, and a vertical line has no slope in the usual sense.</li>
+      <li><strong>Brute force.</strong> Take every pair of points to define a line. For each line, test every other point with a cross product: three points are collinear when the cross product of the two difference vectors is zero. That is O(n cubed) work. The code below assumes the points are distinct, because a repeated pair would define a degenerate line that every point lies on.</li>
+      <li><strong>Find the waste.</strong> Many pairs define the same line, and each one retests all the points. A better plan is to fix one point, called the anchor, and find all the lines through it at once.</li>
+      <li><strong>Optimise.</strong> For each anchor, compare it with every later point and compute the direction from the anchor. Two points lie on the same line through the anchor exactly when they have the same direction. Store the direction in a dict as a key, so every point on the same line shares one key. Use the difference (dx, dy) divided by its gcd, with a fixed sign, so that equal directions give equal keys without floating-point error. Points that equal the anchor are counted separately, because they fit on every line. The answer is the best direction count plus the duplicates plus the anchor. This is O(n squared) with a dict per anchor.</li>
+      <li><strong>Dry run.</strong> The table follows the anchor (3, 2) in the second example. Each other point gives one direction key, and the points that share a key lie on one line through the anchor.</li>
+    </ol>
+    <div class="tablewrap"><table><thead><tr><th>Other point</th><th>dx, dy from (3, 2)</th><th>Divided by gcd, sign fixed</th><th>Count for that key</th></tr></thead><tbody>
+      <tr><td>(5, 3)</td><td>2, 1</td><td>(2, 1)</td><td>1</td></tr>
+      <tr><td>(4, 1)</td><td>1, -1</td><td>(1, -1)</td><td>1</td></tr>
+      <tr><td>(2, 3)</td><td>-1, 1</td><td>(1, -1) after negating</td><td>2</td></tr>
+      <tr><td>(1, 4)</td><td>-2, 2</td><td>(1, -1) after dividing by 2 and negating</td><td>3</td></tr>
+    </tbody></table></div>
+    <p>The best count for this anchor is 3, so the line through (3, 2), (4, 1), (2, 3) and (1, 4) contains 3 other points plus the anchor, giving 4.</p>
+    <h4>Code</h4>
+    <p>The brute force version comes first. It is simple to check and useful to describe in an interview. It assumes distinct points, which the examples below satisfy.</p>
+    <pre class="code" data-lang="python"><code>def max_points_brute(points):
+    n = len(points)
+    if n &lt; 3:
+        return n
+    best = 2                               # any two distinct points lie on a line
+    for i in range(n):
+        for j in range(i + 1, n):
+            (x1, y1), (x2, y2) = points[i], points[j]
+            count = 0
+            for x, y in points:
+                # collinear when the cross product of (p2 - p1) and (p - p1) is zero
+                if (x2 - x1) * (y - y1) == (y2 - y1) * (x - x1):
+                    count += 1
+            best = max(best, count)
+    return best
+
+print(max_points_brute([[1, 1], [2, 2], [3, 3]]))
+print(max_points_brute([[1, 1], [3, 2], [5, 3], [4, 1], [2, 3], [1, 4]]))</code></pre>
+    <pre class="output">3
+4</pre>
+    <p>Now the optimised version. It handles repeated points and uses integer directions, so no floating-point numbers are involved.</p>
+    <pre class="code" data-lang="python"><code>from collections import defaultdict
+from math import gcd
+
+def max_points(points):
+    n = len(points)
+    if n &lt; 3:
+        return n
+    best = 0
+    for i in range(n):                     # each point takes a turn as the anchor
+        slopes = defaultdict(int)
+        duplicates = 0
+        most_on_one_line = 0
+        x1, y1 = points[i]
+        for j in range(i + 1, n):
+            x2, y2 = points[j]
+            dx, dy = x2 - x1, y2 - y1
+            if dx == 0 and dy == 0:        # the same point as the anchor
+                duplicates += 1
+                continue
+            g = gcd(abs(dx), abs(dy))      # reduce the direction to its simplest form
+            dx //= g
+            dy //= g
+            if dx &lt; 0 or (dx == 0 and dy &lt; 0):   # fix the sign so opposite directions match
+                dx, dy = -dx, -dy
+            slopes[(dx, dy)] += 1
+            most_on_one_line = max(most_on_one_line, slopes[(dx, dy)])
+        best = max(best, most_on_one_line + duplicates + 1)
+    return best
+
+print(max_points([[1, 1], [2, 2], [3, 3]]))
+print(max_points([[1, 1], [3, 2], [5, 3], [4, 1], [2, 3], [1, 4]]))
+print(max_points([[1, 1], [1, 1], [2, 2]]))</code></pre>
+    <pre class="output">3
+4
+3</pre>
+    <p>The third test has a repeated point. The anchor (1, 1) finds the duplicate (1, 1), which is counted separately, and the point (2, 2) on one direction. The total is 1 + 1 + 1 = 3. Without the separate duplicate count, the answer would be wrong, because a repeated point would then be treated as a direction of zero length.</p>
+    <p class="cx">Time O(n squared) with a dict per anchor · Space O(n)</p>
+    <div class="note trap"><p><span class="t">Trap</span>Using floating-point slopes such as <code>dy / dx</code> risks precision errors, and division by zero for vertical lines. Reduce the direction with gcd and fix its sign, so the key is exact.</p></div>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting that repeated points lie on every line through the anchor. Count them separately and add them at the end.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>To group points by the line they share with an anchor, use a dict keyed by the reduced, sign-normalised direction. Equal keys mean collinear.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this list to revise. For each C entry, the best revision is to write the small program yourself and predict its output before running it.</p>
+  <dl>
+    <div><dt>char, short, int, long</dt><dd>Integer types whose sizes are set by the platform, typically 1, 2, 4 and 8 bytes here.</dd></div>
+    <div><dt>sizeof</dt><dd>A compile-time operator giving a type's or an object's size in bytes.</dd></div>
+    <div><dt>Integer division</dt><dd>Truncates toward zero, and the remainder takes the sign of the dividend.</dd></div>
+    <div><dt>Unsigned wraparound</dt><dd>Unsigned arithmetic is defined to wrap modulo 2 to the power of its bit count.</dd></div>
+    <div><dt>Undefined behaviour</dt><dd>Code the standard does not define, such as signed overflow or dereferencing NULL. The program may do anything.</dd></div>
+    <div><dt>Storage class</dt><dd>The rule that sets where a variable lives, its lifetime and its scope.</dd></div>
+    <div><dt>Automatic variable</dt><dd>A local variable on the stack, created when its block is entered and destroyed when it ends.</dd></div>
+    <div><dt>Static variable</dt><dd>A variable with program lifetime, initialised once. Inside a function it keeps its value between calls.</dd></div>
+    <div><dt>extern</dt><dd>Declares a variable defined in another file.</dd></div>
+    <div><dt>const</dt><dd>Forbids assignment through a particular name. Read the declaration from the name outward.</dd></div>
+    <div><dt>volatile</dt><dd>Tells the compiler a value can change outside the program's visible flow, so reads must reach memory.</dd></div>
+    <div><dt>Call by value</dt><dd>Arguments are copied into the function, so changes to parameters are not seen by the caller.</dd></div>
+    <div><dt>Prototype</dt><dd>A declaration of a function's return type and parameters, checked at each call.</dd></div>
+    <div><dt>Pointer</dt><dd>A variable holding the address of an object. <code>&amp;</code> takes an address and <code>*</code> follows it.</dd></div>
+    <div><dt>Pointer arithmetic</dt><dd>Adding n to a pointer moves it by n elements, scaled by the size of the pointed-to type.</dd></div>
+    <div><dt>Null pointer</dt><dd>A pointer value meaning points to nothing. Check for it before dereferencing.</dd></div>
+    <div><dt>void pointer</dt><dd>A generic pointer that must be cast before it is dereferenced.</dd></div>
+    <div><dt>Pointer to pointer</dt><dd>A pointer whose target is another pointer, used to change a caller's pointer.</dd></div>
+    <div><dt>Dangling pointer</dt><dd>A pointer to memory that has been freed or has gone out of scope.</dd></div>
+    <div><dt>Wild pointer</dt><dd>A pointer that was never initialised, so it holds an arbitrary address.</dd></div>
+    <div><dt>Array decay</dt><dd>An array name used as a value turns into a pointer to its first element.</dd></div>
+    <div><dt>Null terminator</dt><dd>The <code>'\0'</code> byte that marks the end of a C string.</dd></div>
+    <div><dt>malloc, calloc, realloc</dt><dd>Functions that request heap memory. calloc zeroes it, and realloc resizes it.</dd></div>
+    <div><dt>free</dt><dd>Releases a heap block. Call it exactly once for each allocation.</dd></div>
+    <div><dt>Memory leak</dt><dd>Allocated memory that can no longer be reached and is never freed.</dd></div>
+    <div><dt>Double free</dt><dd>Freeing the same block twice, which is undefined behaviour.</dd></div>
+    <div><dt>Memory layout</dt><dd>The text, data, bss, heap and stack regions of a running program.</dd></div>
+    <div><dt>Hash table</dt><dd>A structure that finds a key's slot from its hash, giving O(1) average lookup.</dd></div>
+    <div><dt>Prefix sum</dt><dd>A running total, so a subarray sum is the difference of two prefix values.</dd></div>
+    <div><dt>Bucket sort</dt><dd>Sorting by placing items into buckets indexed by a bounded key, here the count.</dd></div>
+    <div><dt>Canonical direction</dt><dd>A reduced, sign-normalised vector that is equal for all points on one line through an anchor.</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table><thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead><tbody>
+    <tr><td><code>sizeof</code></td><td>Size of a type or object in bytes, at compile time</td><td><code>sizeof(int)</code> gives 4 here</td></tr>
+    <tr><td><code>printf</code></td><td>Prints formatted output</td><td><code>printf("%d %s\n", n, s);</code></td></tr>
+    <tr><td><code>strlen</code></td><td>Number of characters before the terminator</td><td><code>strlen("hi")</code> gives 2</td></tr>
+    <tr><td><code>strcpy</code></td><td>Copies a string including its terminator, with no size check</td><td><code>strcpy(dest, src);</code></td></tr>
+    <tr><td><code>strcmp</code></td><td>Compares two strings, returning 0 when equal</td><td><code>strcmp(a, b) == 0</code></td></tr>
+    <tr><td><code>malloc</code></td><td>Allocates uninitialised heap bytes</td><td><code>int *p = malloc(n * sizeof *p);</code></td></tr>
+    <tr><td><code>calloc</code></td><td>Allocates zeroed heap memory for count elements</td><td><code>int *p = calloc(n, sizeof *p);</code></td></tr>
+    <tr><td><code>realloc</code></td><td>Resizes a heap block, possibly moving it</td><td><code>int *q = realloc(p, 2 * n * sizeof *p);</code></td></tr>
+    <tr><td><code>free</code></td><td>Releases a heap block</td><td><code>free(p); p = NULL;</code></td></tr>
+    <tr><td><code>&amp;</code> (address-of)</td><td>Produces the address of an object</td><td><code>int *p = &amp;x;</code></td></tr>
+    <tr><td><code>*</code> (dereference)</td><td>Reads or writes the object a pointer refers to</td><td><code>*p = 7;</code></td></tr>
+    <tr><td><code>p[i]</code></td><td>Same as <code>*(p + i)</code></td><td><code>q[3]</code> reads the fourth element</td></tr>
+    <tr><td><code>static</code> (local)</td><td>Gives a local variable program lifetime</td><td><code>static int calls = 0;</code></td></tr>
+    <tr><td><code>const</code></td><td>Prevents assignment through the name</td><td><code>const int limit = 10;</code></td></tr>
+    <tr><td><code>volatile</code></td><td>Forces each read to go to memory</td><td><code>volatile int status;</code></td></tr>
+    <tr><td><code>NULL</code></td><td>The null pointer constant from stddef.h</td><td><code>if (p == NULL) return;</code></td></tr>
+    <tr><td><code>Counter(x).most_common(k)</code></td><td>Python: the k most frequent items with counts</td><td><code>Counter("aab").most_common(1)</code> gives [('a', 2)]</td></tr>
+    <tr><td><code>set.add(x)</code></td><td>Python: adds x to a set, O(1) on average</td><td><code>seen.add(5)</code></td></tr>
+    <tr><td><code>dict.get(k, default)</code></td><td>Python: reads a key or returns the default</td><td><code>seen.get(prefix - k, 0)</code></td></tr>
+    <tr><td><code>math.gcd(a, b)</code></td><td>Python: greatest common divisor, used to reduce directions</td><td><code>gcd(4, 6)</code> gives 2</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 3?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 3 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-02.html"><small>Previous, day 2</small>Python 2: OOP, advanced features, internals</a><a class="next" href="day-04.html"><small>Next, day 4</small>C 2: Structs, build process, OOP in C</a></nav>
+</main><script src="assets/app.js"></script></body></html>

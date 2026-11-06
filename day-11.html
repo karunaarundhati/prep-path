@@ -1,0 +1,568 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 11: Concurrency and multithreading in practice</title><meta name="description" content="Today moves from the theory of synchronization to writing concurrent code that you can defend in an interview. You will learn the difference between concurrency and parallelism, the building blocks (locks, read-write locks, semaphores, condition variables, atomics), how to build a blocking queue and odd-even printing with two threads, how to prevent deadlock in code, how thread pools and async tasks differ, and what the Python GIL means. The DSA part uses recursion and backtracking, the pattern behind subsets, combinations and expression search."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="11" data-key="11" data-noun="day" data-num="11" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Concurrency and multithreading in practice</h1>
+<p class="lede">Today moves from the theory of synchronization to writing concurrent code that you can defend in an interview. You will learn the difference between concurrency and parallelism, the building blocks (locks, read-write locks, semaphores, condition variables, atomics), how to build a blocking queue and odd-even printing with two threads, how to prevent deadlock in code, how thread pools and async tasks differ, and what the Python GIL means. The DSA part uses recursion and backtracking, the pattern behind subsets, combinations and expression search.</p>
+<div class="station"><b>11</b><span>Thu 12 Nov 2026 · Systems · DSA: Recursion and backtracking</span></div>
+<ul class="topics"><li>Concurrency vs parallelism</li><li>Locks, read-write locks, semaphores, atomics</li><li>Condition variables and blocking queues</li><li>Odd-even printing with two threads</li><li>Deadlock prevention in code</li><li>Thread pools, futures and async</li><li>Python GIL and Java concurrency utilities</li><li>Recursion and backtracking</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Concurrency vs parallelism">
+  <h2>Concurrency vs parallelism</h2>
+  <p>These two words are used interchangeably by many developers, and interviewers notice when you do. They describe different things.</p>
+  <p><strong>Concurrency</strong> means dealing with several tasks at once: the tasks are in progress during the same period, and their steps can interleave. A single CPU core can be concurrent by switching quickly between tasks. Concurrency is about structure: how a program is organized so that waiting on one thing does not block everything else.</p>
+  <p><strong>Parallelism</strong> means doing several things at the same instant, which requires more than one processing unit, such as multiple cores. Parallelism is about execution: the work really runs side by side.</p>
+  <p>You can have concurrency without parallelism (one core, many threads taking turns), parallelism without much concurrency (a single job split across cores), or both. A web server that handles many connections while waiting for a database is concurrent. A matrix multiplication split across eight cores is parallel.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Concurrency is a way of structuring a program around independent tasks. Parallelism is running those tasks at the same time on hardware that can do so.</p></div>
+
+  <h3>I/O-bound vs CPU-bound work</h3>
+  <p>The right tool depends on what the work spends its time doing. <strong>I/O-bound</strong> work spends most of its time waiting for disks, networks or users. Threads or async tasks help a lot here, because while one task waits, another can run. <strong>CPU-bound</strong> work spends its time computing. Extra threads help only if they can truly run in parallel on separate cores, and in CPython they often cannot, as explained later in this day.</p>
+  <p>A <strong>thread</strong> is a flow of execution inside a process that shares its memory. A <strong>process</strong> has separate memory. Creating a thread is cheaper than creating a process, which is why thread pools exist. Sharing memory is what makes threads useful and also what makes them dangerous, as the previous day showed.</p>
+
+  <div class="tablewrap"><table><thead><tr><th>Workload</th><th>Typical bottleneck</th><th>Good tool</th></tr></thead><tbody>
+    <tr><td>Many network requests</td><td>Waiting for the network</td><td>Async tasks or a thread pool</td></tr>
+    <tr><td>Reading many files</td><td>Waiting for the disk</td><td>Thread pool</td></tr>
+    <tr><td>Number crunching in Python</td><td>The CPU</td><td>Multiple processes (multiprocessing), or a C extension such as NumPy</td></tr>
+    <tr><td>Shared counters or a cache</td><td>Lock contention</td><td>Atomics, or a lock with short critical sections</td></tr>
+  </tbody></table></div>
+
+  <details class="check"><summary>A program runs 8 threads that each spend 99 percent of their time waiting for a web response. Is it concurrency, parallelism, or both?</summary><div class="ans"><p>It is concurrency. The threads overlap their waiting, so many requests are in progress at once. Parallelism would need the threads to run computations at the same instant on several cores, and that is not what the waiting-heavy work needs.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Locks and atomics">
+  <h2>Locks, read-write locks, semaphores and atomics</h2>
+  <p>Day 10 introduced the theory. Here are the tools as you would use them in code. Each one solves a slightly different problem, and choosing the right one is a common interview question.</p>
+
+  <h3>Locks (mutexes)</h3>
+  <p>A lock allows one thread at a time to enter a critical section. In Python, <code>threading.Lock</code> is the basic mutex, and <code>with lock:</code> is the safe way to use it. Java has <code>synchronized</code> blocks and the <code>ReentrantLock</code> class, which adds features such as try-lock and fairness settings. A <strong>reentrant</strong> lock can be acquired again by the thread that already holds it, which is convenient when one locked method calls another.</p>
+  <p>Keep critical sections short. The longer a thread holds a lock, the longer every other thread waits for it. Never call slow operations, such as network requests, while holding a lock unless there is no alternative.</p>
+
+  <h3>Read-write locks</h3>
+  <p>A <strong>read-write lock</strong> (also written RW lock) allows many readers at once or one writer at a time, the same rule as the readers-writers problem. It helps when reads are far more common than writes, such as a configuration table read on every request and updated once a day. Java provides it as <code>ReentrantReadWriteLock</code>. The Python standard library does not include one, so Python programs usually use a plain lock or redesign the data.</p>
+  <p>The trade-off is overhead. An RW lock does more bookkeeping than a plain lock, so when writes are common or critical sections are tiny, a plain lock is often faster.</p>
+
+  <h3>Semaphores</h3>
+  <p>A <strong>semaphore</strong> is a counter of permits. A thread takes a permit with <code>acquire</code> and gives it back with <code>release</code>. A semaphore with five permits allows five threads into a region at once, which is the right tool for limiting concurrent use of a resource such as a connection pool or a rate limit. A <strong>binary semaphore</strong> with one permit behaves like a lock, but without ownership.</p>
+  <pre class="code" data-lang="python"><code>import threading
+
+sem = threading.BoundedSemaphore(1)  # a bounded semaphore refuses extra releases
+sem.acquire()
+sem.release()
+try:
+    sem.release()                    # releasing more than was acquired
+except ValueError as e:
+    print("error:", type(e).__name__)</code></pre>
+  <pre class="output">error: ValueError</pre>
+  <p>In the example, the semaphore starts with one permit. The first <code>acquire</code> takes it and the first <code>release</code> gives it back. The second <code>release</code> would make the count two, which a bounded semaphore refuses with a <code>ValueError</code>. A plain semaphore would silently accept it, and the extra permit would let two threads into a region that should hold only one. That silent corruption is why bounded versions are recommended for locking-style use.</p>
+
+  <h3>Atomics</h3>
+  <p>An <strong>atomic</strong> operation happens as one indivisible step. No other thread can see it half done. Atomic reads, writes, and read-modify-write operations are provided by the hardware, usually as an instruction such as <strong>compare-and-swap</strong> (CAS). CAS takes three values: an address, the value you expect to find there, and a new value. It writes the new value only if the current value matches the expected one, and it reports whether it succeeded. Look at the pattern below, which is how a lock-free increment is written:</p>
+  <pre class="code" data-lang="text"><code>do {
+    old = counter;                 // read the current value
+    new = old + 1;                 // compute the new value
+} while (!compare_and_swap(&amp;counter, old, new));   // retry if someone changed it first</code></pre>
+  <p>If another thread changes <code>counter</code> between the read and the CAS, the CAS fails, and the loop reads again. No lock is held, so no thread can block another one while it sleeps. Java exposes this idea through classes such as <code>AtomicInteger</code>, whose <code>incrementAndGet()</code> method is atomic. C and C++ provide <code>atomic</code> types for the same purpose.</p>
+  <p>Atomics are fast for a single variable, but they do not solve multi-variable invariants. If two counters must always change together, one atomic per counter is not enough, and you need a lock.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Python has no atomic integer. The statement <code>counter += 1</code> is several bytecode steps, and a thread switch can occur between them, so it is not atomic even though the interpreter has a global lock. Protect it with a lock, or use a class that documents atomicity.</p></div>
+
+  <details class="check"><summary>What does "atomic" mean, and why does a volatile variable in Java not make <code>count++</code> safe?</summary><div class="ans"><p>Atomic means an operation completes as a single indivisible step, so no thread can observe it half done. A volatile variable guarantees that every read sees the latest written value and that writes become visible to other threads. It does not make a read-modify-write like <code>count++</code> atomic, because the read and the write are still two steps that can interleave. Use <code>AtomicInteger</code> or a lock for that.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Condition variables and blocking queues">
+  <h2>Condition variables and blocking queues</h2>
+  <p>Most real systems do not hand-write producer-consumer logic. They use a <strong>blocking queue</strong>: a thread-safe container where <code>put</code> waits when the queue is full, and <code>get</code> waits when it is empty. Python provides <code>queue.Queue</code>, and Java provides <code>ArrayBlockingQueue</code> and <code>LinkedBlockingQueue</code>. Internally they use the same condition variables you met on day 10.</p>
+  <p>Two details matter. First, the queue has a capacity, so producers are slowed down when consumers fall behind, which is called <strong>backpressure</strong>. Second, a consumer needs a way to stop. A common trick is a <strong>sentinel</strong>, a special value such as <code>None</code> that the producer sends last, telling consumers to finish.</p>
+  <pre class="code" data-lang="python"><code>import queue
+import threading
+
+tasks = queue.Queue(maxsize=2)     # bounded: put() blocks while 2 items wait
+results = []
+STOP = None                        # sentinel: tells the consumer to finish
+
+def producer():
+    for i in range(1, 6):
+        tasks.put(i)               # blocks if the queue is full
+    tasks.put(STOP)
+
+def consumer():
+    while True:
+        item = tasks.get()         # blocks if the queue is empty
+        if item is STOP:
+            break
+        results.append(item * item)
+
+p = threading.Thread(target=producer)
+c = threading.Thread(target=consumer)
+p.start()
+c.start()
+p.join()
+c.join()
+print("squares:", results)</code></pre>
+  <pre class="output">squares: [1, 4, 9, 16, 25]</pre>
+  <p>The output order is fixed because there is one producer and one consumer, and the queue is first-in, first-out. Even if the producer is much faster, the queue never holds more than two items, so the producer waits at the full queue, and the consumer waits at the empty queue when it catches up.</p>
+
+  <h3>Odd-even printing with two threads</h3>
+  <p>This is a favourite interview exercise. Two threads share one counter. One thread must print the odd numbers and the other the even numbers, so that the output is 1, 2, 3, 4, and so on, in order. The solution needs a shared variable saying whose turn it is, a lock, and a condition variable so a thread can sleep until it is its turn.</p>
+  <p>The rule each thread follows is simple: take the lock, wait while the shared turn value is not mine, print my number, advance the turn, and wake the others. The <code>while</code> loop around <code>wait()</code> matters for the same reason as on day 10: when the thread wakes, it must re-check whether the turn is really its own.</p>
+  <pre class="code" data-lang="python"><code>import threading
+
+LIMIT = 6
+turn = 1                           # the next number that may be printed
+cond = threading.Condition()
+printed = []
+
+def printer(start):
+    global turn
+    n = start
+    while n &lt;= LIMIT:
+        with cond:
+            while turn != n:       # not my number yet, so sleep
+                cond.wait()
+            printed.append(n)      # "print" the number
+            turn += 1
+            cond.notify_all()      # wake the other thread so it can check its turn
+        n += 2                     # my next number is two higher
+
+odd = threading.Thread(target=printer, args=(1,))
+even = threading.Thread(target=printer, args=(2,))
+odd.start()
+even.start()
+odd.join()
+even.join()
+print(*printed)</code></pre>
+  <pre class="output">1 2 3 4 5 6</pre>
+  <p>Trace the first steps. The odd thread starts with n equal to 1 and finds turn equal to 1, so it records 1, sets turn to 2, and moves its n to 3. The even thread waits until turn is 2, records 2, sets turn to 3, and moves its n to 4. The odd thread wakes, sees turn equal to 3, and records 3. Each thread sleeps whenever it is not its turn, so the sequence is forced, and the program cannot print out of order no matter how the operating system schedules them.</p>
+  <p>When the printer thread's n passes the limit, it leaves the loop and ends. The loop bound must be checked on the thread's own n, which is why each thread steps by two.</p>
+
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why use <code>notify_all</code> instead of <code>notify</code> here? With only two threads, <code>notify</code> would also work, because only the other thread can be waiting. The habit of <code>notify_all</code> is safer when more threads wait on the same condition, because <code>notify</code> might wake a thread that is not the one whose turn it is, and that thread would simply wait again. Mention this trade-off and explain that correctness comes from the while loop.</p></div>
+
+  <details class="check"><summary>Why must the producer call <code>put</code> on a bounded queue instead of checking the size and appending?</summary><div class="ans"><p>Checking the size and then appending is two steps. Another producer can add an item between them, and the queue can exceed its capacity. A blocking <code>put</code> performs the check and the insert under one lock, and it waits on a condition variable when the queue is full.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Deadlock prevention in code">
+  <h2>Deadlock prevention in code</h2>
+  <p>Day 10 explained the four conditions for deadlock. In application code the practical rule is almost always the same: break circular wait by agreeing on a global lock order. The next program shows the pattern on bank accounts, where a transfer must lock two accounts.</p>
+  <p>Suppose one thread transfers money from A to B and another transfers from B to A. If the first thread locks A and then B while the second locks B and then A, each can hold one lock and wait for the other. That is the classic deadlock. The fix is to sort the two names, so that every thread locks the account with the smaller name first, no matter which direction the money moves.</p>
+  <pre class="code" data-lang="python"><code>import threading
+
+balances = {"A": 1000, "B": 1000}
+locks = {"A": threading.Lock(), "B": threading.Lock()}
+
+def transfer(src, dst, amount):
+    # Always lock the accounts in sorted name order, whatever the direction.
+    first, second = sorted([src, dst])
+    with locks[first]:
+        with locks[second]:
+            balances[src] -= amount
+            balances[dst] += amount
+
+def worker_ab():
+    for _ in range(500):
+        transfer("A", "B", 1)
+
+def worker_ba():
+    for _ in range(500):
+        transfer("B", "A", 2)
+
+threads = [threading.Thread(target=worker_ab), threading.Thread(target=worker_ba)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+print(balances)</code></pre>
+  <pre class="output">{'A': 1500, 'B': 500}</pre>
+  <p>Both threads finish, and the totals are the same no matter how the threads interleave: A gives 1 unit 500 times and receives 2 units 500 times, so A ends at 1000 minus 500 plus 1000, which is 1500. The sum of the balances stays 2000 throughout, because each transfer subtracts and adds the same amount.</p>
+  <p>Other prevention techniques exist, and they are worth naming in an interview:</p>
+  <ul>
+    <li><strong>Try-lock with back-off.</strong> Take the first lock, then try the second without waiting (for example <code>acquire(blocking=False)</code> in Python, or <code>tryLock()</code> in Java). If it fails, release the first lock, wait a little, and retry. This breaks hold and wait. Be careful: two threads that keep backing off in lockstep can livelock, where both run forever and make no progress, so add a random delay.</li>
+    <li><strong>One coarse lock.</strong> Use a single lock for all accounts. It cannot deadlock with itself, but it removes concurrency, so it is only sensible for small or rarely contended data.</li>
+    <li><strong>Lock-free or message passing.</strong> Give each account to one thread, and send transfer requests as messages. No shared locks means no lock-order bugs.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>A lock order is only useful if it is followed everywhere. One function that takes the locks in a different order can reintroduce the deadlock. Document the order next to the locks, and review every function that takes more than one.</p></div>
+
+  <details class="check"><summary>Two threads each take lock X then lock Y. Can they deadlock?</summary><div class="ans"><p>No. Both threads acquire the locks in the same order, so neither can hold Y while waiting for X in a way that forms a cycle. The first thread to get X also gets Y before the second thread can get X, so the second thread waits without holding anything the first needs.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Thread pools and async">
+  <h2>Thread pools, futures and async</h2>
+  <p>Creating a thread for every small task is wasteful: starting a thread has a cost, and too many threads compete for memory and cache. A <strong>thread pool</strong> creates a fixed set of worker threads once, and sends tasks to them through a queue. An <strong>executor</strong> is the object that runs tasks, and a <strong>future</strong> is the handle you get back for a task that may still be running. Calling <code>result()</code> on a future waits for the answer and returns it, or raises the task's exception.</p>
+  <p>Python provides <code>concurrent.futures.ThreadPoolExecutor</code>. Its <code>map</code> method returns results in input order, even when tasks finish in a different order. Its <code>submit</code> method returns a future for each task, which is useful when tasks have different shapes.</p>
+  <pre class="code" data-lang="python"><code>from concurrent.futures import ThreadPoolExecutor
+
+def square(n):
+    return n * n
+
+with ThreadPoolExecutor(max_workers=3) as pool:
+    print(list(pool.map(square, range(1, 8))))
+
+with ThreadPoolExecutor(max_workers=2) as pool:
+    futures = [pool.submit(square, n) for n in (4, 5)]
+    print([f.result() for f in futures])</code></pre>
+  <pre class="output">[1, 4, 9, 16, 25, 36, 49]
+[16, 25]</pre>
+  <p>The <code>with</code> block waits for all submitted tasks to finish when it ends, and it shuts the pool down. That makes the example safe: no thread is left running after the block.</p>
+
+  <h3>Async tasks on one thread</h3>
+  <p><strong>Async</strong> programming, in Python with <code>asyncio</code>, runs many tasks on one thread. A task runs until it reaches an <code>await</code>, which means it is waiting for something. At that point it gives control back to the <strong>event loop</strong>, which runs another ready task. There is no preemption: a task that never awaits blocks everyone. This is <strong>cooperative multitasking</strong>.</p>
+  <pre class="code" data-lang="python"><code>import asyncio
+
+async def job(name, steps):
+    total = 0
+    for i in range(steps):
+        await asyncio.sleep(0)     # hand control back to the event loop
+        total += i
+    return f"{name} finished with {total}"
+
+async def main():
+    results = await asyncio.gather(job("A", 3), job("B", 4), job("C", 2))
+    for line in results:
+        print(line)
+
+asyncio.run(main())</code></pre>
+  <pre class="output">A finished with 3
+B finished with 6
+C finished with 1</pre>
+  <p><code>asyncio.gather</code> runs the three jobs concurrently and returns their results in the order you passed them, not the order they finished. The <code>await asyncio.sleep(0)</code> line is the only point where control switches. Real programs await network or file operations at the same points.</p>
+
+  <p>The table compares the two models on the questions that matter most in design.</p>
+  <div class="tablewrap"><table><thead><tr><th>Question</th><th>Threads</th><th>Async (event loop)</th></tr></thead><tbody>
+    <tr><td>Where do switches happen?</td><td>Anywhere the OS decides</td><td>Only at await points</td></tr>
+    <tr><td>Shared data risk</td><td>High: you need locks</td><td>Lower on one thread, but a task that never awaits blocks all others</td></tr>
+    <tr><td>Blocking library calls</td><td>Fine, another thread keeps running</td><td>Blocks everything unless wrapped in a thread</td></tr>
+    <tr><td>Scale</td><td>Thousands of threads are heavy</td><td>Tens of thousands of tasks are common</td></tr>
+    <tr><td>Best for</td><td>Mixed or blocking code, CPU work with native extensions</td><td>Many network connections with async-aware libraries</td></tr>
+  </tbody></table></div>
+  <div class="note tip"><p><span class="t">Tip</span>A useful interview answer: threads are preemptive and the OS switches them, so you must lock shared data. Async tasks switch only at await points, so they still need care, but the places where state can change are visible in the code.</p></div>
+
+  <details class="check"><summary>What happens in asyncio if one task runs a long loop with no await?</summary><div class="ans"><p>Nothing else runs on that event loop until the loop finishes or reaches an await. The event loop cannot preempt the task. This is why CPU-heavy code and blocking calls, such as a plain <code>time.sleep</code>, should be moved into a thread or process pool.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="GIL and Java">
+  <h2>The Python GIL and Java concurrency utilities</h2>
+  <h3>The Python GIL</h3>
+  <p>The <strong>Global Interpreter Lock</strong> (GIL) is a lock inside the standard CPython interpreter. Only one thread at a time executes Python bytecode. Threads switch regularly, so they still take turns, but two threads never run Python code at the same instant, even on a machine with eight cores.</p>
+  <p>The GIL has two practical consequences. First, CPU-bound Python code gets no speed-up from threads, because the threads queue for the GIL. Second, I/O-bound code benefits from threads, because a thread waiting for a network or disk operation releases the GIL, letting another thread run. For CPU work, use <code>multiprocessing</code>, which starts separate processes with separate interpreters and GILs, or push the work into a native extension that releases the GIL.</p>
+  <p>The GIL does not make your program thread safe. As the atomics section showed, <code>counter += 1</code> can still lose updates, because the thread can be switched out between bytecode steps. Python 3.13 introduced an optional, experimental build without the GIL, but the default build still has it, so do not assume it in an interview answer.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Are Python threads useless? No. They are good for I/O-bound work, such as many downloads or database calls, and they are simple to use. They are not a way to make pure Python arithmetic faster on several cores.</p></div>
+
+  <h3>Java concurrency utilities</h3>
+  <p>Java's <code>java.util.concurrent</code> package provides most of what this day covers, with stronger tools than the basic <code>synchronized</code> keyword: <code>ExecutorService</code> for thread pools, <code>Future</code> and <code>CompletableFuture</code> for results, <code>ConcurrentHashMap</code> for shared maps, <code>CountDownLatch</code> for waiting until several tasks finish, <code>Semaphore</code>, the <code>locks</code> package for <code>ReentrantLock</code> and <code>ReentrantReadWriteLock</code>, blocking queues, and the <code>atomic</code> classes. The program below uses several of them. Its output is fixed because it reads results in a known order and waits for every task.</p>
+  <pre class="code" data-lang="java"><code>import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+public class ConcurrencyDemo {
+    static int shared = 0;
+    static final ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
+
+    public static void main(String[] args) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+
+        // 1. An atomic counter: four tasks each add 1000 times.
+        AtomicInteger counter = new AtomicInteger();
+        List&lt;Future&lt;?&gt;&gt; futures = new ArrayList&lt;&gt;();
+        for (int t = 0; t &lt; 4; t++) {
+            futures.add(pool.submit(() -&gt; {
+                for (int i = 0; i &lt; 1000; i++) {
+                    counter.incrementAndGet();
+                }
+            }));
+        }
+        for (Future&lt;?&gt; f : futures) {
+            f.get();                       // wait for each task to finish
+        }
+        System.out.println("atomic counter: " + counter.get());
+
+        // 2. Callables return values, and invokeAll keeps submission order.
+        List&lt;Callable&lt;Integer&gt;&gt; jobs = new ArrayList&lt;&gt;();
+        for (int n = 1; n &lt;= 4; n++) {
+            final int k = n;
+            jobs.add(() -&gt; k * k);
+        }
+        int total = 0;
+        for (Future&lt;Integer&gt; f : pool.invokeAll(jobs)) {
+            total += f.get();
+        }
+        System.out.println("sum of squares: " + total);
+
+        // 3. Read-write lock: one writer updates, then a reader reads.
+        rw.writeLock().lock();
+        try {
+            shared = 42;
+        } finally {
+            rw.writeLock().unlock();
+        }
+        rw.readLock().lock();
+        try {
+            System.out.println("read under lock: " + shared);
+        } finally {
+            rw.readLock().unlock();
+        }
+
+        // 4. CompletableFuture chains steps without blocking the caller.
+        CompletableFuture&lt;String&gt; answer = CompletableFuture
+                .supplyAsync(() -&gt; 21, pool)
+                .thenApply(x -&gt; x * 2)
+                .thenApply(x -&gt; "answer=" + x);
+        System.out.println(answer.get());
+
+        pool.shutdown();
+    }
+}</code></pre>
+  <pre class="output">atomic counter: 4000
+sum of squares: 30
+read under lock: 42
+answer=42</pre>
+  <p>Read the program in four parts. Part 1 uses an <code>AtomicInteger</code>, so four threads can increment it without a lock, and the total is exactly 4000. Part 2 submits four callables and collects their results with <code>invokeAll</code>, which returns futures in the order the tasks were submitted, so summing them is safe. Part 3 takes the write lock to update a shared value and the read lock to read it, releasing both in <code>finally</code> blocks so an exception cannot leave a lock held. Part 4 chains three steps with <code>CompletableFuture</code>, and <code>get()</code> waits for the final result.</p>
+  <p>Notice the <code>finally</code> blocks. A lock acquired without a matching release in <code>finally</code> is a classic source of hangs. Python's <code>with</code> statement and Java's try-finally play the same role.</p>
+
+  <details class="check"><summary>Why would you pick a read-write lock over a plain lock for a configuration table that is read thousands of times a second and changed once a day?</summary><div class="ans"><p>Many readers can hold the read lock at the same time, so reads do not queue behind each other. Only the rare writer takes the exclusive write lock. A plain lock would make every reader wait for every other reader, which costs throughput for no safety benefit.</p></div></details>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before opening the answer. Good answers name the trade-off, not just the definition.</p>
+  <details class="check"><summary>What is the difference between concurrency and parallelism?</summary><div class="ans"><p>Concurrency is structuring a program so that many tasks are in progress and can interleave, even on one core. Parallelism is executing tasks at the same instant on several cores. Concurrency is about design, parallelism is about hardware use.</p></div></details>
+  <details class="check"><summary>When would you use a read-write lock, and when is it a bad idea?</summary><div class="ans"><p>Use it when reads greatly outnumber writes and the critical section is long enough that reader parallelism matters. It is a bad idea when writes are frequent or the sections are tiny, because its bookkeeping costs more than a plain lock. It can also starve writers if readers keep arriving, depending on the policy.</p></div></details>
+  <details class="check"><summary>How is a semaphore different from a lock?</summary><div class="ans"><p>A lock allows one holder and has an owner who must release it. A semaphore has a count of permits and no owner, so it can limit concurrent use to N threads, and any thread may release a permit. Use a lock for exclusive access and a semaphore for limiting.</p></div></details>
+  <details class="check"><summary>Why does a condition variable wait need a while loop?</summary><div class="ans"><p>When a thread wakes, another thread may have changed the state again, or the wake-up may have come without a notify. The loop re-checks the condition after each wake-up and waits again if it is still false.</p></div></details>
+  <details class="check"><summary>How do you prevent deadlock when two threads need the same two locks?</summary><div class="ans"><p>Always acquire the two locks in one global order, such as by sorted name or by ID. The circular wait then cannot form. Alternatively use try-lock with back-off, though that needs randomness to avoid livelock.</p></div></details>
+  <details class="check"><summary>What is a thread pool, and why is it better than creating a thread per task?</summary><div class="ans"><p>A thread pool creates a fixed set of worker threads once and reuses them for many tasks through a queue. Creating and destroying threads has a cost, and too many threads compete for memory and CPU. The pool bounds the concurrency and amortizes the setup cost.</p></div></details>
+  <details class="check"><summary>What does the Python GIL mean for CPU-bound and I/O-bound code?</summary><div class="ans"><p>Only one thread runs Python bytecode at a time in CPython, so CPU-bound threads do not run faster on more cores. I/O-bound threads still help, because a thread waiting on I/O releases the GIL. For CPU-bound work use multiprocessing.</p></div></details>
+  <details class="check"><summary>Why are async tasks not automatically safe from race conditions?</summary><div class="ans"><p>Async tasks switch only at await points, which reduces surprise, but a task can still read a value, await, and then write a stale result. Two tasks can interleave across an await, so shared state needs care too. Also, one task that never awaits blocks the whole event loop.</p></div></details>
+  <details class="check"><summary>What does an atomic operation guarantee, and when is one not enough?</summary><div class="ans"><p>It guarantees the operation completes as one indivisible step, so no thread sees it half done. One atomic is not enough when several variables must change together consistently, because each atomic protects only itself. Use a lock for multi-variable invariants.</p></div></details>
+  <details class="check"><summary>Why does <code>notify_all</code> plus a while loop make odd-even printing correct?</summary><div class="ans"><p>Each thread sleeps until the shared turn equals its own number. Every time the turn changes, all waiters are woken, and each re-checks the turn in its loop. Only the thread whose turn it is proceeds, so the order is forced.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: recursion and backtracking</h2>
+  <p><strong>Recursion</strong> is a function that calls itself on a smaller version of the problem. Every recursive function needs a <strong>base case</strong> that stops the calls, and a <strong>recursive case</strong> that makes progress toward the base case. If either is missing, the function runs forever or until the stack overflows. Python's default recursion limit is 1000 calls, so keep recursion depth modest or convert to a loop.</p>
+  <p><strong>Backtracking</strong> is recursion that builds a solution one choice at a time and undoes the last choice when a branch fails or is complete. Picture a decision tree. Each node is a partial solution, each edge is a choice, and you walk the tree depth-first. Three steps repeat at each node:</p>
+  <ol>
+    <li><strong>Choose.</strong> Add one option to the current partial solution.</li>
+    <li><strong>Explore.</strong> Recurse to extend that partial solution.</li>
+    <li><strong>Un-choose.</strong> Remove the option, so the next sibling branch starts from the same state.</li>
+  </ol>
+  <p>The un-choose step is what makes backtracking efficient. You share one mutable list across the whole search and restore it as you return, instead of copying it at every node. When you need to keep a result, copy it at that moment, for example with <code>path[:]</code>.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Backtracking is a depth-first walk of a decision tree, where each step adds a choice, recurses, and removes the choice. Pruning, which skips branches that cannot succeed, is what makes it fast.</p></div>
+
+  <h3>Memoization for repeated subproblems</h3>
+  <p>Some recursive problems solve the same subproblem many times. Memoization stores each answer the first time it is computed, and returns the stored answer later. Python's <code>functools.lru_cache</code> decorator does this for you. It is the simplest way to turn an exponential recursion into a linear one.</p>
+
+  <article class="problem" data-level="warmup" data-lc="https://leetcode.com/problems/climbing-stairs/">
+    <h3>Climbing Stairs (LeetCode 70)</h3>
+    <div class="statement"><p>You are climbing a staircase with n steps. Each time you can climb 1 step or 2 steps. Return the number of distinct ways to reach the top. For example, with n = 3 there are three ways: 1 plus 1 plus 1, 1 plus 2, and 2 plus 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> n can be large, so the answer can be large too. We count ways, not list them.</li>
+      <li><strong>Brute force.</strong> Recurse: the ways to reach step n are the ways to reach n minus 1 (take one step) plus the ways to reach n minus 2 (take two steps). This is correct, but it recomputes the same values many times, so it takes exponential time.</li>
+      <li><strong>Find the waste.</strong> The subproblems overlap heavily. Step 5 is needed by both step 6 and step 7, and so on.</li>
+      <li><strong>Optimise.</strong> Memoize the recursion with a cache, so each step is computed once. The base cases are one way for step 0 and one way for step 1, and the same formula then gives 2 for step 2.</li>
+      <li><strong>Dry run.</strong> Starting from the bottom: ways(0) = 1, ways(1) = 1, ways(2) = 1 plus 1 = 2, ways(3) = 2 plus 1 = 3, ways(4) = 3 plus 2 = 5, ways(5) = 5 plus 3 = 8. The answer for 5 is 8.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def climb(n):
+    # Ways to reach step n: the last move was 1 step or 2 steps.
+    if n &lt;= 1:
+        return 1
+    return climb(n - 1) + climb(n - 2)
+
+print(climb(5))
+print(climb(10))</code></pre>
+    <pre class="output">8
+89</pre>
+    <p class="cx">Time O(n) · Space O(n) for the cache and recursion stack</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When a count depends on smaller counts in a fixed way, write the recurrence, add base cases, and cache. This is dynamic programming in its top-down form.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/subsets/">
+    <h3>Subsets (LeetCode 78)</h3>
+    <div class="statement"><p>Given an array of distinct integers nums, return all possible subsets (the power set). The answer may be in any order and must not contain duplicate subsets. For example, nums = [1, 2, 3] gives eight subsets, from the empty set to [1, 2, 3].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A subset is any selection of elements, including the empty one. With n elements there are 2 to the power n subsets, so the output itself is exponential, and that is fine.</li>
+      <li><strong>Brute force.</strong> Loop over all 2 to the power n bit masks and build the subset each mask describes. This works, but it is harder to extend to other problems.</li>
+      <li><strong>Find the structure.</strong> Each element is either in or out. Decide element by element, and each full decision gives one subset.</li>
+      <li><strong>Optimise.</strong> Backtrack with a start index. At each node, the current path is already a valid subset, so record it. Then for each i from the start index onward, choose nums[i], recurse with start i plus 1 so that no subset is produced twice in a different order, and un-choose.</li>
+      <li><strong>Dry run for [1, 2, 3].</strong> Record [] first. Choose 1 and record [1]. Choose 2 and record [1, 2]. Choose 3 and record [1, 2, 3]. Un-choose 3, then 2, back to [1]. Choose 3 and record [1, 3]. Un-choose to []. Choose 2 and record [2], then [2, 3]. Finally choose 3 and record [3]. That is 8 subsets.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def subsets(nums):
+    result = []
+    path = []
+
+    def backtrack(start):
+        result.append(path[:])          # every partial path is a valid subset
+        for i in range(start, len(nums)):
+            path.append(nums[i])        # choose nums[i]
+            backtrack(i + 1)            # explore with it included
+            path.pop()                  # un-choose it
+
+    backtrack(0)
+    return result
+
+print(subsets([1, 2, 3]))</code></pre>
+    <pre class="output">[[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]</pre>
+    <p class="cx">Time O(n times 2 to the power n) · Space O(n) for the recursion, plus the output</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For every combination or subset problem, use a start index so each element is considered only once, forward from where you are. This avoids duplicates such as [1, 2] and [2, 1].</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/combination-sum/">
+    <h3>Combination Sum (LeetCode 39)</h3>
+    <div class="statement"><p>Given an array of distinct positive integers candidates and a target integer, return all unique combinations of candidates that sum to the target. The same number may be chosen any number of times. For example, candidates = [2, 3, 6, 7] and target = 7 give [2, 2, 3] and [7].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Order inside a combination does not matter, so [2, 2, 3] and [3, 2, 2] count once. Reuse of the same number is allowed, which changes the recursion: we stay at the same index after choosing.</li>
+      <li><strong>Brute force.</strong> Generate every multiset of candidates up to the target and filter by sum. The search space is huge without pruning.</li>
+      <li><strong>Find the waste.</strong> Once the remaining amount is negative, the branch is hopeless. Sorting the candidates lets us stop a loop early: if one candidate is too big, every larger one is too big too.</li>
+      <li><strong>Optimise.</strong> Sort the candidates. Backtrack with a start index and the remaining amount. Record the path when the remainder is zero. For each candidate from the start index on, stop the loop when the candidate exceeds the remainder. Recurse with the same index, because reuse is allowed.</li>
+      <li><strong>Dry run for target 7.</strong> Sorted candidates are [2, 3, 6, 7]. Choose 2 (remaining 5), choose 2 again (remaining 3), choose 2 again (remaining 1). Now every candidate is bigger than 1, so this branch ends. Back at remaining 3, the next candidate 3 fits exactly and leaves remaining 0, so [2, 2, 3] is recorded. The branch starting with 6 leaves remaining 1, which no candidate can fill, so it ends. The branch starting with 7 gives [7] at once.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def combination_sum(candidates, target):
+    candidates = sorted(candidates)
+    result = []
+    path = []
+
+    def backtrack(start, remaining):
+        if remaining == 0:
+            result.append(path[:])
+            return
+        for i in range(start, len(candidates)):
+            if candidates[i] &gt; remaining:    # sorted, so no later value fits either
+                break
+            path.append(candidates[i])
+            backtrack(i, remaining - candidates[i])    # same index: reuse is allowed
+            path.pop()
+
+    backtrack(0, target)
+    return result
+
+print(combination_sum([2, 3, 6, 7], 7))
+print(combination_sum([2, 3, 5], 8))</code></pre>
+    <pre class="output">[[2, 2, 3], [7]]
+[[2, 2, 2, 2], [2, 3, 3], [3, 5]]</pre>
+    <p class="cx">Time grows exponentially with the target divided by the smallest candidate · Space O(target / smallest candidate) for the recursion</p>
+    <div class="note trap"><p><span class="t">Trap</span>Passing <code>i + 1</code> instead of <code>i</code> is the most common bug here. That version forbids reuse, so it solves a different problem (Combination Sum II). Read the statement for the word "any number of times".</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/expression-add-operators/">
+    <h3>Expression Add Operators (LeetCode 282)</h3>
+    <div class="statement"><p>Given a string num of digits and an integer target, insert the binary operators plus, minus, or multiply between the digits, and return every expression that evaluates to target. Numbers cannot have leading zeros, so "05" is not allowed, though "0" alone is. For example, num = "123" and target = 6 give "1+2+3" and "1*2*3". Multiplication binds tighter than addition, so "2+3*2" is 8, not 10.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> Between each pair of digits there are three choices (plus, minus, multiply) or none, so the search space grows very fast. The hard part is precedence: multiplication must be applied before addition, which a left-to-right evaluator would get wrong.</li>
+      <li><strong>Brute force.</strong> Try every way to split the digits into numbers and every operator between them, then evaluate each expression with proper precedence. That is correct but slow, and evaluation is awkward.</li>
+      <li><strong>Find the waste.</strong> We can evaluate while building the expression, so we never need to parse it again. The only problem is precedence, and it has a neat fix. Keep the value so far and the last operand. When we see multiplication, undo the last operand's addition and add the product instead.</li>
+      <li><strong>Optimise.</strong> Backtrack over split points. For the first number, start the value at that number. For each later number, try three operators. Plus adds the operand. Minus subtracts it, and remembers the operand as negative so that a later multiplication can undo it. Multiply replaces the last operand's contribution, computed as value minus last plus last times operand. Stop extending a token when it has a leading zero.</li>
+      <li><strong>Dry run for "105" with target 5.</strong> Start with token "1", value 1, last 1. Next token "0": plus gives value 1, last 0, while multiply gives value 1 minus 1 plus 0 equals 0, last 0. Then token "5" from "1*0" gives 0 plus 5 = 5, which matches, so "1*0+5" is recorded. Starting from the single token 10 gives value 10, and then minus 5 gives 5, which is recorded as "10-5".</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def add_operators(num, target):
+    result = []
+
+    def backtrack(index, expr, value, last):
+        # value: the result of the expression so far
+        # last: the most recent operand, so that * can undo its addition
+        if index == len(num):
+            if value == target:
+                result.append(expr)
+            return
+        for end in range(index + 1, len(num) + 1):
+            token = num[index:end]
+            if len(token) &gt; 1 and token[0] == "0":     # no leading zeros allowed
+                break
+            operand = int(token)
+            if index == 0:
+                backtrack(end, token, operand, operand)
+            else:
+                backtrack(end, expr + "+" + token, value + operand, operand)
+                backtrack(end, expr + "-" + token, value - operand, -operand)
+                backtrack(end, expr + "*" + token,
+                          value - last + last * operand, last * operand)
+
+    backtrack(0, "", 0, 0)
+    return result
+
+print(add_operators("123", 6))
+print(add_operators("232", 8))
+print(add_operators("105", 5))</code></pre>
+    <pre class="output">['1+2+3', '1*2*3']
+['2+3*2', '2*3+2']
+['1*0+5', '10-5']</pre>
+    <p class="cx">Time O(4 to the power n) in the worst case, with extra work per expression · Space O(n) for the recursion</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When an expression must respect operator precedence while you build it left to right, keep the running value and the last operand. Multiplication can then correct the previous addition in constant time, and no parsing is needed.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Use this as a quick reference. Each line should be something you can say in one breath.</p>
+  <dl>
+    <div><dt>Concurrency</dt><dd>Structuring a program around tasks that are in progress together and may interleave.</dd></div>
+    <div><dt>Parallelism</dt><dd>Running tasks at the same instant on several processing units.</dd></div>
+    <div><dt>I/O-bound</dt><dd>Work that spends most of its time waiting for disks, networks or users.</dd></div>
+    <div><dt>CPU-bound</dt><dd>Work that spends most of its time computing.</dd></div>
+    <div><dt>Lock</dt><dd>A mutual exclusion primitive that lets one thread at a time into a critical section.</dd></div>
+    <div><dt>Reentrant lock</dt><dd>A lock that the owning thread may acquire again without deadlocking itself.</dd></div>
+    <div><dt>Read-write lock</dt><dd>A lock that allows many readers or one writer at a time.</dd></div>
+    <div><dt>Semaphore</dt><dd>A permit counter that limits how many threads may use a resource at once.</dd></div>
+    <div><dt>Bounded semaphore</dt><dd>A semaphore that refuses a release beyond its initial count.</dd></div>
+    <div><dt>Atomic operation</dt><dd>An operation that completes as one indivisible step.</dd></div>
+    <div><dt>Compare-and-swap</dt><dd>An atomic instruction that writes a new value only if the current value matches the expected one.</dd></div>
+    <div><dt>Condition variable</dt><dd>A wait queue that lets a thread sleep until another thread signals that a condition may have changed.</dd></div>
+    <div><dt>Blocking queue</dt><dd>A thread-safe queue whose put waits when full and whose get waits when empty.</dd></div>
+    <div><dt>Backpressure</dt><dd>Slowing producers down when a bounded queue is full, so consumers can catch up.</dd></div>
+    <div><dt>Sentinel</dt><dd>A special value that tells a consumer to stop.</dd></div>
+    <div><dt>Lock ordering</dt><dd>Acquiring several locks in one agreed global order, which prevents circular wait.</dd></div>
+    <div><dt>Livelock</dt><dd>Threads keep changing state in response to each other and make no progress.</dd></div>
+    <div><dt>Thread pool</dt><dd>A fixed set of worker threads that run tasks taken from a queue.</dd></div>
+    <div><dt>Future</dt><dd>A handle to a result that will be available later.</dd></div>
+    <div><dt>Async task</dt><dd>A coroutine that runs on an event loop and yields control at each await.</dd></div>
+    <div><dt>Event loop</dt><dd>The scheduler that runs ready async tasks on one thread.</dd></div>
+    <div><dt>Cooperative multitasking</dt><dd>Tasks switch only when they voluntarily yield, such as at an await.</dd></div>
+    <div><dt>GIL</dt><dd>The lock in CPython that lets only one thread run Python bytecode at a time.</dd></div>
+    <div><dt>Recursion</dt><dd>A function that calls itself on a smaller problem, with a base case that stops it.</dd></div>
+    <div><dt>Backtracking</dt><dd>A depth-first search that adds a choice, recurses, and removes the choice.</dd></div>
+    <div><dt>Pruning</dt><dd>Skipping branches of the search tree that cannot lead to a valid answer.</dd></div>
+    <div><dt>Memoization</dt><dd>Caching the result of a subproblem so it is computed only once.</dd></div>
+  </dl>
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td><code>threading.Thread(target=f)</code></td><td>Creates a thread that runs f</td><td><code>t = threading.Thread(target=f)</code></td></tr>
+      <tr><td><code>threading.Condition()</code></td><td>A lock with a condition variable</td><td><code>cond = threading.Condition()</code></td></tr>
+      <tr><td><code>threading.BoundedSemaphore(n)</code></td><td>A semaphore that refuses extra releases</td><td><code>sem = threading.BoundedSemaphore(1)</code></td></tr>
+      <tr><td><code>queue.Queue(maxsize)</code></td><td>A thread-safe blocking queue</td><td><code>q = queue.Queue(maxsize=2)</code></td></tr>
+      <tr><td><code>concurrent.futures.ThreadPoolExecutor</code></td><td>A thread pool that runs tasks</td><td><code>with ThreadPoolExecutor(3) as pool:</code></td></tr>
+      <tr><td><code>pool.map(f, items)</code></td><td>Runs f over items, returns results in input order</td><td><code>list(pool.map(square, [1, 2]))</code></td></tr>
+      <tr><td><code>pool.submit(f, x)</code></td><td>Schedules one task and returns a future</td><td><code>fut = pool.submit(square, 4)</code></td></tr>
+      <tr><td><code>future.result()</code></td><td>Waits for and returns the task result</td><td><code>fut.result()</code></td></tr>
+      <tr><td><code>asyncio.run(coro)</code></td><td>Runs a coroutine on a new event loop</td><td><code>asyncio.run(main())</code></td></tr>
+      <tr><td><code>asyncio.gather(*aws)</code></td><td>Runs awaitables concurrently, returns results in argument order</td><td><code>await asyncio.gather(a(), b())</code></td></tr>
+      <tr><td><code>functools.lru_cache</code></td><td>Memoizes a function</td><td><code>@lru_cache(maxsize=None)</code></td></tr>
+      <tr><td><code>AtomicInteger.incrementAndGet()</code> (Java)</td><td>Atomically adds 1 and returns the new value</td><td><code>counter.incrementAndGet()</code></td></tr>
+      <tr><td><code>ReentrantReadWriteLock</code> (Java)</td><td>A read-write lock with readLock() and writeLock()</td><td><code>rw.readLock().lock()</code></td></tr>
+      <tr><td><code>Executors.newFixedThreadPool(n)</code> (Java)</td><td>A pool with n threads</td><td><code>ExecutorService pool = Executors.newFixedThreadPool(4);</code></td></tr>
+      <tr><td><code>CompletableFuture.supplyAsync(f, pool)</code> (Java)</td><td>Runs f asynchronously and returns a future</td><td><code>CompletableFuture.supplyAsync(() -&gt; 21, pool)</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 11?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 11 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-10.html"><small>Previous, day 10</small>OS 2: Synchronization and deadlocks</a><a class="next" href="day-12.html"><small>Next, day 12</small>OS 3: Memory, virtual memory, storage, Linux</a></nav>
+</main><script src="assets/app.js"></script></body></html>

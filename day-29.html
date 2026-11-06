@@ -1,0 +1,694 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Day 29: Distributed systems</title><meta name="description" content="Distributed systems are what you build when one machine is not enough, and they fail in ways a single machine never does. Today covers failure models and the fallacies behind many bugs, logical clocks, replication and quorums, consistency models and CAP, Raft consensus, partitioning, sagas and two-phase commit, Kafka delivery semantics, resilience patterns, the key ideas of Dynamo, Spanner and GFS, and distributed ML training."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="29" data-key="29" data-noun="day" data-num="29" data-track="systems">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Distributed systems</h1>
+<p class="lede">Distributed systems are what you build when one machine is not enough, and they fail in ways a single machine never does. Today covers failure models and the fallacies behind many bugs, logical clocks, replication and quorums, consistency models and CAP, Raft consensus, partitioning, sagas and two-phase commit, Kafka delivery semantics, resilience patterns, the key ideas of Dynamo, Spanner and GFS, and distributed ML training.</p>
+<div class="station"><b>29</b><span>Mon 30 Nov 2026 · Systems · DSA: Advanced backtracking</span></div>
+<ul class="topics"><li>Failures and clocks</li><li>Replication and quorums</li><li>Consistency and CAP</li><li>Raft and partitioning</li><li>Sagas, 2PC and Kafka</li><li>Retries and circuit breakers</li><li>Dynamo, Spanner, GFS</li><li>Distributed ML training</li></ul>
+</header>
+
+
+<section class="unit" id="c1" data-title="Failures and clocks">
+  <h2>Failures, time and the fallacies</h2>
+  <p>A <strong>distributed system</strong> is a set of computers that cooperate by passing messages over a network. Each computer has its own memory and its own clock, and none of them can see another's state directly. This single fact causes most of the difficulty. A function call on one machine either returns or throws. A message to another machine can be delayed, lost, duplicated or reordered, and the sender often cannot tell which of these happened.</p>
+
+  <h3>The eight fallacies of distributed computing</h3>
+  <p>In the 1990s, engineers at Sun Microsystems (notably L. Peter Deutsch) listed assumptions that programmers make by habit and that are false on a network. Each one has caused real outages:</p>
+  <ol>
+    <li><strong>The network is reliable.</strong> Packets are dropped, connections reset, and switches fail. Every remote call needs a timeout and a plan for failure.</li>
+    <li><strong>Latency is zero.</strong> A call across a data centre takes milliseconds, not nanoseconds. Chatty protocols that make many small calls become slow.</li>
+    <li><strong>Bandwidth is infinite.</strong> Large payloads and replication traffic compete for links and can saturate them.</li>
+    <li><strong>The network is secure.</strong> Traffic can be read or altered in transit, so use encryption and authentication.</li>
+    <li><strong>Topology does not change.</strong> Machines are added, removed and moved. Addresses change, so code should find services by name.</li>
+    <li><strong>There is one administrator.</strong> Different teams and providers own different parts, with different rules.</li>
+    <li><strong>Transport cost is zero.</strong> Serialising and deserialising data costs CPU time and money.</li>
+    <li><strong>The network is homogeneous.</strong> Machines run different hardware, versions and languages.</li>
+  </ol>
+
+  <h3>Failure models</h3>
+  <p>A <strong>failure model</strong> is a precise statement of what a faulty component may do. Designing against a clear model is the first step in any distributed design.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Model</th><th>What the faulty node does</th><th>Typical design response</th></tr></thead>
+    <tbody>
+      <tr><td>Crash-stop</td><td>Stops and never comes back</td><td>Detect with timeouts, replace or fail over</td></tr>
+      <tr><td>Crash-recovery</td><td>Stops, then restarts, possibly with old state on disk</td><td>Write to a durable log before acknowledging</td></tr>
+      <tr><td>Omission</td><td>Some messages are lost or never sent</td><td>Retries, acknowledgements, idempotent operations</td></tr>
+      <tr><td>Timing (performance)</td><td>Responds, but too late</td><td>Timeouts, load shedding, hedged requests</td></tr>
+      <tr><td>Byzantine</td><td>Behaves arbitrarily, even maliciously</td><td>More replicas and signed messages (costly, rare inside one data centre)</td></tr>
+    </tbody>
+  </table></div>
+  <p>Most production designs assume crash-recovery plus omission and timing faults. Byzantine tolerance appears in some blockchains and safety-critical systems, and it costs more replicas and more messages.</p>
+  <p>The hardest problem is <strong>partial failure</strong>. When A sends a request to B and no reply arrives, A cannot know whether B never got the request, B crashed before answering, or the reply was lost. A timeout tells A only that something is slow or broken. The safe response is to retry only operations that can be repeated safely. An operation is <strong>idempotent</strong> when doing it twice has the same effect as doing it once.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>In a distributed system, silence is ambiguous. A timeout means "I do not know", not "it failed". Design every remote call so that an unknown outcome is safe.</p></div>
+
+  <h3>Why physical clocks are not enough</h3>
+  <p>Each machine has a quartz clock that drifts. Two clocks can disagree by milliseconds or more, and a clock can jump backwards when it is corrected. Network Time Protocol (NTP) keeps clocks close, but it cannot make them identical. So you cannot order events from two machines by comparing their wall-clock timestamps and trust the result.</p>
+  <p>Leslie Lamport's 1978 paper introduced <strong>logical clocks</strong>. Instead of real time, they track causality, the "happened before" relation. Event a happened before event b when a could have influenced b: an earlier event on the same machine, a message sent by a and received by b, or a chain of such steps. If neither happened before the other, the events are <strong>concurrent</strong>.</p>
+
+  <h3>Lamport clocks</h3>
+  <p>Each process keeps a counter L. The rules are:</p>
+  <ol>
+    <li>Before each local event or send, increase L by 1. Attach the new L to any message you send.</li>
+    <li>When a message with timestamp t arrives, set L to the larger of the local L and t, then add 1 for the receive event.</li>
+  </ol>
+  <p>Lamport clocks guarantee one direction: if a happened before b, then L(a) is less than L(b). The reverse is not true. Two events with L(a) less than L(b) may be unrelated, so a Lamport clock cannot tell you whether two events were concurrent. Ties are broken by process ID to produce a total order that every process agrees on.</p>
+
+  <h3>Vector clocks</h3>
+  <p>A <strong>vector clock</strong> keeps one counter per process. Process i increments its own entry on every local event or send. On a receive, it takes the element-wise maximum with the sender's vector and then increments its own entry. Vector A is less than or equal to vector B when every entry of A is at most the matching entry of B. Then:</p>
+  <ul>
+    <li>If A is less than or equal to B and A is not equal to B, the event with vector A happened before the event with vector B.</li>
+    <li>If neither vector is less than or equal to the other, the events are concurrent. Neither could have influenced the other.</li>
+  </ul>
+  <p>Vector clocks detect concurrency, which Lamport clocks cannot. Dynamo uses versions like these to spot conflicting writes. The cost is one entry per process, so the vector grows with the number of writers.</p>
+
+  <h3>Worked example: three processes</h3>
+  <p>Three processes, P0, P1 and P2, exchange two messages. The code below simulates the trace and prints both clocks at every event. Then it asks which pairs of events are concurrent.</p>
+  <pre class="code" data-lang="python"><code>class Process:
+    def __init__(self, pid, n):
+        self.pid = pid
+        self.lamport = 0
+        self.vector = [0] * n
+
+    def local_event(self, name):
+        self.lamport += 1
+        self.vector[self.pid] += 1
+        print(f"{name}: P{self.pid} lamport={self.lamport} vector={self.vector}")
+        return list(self.vector)
+
+    def send(self, name):
+        self.lamport += 1
+        self.vector[self.pid] += 1
+        print(f"{name}: P{self.pid} sends lamport={self.lamport} vector={self.vector}")
+        return (self.lamport, list(self.vector))
+
+    def receive(self, name, msg):
+        msg_lamport, msg_vector = msg
+        self.lamport = max(self.lamport, msg_lamport) + 1
+        self.vector = [max(a, b) for a, b in zip(self.vector, msg_vector)]
+        self.vector[self.pid] += 1
+        print(f"{name}: P{self.pid} receives lamport={self.lamport} vector={self.vector}")
+        return list(self.vector)
+
+def happened_before(a, b):
+    return all(x &lt;= y for x, y in zip(a, b)) and a != b
+
+def relation(a, b):
+    if happened_before(a, b):
+        return "a happened before b"
+    if happened_before(b, a):
+        return "b happened before a"
+    return "concurrent"
+
+p0, p1, p2 = Process(0, 3), Process(1, 3), Process(2, 3)
+e1 = p0.local_event("e1")
+m1 = p0.send("e2")
+e3 = p1.local_event("e3")
+e4 = p1.receive("e4", m1)
+e5 = p2.local_event("e5")
+m2 = p1.send("e6")
+e7 = p2.receive("e7", m2)
+
+print("e1 vs e5:", relation(e1, e5))
+print("e1 vs e7:", relation(e1, e7))
+print("e4 vs e5:", relation(e4, e5))</code></pre>
+  <pre class="output">e1: P0 lamport=1 vector=[1, 0, 0]
+e2: P0 sends lamport=2 vector=[2, 0, 0]
+e3: P1 lamport=1 vector=[0, 1, 0]
+e4: P1 receives lamport=3 vector=[2, 2, 0]
+e5: P2 lamport=1 vector=[0, 0, 1]
+e6: P1 sends lamport=4 vector=[2, 3, 0]
+e7: P2 receives lamport=5 vector=[2, 3, 2]
+e1 vs e5: concurrent
+e1 vs e7: a happened before b
+e4 vs e5: concurrent</pre>
+  <p>Read the trace closely. Event e5 has Lamport value 1 and event e4 has value 3, so the Lamport numbers suggest e5 came first. The vectors show that e4 and e5 are concurrent: neither depends on the other. Event e1 happened before e7 because e1's vector is less than or equal to e7's vector in every entry. In an interview, say it this way: Lamport clocks order events consistently with causality, and vector clocks tell you when two events are concurrent.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not use Lamport numbers to decide that one event really happened first across machines. Concurrent events can have any order of Lamport values. Use vector clocks, or a consensus log, when the order matters.</p></div>
+</section>
+
+<section class="unit" id="c2" data-title="Replication">
+  <h2>Replication: copies that must agree</h2>
+  <p><strong>Replication</strong> keeps copies of the same data on several machines. It buys availability (the data survives a machine loss), lower latency (reads can come from a copy near the user), and throughput (reads spread over copies). The difficulty is that copies can disagree, and the design decides how often, and for how long.</p>
+
+  <h3>Single leader (primary and followers)</h3>
+  <p>In the most common design, one replica is the <strong>leader</strong>. All writes go to the leader, which appends them to a replication log. The <strong>followers</strong> receive the same log and apply the changes in the same order. Reads can go to followers, which may be a little behind.</p>
+  <ul>
+    <li><strong>Synchronous replication</strong>: the leader waits for a follower to confirm before it acknowledges the write. Nothing confirmed is lost if the leader crashes, but one slow follower slows every write.</li>
+    <li><strong>Asynchronous replication</strong>: the leader acknowledges immediately. Writes are fast, but if the leader crashes, the most recent writes that had not reached a follower are lost.</li>
+    <li><strong>Semi-synchronous</strong>: one follower is synchronous and the rest are asynchronous. This is a common compromise.</li>
+  </ul>
+  <p>Replication lag causes visible anomalies. Suppose a user saves a profile change and then reloads the page from a follower that is two seconds behind. The user sees the old profile, which looks like the save failed. The usual fix is <strong>read-your-writes</strong> consistency: after a user writes, read that user's data from the leader for a short while, or read only from replicas that have applied at least the user's last write.</p>
+  <p><strong>Failover</strong> replaces a failed leader in three steps: detect the failure (usually with timeouts), choose a new leader (usually the most up-to-date follower), and reconfigure clients and followers. Failover is dangerous. If the old leader was only slow and comes back, two nodes may both think they are leader. That is <strong>split brain</strong>. Writes accepted by the old leader and never replicated can be lost. A common defence is a <strong>fencing token</strong>: each new leader gets a higher number, and the storage rejects any request that carries an older number.</p>
+
+  <h3>Multi-leader replication</h3>
+  <p>Several leaders accept writes, often one per region, so users write to the nearest one. This helps with multi-region writes and offline clients, but concurrent writes to the same record now conflict. Common resolutions are:</p>
+  <ul>
+    <li><strong>Last write wins (LWW)</strong>: keep the value with the highest timestamp. Simple, but it silently discards the other write, and clock skew can pick the wrong one.</li>
+    <li><strong>Application merge</strong>: keep both values and let the application or the user resolve them, as in a shopping cart that keeps items from both sides.</li>
+    <li><strong>CRDTs</strong> (conflict-free replicated data types): data structures such as counters and sets that merge automatically and give the same result on every replica.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>LWW is not safe for data you cannot lose. A higher timestamp only means a later clock reading, not a later decision.</p></div>
+
+  <h3>Leaderless replication and quorums</h3>
+  <p>Dynamo-style systems have no leader. A client, or a coordinator node, sends each write to N replicas. The write succeeds when W replicas acknowledge it. A read asks R replicas and returns the newest value among the replies. The <strong>quorum rule</strong> says that if W + R is greater than N, every read set must overlap every successful write set in at least one replica. So at least one replica in every read has the latest successful write.</p>
+  <p>Example: N = 3, W = 2, R = 2. Two plus two is four, which is greater than three, so reads always overlap writes. If one replica is down, writes and reads still succeed, because two of the three replicas remain. The next program checks the overlap rule by brute force for several choices of N, W and R.</p>
+  <pre class="code" data-lang="python"><code>from itertools import combinations
+
+def quorums_always_overlap(n, w, r):
+    replicas = range(n)
+    for write_set in combinations(replicas, w):
+        for read_set in combinations(replicas, r):
+            if set(write_set).isdisjoint(read_set):
+                return False
+    return True
+
+for n, w, r in [(3, 2, 2), (3, 1, 1), (5, 3, 3), (5, 2, 3)]:
+    print(f"N={n} W={w} R={r} read and write quorums always overlap: {quorums_always_overlap(n, w, r)}")</code></pre>
+  <pre class="output">N=3 W=2 R=2 read and write quorums always overlap: True
+N=3 W=1 R=1 read and write quorums always overlap: False
+N=5 W=3 R=3 read and write quorums always overlap: True
+N=5 W=2 R=3 read and write quorums always overlap: False</pre>
+  <p>The first and third lines are True because W + R is larger than N. The second and fourth lines are False because a read set can miss the one replica that took the write. Quorums are a strong tool, but they are not a full guarantee. Sloppy quorums (below), concurrent writes and failed writes all weaken the picture, so Dynamo-style systems pair quorums with version tracking and repair.</p>
+  <p>Three repair mechanisms keep leaderless systems converging. <strong>Read repair</strong> writes the newest value back to a stale replica when a read notices the difference. <strong>Hinted handoff</strong> stores a write meant for a down replica on a healthy node, which forwards it later. <strong>Anti-entropy</strong> runs in the background and compares replicas, often with Merkle trees (hash trees), to fix whatever the other two missed. A <strong>sloppy quorum</strong> accepts writes on any healthy nodes, which improves availability but means a read may miss the latest value.</p>
+</section>
+
+<section class="unit" id="c3" data-title="Consistency and CAP">
+  <h2>Consistency models and the CAP theorem</h2>
+  <p>A <strong>consistency model</strong> is a contract about what clients may observe when data is replicated. Stronger models are easier to reason about but cost latency and availability. Weaker models are faster but leave more surprises for the application.</p>
+
+  <h3>The models you must know</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Model</th><th>Guarantee in plain words</th><th>Example that breaks it</th></tr></thead>
+    <tbody>
+      <tr><td>Linearizable</td><td>Each operation takes effect at one instant between its start and its end, and those instants follow real time. Behaves like one copy.</td><td>After a write returns, every later read anywhere sees it</td></tr>
+      <tr><td>Sequential</td><td>All clients see one global order that respects each client's own order, but not real time</td><td>Client A writes, then tells B out of band; B may still read the old value</td></tr>
+      <tr><td>Causal</td><td>Operations that depend on each other are seen in that order by everyone</td><td>A reply appears before the question it answers</td></tr>
+      <tr><td>Read-your-writes</td><td>A client always sees its own earlier writes</td><td>Profile edit disappears after reload</td></tr>
+      <tr><td>Monotonic reads</td><td>Once a client sees a value, it never sees an older one</td><td>A comment count goes from 12 to 10 on refresh</td></tr>
+      <tr><td>Eventual</td><td>If writes stop, all replicas eventually agree</td><td>A like count is briefly different across regions</td></tr>
+    </tbody>
+  </table></div>
+  <p>Strict serializability, which combines serializable transactions with real-time order, is the strongest model used for multi-row transactions. The term "consistency" in ACID (day 17) means that a transaction keeps the database valid. The term in CAP and in linearizability means something narrower: all replicas behave like one copy.</p>
+
+  <h3>The CAP theorem</h3>
+  <p>Eric Brewer proposed the CAP conjecture in 2000, and Gilbert and Lynch proved a version of it in 2002. A <strong>network partition</strong> is a break that splits the nodes into groups that cannot reach each other. During a partition, a system must choose between two options:</p>
+  <ul>
+    <li><strong>Consistency (C)</strong>: every response reflects the latest write, or the system refuses to answer. Refusing is the price.</li>
+    <li><strong>Availability (A)</strong>: every non-failing node answers, possibly with stale data.</li>
+  </ul>
+  <p>The common phrase "pick two of three" is misleading. Partitions happen on real networks, so you cannot opt out of partition tolerance. The real choice is what to do while a partition lasts. When the network is healthy, a well-built system can offer both. The CAP "consistency" is linearizability, so the choice is between linearizable answers and available answers.</p>
+  <p><strong>PACELC</strong> extends CAP to normal operation. If there is a partition (P), choose availability (A) or consistency (C). Else (E), when the network is healthy, choose latency (L) or consistency (C). A system that replicates synchronously across regions gets consistency but pays latency on every write. A system that replies from the nearest replica gets low latency but accepts staleness. Systems are often classified this way, for example as available during partitions and low latency normally, though real products sit on a spectrum.</p>
+  <p>A bank transfer needs strong consistency because two accounts must agree on the balance. A count of video views can tolerate eventual consistency, because a few seconds of staleness hurts nobody. Name the business requirement first, then pick the model.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Is CAP a choice you make once? No. Explain that the choice depends on the operation. The same system can use strong consistency for payments and eventual consistency for a timeline.</p></div>
+</section>
+
+<section class="unit" id="c4" data-title="Consensus and partitioning">
+  <h2>Consensus, Raft and partitioning</h2>
+  <p>Many distributed problems reduce to one question: how do several nodes agree on a single value, such as the current leader or the next entry in a log, when some nodes crash and messages are lost? This is the <strong>consensus</strong> problem. A correct algorithm must guarantee agreement (no two nodes decide differently), validity (the decided value was proposed by someone), and termination (decisions eventually happen while a majority is working).</p>
+  <p>Majorities are the key tool. With 2f + 1 nodes, any two majorities share at least one node, so the decision is never split. The cluster keeps working while at most f nodes have failed. Five nodes tolerate two failures. Paxos (Lamport) and Raft (Ongaro and Ousterhout, 2014) are the two best-known consensus algorithms. Raft was designed to be easier to understand, and it powers systems such as etcd and Consul.</p>
+
+  <h3>Raft step by step</h3>
+  <p>Every Raft node is in one of three roles: <strong>follower</strong>, <strong>candidate</strong> or <strong>leader</strong>. Time is divided into numbered <strong>terms</strong>. Each term has at most one leader.</p>
+  <ol>
+    <li><strong>Heartbeats.</strong> The leader sends periodic heartbeat messages. Followers reset their timers when they hear from the leader.</li>
+    <li><strong>Election.</strong> A follower whose election timeout expires without a heartbeat becomes a candidate. It increases its term, votes for itself, and sends RequestVote to the others. Each server votes for at most one candidate per term. A candidate that gets votes from a majority becomes leader.</li>
+    <li><strong>Randomised timeouts.</strong> Each node picks its election timeout at random from a range. This makes two candidates starting together unlikely. If a split vote still happens, no one wins, the timeouts expire again, and a new election starts.</li>
+    <li><strong>Log replication.</strong> The leader appends each client command to its log and sends AppendEntries to the followers. When a majority of nodes have stored an entry, the leader commits it and applies it to the state machine. Followers learn about commits from later messages.</li>
+    <li><strong>Election restriction.</strong> A voter refuses a candidate whose log is less up to date than its own. So any leader holds every committed entry, and committed data survives a leader change.</li>
+  </ol>
+  <p>Take a five-node cluster. A majority is three. If two nodes crash, the remaining three elect a leader and keep serving writes. If three crash, the two survivors cannot form a majority, so they stop accepting writes rather than risk two different histories. This is the consistency-first choice in CAP terms.</p>
+  <div class="note tip"><p><span class="t">Tip</span>When asked how Raft avoids split brain, answer with the term and the majority rule: a node can be leader only for its term, and only with a majority of votes, so two leaders in the same term are impossible.</p></div>
+
+  <h3>Partitioning (sharding)</h3>
+  <p>A single node cannot hold or serve all the data, so it is split into <strong>partitions</strong> (also called shards). Each partition lives on one node or replica group. Three strategies are common:</p>
+  <ul>
+    <li><strong>Key-range partitioning</strong>: keys are sorted and split into ranges, such as A to F, G to M and so on. Range scans are efficient, but a popular range becomes a hot spot.</li>
+    <li><strong>Hash partitioning</strong>: the key is hashed and the hash decides the partition. Load spreads evenly, but range scans must query every partition.</li>
+    <li><strong>Consistent hashing</strong>: hash both keys and nodes onto a ring, so adding or removing a node moves only the keys next to it (covered on days 20 and 27).</li>
+  </ul>
+  <p><strong>Secondary indexes</strong> complicate partitioning. A <strong>local index</strong> lives inside each partition, so writes are cheap but a lookup by value must query every partition. A <strong>global index</strong> is itself partitioned by the indexed value, so lookups go to one partition, but each write may update several index partitions. A <strong>hot key</strong> (one celebrity account, one viral product) can overload a single partition no matter how the rest is spread. Mitigations include caching the hot key, splitting it into sub-keys with a random suffix and merging on read, or giving it a dedicated partition.</p>
+  <p><strong>Rebalancing</strong> moves partitions when nodes join or leave. Some systems fix the number of partitions up front and move whole partitions between nodes (Kafka works this way). Others split a partition when it grows too large.</p>
+</section>
+
+<section class="unit" id="c5" data-title="Transactions and messaging">
+  <h2>Transactions across services, and messaging</h2>
+  <p>On one database, a transaction is easy: all its changes commit together or none do. Across several services, each with its own database, there is no single transaction. Two patterns solve this, with very different trade-offs.</p>
+
+  <h3>Two-phase commit (2PC)</h3>
+  <p>In <strong>two-phase commit</strong>, a coordinator asks several participants to commit one shared change, and all of them must agree.</p>
+  <ol>
+    <li><strong>Prepare phase.</strong> The coordinator asks each participant to prepare. Each participant writes a prepare record to its log, locks the rows it needs, and votes yes if it can commit, or no if not.</li>
+    <li><strong>Commit phase.</strong> If every vote is yes, the coordinator logs a commit decision and tells everyone to commit. If any vote is no, or a participant times out, the coordinator tells everyone to abort.</li>
+  </ol>
+  <p>2PC gives atomicity across participants. Its weakness is <strong>blocking</strong>. If the coordinator crashes after participants have voted yes, those participants cannot decide alone. They must hold their locks until the coordinator recovers. Databases use 2PC internally, and Spanner runs it across Paxos groups (below). Across independent microservices it is usually avoided, because a stuck lock blocks unrelated work.</p>
+
+  <h3>Sagas</h3>
+  <p>A <strong>saga</strong> breaks a business transaction into local transactions T1 to Tn, each committed by one service. Each step T(k) has a <strong>compensating action</strong> C(k) that undoes its business effect. If step Tk fails, the saga runs the compensations for the completed steps in reverse order: C(k-1), then C(k-2), and so on down to C1.</p>
+  <p>A compensation is a semantic undo, not a rollback. A refund is not the same as a payment that never happened, because the customer may have seen the charge. Between the steps, other users can see intermediate states. Compensations must be idempotent and retried until they succeed, because they are also remote calls. Sagas come in two styles. In <strong>orchestration</strong>, a central coordinator tells each service what to do next. In <strong>choreography</strong>, each service reacts to events published by the others. Orchestration is easier to follow, and choreography has fewer central points.</p>
+  <p>The program below simulates an order saga with three steps. It runs one success case and two failure cases so you can see the reverse order of compensation.</p>
+  <pre class="code" data-lang="python"><code>UNDO = {
+    "reserve_inventory": "release_inventory",
+    "charge_payment": "refund_payment",
+    "schedule_shipping": "cancel_shipment",
+}
+
+def run_order_saga(fail_at=None):
+    completed = []
+    for step in ["reserve_inventory", "charge_payment", "schedule_shipping"]:
+        print(f"  do {step}")
+        if step == fail_at:
+            print(f"  {step} failed")
+            for done in reversed(completed):
+                print(f"  compensate {done} with {UNDO[done]}")
+            return "order cancelled"
+        completed.append(step)
+    return "order confirmed"
+
+print("Run 1: all steps succeed")
+print(run_order_saga())
+print("Run 2: payment fails")
+print(run_order_saga("charge_payment"))
+print("Run 3: shipping fails")
+print(run_order_saga("schedule_shipping"))</code></pre>
+  <pre class="output">Run 1: all steps succeed
+  do reserve_inventory
+  do charge_payment
+  do schedule_shipping
+order confirmed
+Run 2: payment fails
+  do reserve_inventory
+  do charge_payment
+  charge_payment failed
+  compensate reserve_inventory with release_inventory
+order cancelled
+Run 3: shipping fails
+  do reserve_inventory
+  do charge_payment
+  do schedule_shipping
+  schedule_shipping failed
+  compensate charge_payment with refund_payment
+  compensate reserve_inventory with release_inventory
+order cancelled</pre>
+  <p>Notice two things in Run 3. The compensations run in reverse order, so the payment is refunded before the inventory is released. And the saga never claims that the order "rolled back": the customer briefly saw a charge, which a refund then reverses. That is the honest difference between a saga and a database rollback.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not say a saga gives ACID atomicity. It gives eventual business-level consistency with visible intermediate states. Say that, and you will sound precise.</p></div>
+
+  <h3>Delivery semantics</h3>
+  <p>When a sender cannot know whether a message arrived, it must choose a delivery semantic:</p>
+  <ul>
+    <li><strong>At-most-once</strong>: send once and never retry. Nothing is duplicated, but messages can be lost.</li>
+    <li><strong>At-least-once</strong>: retry until the receiver acknowledges. Nothing is lost, but the receiver may see duplicates.</li>
+    <li><strong>Exactly-once effect</strong>: at-least-once delivery combined with idempotent processing, so a duplicate changes nothing. True exactly-once delivery over an unreliable network is impossible in general, so engineers aim for the effect.</li>
+  </ul>
+  <p>Payments show the idea. The client sends an idempotency key with each charge request. If the response is lost and the client retries with the same key, the server recognises the key and returns the original result instead of charging twice.</p>
+
+  <h3>Kafka as a distributed log</h3>
+  <p><strong>Apache Kafka</strong> stores streams of messages as an append-only log, split into topics and partitions. A <strong>topic</strong> is a named stream such as orders. Each topic is split into <strong>partitions</strong>, and each partition is an ordered sequence of messages. Every message in a partition has an <strong>offset</strong>, a sequence number starting at 0.</p>
+  <ul>
+    <li><strong>Ordering.</strong> Kafka guarantees order only within one partition. A producer sends messages with the same key to the same partition (by hashing the key), so all events for one order stay in order.</li>
+    <li><strong>Consumer groups.</strong> A group of consumers shares the work. Each partition is read by at most one consumer in the group at a time. If you have six partitions and eight consumers, two consumers sit idle.</li>
+    <li><strong>Replication and acknowledgements.</strong> Each partition has a leader and followers. With acks set to all, the producer's write is acknowledged only after the in-sync replicas have it, which protects against losing acknowledged messages.</li>
+    <li><strong>Retention.</strong> Messages are kept for a configured time or size, whether or not a consumer has read them. Consumers track their own position using offsets.</li>
+    <li><strong>Delivery.</strong> If a consumer commits its offset before processing, a crash loses the message (at-most-once). If it processes first and commits after, a crash causes reprocessing (at-least-once). Most systems choose at-least-once and make the handler idempotent.</li>
+  </ul>
+  <p>The <strong>transactional outbox</strong> pattern avoids a classic bug. Writing to a database and then publishing to Kafka can fail between the two steps, leaving the systems disagreeing. Instead, the service writes the business row and an outbox row in one database transaction. A separate relay reads the outbox and publishes each event, retrying until it succeeds. Consumers must still be idempotent, because the relay can publish twice.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>How do you get exactly-once processing with Kafka? Answer: at-least-once delivery, idempotent consumers keyed by message or event ID, and an idempotent producer for retries. Kafka transactions cover Kafka-to-Kafka pipelines, but an external side effect such as an email still needs an idempotency check.</p></div>
+</section>
+
+<section class="unit" id="c6" data-title="Resilience">
+  <h2>Resilience: timeouts, retries and circuit breakers</h2>
+  <p>Remote dependencies will fail, slow down or hang. Resilience patterns keep one failing dependency from taking down its callers. The core patterns are timeouts, retries with backoff, circuit breakers, and fallbacks.</p>
+  <p><strong>Timeouts</strong> come first. Every remote call needs a deadline. In a chain of services, the total budget is shared: if the user-facing request has a 2-second budget and calls three services, each call gets a smaller share, and the caller stops waiting once the budget is spent.</p>
+
+  <h3>Retries with exponential backoff and jitter</h3>
+  <p>Retry only failures that may be transient (timeouts, connection resets, HTTP 503), and only for idempotent operations. Wait between attempts, and make the wait grow exponentially: the delay after attempt i is base times 2 to the power i, capped at a maximum. Without randomness, many clients that failed together retry together, which creates a <strong>retry storm</strong> that hits the dependency at the moment it is weakest. <strong>Jitter</strong> adds randomness. With full jitter, the actual wait is a random value between zero and the capped delay. A retry budget also helps: allow retries only up to a fixed fraction of normal traffic.</p>
+  <pre class="code" data-lang="python"><code>def backoff_schedule(base_ms, cap_ms, attempts):
+    return [min(cap_ms, base_ms * 2 ** i) for i in range(attempts)]
+
+print(backoff_schedule(100, 1000, 6))</code></pre>
+  <pre class="output">[100, 200, 400, 800, 1000, 1000]</pre>
+  <p>The schedule doubles until it reaches the cap of 1000 ms, then stays there. The jitter step, which this program does not show, would pick a random value between zero and each entry, so retries from many clients spread out.</p>
+
+  <h3>The circuit breaker</h3>
+  <p>A <strong>circuit breaker</strong> wraps calls to a dependency and tracks its health. It has three states:</p>
+  <ul>
+    <li><strong>Closed</strong>: calls pass through. Failures are counted, and when they reach a threshold, the breaker opens.</li>
+    <li><strong>Open</strong>: calls fail immediately without touching the dependency, for a cool-down period. This protects the caller's threads and gives the dependency room to recover.</li>
+    <li><strong>Half-open</strong>: after the cool-down, a trial call is allowed. Success closes the breaker. Failure opens it again.</li>
+  </ul>
+  <p>The program below models a breaker with a threshold of 2 failures and a cool-down of 2 rejected calls. The backend fails three times, then recovers. The cool-down counts calls rather than seconds, so the output is the same on every run.</p>
+  <pre class="code" data-lang="python"><code>class CircuitBreaker:
+    def __init__(self, threshold=2, cooldown=2):
+        self.threshold = threshold
+        self.cooldown = cooldown
+        self.state = "CLOSED"
+        self.failures = 0
+        self.rejected = 0
+
+    def call(self, fn):
+        if self.state == "OPEN":
+            if self.rejected &lt; self.cooldown:
+                self.rejected += 1
+                return "rejected (open)"
+            self.state = "HALF_OPEN"          # cool-down over: allow a trial
+        try:
+            result = fn()
+        except ConnectionError:
+            if self.state == "HALF_OPEN" or self.failures + 1 &gt;= self.threshold:
+                self.state = "OPEN"
+                self.failures = 0
+                self.rejected = 0
+            else:
+                self.failures += 1
+            return "failed"
+        self.state = "CLOSED"                 # success resets everything
+        self.failures = 0
+        return result
+
+outcomes = iter(["fail", "fail", "fail", "ok", "ok", "ok", "ok", "ok"])
+
+def backend():
+    if next(outcomes) == "fail":
+        raise ConnectionError("backend is down")
+    return "ok"
+
+breaker = CircuitBreaker()
+for i in range(1, 10):
+    result = breaker.call(backend)
+    print(f"call {i}: {result} (state {breaker.state})")</code></pre>
+  <pre class="output">call 1: failed (state CLOSED)
+call 2: failed (state OPEN)
+call 3: rejected (open) (state OPEN)
+call 4: rejected (open) (state OPEN)
+call 5: failed (state OPEN)
+call 6: rejected (open) (state OPEN)
+call 7: rejected (open) (state OPEN)
+call 8: ok (state CLOSED)
+call 9: ok (state CLOSED)</pre>
+  <p>Read the trace as a story. The first two calls fail and open the breaker. Calls 3 and 4 never reach the dead backend, so they return at once. After the cool-down, call 5 is a trial that fails, which reopens the breaker. Calls 6 and 7 are rejected again, and call 8 is a successful trial that closes the breaker. Call 9 is a normal call.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A circuit breaker without a fallback just returns errors faster. Pair it with a fallback such as cached data, a default value, or a queued request that is processed later.</p></div>
+  <p>Other common patterns: a <strong>bulkhead</strong> gives each dependency its own thread or connection pool, so one slow dependency cannot exhaust the shared pool. <strong>Load shedding</strong> rejects low-priority work early when the service is overloaded. <strong>Hedged requests</strong> send a second copy of a slow read to another replica after a short delay and use whichever answer comes first.</p>
+</section>
+
+<section class="unit" id="c7" data-title="Landmark systems and ML">
+  <h2>Landmark systems: GFS, Dynamo and Spanner</h2>
+  <p>Three papers shaped how engineers think about distributed storage. You do not need every detail, but you should know the key idea of each and the trade-off it chose.</p>
+  <ul>
+    <li><strong>GFS (Google File System, 2003).</strong> A distributed file system for very large files that are mostly appended and read in order. A single <strong>master</strong> holds the metadata (the namespace and which chunks make up each file) in memory, with an operation log for recovery. Files are split into large chunks, typically 64 MB, stored on <strong>chunkservers</strong> and replicated (three copies by default). Clients ask the master where chunks are, then read and write the data directly with the chunkservers. The single master keeps the design simple, but it must stay out of the data path to avoid becoming a bottleneck.</li>
+    <li><strong>Dynamo (Amazon, 2007).</strong> A key-value store built to stay writable during failures. It uses consistent hashing with virtual nodes, N replicas per key, sloppy quorums with hinted handoff, vector clocks to detect conflicting versions, and anti-entropy with Merkle trees. Conflicts go back to the application, which merges them (the paper's shopping cart example). The design is available and eventually consistent, the PA/EL style in PACELC.</li>
+    <li><strong>Spanner (Google, 2012).</strong> A globally distributed SQL database that offers externally consistent transactions. Data is split into ranges, and each range is replicated by a Paxos group. Transactions that span groups use two-phase commit. Spanner's <strong>TrueTime</strong> API returns a time interval with a bounded uncertainty, and a transaction waits out that uncertainty before it commits (commit wait). This gives timestamps that match real-time order across the globe, at the cost of latency.</li>
+  </ul>
+  <div class="tablewrap"><table>
+    <thead><tr><th>System</th><th>Data model</th><th>Coordination</th><th>Consistency chosen</th><th>Main trade-off</th></tr></thead>
+    <tbody>
+      <tr><td>GFS</td><td>Large files, appends</td><td>One master for metadata</td><td>Simple, relaxed for concurrent appends</td><td>Master can be a bottleneck, and it must be protected because the system depends on it</td></tr>
+      <tr><td>Dynamo</td><td>Key-value</td><td>Leaderless, quorums</td><td>Eventual, with conflict handling</td><td>Always writable, but the app must resolve conflicts</td></tr>
+      <tr><td>Spanner</td><td>Relational SQL</td><td>Paxos per range, 2PC across ranges</td><td>External consistency</td><td>Commit wait and cross-region latency</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Distributed ML training</h3>
+  <p>Training a large model can take weeks on one device, so it is spread across many accelerators. There are two main approaches.</p>
+  <ul>
+    <li><strong>Data parallelism.</strong> Every worker holds a full copy of the model. Each training step, the global mini-batch is split into shards, one per worker. Each worker computes gradients on its shard. The gradients are averaged across workers (an all-reduce operation), and every worker applies the same update. With equal shard sizes, the average of the shard gradients equals the gradient of the whole batch, so the result matches single-device training.</li>
+    <li><strong>Model parallelism.</strong> The model is too large for one device, so it is split. <em>Pipeline parallelism</em> places different layers on different devices and streams micro-batches through the stages. <em>Tensor parallelism</em> splits the large matrix multiplications inside a layer across devices. Real large-model training often combines data, tensor and pipeline parallelism.</li>
+  </ul>
+  <p>The costs are communication (gradients or activations must cross the network every step), stragglers (the slowest worker sets the pace in synchronous training), and memory. The program below checks the data-parallel claim exactly with fractions. It fits a one-weight model, y = w times x, by gradient descent on a mean squared error loss.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+data = [(1, 2), (2, 4), (3, 7), (4, 8), (5, 11), (6, 12)]
+w = Fraction(1)
+
+def grad(batch, w):
+    total = Fraction(0)
+    for x, y in batch:
+        total += 2 * (w * x - y) * x      # derivative of (w*x - y) squared with respect to w
+    return total / len(batch)
+
+full = grad(data, w)
+shard_a, shard_b, shard_c = data[0:2], data[2:4], data[4:6]
+averaged = (grad(shard_a, w) + grad(shard_b, w) + grad(shard_c, w)) / 3
+
+print("full batch gradient:", full)
+print("average of shard gradients:", averaged)
+print("equal:", full == averaged)
+
+w_new = w - Fraction(1, 10) * full        # one gradient descent step, learning rate 0.1
+print("new w:", w_new, float(w_new))</code></pre>
+  <pre class="output">full batch gradient: -33
+average of shard gradients: -33
+equal: True
+new w: 43/10 4.3</pre>
+  <p>The three workers each see two examples, compute a shard gradient, and the average of the three equals the full-batch gradient. Every worker then applies w = 4.3, so all copies stay identical. If the shards had unequal sizes, you would need a weighted average.</p>
+  <div class="note interview"><p><span class="t">Interviewers ask</span>Why is synchronous data parallelism limited? Because every step waits for the slowest worker and must exchange gradients that grow with the model size. Larger batches help throughput but can hurt generalisation, so the batch size is a real design choice.</p></div>
+</section>
+
+<section class="unit" id="qa" data-title="Interview Q&amp;A">
+  <h2>Interview questions</h2>
+  <p>Answer each question out loud before opening the model answer. A strong answer names the failure you are worried about, the guarantee you chose, and the cost you accepted.</p>
+
+  <details class="check"><summary>Why can a timeout not tell you whether a payment was charged?</summary><div class="ans"><p>A timeout only means no reply arrived in time. The request may never have reached the payment service, the charge may have succeeded and the reply been lost, or the service may still be processing. The caller cannot know which. The fix is an idempotency key: retrying with the same key returns the original result instead of charging again.</p></div></details>
+  <details class="check"><summary>What does a Lamport timestamp tell you, and what does it not tell you?</summary><div class="ans"><p>If event a happened before event b, the Lamport timestamp of a is less than that of b. So the timestamps respect causality in one direction. The reverse is not guaranteed: a smaller timestamp does not prove that a happened before b, and equal or ordered timestamps do not reveal concurrency. Vector clocks give the full answer for concurrency.</p></div></details>
+  <details class="check"><summary>A cluster has N = 5 replicas. What W and R values guarantee that reads overlap writes?</summary><div class="ans"><p>Any pair with W + R greater than 5, such as W = 3 and R = 3. A read of 3 replicas and a write to 3 replicas must share at least one replica, so the read sees the latest successful write. W = 2 and R = 3 gives a sum of 5, which is not enough, because the read set can miss the write set entirely.</p></div></details>
+  <details class="check"><summary>Why does Raft need a majority to elect a leader?</summary><div class="ans"><p>Two majorities of the same cluster always share at least one node. A node votes for at most one candidate per term, so two candidates cannot both get a majority in the same term. That keeps one leader per term, which prevents split brain. A minority partition cannot elect a leader, so it stops accepting writes rather than diverge.</p></div></details>
+  <details class="check"><summary>Explain CAP in one minute without saying "pick two of three".</summary><div class="ans"><p>Partitions happen, so a distributed system must tolerate them. During a partition, a node that cannot reach the others has two choices. It can refuse or delay requests to stay consistent, or it can answer from its local copy to stay available, accepting that the answer may be stale. When the network is healthy, a well-designed system can offer both. Then I would name the operations that need strong consistency and the ones that can tolerate eventual consistency.</p></div></details>
+  <details class="check"><summary>When would you choose a saga instead of two-phase commit?</summary><div class="ans"><p>When the steps belong to independent services with their own databases, and holding locks across all of them would block unrelated work for too long. A saga gives eventual business consistency with compensations, and it accepts visible intermediate states. Two-phase commit gives atomicity across participants but blocks if the coordinator fails, so it suits a short transaction inside one trusted system, such as the internals of a distributed database.</p></div></details>
+  <details class="check"><summary>A consumer processes Kafka messages and sometimes sends duplicate emails after a restart. What is the cause and the fix?</summary><div class="ans"><p>The consumer processed the message, crashed before committing its offset, and was redelivered the message on restart. That is at-least-once delivery. The fix is an idempotent handler: record each message's unique ID in a store as part of the processing, and skip messages whose ID is already recorded. Email providers may also accept an idempotency key, which helps.</p></div></details>
+  <details class="check"><summary>Why do messages with the same key stay in order in Kafka, but messages across different keys do not?</summary><div class="ans"><p>Kafka orders messages only within one partition. The producer hashes the key to choose the partition, so all messages with the same key go to the same partition in the order they were sent. Messages with different keys can land in different partitions, and their relative order is not guaranteed.</p></div></details>
+  <details class="check"><summary>What problem does a circuit breaker solve that retries do not?</summary><div class="ans"><p>Retries add load to a dependency that is already failing. A circuit breaker stops calls to a dependency that is clearly down, so callers fail fast and the dependency gets room to recover. It also protects the caller's threads from waiting on timeouts. Retries and breakers work together: the breaker decides whether to call at all, and the retry policy decides how to repeat a single allowed call.</p></div></details>
+  <details class="check"><summary>What is the difference between data parallelism and model parallelism?</summary><div class="ans"><p>In data parallelism, each worker has a full copy of the model and processes a different slice of the batch, then gradients are averaged. It scales throughput when the model fits on one device. In model parallelism, the model itself is split across devices, because it does not fit on one. Pipeline and tensor parallelism are two forms. Large-scale training usually combines them.</p></div></details>
+  <details class="check"><summary>Why did GFS choose a single master, and what is the risk?</summary><div class="ans"><p>A single master that holds all metadata in memory makes placement and naming decisions simple and consistent, and clients read data directly from chunkservers, so the master is not on the data path. The risk is that the master can become a bottleneck for metadata operations and is a critical dependency. GFS mitigated this with an operation log, checkpoints, and shadow masters for faster recovery.</p></div></details>
+</section>
+
+<section class="unit" id="dsa" data-title="DSA">
+  <h2>DSA: advanced backtracking</h2>
+  <p>Backtracking explores a tree of choices. At each step you choose an option, recurse, and undo the choice before trying the next one. The three problems today add two ideas. First, <strong>pruning</strong>: stop exploring a branch as soon as it cannot succeed. Second, <strong>fast checks</strong>: keep sets or tables so each check takes constant time. Name the pattern in your own words once you finish each problem.</p>
+  <ul>
+    <li><strong>Grid search with a visited mark.</strong> Mark a cell while it is on the current path and unmark it on return.</li>
+    <li><strong>Partition with a precomputed table.</strong> Compute every palindrome answer once with dynamic programming, then backtrack using O(1) lookups.</li>
+    <li><strong>Constraint sets.</strong> Track which columns and diagonals are attacked, so each candidate square is checked in O(1).</li>
+  </ul>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/word-search/">
+    <h3>Word Search (LeetCode 79)</h3>
+    <div class="statement"><p>You get an m by n grid of letters and a word. Return true if the word can be spelled by a path of adjacent cells (up, down, left or right), where no cell is used twice. Example: with the grid below, "ABCCED" is found, "SEE" is found, and "ABCB" is not, because the second B would have to reuse the first B.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The path must match the word letter by letter. A cell cannot be reused on the same path, but different paths may use the same cells. The grid can be up to 6 by 6 in the usual limits.</li>
+      <li><strong>Brute force.</strong> List every path of adjacent cells of length len(word). This can be enormous, since each cell has up to four neighbours at every step.</li>
+      <li><strong>Find the waste.</strong> Most paths fail at their first or second letter. A search that starts from each cell with the first letter, and stops as soon as a letter does not match, explores very little.</li>
+      <li><strong>Optimise.</strong> Run a DFS from every cell that matches word[0]. At each step, check bounds and the letter. Mark the cell as used by overwriting it with a sentinel, recurse into the four neighbours, then restore the letter. The restore step is what makes the marks temporary.</li>
+      <li><strong>Dry run.</strong> For "SEE" the search starts at S in row 1, column 3. It matches E at row 2, column 3, then E at row 2, column 2. Every letter matches, so the function returns True.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def exist(board, word):
+    rows, cols = len(board), len(board[0])
+
+    def dfs(r, c, k):
+        if k == len(word):
+            return True                       # every letter matched
+        if r &lt; 0 or r &gt;= rows or c &lt; 0 or c &gt;= cols:
+            return False                      # off the grid
+        if board[r][c] != word[k]:
+            return False
+        saved = board[r][c]
+        board[r][c] = "#"                     # mark this cell as used on this path
+        found = (dfs(r + 1, c, k + 1) or dfs(r - 1, c, k + 1)
+                 or dfs(r, c + 1, k + 1) or dfs(r, c - 1, k + 1))
+        board[r][c] = saved                   # undo the mark before returning
+        return found
+
+    for r in range(rows):
+        for c in range(cols):
+            if dfs(r, c, 0):
+                return True
+    return False
+
+board = [["A", "B", "C", "E"],
+         ["S", "F", "C", "S"],
+         ["A", "D", "E", "E"]]
+print(exist(board, "ABCCED"))
+print(exist(board, "SEE"))
+print(exist(board, "ABCB"))</code></pre>
+    <pre class="output">True
+True
+False</pre>
+    <p class="cx">Time O(m n 3 to the power L), where L is the word length · Space O(L) for the recursion stack</p>
+    <div class="note trap"><p><span class="t">Trap</span>Forgetting to restore the cell after the recursive calls breaks every later search. The grid must look exactly as it did before the function ran, so the test board can be reused.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>For path-finding on a grid with no reuse, mark on the way in and unmark on the way out. The marks describe the current path only.</p></div>
+  </article>
+
+  <article class="problem" data-level="medium" data-lc="https://leetcode.com/problems/palindrome-partitioning/">
+    <h3>Palindrome Partitioning (LeetCode 131)</h3>
+    <div class="statement"><p>Given a string s, split it into pieces so that every piece is a palindrome (it reads the same forwards and backwards). Return every possible split. Example: s = "aab" gives [["a", "a", "b"], ["aa", "b"]].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> The output lists every valid partition, in any order. A single character is a palindrome. The string can be up to about 16 characters in the usual limits, so the number of answers can grow quickly.</li>
+      <li><strong>Brute force.</strong> Try every way to place cut points, and check each piece by reversing it. There are 2 to the power (n - 1) cut patterns, and each check costs O(n).</li>
+      <li><strong>Find the waste.</strong> The same substring is checked many times across different partitions. Whether s[i..j] is a palindrome depends only on i and j, so it can be computed once.</li>
+      <li><strong>Optimise.</strong> Build a table is_pal[i][j] using dynamic programming: s[i..j] is a palindrome when the outer characters match and the inner part s[i+1..j-1] is a palindrome (or has length 0 or 1). Then backtrack from position 0: at each start, try every end where is_pal is True, add that piece, recurse on the rest, and remove the piece.</li>
+      <li><strong>Dry run.</strong> For "aab", start 0 tries "a" (palindrome), then at position 1 tries "a" and then "ab" (not a palindrome). After "a", "a", "b" is complete, so that is the first answer. Back at position 0, the piece "aa" is a palindrome, leaving "b", which gives the second answer. The piece "aab" is not a palindrome.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def partition(s):
+    n = len(s)
+    is_pal = [[False] * n for _ in range(n)]
+    for i in range(n - 1, -1, -1):           # fill rows from the bottom up
+        for j in range(i, n):
+            if s[i] == s[j] and (j - i &lt; 2 or is_pal[i + 1][j - 1]):
+                is_pal[i][j] = True
+
+    result = []
+    path = []
+
+    def backtrack(start):
+        if start == n:
+            result.append(path[:])            # copy the current partition
+            return
+        for end in range(start, n):
+            if is_pal[start][end]:
+                path.append(s[start:end + 1])  # choose this piece
+                backtrack(end + 1)             # explore the rest
+                path.pop()                     # undo the choice
+
+    backtrack(0)
+    return result
+
+print(partition("aab"))
+print(partition("aba"))
+print(partition("a"))</code></pre>
+    <pre class="output">[['a', 'a', 'b'], ['aa', 'b']]
+[['a', 'b', 'a'], ['aba']]
+[['a']]</pre>
+    <p class="cx">Time O(n 2 to the power n) in the worst case, dominated by the output · Space O(n squared) for the table</p>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When backtracking asks "is this piece valid?" many times for the same substring, precompute the answers with dynamic programming, then backtrack with O(1) checks.</p></div>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>Why copy path when you add it to the result? Because path is shared and mutated during the search. Without the copy, every stored answer would point at the same list, which ends up empty.</p></div>
+  </article>
+
+  <article class="problem" data-level="hard" data-lc="https://leetcode.com/problems/n-queens/">
+    <h3>N-Queens (LeetCode 51)</h3>
+    <div class="statement"><p>Place n queens on an n by n chessboard so that no two queens attack each other. A queen attacks along its row, its column and both diagonals. Return every distinct board layout. Example: for n = 4 there are two solutions, and the search below prints both. For n = 8 there are 92 solutions.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>Understand.</strong> A valid board has exactly one queen per row and per column, so the search can place one queen per row. The output is the list of boards. Each board is a list of n strings with one Q per row.</li>
+      <li><strong>Brute force.</strong> Put n queens on any of the n squares each, which is n to the power (n squared) placements, or choose n of the n squared squares. Both are hopeless for n = 8.</li>
+      <li><strong>Find the waste.</strong> Row by row, a square is rejected only because of an earlier queen. If we know which columns and diagonals are attacked, each check is O(1).</li>
+      <li><strong>Optimise.</strong> Place one queen per row. Keep three sets: used columns, used diagonals (value row minus column, which is constant along a diagonal), and used anti-diagonals (row plus column, constant along the other diagonal). Try each column in the row, skip any attacked one, place, recurse to the next row, then remove the queen. Pruning happens at every row, so most branches die early.</li>
+      <li><strong>Dry run.</strong> For n = 4, row 0 tries column 0 first. A queen at (0, 0) blocks column 0 and the diagonal through (1, 1), so row 1 can only use columns 2 or 3. Both branches die later, so the search backs out to row 0 and tries column 1. From there, rows 1 to 3 can only be filled with columns 3, 0 and 2. That is the first solution printed, with queens at columns 1, 3, 0, 2.</li>
+    </ol>
+    <h4>Code</h4>
+    <pre class="code" data-lang="python"><code>def solve_n_queens(n):
+    solutions = []
+    cols = set()
+    diag = set()          # row minus column, constant along a diagonal
+    anti = set()          # row plus column, constant along an anti-diagonal
+    placement = []        # placement[r] is the column of the queen in row r
+
+    def place(r):
+        if r == n:
+            board = []
+            for c in placement:
+                board.append("." * c + "Q" + "." * (n - c - 1))
+            solutions.append(board)
+            return
+        for c in range(n):
+            if c in cols or (r - c) in diag or (r + c) in anti:
+                continue                          # an earlier queen attacks this square
+            cols.add(c)
+            diag.add(r - c)
+            anti.add(r + c)
+            placement.append(c)
+            place(r + 1)
+            placement.pop()                       # undo
+            cols.remove(c)
+            diag.remove(r - c)
+            anti.remove(r + c)
+
+    place(0)
+    return solutions
+
+four = solve_n_queens(4)
+print(len(four))
+for board in four:
+    print(board)
+print("8 queens:", len(solve_n_queens(8)))</code></pre>
+    <pre class="output">2
+['.Q..', '...Q', 'Q...', '..Q.']
+['..Q.', 'Q...', '...Q', '.Q..']
+8 queens: 92</pre>
+    <p class="cx">Time about O(n!) in the worst case, far less after pruning · Space O(n) for the sets, the placement and the recursion</p>
+    <h4>Why the sets work</h4>
+    <p>Two squares lie on the same diagonal exactly when their row minus column is equal. For example, (0, 1) and (1, 2) both give minus 1 and (2, 0) and (0, 2) differ, so they sit on different diagonals. Anti-diagonals work the same way with row plus column. These two facts turn "does any queen attack this square" into three set lookups.</p>
+    <div class="note trap"><p><span class="t">Trap</span>Diagonal values can be negative (row minus column), which is fine for a set. Do not index a list with them, or you will get wrong results or a crash.</p></div>
+    <div class="note key"><p><span class="t">Pattern to remember</span>When each choice constrains a few shared resources, track those resources in sets, so checking a choice is O(1) and undoing it is a remove.</p></div>
+    <div class="note interview"><p><span class="t">Interviewers ask</span>How would you reduce the work further? Use bitmasks for the columns and diagonals, which turns each set into an integer and each check into a bit operation. The logic stays the same.</p></div>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Terms and ideas from today, in one line each.</p>
+  <dl>
+    <div><dt>Distributed system</dt><dd>Independent machines that cooperate by message passing, with no shared memory or clock.</dd></div>
+    <div><dt>Partial failure</dt><dd>One side cannot tell whether a remote call succeeded, failed or is still running.</dd></div>
+    <div><dt>Idempotent</dt><dd>An operation whose repeated execution has the same effect as one execution.</dd></div>
+    <div><dt>Crash-recovery model</dt><dd>A node may stop and later restart with its durable state intact.</dd></div>
+    <div><dt>Byzantine fault</dt><dd>A node that behaves arbitrarily, requiring more replicas and signed messages to tolerate.</dd></div>
+    <div><dt>Happened-before</dt><dd>The causal order: an earlier local event, a send before its receive, or a chain of such steps.</dd></div>
+    <div><dt>Lamport clock</dt><dd>A counter that respects causality in one direction but cannot detect concurrency.</dd></div>
+    <div><dt>Vector clock</dt><dd>One counter per process; comparing vectors shows happened-before or concurrency.</dd></div>
+    <div><dt>Concurrent events</dt><dd>Two events where neither vector is less than or equal to the other.</dd></div>
+    <div><dt>Leader-follower replication</dt><dd>One leader orders writes; followers replay the same log.</dd></div>
+    <div><dt>Replication lag</dt><dd>The delay before a follower shows a write, which causes stale reads.</dd></div>
+    <div><dt>Split brain</dt><dd>Two nodes both believing they are leader, risking divergent writes.</dd></div>
+    <div><dt>Fencing token</dt><dd>An increasing number that lets storage reject requests from an old leader.</dd></div>
+    <div><dt>Last write wins</dt><dd>Keep the value with the highest timestamp; simple but can silently lose writes.</dd></div>
+    <div><dt>Quorum rule</dt><dd>If W + R is greater than N, reads overlap the latest successful write.</dd></div>
+    <div><dt>Read repair</dt><dd>Writing the newest value back to a stale replica during a read.</dd></div>
+    <div><dt>Hinted handoff</dt><dd>A healthy node holds a write meant for a down replica and forwards it later.</dd></div>
+    <div><dt>Linearizability</dt><dd>Each operation takes effect at one instant between its start and end, in real-time order.</dd></div>
+    <div><dt>Read-your-writes</dt><dd>A client always sees its own earlier writes.</dd></div>
+    <div><dt>CAP</dt><dd>During a partition, choose consistency (refuse some answers) or availability (answer possibly stale data).</dd></div>
+    <div><dt>PACELC</dt><dd>If partitioned choose A or C; else choose latency or consistency.</dd></div>
+    <div><dt>Consensus</dt><dd>Nodes agreeing on one value despite crashes, using majority quorums.</dd></div>
+    <div><dt>Raft term</dt><dd>A numbered epoch in which at most one leader can be elected.</dd></div>
+    <div><dt>Election restriction</dt><dd>A voter refuses candidates whose log is less up to date, so committed entries survive.</dd></div>
+    <div><dt>Key-range vs hash partitioning</dt><dd>Ranges keep ordered scans but can hot-spot; hashing spreads load but breaks range scans.</dd></div>
+    <div><dt>Hot key</dt><dd>One key that receives so much traffic that its partition is overloaded.</dd></div>
+    <div><dt>Two-phase commit</dt><dd>Prepare and vote, then commit or abort everywhere; atomic but can block.</dd></div>
+    <div><dt>Saga</dt><dd>A chain of local transactions, each with a compensating action run in reverse on failure.</dd></div>
+    <div><dt>Delivery semantics</dt><dd>At-most-once, at-least-once, or exactly-once effect built from idempotent processing.</dd></div>
+    <div><dt>Transactional outbox</dt><dd>Write the event in the same database transaction as the data, then publish it from a relay.</dd></div>
+    <div><dt>Kafka partition</dt><dd>An ordered, append-only log; order is guaranteed only within a partition.</dd></div>
+    <div><dt>Consumer group</dt><dd>Consumers sharing partitions, with each partition read by at most one consumer at a time.</dd></div>
+    <div><dt>Exponential backoff with jitter</dt><dd>Growing, randomised waits between retries that avoid synchronised retry storms.</dd></div>
+    <div><dt>Circuit breaker</dt><dd>Closed, open and half-open states that fail fast while a dependency is down.</dd></div>
+    <div><dt>Bulkhead</dt><dd>Separate pools per dependency so one slow dependency cannot exhaust shared resources.</dd></div>
+    <div><dt>GFS</dt><dd>A single master holds metadata, and large chunks are replicated on chunkservers.</dd></div>
+    <div><dt>Dynamo</dt><dd>Leaderless key-value store with quorums, sloppy quorums, vector clocks and app-level merges.</dd></div>
+    <div><dt>Spanner and TrueTime</dt><dd>Externally consistent transactions made by waiting out a bounded clock uncertainty.</dd></div>
+    <div><dt>Data parallelism</dt><dd>Full model copies, sharded batches, and averaged gradients that match one large batch.</dd></div>
+    <div><dt>Model parallelism</dt><dd>The model is split across devices, by layers (pipeline) or inside layers (tensor).</dd></div>
+  </dl>
+
+  <h3>Functions and syntax at a glance</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Name</th><th>What it does</th><th>Tiny example</th></tr></thead>
+    <tbody>
+      <tr><td>itertools.combinations(seq, k)</td><td>Yields every k-element subset in order, without repeats</td><td>list(combinations([0, 1, 2], 2))</td></tr>
+      <tr><td>set.isdisjoint(other)</td><td>True when two sets share no element</td><td>{1, 2}.isdisjoint({3})</td></tr>
+      <tr><td>zip(a, b)</td><td>Pairs up items from two sequences, stopping at the shorter</td><td>list(zip([1, 2], [3, 4]))</td></tr>
+      <tr><td>max(a, b)</td><td>Larger of two values, used in Lamport and vector updates</td><td>max(4, 9)</td></tr>
+      <tr><td>fractions.Fraction(a, b)</td><td>Exact rational arithmetic, free of float rounding</td><td>Fraction(1, 10) * 33</td></tr>
+      <tr><td>kafka-topics.sh --create</td><td>Creates a topic with a number of partitions and a replication factor</td><td>kafka-topics.sh --bootstrap-server localhost:9092 --create --topic orders --partitions 3 --replication-factor 1</td></tr>
+      <tr><td>kafka-consumer-groups.sh --describe</td><td>Shows each partition's current offset and lag for a consumer group</td><td>kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group billing</td></tr>
+      <tr><td>Idempotency-Key header</td><td>Lets a server recognise a retried request and return the original result</td><td>Idempotency-Key: 7f3c-payment-42</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="finish" aria-label="Finish this day"><h2>Reached the end of day 29?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark day 29 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="day-28.html"><small>Previous, day 28</small>Sunday: Aptitude, review, Mock 4, resume and HR</a><a class="next" href="day-30.html"><small>Next, day 30</small>System design 2: HLD case studies</a></nav>
+</main><script src="assets/app.js"></script></body></html>
