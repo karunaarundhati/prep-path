@@ -1,0 +1,510 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 58: Laplace Transforms</title><meta name="description" content="The Laplace transform turns a hard calculus problem about a changing function into an easier algebra problem about a new function. This page builds the idea from zero, gives the standard table, the rules that make it work, the inverse transform with partial fractions, and the method for solving differential equations with initial conditions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g58" data-key="g58" data-noun="topic" data-num="58" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Laplace Transforms</h1>
+<p class="lede">The Laplace transform turns a hard calculus problem about a changing function into an easier algebra problem about a new function. This page builds the idea from zero, gives the standard table, the rules that make it work, the inverse transform with partial fractions, and the method for solving differential equations with initial conditions.</p>
+<div class="station"><b>58</b><span>Unit 4 · Differential equations · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>What the Laplace transform does</li><li>Standard transforms and the rules that build new ones</li><li>Inverse Laplace transform and partial fractions</li><li>Solving linear ODEs with initial conditions</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Differentiation and integration are the two big tools of calculus. They are powerful, but they can be messy. Solving a differential equation by hand often means guessing a form, differentiating it, and matching terms. That is slow, and it is easy to make a mistake.</p>
+  <p>The <strong>Laplace transform</strong> offers a different path. Think of it as a translator. You give it a function of time, written f(t), and it gives you back a new function of a new variable s, written F(s). The translation has a special property. Derivatives in the original world become simple multiplications in the new world. A differential equation becomes an ordinary algebra equation. You solve the algebra, then translate back.</p>
+  <p>Here is an everyday analogy. Suppose you need to multiply two very large numbers. You might take logarithms, add the logarithms, then take the exponential. Addition is easier than multiplication. The Laplace transform plays the same role for differential equations. It moves the hard part into an easier space, does the work there, and brings the answer back.</p>
+  <p>The overall method has three steps:</p>
+  <ol>
+    <li>Transform every term of the differential equation, using the initial conditions.</li>
+    <li>Solve the resulting algebra equation for F(s).</li>
+    <li>Apply the inverse transform to get y(t).</li>
+  </ol>
+  <p><strong>Why this matters for GATE.</strong> The Robotics and Automation paper uses Laplace transforms in control systems, where a transfer function is a ratio of Laplace transforms. Questions often ask for a transform from the table, an inverse transform with partial fractions, or the solution of an initial value problem. These are quick marks if you know the table and the rules.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now. You will come back to it often.</p>
+  <dl>
+    <div><dt>Function of time</dt><dd>A rule that gives a value for each time t, such as f(t) = t<sup>2</sup>. Time starts at t = 0 and runs forward.</dd></div>
+    <div><dt>Laplace transform</dt><dd>The new function F(s) = ∫<sub>0</sub><sup>∞</sup> e<sup>-st</sup> f(t) dt. It is written L{f(t)} or F(s).</dd></div>
+    <div><dt>Integral</dt><dd>A way of adding up many tiny pieces. The symbol ∫ means "sum over". Here we add up e<sup>-st</sup> f(t) over all times from 0 to infinity.</dd></div>
+    <div><dt>Infinity (∞)</dt><dd>A value larger than any number. An integral "to infinity" means we keep going forever, and we ask whether the total settles to a finite number.</dd></div>
+    <div><dt>Exponential function</dt><dd>A function of the form e<sup>at</sup>, where e is about 2.71828. It grows if a is positive and decays if a is negative.</dd></div>
+    <div><dt>Transform variable s</dt><dd>A new variable that plays the role of frequency or rate. It is just a symbol we use in F(s).</dd></div>
+    <div><dt>Linearity</dt><dd>The property that the transform of a sum is the sum of transforms, and constants can be taken outside.</dd></div>
+    <div><dt>Inverse Laplace transform</dt><dd>The reverse step. Given F(s), it finds the function f(t) that produced it. Written L<sup>-1</sup>{F(s)}.</dd></div>
+    <div><dt>Partial fractions</dt><dd>A method for splitting one complicated fraction into a sum of simple fractions, so that each piece is in the table.</dd></div>
+    <div><dt>Initial condition</dt><dd>The known value of y and its derivatives at t = 0, such as y(0) = 1 and y'(0) = 0.</dd></div>
+    <div><dt>Shifting theorem</dt><dd>A rule that says multiplying f(t) by e<sup>at</sup> shifts the transform from F(s) to F(s - a).</dd></div>
+    <div><dt>Transfer function</dt><dd>In control theory, the ratio of the output transform to the input transform, with all initial conditions set to zero.</dd></div>
+    <div><dt>Proper fraction</dt><dd>A fraction where the highest power of s in the numerator is smaller than the highest power in the denominator. Partial fractions needs a proper fraction.</dd></div>
+    <div><dt>Unit step function</dt><dd>A switch that is 0 before a time and 1 after it. It is used to model something that is turned on at a given moment.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="What the transform does">
+  <h2>Step 1: What the Laplace transform does</h2>
+  <h3>The integral, explained slowly</h3>
+  <p>The definition is the most important line on this page:</p>
+  <div class="formula">F(s) = ∫<sub>0</sub><sup>∞</sup> e<sup>-st</sup> f(t) dt</div>
+  <p>Read it in parts:</p>
+  <ul>
+    <li><strong>f(t)</strong> is the original function, for example a signal or a position over time.</li>
+    <li><strong>e<sup>-st</sup></strong> is a weighting factor. When s is positive, this factor gets smaller as t grows. It fades out the far future.</li>
+    <li><strong>∫<sub>0</sub><sup>∞</sup> ... dt</strong> means "add up the weighted values for all times from 0 onwards".</li>
+  </ul>
+  <p>The result F(s) depends on s, not on t. The variable t has been added away. That is why the result is a new function of a different variable.</p>
+
+  <h3>Worked example 1: the transform of the constant 1</h3>
+  <p>Find L{1}, the transform of f(t) = 1 for all t ≥ 0.</p>
+  <ol>
+    <li><strong>Write the definition.</strong> F(s) = ∫<sub>0</sub><sup>∞</sup> e<sup>-st</sup> · 1 dt.</li>
+    <li><strong>Integrate.</strong> The antiderivative of e<sup>-st</sup> is -e<sup>-st</sup>/s. So the integral is [-e<sup>-st</sup>/s] evaluated from 0 to infinity.</li>
+    <li><strong>Evaluate at infinity.</strong> For s &gt; 0, e<sup>-st</sup> goes to 0 as t grows. So the upper limit gives 0.</li>
+    <li><strong>Evaluate at zero.</strong> At t = 0, e<sup>0</sup> = 1, so the lower limit gives -1/s.</li>
+    <li><strong>Subtract.</strong> F(s) = 0 - (-1/s) = 1/s.</li>
+  </ol>
+  <p>So L{1} = 1/s, valid for s &gt; 0. The condition s &gt; 0 is needed so the integral settles to a finite number. This is an example of the convergence check that appears in many GATE questions.</p>
+
+  <h3>Worked example 2: an exponential</h3>
+  <p>Find L{e<sup>at</sup}.</p>
+  <ol>
+    <li><strong>Write the definition.</strong> F(s) = ∫<sub>0</sub><sup>∞</sup> e<sup>-st</sup> e<sup>at</sup> dt.</li>
+    <li><strong>Combine the exponentials.</strong> e<sup>-st</sup> e<sup>at</sup> = e<sup>-(s-a)t</sup>. So F(s) = ∫<sub>0</sub><sup>∞</sup> e<sup>-(s-a)t</sup> dt.</li>
+    <li><strong>Integrate.</strong> By the same method as Example 1, the result is 1/(s - a), valid for s &gt; a.</li>
+  </ol>
+  <p>Example: L{e<sup>3t</sup>} = 1/(s - 3), and L{e<sup>-2t</sup>} = 1/(s + 2).</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The transform always comes with a region of validity. For exponentials, the transform exists only when s is larger than the exponent a. In exam answers you can often ignore this, but you should know it is there.</p></div>
+
+  <details class="check"><summary>Question: What is L{e<sup>-5t</sup>}?</summary><div class="ans"><p>Use L{e<sup>at</sup>} = 1/(s - a) with a = -5. The answer is 1/(s + 5).</p></div></details>
+  <details class="check"><summary>Question: Why do we need s &gt; 0 when transforming the constant 1?</summary><div class="ans"><p>Because the integral of e<sup>-st</sup> from 0 to infinity converges only when s is positive. If s is zero or negative, the weighting factor does not shrink, and the total is infinite.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Standard transforms and rules">
+  <h2>Step 2: Standard transforms and the rules that build new ones</h2>
+  <h3>Why we use a table</h3>
+  <p>You could compute every transform from the definition, but that takes time. Engineers memorise a short table of standard transforms. Then they use a few rules to handle more complicated functions. Here is the table you need for GATE.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>f(t)</th><th>F(s) = L{f(t)}</th><th>Valid for</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>1/s</td><td>s &gt; 0</td></tr>
+      <tr><td>t</td><td>1/s<sup>2</sup></td><td>s &gt; 0</td></tr>
+      <tr><td>t<sup>n</sup> (n a whole number ≥ 0)</td><td>n!/s<sup>n+1</sup></td><td>s &gt; 0</td></tr>
+      <tr><td>e<sup>at</sup></td><td>1/(s - a)</td><td>s &gt; a</td></tr>
+      <tr><td>sin(bt)</td><td>b/(s<sup>2</sup> + b<sup>2</sup>)</td><td>s &gt; 0</td></tr>
+      <tr><td>cos(bt)</td><td>s/(s<sup>2</sup> + b<sup>2</sup>)</td><td>s &gt; 0</td></tr>
+      <tr><td>sinh(bt)</td><td>b/(s<sup>2</sup> - b<sup>2</sup>)</td><td>s &gt; |b|</td></tr>
+      <tr><td>cosh(bt)</td><td>s/(s<sup>2</sup> - b<sup>2</sup>)</td><td>s &gt; |b|</td></tr>
+      <tr><td>t e<sup>at</sup></td><td>1/(s - a)<sup>2</sup></td><td>s &gt; a</td></tr>
+    </tbody>
+  </table></div>
+  <p>Here n! means n factorial, the product 1 × 2 × ... × n. For example, 3! = 6. And 0! = 1 by convention.</p>
+
+  <h3>Rule 1: linearity</h3>
+  <p>The transform of a sum is the sum of the transforms. A constant multiplier can be pulled outside. In symbols, for constants a and b:</p>
+  <div class="formula">L{a f(t) + b g(t)} = a F(s) + b G(s)</div>
+  <p>Worked example: find L{3t<sup>2</sup> + 4e<sup>-t</sup>}. Using the table, L{t<sup>2</sup>} = 2!/s<sup>3</sup> = 2/s<sup>3</sup>, and L{e<sup>-t</sup>} = 1/(s + 1). So the answer is 3 · 2/s<sup>3</sup> + 4 · 1/(s + 1) = 6/s<sup>3</sup> + 4/(s + 1).</p>
+
+  <h3>Rule 2: the shifting theorem</h3>
+  <p>If you multiply f(t) by e<sup>at</sup>, the transform moves. Every s in F(s) becomes (s - a):</p>
+  <div class="formula">L{e<sup>at</sup> f(t)} = F(s - a)</div>
+  <p>Worked example: find L{e<sup>-3t</sup> cos 2t}. First, L{cos 2t} = s/(s<sup>2</sup> + 4), so F(s) = s/(s<sup>2</sup> + 4). Here a = -3, so replace s by (s + 3). The answer is (s + 3)/((s + 3)<sup>2</sup> + 4).</p>
+
+  <h3>Rule 3: transform of a derivative</h3>
+  <p>This is the rule that makes differential equations easy. If F(s) is the transform of f(t), then the transform of its derivative is:</p>
+  <div class="formula">L{f'(t)} = sF(s) - f(0)</div>
+  <p>Here f(0) is the value of f at t = 0. It appears because of the way the integral is evaluated at its lower limit. For a second derivative:</p>
+  <div class="formula">L{f''(t)} = s<sup>2</sup>F(s) - s f(0) - f'(0)</div>
+  <p>Here f'(0) is the slope at t = 0. These are exactly the initial conditions we need for an IVP. This is why the Laplace transform handles initial conditions so neatly.</p>
+
+  <h3>Worked example 3: deriving the transform of cos</h3>
+  <p>We know L{sin bt} = b/(s<sup>2</sup> + b<sup>2</sup>). Use the derivative rule to find L{cos bt}.</p>
+  <ol>
+    <li><strong>Start with the derivative.</strong> The derivative of sin bt is b cos bt. So L{b cos bt} = L{d/dt (sin bt)}.</li>
+    <li><strong>Apply the rule.</strong> L{f'} = sF - f(0) with f = sin bt. Here f(0) = sin 0 = 0. So L{b cos bt} = s · b/(s<sup>2</sup> + b<sup>2</sup>) - 0.</li>
+    <li><strong>Divide by b.</strong> L{cos bt} = s/(s<sup>2</sup> + b<sup>2</sup>). This matches the table.</li>
+  </ol>
+
+  <div class="note trap"><p><span class="t">Trap</span>The derivative rule includes -f(0). Students often write L{f'} = sF(s) and forget the initial value. If f(0) is not zero, the answer will be wrong. Always write the initial value term.</p></div>
+
+  <h3>Rule 4: multiplying by t and integrating</h3>
+  <p>Two more rules are useful in GATE. Multiplying by t corresponds to a minus sign and a derivative in s:</p>
+  <div class="formula">L{t f(t)} = -dF/ds</div>
+  <p>Integrating in time divides by s: L{∫<sub>0</sub><sup>t</sup> f(τ) dτ} = F(s)/s. Here τ (tau) is just a dummy variable used inside the integral.</p>
+  <p>Worked example: find L{t e<sup>-2t</sup>} using the first rule. Start with F(s) = 1/(s + 2). Its derivative is dF/ds = -1/(s + 2)<sup>2</sup>. So -dF/ds = 1/(s + 2)<sup>2</sup>. This matches the table row for t e<sup>at</sup> with a = -2.</p>
+
+  <details class="check"><summary>Question: Find L{t<sup>3</sup>}. Use the table.</summary><div class="ans"><p>Use t<sup>n</sup> with n = 3. The answer is 3!/s<sup>4</sup> = 6/s<sup>4</sup>.</p></div></details>
+  <details class="check"><summary>Question: Find L{sin 3t}, then L{e<sup>2t</sup> sin 3t}.</summary><div class="ans"><p>From the table, L{sin 3t} = 3/(s<sup>2</sup> + 9). Using the shifting rule with a = 2, replace s by (s - 2): L{e<sup>2t</sup> sin 3t} = 3/((s - 2)<sup>2</sup> + 9).</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Inverse transform and partial fractions">
+  <h2>Step 3: Inverse Laplace transform and partial fractions</h2>
+  <h3>Going back</h3>
+  <p>The inverse transform reverses the translation. You have an expression in s, and you want the function of t. The simplest case is when the expression matches a row of the table exactly. For example, if F(s) = 1/(s + 4), then f(t) = e<sup>-4t</sup>.</p>
+  <p>Most expressions do not match a single row. They are sums of fractions, or fractions with several factors in the bottom. In that case you split the fraction using <strong>partial fractions</strong>.</p>
+
+  <h3>Partial fractions, the cover-up method</h3>
+  <p>Suppose the bottom of a fraction is (s - p)(s - q) with p and q different. Then:</p>
+  <div class="formula">F(s) = (numerator) / ((s - p)(s - q)) = A/(s - p) + B/(s - q)</div>
+  <p>To find A, multiply both sides by (s - p) and then set s = p. The term with B disappears, and A is left. To find B, do the same with (s - q) and set s = q. The name "cover-up" comes from covering the factor you are removing with your finger.</p>
+
+  <h3>Worked example 4: inverse transform</h3>
+  <p>Find L<sup>-1</sup>{(s + 3)/((s + 1)(s + 2))}.</p>
+  <ol>
+    <li><strong>Check the fraction is proper.</strong> The numerator is degree 1 and the denominator is degree 2. Yes, it is proper, so partial fractions works.</li>
+    <li><strong>Set up.</strong> (s + 3)/((s + 1)(s + 2)) = A/(s + 1) + B/(s + 2).</li>
+    <li><strong>Find A.</strong> Multiply by (s + 1): A = (s + 3)/(s + 2). Set s = -1: A = (-1 + 3)/(-1 + 2) = 2/1 = 2.</li>
+    <li><strong>Find B.</strong> Multiply by (s + 2): B = (s + 3)/(s + 1). Set s = -2: B = (-2 + 3)/(-2 + 1) = 1/(-1) = -1.</li>
+    <li><strong>Invert each piece.</strong> 2/(s + 1) gives 2e<sup>-t</sup>, and -1/(s + 2) gives -e<sup>-2t</sup>. So f(t) = 2e<sup>-t</sup> - e<sup>-2t</sup>.</li>
+  </ol>
+  <p>A short program confirms the coefficients. It uses exact fractions, so there is no rounding.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+# F(s) = (s + 3) / ((s + 1)(s + 2)), so the cover-up values are:
+A = Fraction(-1 + 3, -1 + 2)   # multiply by (s + 1), then set s = -1
+B = Fraction(-2 + 3, -2 + 1)   # multiply by (s + 2), then set s = -2
+print("A =", A)
+print("B =", B)</code></pre>
+  <pre class="output">A = 2
+B = -1</pre>
+
+  <div class="note tip"><p><span class="t">Tip</span>Before you start partial fractions, write the bottom of the fraction in factored form. Factoring first makes the cover-up values easy to read.</p></div>
+
+  <h3>Worked example 5: a fraction with a repeated or unfactored bottom</h3>
+  <p>Find L<sup>-1</sup>{(2s + 5)/(s<sup>2</sup> + 2s + 5)}. The bottom does not factor with real numbers, so we complete the square.</p>
+  <ol>
+    <li><strong>Complete the square.</strong> s<sup>2</sup> + 2s + 5 = (s + 1)<sup>2</sup> + 4. Here (s + 1)<sup>2</sup> = s<sup>2</sup> + 2s + 1, so we add 4 to get the 5.</li>
+    <li><strong>Rewrite the numerator.</strong> 2s + 5 = 2(s + 1) + 3. Now the numerator contains the same (s + 1) as the bottom.</li>
+    <li><strong>Split the fraction.</strong> F(s) = 2(s + 1)/((s + 1)<sup>2</sup> + 4) + 3/((s + 1)<sup>2</sup> + 4).</li>
+    <li><strong>Match the table with a shift.</strong> s/(s<sup>2</sup> + 4) is cos 2t, so with s replaced by (s + 1), the first term is 2e<sup>-t</sup> cos 2t. The second term is 3/((s + 1)<sup>2</sup> + 4) = (3/2) · 2/((s + 1)<sup>2</sup> + 4), which is (3/2)e<sup>-t</sup> sin 2t.</li>
+    <li><strong>Answer.</strong> f(t) = 2e<sup>-t</sup> cos 2t + (3/2)e<sup>-t</sup> sin 2t.</li>
+  </ol>
+
+  <div class="note trap"><p><span class="t">Trap</span>Partial fractions needs a proper fraction. If the numerator has a higher power of s than the denominator, divide first, as in ordinary arithmetic, and then split the remainder. Many GATE questions hide this step.</p></div>
+
+  <details class="check"><summary>Question: Find L<sup>-1</sup>{1/(s(s + 3))}.</summary><div class="ans"><p>Write 1/(s(s + 3)) = A/s + B/(s + 3). Cover-up gives A = 1/3 (set s = 0 in 1/(s + 3)) and B = -1/3 (set s = -3 in 1/s). So f(t) = (1/3)(1 - e<sup>-3t</sup>).</p></div></details>
+  <details class="check"><summary>Question: What is the first step when the bottom of a fraction has no real factors?</summary><div class="ans"><p>Complete the square to get the form (s - p)<sup>2</sup> + b<sup>2</sup>. Then match it to the sin and cos rows of the table with a shift.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Solving ODEs with initial conditions">
+  <h2>Step 4: Solving linear ODEs with initial conditions</h2>
+  <h3>The method, step by step</h3>
+  <p>Now we put the pieces together. For a linear differential equation with constant coefficients and given initial conditions, the Laplace method works the same way every time:</p>
+  <ol>
+    <li><strong>Transform each term.</strong> Use the derivative rules, which bring in the initial values automatically.</li>
+    <li><strong>Collect Y(s).</strong> Gather all terms with Y on one side and move the rest to the other side.</li>
+    <li><strong>Solve for Y(s).</strong> You get a fraction in s.</li>
+    <li><strong>Invert.</strong> Use partial fractions and the table to find y(t).</li>
+  </ol>
+
+  <h3>Worked example 6: second order with two initial conditions</h3>
+  <p>Solve y'' + 3y' + 2y = 0 with y(0) = 1 and y'(0) = 0.</p>
+  <ol>
+    <li><strong>Transform the second derivative.</strong> L{y''} = s<sup>2</sup>Y - s y(0) - y'(0) = s<sup>2</sup>Y - s - 0 = s<sup>2</sup>Y - s.</li>
+    <li><strong>Transform the first derivative.</strong> L{y'} = sY - y(0) = sY - 1.</li>
+    <li><strong>Transform the whole equation.</strong> (s<sup>2</sup>Y - s) + 3(sY - 1) + 2Y = 0.</li>
+    <li><strong>Collect Y.</strong> Y(s<sup>2</sup> + 3s + 2) = s + 3. So Y = (s + 3)/(s<sup>2</sup> + 3s + 2).</li>
+    <li><strong>Factor.</strong> s<sup>2</sup> + 3s + 2 = (s + 1)(s + 2). So Y = (s + 3)/((s + 1)(s + 2)). This is the same fraction as in Worked example 4.</li>
+    <li><strong>Invert.</strong> From Worked example 4, y(t) = 2e<sup>-t</sup> - e<sup>-2t</sup>.</li>
+  </ol>
+  <p>Now verify the answer with a program. It checks the initial conditions and the equation at a few times.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def y(t):
+    return 2 * math.exp(-t) - math.exp(-2 * t)
+
+def dy(t):
+    return -2 * math.exp(-t) + 2 * math.exp(-2 * t)
+
+def d2y(t):
+    return 2 * math.exp(-t) - 4 * math.exp(-2 * t)
+
+print("y(0) =", round(y(0), 6))
+print("y'(0) =", round(dy(0), 6))
+for t in [0.5, 1.0, 2.0]:
+    residual = d2y(t) + 3 * dy(t) + 2 * y(t)
+    print("t =", t, "equation holds:", abs(residual) &lt; 1e-9)</code></pre>
+  <pre class="output">y(0) = 1.0
+y'(0) = 0.0
+t = 0.5 equation holds: True
+t = 1.0 equation holds: True
+t = 2.0 equation holds: True</pre>
+
+  <h3>Worked example 7: a first order equation with a constant input</h3>
+  <p>Solve y' + 2y = 1 with y(0) = 0. The right-hand side is the constant 1, which is a simple input to the system.</p>
+  <ol>
+    <li><strong>Transform.</strong> sY - y(0) + 2Y = L{1} = 1/s. With y(0) = 0: sY + 2Y = 1/s.</li>
+    <li><strong>Solve for Y.</strong> Y(s + 2) = 1/s, so Y = 1/(s(s + 2)).</li>
+    <li><strong>Partial fractions.</strong> 1/(s(s + 2)) = A/s + B/(s + 2). Cover-up: A = 1/(s + 2) at s = 0, so A = 1/2. And B = 1/s at s = -2, so B = -1/2.</li>
+    <li><strong>Invert.</strong> Y = (1/2)(1/s) - (1/2)(1/(s + 2)). So y(t) = (1/2)(1 - e<sup>-2t</sup>).</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def y(t):
+    return 0.5 * (1 - math.exp(-2 * t))
+
+def dy(t):
+    return math.exp(-2 * t)
+
+print("y(0) =", y(0))
+for t in [0.5, 1.0, 2.0]:
+    print("t =", t, "equation holds:", abs(dy(t) + 2 * y(t) - 1) &lt; 1e-9)</code></pre>
+  <pre class="output">y(0) = 0.0
+t = 0.5 equation holds: True
+t = 1.0 equation holds: True
+t = 2.0 equation holds: True</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>The initial conditions enter the algebra automatically through the derivative rules. You do not solve for constants separately as you did in the classical method. This is the main advantage of the Laplace method for IVPs.</p></div>
+
+  <details class="check"><summary>Question: Transform y' - 4y = 0 with y(0) = 3. What is Y(s)?</summary><div class="ans"><p>sY - 3 - 4Y = 0, so Y(s - 4) = 3 and Y = 3/(s - 4). The inverse is y = 3e<sup>4t</sup>.</p></div></details>
+  <details class="check"><summary>Question: In a transfer function, what initial conditions are assumed?</summary><div class="ans"><p>All initial conditions are assumed to be zero. Then the derivative rules have no extra initial value terms, and the transfer function is simply the ratio of output to input transforms.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table beside you when you practise. It lists the rules you will use most often.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>F(s) = ∫<sub>0</sub><sup>∞</sup> e<sup>-st</sup> f(t) dt</td><td>Definition of the Laplace transform</td><td>Only when the table does not apply</td></tr>
+      <tr><td>L{1} = 1/s, L{t<sup>n</sup>} = n!/s<sup>n+1</sup></td><td>Powers of t</td><td>Polynomial inputs</td></tr>
+      <tr><td>L{e<sup>at</sup>} = 1/(s - a)</td><td>Exponential</td><td>Decay (a negative) or growth (a positive)</td></tr>
+      <tr><td>L{sin bt} = b/(s<sup>2</sup> + b<sup>2</sup>), L{cos bt} = s/(s<sup>2</sup> + b<sup>2</sup>)</td><td>Oscillations</td><td>Sinusoidal inputs and responses</td></tr>
+      <tr><td>L{a f + b g} = aF + bG</td><td>Linearity</td><td>Sums and constant multiples</td></tr>
+      <tr><td>L{e<sup>at</sup> f(t)} = F(s - a)</td><td>Shifting theorem</td><td>An exponential times a known function</td></tr>
+      <tr><td>L{t f(t)} = -dF/ds</td><td>Multiplying by t</td><td>Terms like t e<sup>at</sup></td></tr>
+      <tr><td>L{f'} = sF(s) - f(0)</td><td>First derivative</td><td>Any IVP, first order or higher</td></tr>
+      <tr><td>L{f''} = s<sup>2</sup>F(s) - s f(0) - f'(0)</td><td>Second derivative</td><td>Second order IVPs</td></tr>
+      <tr><td>L{∫<sub>0</sub><sup>t</sup> f} = F(s)/s</td><td>Integral in time</td><td>Integral equations</td></tr>
+      <tr><td>Partial fractions: A/(s - p) + B/(s - q), A = cover-up at s = p</td><td>Splitting a proper fraction</td><td>Before inverting F(s)</td></tr>
+      <tr><td>(s + 1)<sup>2</sup> + b<sup>2</sup> form</td><td>Completing the square</td><td>Bottom with no real roots</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one on paper before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Transform a polynomial plus an exponential</h3>
+    <div class="statement"><p>Find L{3t<sup>2</sup> + 4e<sup>-t</sup>} and evaluate it at s = 2. Give the exact value. (Answer type: NAT, an exact fraction.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The transform of a sum, then its value at s = 2.</li>
+      <li><strong>Which idea applies.</strong> Linearity, together with the table entries for t<sup>2</sup> and e<sup>-t</sup>.</li>
+      <li><strong>Work it out.</strong> L{t<sup>2</sup>} = 2!/s<sup>3</sup> = 2/s<sup>3</sup>, so 3 · 2/s<sup>3</sup> = 6/s<sup>3</sup>. And L{e<sup>-t</sup>} = 1/(s + 1), so 4 · 1/(s + 1) = 4/(s + 1). Total F(s) = 6/s<sup>3</sup> + 4/(s + 1). At s = 2: 6/8 + 4/3. Common denominator 12 gives 9/12 + 16/12 = 25/12.</li>
+      <li><strong>Check.</strong> The program adds the two fractions exactly.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+print(Fraction(6, 8) + Fraction(4, 3))</code></pre>
+    <pre class="output">25/12</pre>
+    <p class="cx">Answer: F(s) = 6/s<sup>3</sup> + 4/(s + 1), and F(2) = 25/12.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Inverse transform of a sine form</h3>
+    <div class="statement"><p>Let f(t) = L<sup>-1</sup>{1/(s<sup>2</sup> + 16)}. Find f(π/8), rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The function f(t) at one time, t = π/8.</li>
+      <li><strong>Which idea applies.</strong> The sine row of the table has b/(s<sup>2</sup> + b<sup>2</sup>). Here b = 4, but the numerator is 1, not 4.</li>
+      <li><strong>Work it out.</strong> 1/(s<sup>2</sup> + 16) = (1/4) · 4/(s<sup>2</sup> + 16). The inverse of 4/(s<sup>2</sup> + 16) is sin 4t. So f(t) = (1/4) sin 4t. At t = π/8, 4t = π/2, and sin(π/2) = 1. So f(π/8) = 1/4 = 0.25.</li>
+      <li><strong>Check.</strong> The program evaluates the expression.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round(0.25 * math.sin(4 * math.pi / 8), 4))</code></pre>
+    <pre class="output">0.25</pre>
+    <p class="cx">Answer: f(π/8) = 0.25.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which transform rules are correct?</h3>
+    <div class="statement"><p>Select all the statements that are true.</p>
+    <p>(A) L{cos 2t} = s/(s<sup>2</sup> + 4).<br>
+    (B) L{t e<sup>3t</sup>} = 1/(s - 3)<sup>2</sup>.<br>
+    (C) L{e<sup>at</sup> f(t)} = F(s + a).<br>
+    (D) L{f'(t)} = F(s) - f(0).</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four rules are correct.</li>
+      <li><strong>Which idea applies.</strong> Compare each statement with the table and with the shifting and derivative rules.</li>
+      <li><strong>Work it out.</strong> (A) The table row for cos bt with b = 2 gives s/(s<sup>2</sup> + 4). True. (B) The row for t e<sup>at</sup> with a = 3 gives 1/(s - 3)<sup>2</sup>. True. (C) The shifting theorem says the shift is F(s - a), not F(s + a). False. (D) The derivative rule is sF(s) - f(0). The factor s is missing. False.</li>
+      <li><strong>Check.</strong> Test (D) with f = 1. Then f' = 0, so the left side is L{0} = 0. The right side is F(s) - f(0) = 1/s - 1, which is not zero for all s. So (D) is false, which confirms the check.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Solve a first order IVP and evaluate it</h3>
+    <div class="statement"><p>Use the Laplace transform to solve y' + 3y = 0 with y(0) = 5. Find y(1), rounded to two decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of y at t = 1.</li>
+      <li><strong>Which idea applies.</strong> Transform the derivative with sY - y(0), then solve for Y.</li>
+      <li><strong>Work it out.</strong> sY - 5 + 3Y = 0, so Y(s + 3) = 5 and Y = 5/(s + 3). The inverse is y(t) = 5e<sup>-3t</sup>. At t = 1, y(1) = 5e<sup>-3</sup>, which is about 0.2489.</li>
+      <li><strong>Check.</strong> The program evaluates the same expression.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round(5 * math.exp(-3), 2))</code></pre>
+    <pre class="output">0.25</pre>
+    <p class="cx">Answer: y(1) = 5e<sup>-3</sup>, which is 0.25 to two decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Inverse transform with a complete square</h3>
+    <div class="statement"><p>Let F(s) = (2s + 5)/(s<sup>2</sup> + 2s + 5). Find f(t) = L<sup>-1</sup>{F(s)} and evaluate f(π/4), rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The inverse transform, then its value at t = π/4.</li>
+      <li><strong>Which idea applies.</strong> The bottom has no real factors, so complete the square and use the shifting theorem.</li>
+      <li><strong>Work it out.</strong> s<sup>2</sup> + 2s + 5 = (s + 1)<sup>2</sup> + 4. Also 2s + 5 = 2(s + 1) + 3. So F(s) = 2(s + 1)/((s + 1)<sup>2</sup> + 4) + (3/2) · 2/((s + 1)<sup>2</sup> + 4). The table gives s/(s<sup>2</sup> + 4) for cos 2t, and 2/(s<sup>2</sup> + 4) for sin 2t. With the shift s to (s + 1), we get f(t) = 2e<sup>-t</sup> cos 2t + (3/2)e<sup>-t</sup> sin 2t. At t = π/4, 2t = π/2, so cos = 0 and sin = 1. Then f(π/4) = (3/2)e<sup>-π/4</sup>.</li>
+      <li><strong>Check.</strong> The program evaluates (3/2)e<sup>-π/4</sup>.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round(1.5 * math.exp(-math.pi / 4), 4))</code></pre>
+    <pre class="output">0.6839</pre>
+    <p class="cx">Answer: f(π/4) = (3/2)e<sup>-π/4</sup>, which is 0.6839 to four decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about a damped response are true?</h3>
+    <div class="statement"><p>A system satisfies y'' + 4y' + 3y = 0 with y(0) = 0 and y'(0) = 2. Select all the statements that are true.</p>
+    <p>(A) y(t) = e<sup>-t</sup> - e<sup>-3t</sup>.<br>
+    (B) y(t) is negative for every t &gt; 0.<br>
+    (C) y(t) tends to 0 as t tends to infinity.<br>
+    (D) y(t) has its largest value at t = (ln 3)/2.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are true for this solution.</li>
+      <li><strong>Which idea applies.</strong> Solve by Laplace transform, then test each statement.</li>
+      <li><strong>Work it out.</strong> L{y''} = s<sup>2</sup>Y - s · 0 - 2 = s<sup>2</sup>Y - 2, and L{y'} = sY. So (s<sup>2</sup>Y - 2) + 4sY + 3Y = 0, giving Y = 2/((s + 1)(s + 3)). Cover-up gives 2/((s + 1)(s + 3)) = 1/(s + 1) - 1/(s + 3). So y = e<sup>-t</sup> - e<sup>-3t</sup>. Statement (A) is true. (B) At t = 1 the value is e<sup>-1</sup> - e<sup>-3</sup>, which is positive, so (B) is false. (C) Both exponentials go to 0, so (C) is true. (D) y' = -e<sup>-t</sup> + 3e<sup>-3t</sup>. Setting y' = 0 gives e<sup>-2t</sup> = 1/3, so t = (ln 3)/2. This is a maximum because y' is positive at t = 0 and negative after that point. So (D) is true.</li>
+      <li><strong>Check.</strong> The program evaluates y at t = (ln 3)/2. It should give the largest value, about 0.3849.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+t = math.log(3) / 2
+print(round(math.exp(-t) - math.exp(-3 * t), 4))</code></pre>
+    <pre class="output">0.3849</pre>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Transform of t times a sine</h3>
+    <div class="statement"><p>Find the value of L{t sin 2t} at s = 1. Give the answer to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The transform of t sin 2t, evaluated at s = 1.</li>
+      <li><strong>Which idea applies.</strong> Multiplying by t gives -dF/ds, where F(s) = L{sin 2t}.</li>
+      <li><strong>Work it out.</strong> F(s) = 2/(s<sup>2</sup> + 4). Its derivative is dF/ds = -4s/(s<sup>2</sup> + 4)<sup>2</sup>. So L{t sin 2t} = -dF/ds = 4s/(s<sup>2</sup> + 4)<sup>2</sup>. At s = 1: 4/(1 + 4)<sup>2</sup> = 4/25 = 0.16.</li>
+      <li><strong>Check.</strong> The program integrates the definition numerically. The integral must give the same value, 0.16.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+def laplace(f, s, T=30.0, n=300000):
+    h = T / n
+    total = 0.0
+    for k in range(n + 1):
+        t = k * h
+        w = 0.5 if k in (0, n) else 1.0
+        total += w * f(t) * math.exp(-s * t)
+    return total * h
+
+print(round(laplace(lambda t: t * math.sin(2 * t), 1.0), 4))</code></pre>
+    <pre class="output">0.16</pre>
+    <p class="cx">Answer: L{t sin 2t} at s = 1 is 4/25 = 0.16.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Laplace of a product with t (NAT, 2 marks)</h3>
+    <div class="statement"><p>Find L{t e<sup>−2t</sup> sin t} evaluated at s = 0, correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The transform value at one point.</li>
+      <li><strong>Which idea applies.</strong> L{sin t} = 1/(s² + 1). Shift: L{e<sup>−2t</sup>sin t} = 1/((s + 2)² + 1). Multiplying by t means taking −d/ds.</li>
+      <li><strong>Work it out.</strong> −d/ds[((s + 2)² + 1)<sup>−1</sup>] = 2(s + 2)/((s + 2)² + 1)². At s = 0: 4/25 = 0.16.</li>
+      <li><strong>Check.</strong> The code integrates t e<sup>−2t</sup> sin t from 0 to a large limit.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+h = 1e-3
+print("%.3f" % sum((k * h) * math.exp(-2 * k * h) * math.sin(k * h) * h for k in range(1, 40000)))
+</code></pre>
+    <pre class="output">0.160</pre>
+    <p class="cx">Answer: 0.16.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Solving an ODE by Laplace (NAT, 2 marks)</h3>
+    <div class="statement"><p>Use Laplace transforms on y″ + 3y′ + 2y = 0, y(0) = 1, y′(0) = 0. Find y(1), correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The solution at t = 1.</li>
+      <li><strong>Which idea applies.</strong> (s² + 3s + 2)Y − s − 3 = 0, so Y = (s + 3)/((s + 1)(s + 2)).</li>
+      <li><strong>Work it out.</strong> Partial fractions: Y = 2/(s + 1) − 1/(s + 2). y = 2e<sup>−t</sup> − e<sup>−2t</sup>. y(1) = 0.7358 − 0.1353 = 0.600.</li>
+      <li><strong>Check.</strong> y(0) = 1 and y′(0) = −2 + 2 = 0.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("%.3f" % (2 * math.exp(-1) - math.exp(-2)))
+</code></pre>
+    <pre class="output">0.600</pre>
+    <p class="cx">Answer: about 0.600.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Final value theorem (MCQ, 2 marks)</h3>
+    <div class="statement"><p>F(s) = 10/(s(s + 2)(s + 5)) is the transform of f(t). What is the limit of f(t) as t → ∞? (A) 0 (B) 1 (C) 2 (D) 10</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The steady value of f.</li>
+      <li><strong>Which idea applies.</strong> The final value theorem: lim f(t) = lim<sub>s→0</sub> sF(s), valid when the poles of sF(s) are in the left half plane.</li>
+      <li><strong>Work it out.</strong> sF(s) = 10/((s + 2)(s + 5)) → 10/10 = 1.</li>
+      <li><strong>Check.</strong> The poles −2 and −5 are stable, so the theorem applies.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Laplace transform</dt><dd>F(s) = ∫<sub>0</sub><sup>∞</sup> e<sup>-st</sup> f(t) dt. It turns functions of time into functions of s.</dd></div>
+    <div><dt>Inverse transform</dt><dd>The reverse step, written L<sup>-1</sup>, which finds f(t) from F(s).</dd></div>
+    <div><dt>Linearity</dt><dd>The transform of a sum is the sum of transforms, and constants pass through.</dd></div>
+    <div><dt>Shifting theorem</dt><dd>L{e<sup>at</sup> f(t)} = F(s - a).</dd></div>
+    <div><dt>Derivative rule</dt><dd>L{f'} = sF(s) - f(0). It brings in the initial value automatically.</dd></div>
+    <div><dt>Second derivative rule</dt><dd>L{f''} = s<sup>2</sup>F(s) - s f(0) - f'(0).</dd></div>
+    <div><dt>Multiplying by t</dt><dd>L{t f(t)} = -dF/ds.</dd></div>
+    <div><dt>Integral rule</dt><dd>L{∫ f} = F(s)/s.</dd></div>
+    <div><dt>Standard transform of 1</dt><dd>L{1} = 1/s for s &gt; 0.</dd></div>
+    <div><dt>Standard transform of e<sup>at</sup></dt><dd>L{e<sup>at</sup>} = 1/(s - a) for s &gt; a.</dd></div>
+    <div><dt>Standard transform of sin and cos</dt><dd>L{sin bt} = b/(s<sup>2</sup> + b<sup>2</sup>) and L{cos bt} = s/(s<sup>2</sup> + b<sup>2</sup>).</dd></div>
+    <div><dt>Partial fractions</dt><dd>Splitting a proper fraction into simple terms, with coefficients found by the cover-up method.</dd></div>
+    <div><dt>Proper fraction</dt><dd>A fraction whose numerator has a lower power of s than its denominator.</dd></div>
+    <div><dt>Completing the square</dt><dd>Writing s<sup>2</sup> + bs + c as (s + b/2)<sup>2</sup> + remainder, to match a sine or cosine form.</dd></div>
+    <div><dt>Initial value problem with Laplace</dt><dd>Transform the equation, solve the algebra for Y(s), then invert.</dd></div>
+    <div><dt>Transfer function</dt><dd>The ratio of output transform to input transform, with zero initial conditions.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>The derivative rule always includes the initial value. Never drop the -f(0) or -f'(0) terms.</li>
+    <li>Use the table first. Derive a new transform only when the table cannot help.</li>
+    <li>Partial fractions needs a proper fraction. Divide first if the numerator has the higher power.</li>
+    <li>The cover-up method gives each coefficient in one step.</li>
+    <li>Complete the square when the bottom has no real factors, then use the shifting theorem.</li>
+    <li>Check your final answer against the initial conditions and the original equation.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 58?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 58 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-057.html"><small>Previous, topic 57</small>Initial and boundary value problems</a><a class="next" href="gate-059.html"><small>Next, topic 59</small>Solutions of heat, wave &amp; Laplace&#x27;s equations</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

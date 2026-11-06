@@ -1,0 +1,461 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 95: Data transformation: normalization, discretization, sampling, compression</title><meta name="description" content="Raw data is rarely ready for analysis. Its numbers may use different scales, its values may be too many to study one by one, and its files may be too large to store. This topic explains the four common preparation steps, normalization, discretization, sampling and compression, and when each one is used."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g95" data-key="g95" data-noun="topic" data-num="95" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Data transformation: <em>normalization, discretization, sampling, compression</em></h1>
+<p class="lede">Raw data is rarely ready for analysis. Its numbers may use different scales, its values may be too many to study one by one, and its files may be too large to store. This topic explains the four common preparation steps, normalization, discretization, sampling and compression, and when each one is used.</p>
+<div class="station"><b>95</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Why transform data before analysis</li><li>Normalization: min-max scaling and z-score</li><li>Discretization: equal-width and equal-frequency binning, histograms</li><li>Sampling: random, stratified and systematic</li><li>Compression: lossless, lossy and dimensionality reduction</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you are comparing two students. One has a score out of 10, and the other has a score out of 100. Which student did better? You cannot compare the raw numbers fairly until you put the scores on the same scale. This is the basic idea of <strong>data transformation</strong>: change the form of the data, without changing what it means, so that analysis works better.</p>
+  <p>A data preprocessing pipeline usually does four things:</p>
+  <ul>
+    <li><strong>Normalization</strong> puts numbers on a common scale.</li>
+    <li><strong>Discretization</strong> groups continuous numbers into a small number of bins.</li>
+    <li><strong>Sampling</strong> picks a smaller set of rows that still represents the whole.</li>
+    <li><strong>Compression</strong> stores the data in fewer bits, or with fewer columns.</li>
+  </ul>
+  <p>GATE Data Science and AI (paper DA) asks conceptual questions on these ideas, and also short numerical ones on min-max scaling, z-scores and binning. Every number in this page is worked out by hand, and then checked with a short Python program.</p>
+  <p>Here is the sample data we will use. It has five values, from 10 to 50.</p>
+  <div class="tablewrap"><table>
+    <caption>Sample values x</caption>
+    <thead><tr><th>i</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+    <tbody>
+      <tr><td>x</td><td>10</td><td>20</td><td>30</td><td>40</td><td>50</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>Transformation changes how values are represented. A good transformation keeps the information the analysis needs, and removes the differences that come only from units or scale.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Preprocessing</dt><dd>Preparing raw data before analysis or modelling. Plain meaning: cleaning and reshaping first.</dd></div>
+    <div><dt>Normalization</dt><dd>Rescaling values to a common range or to a standard distribution.</dd></div>
+    <div><dt>Min-max scaling</dt><dd>Rescaling so the smallest value becomes 0 and the largest becomes 1.</dd></div>
+    <div><dt>z-score</dt><dd>The number of standard deviations a value lies above or below the mean. Plain meaning: how unusual a value is.</dd></div>
+    <div><dt>Mean</dt><dd>The average of the values, the sum divided by the count.</dd></div>
+    <div><dt>Standard deviation</dt><dd>A measure of spread, the typical distance of values from the mean.</dd></div>
+    <div><dt>Discretization</dt><dd>Turning continuous values into a finite set of intervals or labels.</dd></div>
+    <div><dt>Bin</dt><dd>An interval of values that are grouped together. Plain meaning: a box for values.</dd></div>
+    <div><dt>Equal-width binning</dt><dd>Splitting the range of values into bins of the same width.</dd></div>
+    <div><dt>Equal-frequency binning</dt><dd>Splitting the sorted values into bins that hold the same number of values.</dd></div>
+    <div><dt>Histogram</dt><dd>A chart or table of how many values fall in each bin. Plain meaning: a count per bin.</dd></div>
+    <div><dt>Sampling</dt><dd>Choosing a subset of rows from a larger dataset.</dd></div>
+    <div><dt>Stratified sampling</dt><dd>Sampling separately from each group, so that every group appears in the right proportion.</dd></div>
+    <div><dt>Systematic sampling</dt><dd>Picking every k-th row from an ordered list.</dd></div>
+    <div><dt>Compression</dt><dd>Storing data in fewer bits or fewer values.</dd></div>
+    <div><dt>Lossless compression</dt><dd>Compression that lets you recover the exact original data.</dd></div>
+    <div><dt>Lossy compression</dt><dd>Compression that discards some information, so the original cannot be recovered exactly.</dd></div>
+    <div><dt>Dimensionality reduction</dt><dd>Reducing the number of features while keeping most of the important structure. Plain meaning: fewer columns.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Why transform">
+  <h2>Concept 1: Why transform data before analysis</h2>
+  <h3>Scale affects distance</h3>
+  <p>Many analysis methods measure how far apart two rows are. Suppose a row has an age (in years, about 20 to 60) and an income (in dollars, about 20000 to 90000). The income numbers are thousands of times larger than the age numbers. A distance formula would then depend almost entirely on income, and age would hardly matter. Scaling both to the same range fixes this.</p>
+  <h3>Outliers and spread</h3>
+  <p>Some values are much larger or smaller than the rest. An outlier can stretch a scale, so the typical values are squeezed together. Min-max scaling is sensitive to outliers for this reason. The z-score uses the mean and standard deviation, which are also affected by outliers, so it is worth checking the data first.</p>
+  <h3>Choosing a transformation</h3>
+  <p>The choice depends on the goal. Normalization is for putting features on one scale. Discretization is for reducing detail or for methods that need categories. Sampling is for working with a smaller set of rows. Compression is for storage and transfer. Each step keeps the meaning of the data, but changes its form.</p>
+  <details class="check"><summary>Question: Why does an income column dominate a distance calculation when it is measured in dollars and age is measured in years?</summary><div class="ans"><p>Income values are much larger numbers, so their differences are much larger. The distance is mostly income differences, and age differences have little effect.</p></div></details>
+  <details class="check"><summary>Question: Name the transformation that puts two features on the same scale.</summary><div class="ans"><p>Normalization, using min-max scaling or z-scores.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Normalization">
+  <h2>Concept 2: Normalization with min-max scaling and z-scores</h2>
+  <h3>Min-max scaling</h3>
+  <p>Min-max scaling maps the smallest value to 0 and the largest to 1. The formula is:</p>
+  <div class="formula">x' = (x - min) / (max - min)</div>
+  <p>The symbols mean: x is the original value, min is the smallest value in the data, max is the largest, and x' is the new value. For the sample values, min is 10 and max is 50, so the range is 40.</p>
+  <p>Worked example. Take x = 30:</p>
+  <ol>
+    <li>Subtract the minimum: 30 - 10 = 20.</li>
+    <li>Divide by the range: 20 / 40 = 0.5.</li>
+    <li>So x' = 0.5. The value sits exactly in the middle of the range.</li>
+  </ol>
+  <p>Take x = 40 as well. (40 - 10) / 40 = 30 / 40 = 0.75. The smallest value gives 0 and the largest gives 1, as required.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Min-max scaling uses the minimum and maximum of the data. If a new value is larger than the old maximum, its scaled value is greater than 1. Keep the training minimum and maximum, and apply them unchanged to new data.</p></div>
+  <h3>z-score</h3>
+  <p>The z-score measures how many standard deviations a value is from the mean:</p>
+  <div class="formula">z = (x - mean) / std</div>
+  <p>Here mean is the average of the data, and std is the standard deviation. This page uses the population standard deviation, which divides the sum of squared deviations by n. For the sample values, the mean is (10 + 20 + 30 + 40 + 50) / 5 = 150 / 5 = 30.</p>
+  <p>The squared deviations from 30 are 400, 100, 0, 100 and 400. Their sum is 1000, and the average of these is 200. So std = square root of 200, which is about 14.142.</p>
+  <p>Worked example. Take x = 10. Then z = (10 - 30) / 14.142 = -20 / 14.142 = -1.414. The value is about 1.4 standard deviations below the mean. Take x = 30. Then z = 0, because 30 is the mean.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Min-max puts values between 0 and 1. The z-score centres values at 0 and measures them in standard deviations. Use min-max when a bounded range is needed, and z-score when the spread matters more.</p></div>
+  <details class="check"><summary>Question: Using min-max scaling with min 10 and max 50, what is the scaled value of 20?</summary><div class="ans"><p>(20 - 10) / 40 = 10 / 40 = 0.25.</p></div></details>
+  <details class="check"><summary>Question: What is the z-score of the mean?</summary><div class="ans"><p>Zero, because the numerator x - mean is zero.</p></div></details>
+  <pre class="code" data-lang="python"><code>import statistics
+
+values = [10, 20, 30, 40, 50]
+lo, hi = min(values), max(values)
+
+minmax = [(x - lo) / (hi - lo) for x in values]
+print("min-max:", [round(v, 3) for v in minmax])
+
+mean = statistics.mean(values)
+std = statistics.pstdev(values)
+z = [(x - mean) / std for x in values]
+print("z-scores:", [round(v, 3) for v in z])
+</code></pre>
+  <pre class="output">min-max: [0.0, 0.25, 0.5, 0.75, 1.0]
+z-scores: [-1.414, -0.707, 0.0, 0.707, 1.414]</pre>
+</section>
+
+<section class="unit" id="c3" data-title="Discretization">
+  <h2>Concept 3: Discretization, binning and histograms</h2>
+  <h3>Why bin?</h3>
+  <p>Some methods work better with categories than with continuous numbers. Discretization turns a range of values into a few bins. Age 23 and age 27 may both become "20 to 30". This reduces detail, and it makes a histogram possible.</p>
+  <h3>Equal-width binning</h3>
+  <p>Equal-width binning divides the range into k bins of the same width:</p>
+  <div class="formula">width = (max - min) / k</div>
+  <p>Bin 1 covers values from min up to min + width. Bin 2 covers the next width, and so on. The last bin includes the maximum value.</p>
+  <p>Worked example with k = 2 on the sample values. The width is (50 - 10) / 2 = 20. Bin 1 covers 10 up to 30, and bin 2 covers 30 up to 50. So 10 and 20 go to bin 1, and 30, 40 and 50 go to bin 2. The value 30 sits on the boundary and is placed in the upper bin by this rule.</p>
+  <h3>Equal-frequency binning</h3>
+  <p>Equal-frequency binning sorts the values and puts the same number of values in each bin. With 5 values and k = 2, one bin gets 3 values and the other gets 2. The bins follow the data, so each has the same count, but their widths can differ.</p>
+  <p>For the sample values, equal-frequency gives [10, 20, 30] in bin 1 and [40, 50] in bin 2.</p>
+  <h3>Histograms</h3>
+  <p>A histogram is a count of values per bin. It shows the shape of the data. For example, if bin 1 has 2 values and bin 2 has 3, the histogram has bars of heights 2 and 3. A histogram helps you choose the number of bins: too few bins hide the shape, and too many bins show noise.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Equal-width and equal-frequency can give different bins for the same value. In the practice section, one value lands in different bins under the two rules. Always state which rule is used.</p></div>
+  <details class="check"><summary>Question: In equal-frequency binning with 6 values and k = 3, how many values go in each bin?</summary><div class="ans"><p>Two values in each bin, because 6 / 3 = 2.</p></div></details>
+  <details class="check"><summary>Question: Which binning method guarantees the same width for every bin?</summary><div class="ans"><p>Equal-width binning.</p></div></details>
+  <pre class="code" data-lang="python"><code>values = [10, 20, 30, 40, 50]
+k = 2
+lo, hi = min(values), max(values)
+width = (hi - lo) / k
+
+# Equal-width: bin index is the number of full widths above the minimum, capped at k - 1
+ew = [min(int((x - lo) // width), k - 1) for x in values]
+print("equal-width bins:", ew)
+
+# Equal-frequency: sort, then split into k groups of nearly equal size
+ordered = sorted(values)
+size = len(ordered) // k + (1 if len(ordered) % k else 0)
+ef = [i // size for i in range(len(ordered))]
+print("equal-frequency bins (sorted order):", ef)
+print("equal-frequency groups:", [ordered[:3], ordered[3:]])
+</code></pre>
+  <pre class="output">equal-width bins: [0, 0, 1, 1, 1]
+equal-frequency bins (sorted order): [0, 0, 0, 1, 1]
+equal-frequency groups: [[10, 20, 30], [40, 50]]</pre>
+</section>
+
+<section class="unit" id="c4" data-title="Sampling">
+  <h2>Concept 4: Sampling, random, stratified and systematic</h2>
+  <h3>Why sample?</h3>
+  <p>Analysing every row of a huge dataset can be too slow. A sample is a smaller set of rows that still represents the whole. A good sample has the same important properties as the full data. A bad sample can mislead.</p>
+  <h3>Random sampling</h3>
+  <p>In simple random sampling, each row has the same chance of being chosen. It is easy to explain and fair. Its weakness is that a small group may be missed by chance, especially when the sample is small.</p>
+  <h3>Stratified sampling</h3>
+  <p>Stratified sampling first splits the data into groups, called strata, and then samples from each group. If 80 percent of customers are in region A and 20 percent in region B, and we want a sample of 100, we take 80 from A and 20 from B. This keeps the group proportions right, including small groups.</p>
+  <h3>Systematic sampling</h3>
+  <p>Systematic sampling picks every k-th row from an ordered list. For k = 2 on the sample values, we take the 1st, 3rd and 5th values: 10, 30 and 50. It is simple and fast. Its weakness is bias when the data has a repeating pattern that matches the step size. For example, if every second record is a weekend, a step of 2 would pick only one kind of record.</p>
+  <div class="note tip"><p><span class="t">Tip</span>When a question asks which sampling method keeps a rare group, the answer is stratified sampling. Simple random sampling may miss the group entirely.</p></div>
+  <details class="check"><summary>Question: A dataset has 1000 rows and you want a systematic sample of 100 rows. What step size do you use?</summary><div class="ans"><p>1000 / 100 = 10. Take every 10th row.</p></div></details>
+  <details class="check"><summary>Question: Which sampling method preserves group proportions?</summary><div class="ans"><p>Stratified sampling.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Compression">
+  <h2>Concept 5: Compression, lossless, lossy and dimensionality reduction</h2>
+  <h3>Lossless compression</h3>
+  <p>Lossless compression stores the data in fewer bits, and the original can be recovered exactly. Zip files and PNG images are lossless. Python's zlib module is a lossless compressor. The check below confirms the round trip.</p>
+  <h3>Lossy compression</h3>
+  <p>Lossy compression throws away some detail to save more space. The original cannot be restored exactly. JPEG images and rounding numbers are lossy. For the sample values, rounding to the nearest 25 gives 10 to 0, 20 to 25, 30 to 25, 40 to 50, and 50 to 50. The values 20 and 30 are now the same, so the difference between them is lost.</p>
+  <h3>Dimensionality reduction</h3>
+  <p>Dimensionality reduction keeps fewer features, or fewer combinations of features, that still capture most of the structure. A dataset with 100 rows and 10 features has 1000 numbers. Keeping 4 combined features gives 400 numbers for the rows. This is a form of lossy compression, because the dropped information cannot be recovered exactly.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The question to ask is whether the original data can be rebuilt exactly. If yes, the compression is lossless. If no, it is lossy, and the loss must be acceptable for the task.</p></div>
+  <details class="check"><summary>Question: Is rounding a number to the nearest 10 lossless or lossy?</summary><div class="ans"><p>Lossy. Several different numbers round to the same value, so the original cannot be recovered.</p></div></details>
+  <details class="check"><summary>Question: Why is dimensionality reduction counted as compression?</summary><div class="ans"><p>It stores fewer numbers than the original table, so it uses less space and less work.</p></div></details>
+  <pre class="code" data-lang="python"><code>import zlib
+
+original = b"sales,sales,sales,sales,profit,profit,profit,profit,"
+packed = zlib.compress(original)
+print("lossless round trip:", zlib.decompress(packed) == original)
+
+values = [10, 20, 30, 40, 50]
+rounded = [round(x / 25) * 25 for x in values]
+print("lossy rounding to 25:", rounded)
+print("20 and 30 identical after rounding:", rounded[1] == rounded[2])
+</code></pre>
+  <pre class="output">lossless round trip: True
+lossy rounding to 25: [0, 25, 25, 50, 50]
+20 and 30 identical after rounding: True</pre>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or method</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>x' = (x - min) / (max - min)</td><td>Min-max scaling to 0 to 1</td><td>Bounded range needed</td></tr>
+      <tr><td>z = (x - mean) / std</td><td>Distance from mean in standard deviations</td><td>Comparing spread across features</td></tr>
+      <tr><td>width = (max - min) / k</td><td>Equal-width bin size</td><td>Equal-width binning</td></tr>
+      <tr><td>Equal-frequency: sort, then split into k groups</td><td>Same count per bin</td><td>Skewed data</td></tr>
+      <tr><td>Stratified: sample a fixed fraction from each group</td><td>Keeps group proportions</td><td>Rare groups matter</td></tr>
+      <tr><td>Systematic: every k-th row</td><td>Simple, fast sampling</td><td>Ordered list without periodic pattern</td></tr>
+      <tr><td>Lossless: exact round trip</td><td>Zip, PNG</td><td>Data must be exact</td></tr>
+      <tr><td>Lossy: information discarded</td><td>JPEG, rounding, dropping features</td><td>Small loss is acceptable</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Min-max of one value</h3>
+    <div class="statement"><p>A feature has minimum 10 and maximum 50. What is the min-max scaled value of 30?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One scaled value.</li>
+      <li><strong>Which idea applies.</strong> x' = (x - min) / (max - min).</li>
+      <li><strong>Work it out.</strong> (30 - 10) / (50 - 10) = 20 / 40 = 0.5.</li>
+      <li><strong>Check.</strong> The middle of the range scales to the middle of 0 to 1.</li>
+    </ol>
+    <p class="cx">Answer: 0.5.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Bin count</h3>
+    <div class="statement"><p>Eight values are split by equal-frequency binning into 4 bins. How many values are in each bin?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count per bin.</li>
+      <li><strong>Which idea applies.</strong> Equal-frequency gives each bin the same number of values.</li>
+      <li><strong>Work it out.</strong> 8 / 4 = 2.</li>
+      <li><strong>Check.</strong> Four bins of two values make eight values in total.</li>
+    </ol>
+    <p class="cx">Answer: 2 values in each bin.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which methods are lossless</h3>
+    <div class="statement"><p>Select all that apply. Which of these operations are lossy?</p>
+      <p>(A) Zip compression of a text file</p>
+      <p>(B) Rounding each value to the nearest 10</p>
+      <p>(C) Dropping one of two highly correlated features</p>
+      <p>(D) Storing a decimal value as an integer</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which operations discard information.</li>
+      <li><strong>Which idea applies.</strong> Lossless operations can be undone exactly. Lossy ones cannot.</li>
+      <li><strong>Work it out.</strong> (A) Zip can be undone exactly, so it is lossless. (B) Rounding merges values, so it is lossy. (C) Dropping a feature discards its values, so it is lossy. (D) Storing a decimal as an integer discards the fraction, so it is lossy.</li>
+      <li><strong>Check.</strong> Three operations discard information, and one does not.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Count above the mean</h3>
+    <div class="statement"><p>The values are 10, 20, 30, 40 and 50. How many of them are strictly above the mean?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count.</li>
+      <li><strong>Which idea applies.</strong> First find the mean, then compare each value.</li>
+      <li><strong>Work it out.</strong> The mean is 150 / 5 = 30. The values above 30 are 40 and 50.</li>
+      <li><strong>Check.</strong> The value 30 equals the mean, so it is not strictly above it.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Equal-width bin of one value</h3>
+    <div class="statement"><p>The values are 1, 2, 3, 4 and 20. Using equal-width binning with k = 2, which bin (1 or 2) contains the value 4?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The bin number of one value.</li>
+      <li><strong>Which idea applies.</strong> Width = (max - min) / k, then bins are fixed ranges.</li>
+      <li><strong>Work it out.</strong> Width = (20 - 1) / 2 = 9.5. Bin 1 covers 1 up to 10.5, and bin 2 covers 10.5 up to 20. The value 4 lies in bin 1.</li>
+      <li><strong>Check.</strong> Under equal-frequency binning, 4 would be in bin 2, which shows the two rules differ.</li>
+    </ol>
+    <p class="cx">Answer: bin 1.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Sampling statements</h3>
+    <div class="statement"><p>Select all that apply. Which statements about sampling are true?</p>
+      <p>(A) Systematic sampling picks every k-th row of an ordered list.</p>
+      <p>(B) Stratified sampling keeps group proportions in the sample.</p>
+      <p>(C) Simple random sampling always includes every rare group.</p>
+      <p>(D) Systematic sampling can be biased when the data has a repeating pattern that matches the step size.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The true statements about sampling methods.</li>
+      <li><strong>Which idea applies.</strong> Recall how each method chooses rows and what can go wrong.</li>
+      <li><strong>Work it out.</strong> (A) True, that is the definition. (B) True, that is the purpose of strata. (C) False, a small sample can miss a rare group by chance. (D) True, a pattern in step with the interval can repeat or skip one kind of row.</li>
+      <li><strong>Check.</strong> Only the random method is wrong, because chance can miss a rare group.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Scaled value with a larger sample</h3>
+    <div class="statement"><p>A feature has minimum 2 and maximum 8. What is the min-max scaled value of 6? Give the answer to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One scaled value to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> x' = (x - min) / (max - min).</li>
+      <li><strong>Work it out.</strong> (6 - 2) / (8 - 2) = 4 / 6 = 0.6667, which rounds to 0.67.</li>
+      <li><strong>Check.</strong> The value 6 is above the midpoint 5, so the scaled value must be above 0.5. 0.67 is.</li>
+    </ol>
+    <p class="cx">Answer: 0.67.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Fraction of numbers kept</h3>
+    <div class="statement"><p>A dataset has 100 rows and 10 features. Dimensionality reduction keeps 4 combined features for each row, and the reduced data is the only thing stored. What fraction of the original numbers remains?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A fraction of the original count.</li>
+      <li><strong>Which idea applies.</strong> Count the numbers before and after.</li>
+      <li><strong>Work it out.</strong> Before: 100 × 10 = 1000 numbers. After: 100 × 4 = 400 numbers. The fraction is 400 / 1000 = 0.4.</li>
+      <li><strong>Check.</strong> Four of ten features kept gives 40 percent, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 0.4.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: min-max normalization (NAT, 2 marks)</h3>
+    <div class="statement"><p>A column has the values 12, 20, 35, 50 and 8. Each value is scaled to the range [0, 1] with min-max normalization, where the new value is (x - min) / (max - min). Find the normalized value of x = 30, and give the answer rounded to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The min-max value of 30, rounded to 4 decimals.</li>
+      <li><strong>Which idea applies.</strong> Min-max uses the column minimum and maximum, so find those first.</li>
+      <li><strong>Work it out.</strong> The minimum is 8 and the maximum is 50, so the range is 42. Then (30 - 8) / 42 = 22 / 42 = 0.52380..., which rounds to 0.5238.</li>
+      <li><strong>Check.</strong> The midpoint of [8, 50] is 29, so 30 should be just above 0.5. The answer 0.5238 is just above 0.5.</li>
+    </ol>
+    <p class="cx">Answer: 0.5238.</p>
+    <pre class="code" data-lang="python"><code>vals=[12,20,35,50,8]
+lo=min(vals); hi=max(vals)
+x=30
+mm=(x-lo)/(hi-lo)
+print(round(mm,4))</code></pre>
+    <pre class="output">0.5238</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: equal-width and equal-frequency bins (NAT, 2 marks)</h3>
+    <div class="statement"><p>The sorted values 4, 8, 15, 16, 21, 21, 24, 25, 28 and 34 are discretized into 3 bins in two ways. Equal-width binning splits the range from the minimum to the maximum into 3 parts of equal size. Equal-frequency binning puts the first 4 values in bin 1, the next 3 values in bin 2 and the last 3 values in bin 3. Let W be the largest bin count under equal-width binning, and let E be the largest bin count under equal-frequency binning. Find W + E.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sum of the two largest bin counts.</li>
+      <li><strong>Which idea applies.</strong> Equal width fixes the bin edges from the range. Equal frequency fixes the counts first.</li>
+      <li><strong>Work it out.</strong> The width is (34 - 4) / 3 = 10, so the edges are 4, 14, 24 and 34. The last bin includes its top edge, so 34 is in bin 3. Equal-width counts are: bin 1 has 4 and 8 (2 values), bin 2 has 15, 16, 21 and 21 (4 values), and bin 3 has 24, 25, 28 and 34 (4 values). So W = 4. Equal-frequency counts are 4, 3 and 3, so E = 4.</li>
+      <li><strong>Check.</strong> Each method places all 10 values, and the counts add to 10 in both.</li>
+    </ol>
+    <p class="cx">Answer: W + E = 8.</p>
+    <pre class="code" data-lang="python"><code>data=[4,8,15,16,21,21,24,25,28,34]
+k=3
+lo=min(data); hi=max(data)
+w=(hi-lo)/k
+edges=[lo+i*w for i in range(k+1)]
+eqw=[0]*k
+for v in data:
+    i=min(int((v-lo)//w),k-1)
+    eqw[i]+=1
+eqf=[len(data[0:4]),len(data[4:7]),len(data[7:10])]
+print(edges)
+print(eqw)
+print(eqf)
+print(max(eqw)+max(eqf))</code></pre>
+    <pre class="output">[4.0, 14.0, 24.0, 34.0]
+[2, 4, 4]
+[4, 3, 3]
+8</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: normalization and lossy compression (MSQ, 2 marks)</h3>
+    <div class="statement"><p>The values 2, 4, 6, 8 and 10 are transformed. Min-max maps them to the range [0, 1]. Z-score uses the mean and the population standard deviation, where the new value is (x - mean) / sd. Lossy compression keeps only an approximation of the data. Select all that apply. Which statements are correct?</p>
+      <p>(A) Min-max maps the smallest value to 0 and the largest value to 1.</p>
+      <p>(B) After the z-score, the mean of the values is 1.</p>
+      <p>(C) After the z-score, the population standard deviation is 1.</p>
+      <p>(D) Lossy compression always gives back the exact original values.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about these transforms are true.</li>
+      <li><strong>Which idea applies.</strong> Min-max sets the range. Z-score centres the data at 0 and scales its spread to 1.</li>
+      <li><strong>Work it out.</strong> Min-max gives 0.0 at 2 and 1.0 at 10. The mean is 6 and the population standard deviation is the square root of 8, about 2.83. After the z-score, the mean is 0 and the standard deviation is 1.</li>
+      <li><strong>Check.</strong> (B) fails because the mean is 0, not 1. (D) fails because lossy compression loses information, so exact recovery is not guaranteed.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C). Why the others fail: (B) the z-score centres values at 0; (D) lossy compression discards some detail, so the original cannot always be rebuilt.</p>
+    <pre class="code" data-lang="python"><code>import statistics
+vals=[2,4,6,8,10]
+mm=[(v-min(vals))/(max(vals)-min(vals)) for v in vals]
+print(min(mm), max(mm))
+mu=statistics.mean(vals); sd=statistics.pstdev(vals)
+z=[(v-mu)/sd for v in vals]
+print(abs(round(statistics.mean(z),6)))
+print(round(statistics.pstdev(z),6))</code></pre>
+    <pre class="output">0.0 1.0
+0.0
+1.0</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: systematic sample size (NAT, 2 marks)</h3>
+    <div class="statement"><p>A file has 1000 rows numbered 1 to 1000. A systematic sample starts at row 1 and then takes every 25th row, so it holds rows 1, 26, 51 and so on. How many rows does the sample contain? Then find the ratio of file size to sample size, as a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sample size, and the ratio of file size to sample size.</li>
+      <li><strong>Which idea applies.</strong> Systematic sampling takes every k-th row. The rows in the sample form an arithmetic sequence.</li>
+      <li><strong>Work it out.</strong> The last sampled row is 1 + 25 × 39 = 976, so the rows run from 1 to 976 in steps of 25. That is 39 + 1 = 40 rows. The ratio is 1000 / 40 = 25.0.</li>
+      <li><strong>Check.</strong> 40 × 25 = 1000, so the sample covers the file exactly, one row per block of 25.</li>
+    </ol>
+    <p class="cx">Answer: 40 rows; ratio 25.0.</p>
+    <pre class="code" data-lang="python"><code>N=1000; step=25
+sample=list(range(1,N+1))[0::step]
+print(len(sample))
+print(N/len(sample))</code></pre>
+    <pre class="output">40
+25.0</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Preprocessing</dt><dd>Preparing raw data before analysis.</dd></div>
+    <div><dt>Min-max scaling</dt><dd>Maps the minimum to 0 and the maximum to 1.</dd></div>
+    <div><dt>z-score</dt><dd>Distance from the mean in standard deviations.</dd></div>
+    <div><dt>Population standard deviation</dt><dd>Square root of the average squared deviation from the mean.</dd></div>
+    <div><dt>Discretization</dt><dd>Grouping continuous values into bins.</dd></div>
+    <div><dt>Equal-width binning</dt><dd>Bins of the same width across the range.</dd></div>
+    <div><dt>Equal-frequency binning</dt><dd>Bins holding the same number of values.</dd></div>
+    <div><dt>Histogram</dt><dd>Count of values per bin.</dd></div>
+    <div><dt>Sampling</dt><dd>Choosing a subset of rows that represents the whole.</dd></div>
+    <div><dt>Simple random sampling</dt><dd>Each row has the same chance of selection.</dd></div>
+    <div><dt>Stratified sampling</dt><dd>Sampling within each group to keep proportions.</dd></div>
+    <div><dt>Systematic sampling</dt><dd>Every k-th row of an ordered list.</dd></div>
+    <div><dt>Compression</dt><dd>Storing data in fewer bits or fewer values.</dd></div>
+    <div><dt>Lossless compression</dt><dd>The original can be recovered exactly.</dd></div>
+    <div><dt>Lossy compression</dt><dd>Some information is discarded and cannot be recovered.</dd></div>
+    <div><dt>Dimensionality reduction</dt><dd>Fewer features that keep most of the structure.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Min-max: (x - min) / (max - min). z-score: (x - mean) / std.</li>
+    <li>Equal-width bins have the same width. Equal-frequency bins have the same count.</li>
+    <li>Stratified sampling keeps group proportions. Systematic sampling takes every k-th row.</li>
+    <li>Lossless means exact recovery is possible. Rounding and dropping features are lossy.</li>
+    <li>Always state which binning rule and which normalization you used.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 95?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 95 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-094.html"><small>Previous, topic 94</small>Concept hierarchies &amp; measures</a><a class="next" href="gate-096.html"><small>Next, topic 96</small>Simple linear regression</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

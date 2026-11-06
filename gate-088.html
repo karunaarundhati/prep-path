@@ -1,0 +1,431 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 88: Integrity constraints</title><meta name="description" content="Integrity constraints are the rules a database must never break, such as a student must have a name and every enrolment must point to a real student. This topic covers domain, key, entity and referential integrity, the NOT NULL, UNIQUE and CHECK constraints, and what cascading actions do when a row is deleted, which GATE asks about in scenario questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g88" data-key="g88" data-noun="topic" data-num="88" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Integrity constraints</h1>
+<p class="lede">Integrity constraints are the rules a database must never break, such as a student must have a name and every enrolment must point to a real student. This topic covers domain, key, entity and referential integrity, the NOT NULL, UNIQUE and CHECK constraints, and what cascading actions do when a row is deleted, which GATE asks about in scenario questions.</p>
+<div class="station"><b>88</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Why integrity constraints exist</li><li>Domain and CHECK constraints</li><li>NOT NULL and key constraints</li><li>Entity integrity</li><li>Referential integrity and violations</li><li>Cascading actions: CASCADE, SET NULL, RESTRICT</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a library. The librarian follows rules. A book cannot be lent to a member who does not exist. Every book must have a title. Each book has a unique barcode. If a member is removed from the system, their loans must be handled too. These rules keep the records correct, even when many people are working at once.</p>
+  <p>A database works the same way. An <strong>integrity constraint</strong> is a rule that every state of the database must satisfy. The database system checks the rule when you insert, update or delete data, and it refuses any change that would break a rule.</p>
+  <p>Why this matters: without integrity constraints, a database could store a student enrolled in a course that does not exist, or two students with the same roll number. Errors like these spread silently into reports and decisions. The constraints stop them at the door.</p>
+  <p>Why this matters for GATE: many GATE questions describe a small database and a change to it, then ask whether the change is allowed, or what happens to the other rows. The answer depends on knowing exactly which rule is broken and what action the database takes.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Integrity constraint</dt><dd>A rule that the stored data must always satisfy. Plain meaning: a rule the database will not let you break.</dd></div>
+    <div><dt>Domain</dt><dd>The set of allowed values for an attribute, such as whole numbers from 0 to 120 for age.</dd></div>
+    <div><dt>Domain constraint</dt><dd>A rule that each value of an attribute belongs to its domain.</dd></div>
+    <div><dt>NULL</dt><dd>A marker meaning "no value is known or applicable". It is not zero and not an empty string.</dd></div>
+    <div><dt>NOT NULL</dt><dd>A constraint that forbids NULL in a column.</dd></div>
+    <div><dt>UNIQUE</dt><dd>A constraint that no two rows have the same value in the column or set of columns.</dd></div>
+    <div><dt>CHECK</dt><dd>A constraint that a condition must hold for every row, such as age greater than or equal to 0.</dd></div>
+    <div><dt>Key constraint</dt><dd>The rule that the primary key of a relation is unique for every row.</dd></div>
+    <div><dt>Entity integrity</dt><dd>The rule that no primary key attribute may be NULL.</dd></div>
+    <div><dt>Referential integrity</dt><dd>The rule that every non-NULL foreign key value must match a primary key value in the referenced table.</dd></div>
+    <div><dt>Referencing (child) table</dt><dd>The table that holds the foreign key.</dd></div>
+    <div><dt>Referenced (parent) table</dt><dd>The table whose primary key is pointed to.</dd></div>
+    <div><dt>Violation</dt><dd>A change or state that breaks a constraint.</dd></div>
+    <div><dt>Cascading action</dt><dd>An automatic change to child rows when a parent row is deleted or changed.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Domain and CHECK constraints">
+  <h2>Domain constraints and CHECK</h2>
+  <p>Every attribute has a <strong>domain</strong>, which is the set of values it may hold. An age column is a set of whole numbers. A grade column may hold only the letters A to F. A name column holds text. The domain constraint says that each stored value must come from the domain.</p>
+  <p>Most systems express domains as data types, such as INT or VARCHAR. A type does not capture every rule, though. An age must not be negative, even though an INT can be negative. For such rules we use a <strong>CHECK</strong> constraint. It attaches a condition to the table, and every row must satisfy it.</p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE Person (
+  pid INT PRIMARY KEY,
+  name VARCHAR(30),
+  age INT CHECK (age &gt;= 0 AND age &lt;= 120),
+  grade CHAR(1) CHECK (grade IN ('A', 'B', 'C', 'D', 'E', 'F'))
+);</code></pre>
+  <p>Read the CHECK lines. The age must be from 0 to 120. The grade must be one of six letters. An insert with age -5 is rejected, because the condition is False. An insert with grade Z is rejected too.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A CHECK constraint is satisfied when its condition is True or UNKNOWN. If the age is NULL, the condition age &gt;= 0 is UNKNOWN, so a plain CHECK accepts the row. To forbid NULL, add NOT NULL as well.</p></div>
+  <details class="check"><summary>Would an insert with age NULL pass the CHECK on age above?</summary><div class="ans"><p>Yes, the CHECK passes because the condition is UNKNOWN. Only NOT NULL would stop it.</p></div></details>
+  <details class="check"><summary>Is a domain constraint always enforced by the data type alone?</summary><div class="ans"><p>No. A type such as INT allows negative numbers, so a CHECK is needed for a rule such as "age is not negative".</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="NOT NULL and key constraints">
+  <h2>NOT NULL, UNIQUE and key constraints</h2>
+  <p>Some values must always be present. A student's name is an example. The NOT NULL constraint forbids NULL in such a column. An insert without a name is rejected.</p>
+  <p>A UNIQUE constraint says that no two rows may have the same value in that column, or in that group of columns. It is used for things like email addresses, where each address should belong to one person.</p>
+  <p>The primary key is a special case. It is UNIQUE and NOT NULL, both at once. Its job is to identify each row. This combination is the <strong>key constraint</strong>.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Constraint</th><th>Forbids</th><th>Typical use</th></tr></thead>
+    <tbody>
+      <tr><td>NOT NULL</td><td>A missing value</td><td>Name, date of birth</td></tr>
+      <tr><td>UNIQUE</td><td>Two rows with the same value</td><td>Email address</td></tr>
+      <tr><td>PRIMARY KEY</td><td>Both a missing value and a duplicate</td><td>Student id</td></tr>
+      <tr><td>CHECK</td><td>A value that makes the condition False</td><td>Age not negative, grade in a list</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>In standard SQL, several rows may have NULL in a UNIQUE column, because two NULLs are not treated as equal. A PRIMARY KEY never allows NULL. Check the rule for the database being discussed if the question names one.</p></div>
+  <details class="check"><summary>Can a table have two rows with NULL email if email is UNIQUE but not NOT NULL?</summary><div class="ans"><p>Yes, in standard SQL. Two NULLs are not treated as equal, so the UNIQUE rule is not broken.</p></div></details>
+  <details class="check"><summary>Which two constraints does a primary key satisfy at once?</summary><div class="ans"><p>UNIQUE and NOT NULL.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Entity integrity">
+  <h2>Entity integrity</h2>
+  <p>Entity integrity says that no primary key attribute may be NULL. The reason is simple. A row must be identifiable. If its key were NULL, we could not refer to it, and we could not tell it apart from another row with a NULL key.</p>
+  <p>Example. The Student table below has a row with a NULL sid. This violates entity integrity, even if the other values in the row are correct.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>sid (primary key)</th><th>name</th><th>dept_id</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>Asha</td><td>10</td></tr>
+      <tr><td>NULL</td><td>Eve</td><td>10</td></tr>
+    </tbody>
+  </table></div>
+  <p>The second row must be rejected. Compare this with a NULL in dept_id, which is a different matter, as the next sections explain.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Entity integrity applies only to the primary key. Other attributes may be NULL unless a NOT NULL constraint says otherwise.</p></div>
+  <details class="check"><summary>Is a NULL in the dept_id column of Student a violation of entity integrity?</summary><div class="ans"><p>No. dept_id is not the primary key of Student. It may be NULL, unless the design forbids it with NOT NULL.</p></div></details>
+  <details class="check"><summary>Why must a primary key never be NULL?</summary><div class="ans"><p>Because each row must be identifiable, and a NULL key cannot identify a row. Other tables that refer to the row would also have no value to point to.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Referential integrity">
+  <h2>Referential integrity and violations</h2>
+  <p>Referential integrity links two tables. A foreign key in the child table must either be NULL, or match a primary key value that exists in the parent table. This keeps references honest. A student cannot belong to a department that does not exist.</p>
+  <p>Here are the two tables used on this page.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept_id (primary key)</th><th>dept_name</th></tr></thead>
+    <tbody>
+      <tr><td>10</td><td>Physics</td></tr>
+      <tr><td>20</td><td>Chemistry</td></tr>
+      <tr><td>30</td><td>Maths</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>sid (primary key)</th><th>name</th><th>dept_id (foreign key)</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>Asha</td><td>10</td></tr>
+      <tr><td>S2</td><td>Ravi</td><td>20</td></tr>
+      <tr><td>S3</td><td>Meera</td><td>10</td></tr>
+      <tr><td>S4</td><td>Kiran</td><td>NULL</td></tr>
+    </tbody>
+  </table></div>
+  <p>Kiran's dept_id is NULL, which is allowed, because Kiran has no department yet. Asha, Ravi and Meera all point to departments that exist, so they are fine.</p>
+  <p>Now consider three changes, one at a time.</p>
+  <ol>
+    <li><strong>Insert S5, Dev, dept_id 40.</strong> Department 40 does not exist. This violates referential integrity, and the insert is rejected.</li>
+    <li><strong>Insert S6, Tara, dept_id NULL.</strong> The foreign key is NULL, which is allowed. The insert is accepted.</li>
+    <li><strong>Delete department 10 while Asha and Meera still point to it.</strong> This would leave two rows pointing to a missing parent. The database must do something, and the next section explains the options.</li>
+  </ol>
+  <div class="note trap"><p><span class="t">Trap</span>A NULL foreign key does not violate referential integrity. The rule applies only to non-NULL values. A foreign key with a value that matches no parent row is a violation.</p></div>
+  <p>The code below counts the violations in a small list of students. A violation is a non-NULL department that is not in the set of department ids.</p>
+  <pre class="code" data-lang="python"><code>dept_ids = {10, 20, 30}
+students = [("S1", 10), ("S2", 20), ("S3", 10), ("S4", None), ("S5", 40)]
+violations = [s for s, d in students if d is not None and d not in dept_ids]
+print(violations)
+print(len(violations))</code></pre>
+  <pre class="output">['S5']
+1</pre>
+  <p>Only S5 breaks the rule. S4 has NULL, so it is allowed.</p>
+  <details class="check"><summary>Which kind of change can break referential integrity in the child table?</summary><div class="ans"><p>Inserting a child row, or updating its foreign key, to a value that does not exist in the parent table.</p></div></details>
+  <details class="check"><summary>Is inserting a student with dept_id NULL allowed when dept_id is a foreign key?</summary><div class="ans"><p>Yes, unless the column is declared NOT NULL. The NULL value does not point to any row, so no rule is broken.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Cascading actions">
+  <h2>Cascading actions: CASCADE, SET NULL and RESTRICT</h2>
+  <p>What should happen when a parent row is deleted and child rows still point to it? The database offers a choice, which the designer declares with the foreign key. These choices are the <strong>referential actions</strong>.</p>
+  <ul>
+    <li><strong>ON DELETE CASCADE.</strong> The child rows are deleted too. The change flows down the chain, which is why it is called cascading.</li>
+    <li><strong>ON DELETE SET NULL.</strong> The child rows stay, but their foreign key is set to NULL. This is allowed only if the column is not declared NOT NULL.</li>
+    <li><strong>ON DELETE RESTRICT or NO ACTION.</strong> The delete of the parent is rejected while any child refers to it.</li>
+    <li><strong>ON DELETE SET DEFAULT.</strong> The foreign key is set to a default value, which must exist in the parent table.</li>
+  </ul>
+  <p>Start from the Student table above and delete department 10 under each choice.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Choice</th><th>Result of deleting department 10</th><th>Rows left in Student</th></tr></thead>
+    <tbody>
+      <tr><td>CASCADE</td><td>Asha and Meera are deleted. Ravi and Kiran remain.</td><td>2</td></tr>
+      <tr><td>SET NULL</td><td>Asha and Meera stay, with dept_id NULL. Kiran was already NULL.</td><td>4</td></tr>
+      <tr><td>RESTRICT</td><td>The delete of department 10 is rejected, and nothing changes.</td><td>4</td></tr>
+    </tbody>
+  </table></div>
+  <p>The SQL below shows how a designer declares the cascade. It is written as text for reading and is not run.</p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE Student (
+  sid CHAR(4) PRIMARY KEY,
+  name VARCHAR(30) NOT NULL,
+  dept_id INT REFERENCES Department(dept_id) ON DELETE CASCADE
+);</code></pre>
+  <p>The code below simulates the three choices on a small dictionary of students. The key is the sid and the value is the dept_id.</p>
+  <pre class="code" data-lang="python"><code>students = {"S1": 10, "S2": 20, "S3": 10, "S4": None}
+
+def delete_dept(students, dept, action):
+    if action == "cascade":
+        return {s: d for s, d in students.items() if d != dept}
+    if action == "set null":
+        return {s: (None if d == dept else d) for s, d in students.items()}
+    if any(d == dept for d in students.values()):
+        raise ValueError("restricted")
+    return students
+
+after_cascade = delete_dept(students, 10, "cascade")
+print(after_cascade)
+after_null = delete_dept(students, 10, "set null")
+print(after_null)
+print(len(after_cascade))
+print(sum(1 for d in after_null.values() if d is None))
+try:
+    delete_dept(students, 10, "restrict")
+    print("deleted")
+except ValueError:
+    print("rejected")</code></pre>
+  <pre class="output">{'S2': 20, 'S4': None}
+{'S1': None, 'S2': 20, 'S3': None, 'S4': None}
+2
+3
+rejected</pre>
+  <p>The output agrees with the table. CASCADE leaves 2 students. SET NULL keeps all 4 rows, and 3 of them have NULL. RESTRICT rejects the delete.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Cascades can reach further than one table. If Enrol refers to Student with CASCADE, deleting a department can remove the students and then their enrolments too.</p></div>
+  <details class="check"><summary>Under SET NULL, why does Kiran's row not change?</summary><div class="ans"><p>Kiran's dept_id is already NULL, and SET NULL only changes rows whose foreign key points to the deleted department.</p></div></details>
+  <details class="check"><summary>Which choice would you pick if you want no student to be silently removed?</summary><div class="ans"><p>RESTRICT or NO ACTION, or SET NULL when the column allows NULL. CASCADE removes the child rows.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Chains of cascades">
+  <h2>Chains of cascades and combined rules</h2>
+  <p>Constraints often form a chain. Department is the parent of Student, and Student is the parent of Enrol, which lists the courses each student takes. If Student-to-Enrol uses CASCADE, then deleting a student also deletes that student's enrolments.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>sid</th><th>cid</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>C1</td></tr>
+      <tr><td>S1</td><td>C2</td></tr>
+      <tr><td>S2</td><td>C1</td></tr>
+      <tr><td>S3</td><td>C2</td></tr>
+      <tr><td>S3</td><td>C3</td></tr>
+    </tbody>
+  </table></div>
+  <p>Suppose department 10 is deleted with CASCADE all the way down. Asha (S1) and Meera (S3) are deleted. Their enrolments are deleted too. Asha had 2 enrolments and Meera had 2, so 4 enrolment rows go. The total number of deleted rows is 2 students plus 4 enrolments, which is 6.</p>
+  <p>Count carefully. The cascade counts each deleted row once, whether it was a student or an enrolment. A common mistake is to count only the students and forget the enrolments.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>To count rows deleted by a chain of cascades, first list the rows of the parent being deleted, then the child rows that point to them, then the grandchild rows that point to those children. Add all the lists.</p></div>
+  <details class="check"><summary>If department 20 is deleted with CASCADE, which enrolment rows are removed?</summary><div class="ans"><p>The rows of S2, because Ravi is the only student of department 20. That is one row, (S2, C1).</p></div></details>
+  <details class="check"><summary>Does RESTRICT on the Student to Enrol link stop the cascade from department to student?</summary><div class="ans"><p>No. The two links are separate. A RESTRICT on the Enrol link would only block deleting a student who still has enrolments.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>These are the rules to check in any scenario question. Work through them in order for each change.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Constraint</th><th>Rule</th><th>Violated by</th></tr></thead>
+    <tbody>
+      <tr><td>Domain</td><td>Each value belongs to its domain</td><td>A value outside the domain</td></tr>
+      <tr><td>CHECK</td><td>The condition is True or UNKNOWN for each row</td><td>A row where the condition is False</td></tr>
+      <tr><td>NOT NULL</td><td>No NULL in the column</td><td>A NULL in the column</td></tr>
+      <tr><td>UNIQUE</td><td>No two rows share a non-NULL value</td><td>Two equal non-NULL values</td></tr>
+      <tr><td>Entity integrity</td><td>Primary key is never NULL</td><td>A NULL primary key</td></tr>
+      <tr><td>Referential integrity</td><td>Non-NULL foreign key matches a parent key</td><td>An insert or update with no matching parent, or deleting a parent that still has children under RESTRICT</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not real past questions. Use the tables on this page, and write down each change before deciding.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which rule is broken?</h3>
+    <div class="statement"><p>A new row is inserted into Student with sid NULL and all other values correct. Which constraint is violated?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The name of the constraint that the insert breaks.</li>
+      <li><strong>Which idea applies.</strong> The primary key cannot be NULL.</li>
+      <li><strong>Work it out.</strong> sid is the primary key of Student. A NULL primary key breaks entity integrity. The other values do not matter.</li>
+      <li><strong>Check.</strong> Compare with a NULL dept_id, which is allowed, because dept_id is not the primary key.</li>
+    </ol>
+    <p class="cx">Answer: entity integrity.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Count the referential violations</h3>
+    <div class="statement"><p>Department ids are 10, 20 and 30. The students are S1 with 10, S2 with 20, S3 with 10, S4 with NULL, and S5 with 40. How many students break referential integrity? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of students whose non-NULL department does not exist.</li>
+      <li><strong>Which idea applies.</strong> A NULL foreign key is allowed. A non-NULL one must match a parent.</li>
+      <li><strong>Work it out.</strong> S1, S2 and S3 match. S4 is NULL, which is allowed. S5 has 40, which is not a department. So 1 student breaks the rule.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>dept_ids = {10, 20, 30}
+students = [("S1", 10), ("S2", 20), ("S3", 10), ("S4", None), ("S5", 40)]
+bad = [s for s, d in students if d is not None and d not in dept_ids]
+print(len(bad))</code></pre>
+    <pre class="output">1</pre>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Select all true statements about constraints</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <ul>
+      <li>(A) A primary key must be UNIQUE and NOT NULL.</li>
+      <li>(B) A foreign key may be NULL, unless the column is declared NOT NULL.</li>
+      <li>(C) ON DELETE CASCADE deletes the child rows when the parent row is deleted.</li>
+      <li>(D) A CHECK constraint is tested only when the table is first created.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The definitions of key, foreign key, cascade and CHECK.</li>
+      <li><strong>Work it out.</strong> (A) True, that is the key constraint. (B) True, a NULL foreign key points to nothing and breaks no rule. (C) True, that is the meaning of CASCADE. (D) False. A CHECK is tested on every insert and update.</li>
+      <li><strong>Check.</strong> The definitions settle each statement. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Students left after a cascade</h3>
+    <div class="statement"><p>The students are S1 with department 10, S2 with 20, S3 with 10, and S4 with NULL. Department 10 is deleted with ON DELETE CASCADE. How many student rows remain? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of rows left in Student.</li>
+      <li><strong>Which idea applies.</strong> CASCADE removes every child row that points to the deleted parent.</li>
+      <li><strong>Work it out.</strong> S1 and S3 point to department 10, so both are removed. S2 and S4 remain, which is 2 rows.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>students = {"S1": 10, "S2": 20, "S3": 10, "S4": None}
+remaining = {s: d for s, d in students.items() if d != 10}
+print(len(remaining))</code></pre>
+    <pre class="output">2</pre>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>NULL count after SET NULL</h3>
+    <div class="statement"><p>The same students as in the previous problem are used, but department 10 is deleted with ON DELETE SET NULL. How many student rows have NULL in dept_id afterwards? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of NULL values in dept_id.</li>
+      <li><strong>Which idea applies.</strong> SET NULL keeps the rows and sets the foreign key to NULL.</li>
+      <li><strong>Work it out.</strong> S1 and S3 become NULL. S4 was already NULL. S2 still has 20. So 3 rows have NULL.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>students = {"S1": 10, "S2": 20, "S3": 10, "S4": None}
+after = {s: (None if d == 10 else d) for s, d in students.items()}
+print(sum(1 for d in after.values() if d is None))</code></pre>
+    <pre class="output">3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Rows deleted by a chain of cascades</h3>
+    <div class="statement"><p>Department 10 is deleted with CASCADE on both links: Department to Student, and Student to Enrol. Students S1 and S3 belong to department 10. The Enrol rows are (S1, C1), (S1, C2), (S2, C1), (S3, C2) and (S3, C3). How many rows are deleted in total, counting students and enrolments together? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of deleted rows in both tables.</li>
+      <li><strong>Which idea applies.</strong> Each cascade level adds the rows it removes.</li>
+      <li><strong>Work it out.</strong> Two students are removed. Their enrolments are (S1, C1), (S1, C2), (S3, C2) and (S3, C3), which is 4 rows. The enrolment of S2 is kept. The total is 2 + 4 = 6.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>students_in_dept = ["S1", "S3"]
+enrol = [("S1", "C1"), ("S1", "C2"), ("S2", "C1"), ("S3", "C2"), ("S3", "C3")]
+deleted_enrol = [e for e in enrol if e[0] in students_in_dept]
+print(len(students_in_dept) + len(deleted_enrol))</code></pre>
+    <pre class="output">6</pre>
+    <p class="cx">Answer: 6.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Select all true statements about scenarios</h3>
+    <div class="statement"><p>Using the Department and Student tables of this page, select all that apply.</p>
+    <ul>
+      <li>(A) Inserting a student with dept_id 40 violates referential integrity.</li>
+      <li>(B) Updating a student's dept_id to 20 is allowed, because department 20 exists.</li>
+      <li>(C) With RESTRICT on the Enrol link, deleting a student who still has enrolments is rejected.</li>
+      <li>(D) A row with age NULL violates a CHECK constraint that says age is greater than or equal to 0.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which scenarios are correct.</li>
+      <li><strong>Which idea applies.</strong> Referential integrity, RESTRICT, and the rule that CHECK accepts UNKNOWN.</li>
+      <li><strong>Work it out.</strong> (A) True, 40 is not a department. (B) True, the new value matches a parent. (C) True, RESTRICT blocks the delete while children exist. (D) False. The condition is UNKNOWN for NULL, and a plain CHECK accepts UNKNOWN.</li>
+      <li><strong>Check.</strong> The rules above settle each statement. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Referential actions (MCQ, 2 marks)</h3>
+    <div class="statement"><p>Emp(eid, dept) references Dept(did) with ON DELETE CASCADE. Dept has 3 rows and Emp has 10 rows, 4 of them in department d2. After deleting d2 from Dept, how many Emp rows remain? (A) 10 (B) 6 (C) 4 (D) the delete is rejected</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The effect of cascading delete.</li>
+      <li><strong>Which idea applies.</strong> CASCADE removes referencing rows along with the referenced row.</li>
+      <li><strong>Work it out.</strong> 10 − 4 = 6.</li>
+      <li><strong>Check.</strong> With ON DELETE RESTRICT, the delete would be rejected instead.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Keys and nulls (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE in SQL? (A) A primary key column cannot be NULL. (B) A UNIQUE column may hold NULLs. (C) A foreign key value may be NULL. (D) A table may have several primary keys.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Rules for key constraints.</li>
+      <li><strong>Which idea applies.</strong> Entity integrity applies to primary keys only.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True in standard SQL. (C) True, meaning no reference. (D) One primary key, though it can span columns. False.</li>
+      <li><strong>Check.</strong> Candidate keys beyond the primary are declared UNIQUE.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Superkey count (NAT, 2 marks)</h3>
+    <div class="statement"><p>Relation R(A, B, C, D) has candidate keys {A} and {B, C}. How many superkeys does R have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of attribute sets containing a candidate key.</li>
+      <li><strong>Which idea applies.</strong> Count sets with A, plus sets with B and C, minus sets with both.</li>
+      <li><strong>Work it out.</strong> With A: 2<sup>3</sup> = 8. With B, C: 2<sup>2</sup> = 4. With A, B, C: 2. Total 8 + 4 − 2 = 10.</li>
+      <li><strong>Check.</strong> The code counts subsets.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from itertools import combinations
+S = "ABCD"
+sk = [c for r in range(1, 5) for c in combinations(S, r) if "A" in c or ("B" in c and "C" in c)]
+print(len(sk))
+</code></pre>
+    <pre class="output">10</pre>
+    <p class="cx">Answer: 10.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Integrity constraint</dt><dd>A rule that stored data must always satisfy.</dd></div>
+    <div><dt>Domain</dt><dd>The allowed values for an attribute.</dd></div>
+    <div><dt>NULL</dt><dd>A marker for a missing or unknown value.</dd></div>
+    <div><dt>NOT NULL</dt><dd>Forbids NULL in a column.</dd></div>
+    <div><dt>UNIQUE</dt><dd>Forbids two rows with the same non-NULL value.</dd></div>
+    <div><dt>CHECK</dt><dd>A condition that each row must satisfy, accepted when True or UNKNOWN.</dd></div>
+    <div><dt>Key constraint</dt><dd>The primary key is unique and not NULL.</dd></div>
+    <div><dt>Entity integrity</dt><dd>No primary key value may be NULL.</dd></div>
+    <div><dt>Referential integrity</dt><dd>A non-NULL foreign key must match an existing parent key.</dd></div>
+    <div><dt>ON DELETE CASCADE</dt><dd>Deleting the parent deletes the child rows.</dd></div>
+    <div><dt>ON DELETE SET NULL</dt><dd>Deleting the parent sets the child foreign keys to NULL.</dd></div>
+    <div><dt>ON DELETE RESTRICT</dt><dd>Deleting the parent is rejected while children refer to it.</dd></div>
+    <div><dt>Violation</dt><dd>A change or state that breaks a constraint.</dd></div>
+    <div><dt>Cascade chain</dt><dd>Cascades that pass through several tables, one level at a time.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ul>
+    <li>A primary key is never NULL, and it is always unique.</li>
+    <li>A NULL foreign key breaks no rule. A non-NULL one must match a parent.</li>
+    <li>A CHECK condition that evaluates to UNKNOWN is accepted.</li>
+    <li>CASCADE removes children, SET NULL keeps them with NULL keys, and RESTRICT blocks the delete.</li>
+    <li>Count every row removed by a cascade chain, at every level.</li>
+    <li>For each scenario, name the broken rule first, then choose the action.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 88?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 88 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-087.html"><small>Previous, topic 87</small>Relational model &amp; relational algebra</a><a class="next" href="gate-089.html"><small>Next, topic 89</small>Tuple calculus</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

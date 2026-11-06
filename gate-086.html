@@ -1,0 +1,412 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 86: ER-Model</title><meta name="description" content="Before you build a database, you sketch what it must store. The Entity-Relationship (ER) model is the standard sketch. This topic teaches entities, attributes, keys, relationships, cardinality, participation, weak entities, and how to turn an ER diagram into tables, which GATE asks about both as concepts and as diagram-to-schema questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g86" data-key="g86" data-noun="topic" data-num="86" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>ER-Model</h1>
+<p class="lede">Before you build a database, you sketch what it must store. The Entity-Relationship (ER) model is the standard sketch. This topic teaches entities, attributes, keys, relationships, cardinality, participation, weak entities, and how to turn an ER diagram into tables, which GATE asks about both as concepts and as diagram-to-schema questions.</p>
+<div class="station"><b>86</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Entities and entity sets</li><li>Attributes: simple, composite, derived, multivalued</li><li>Keys and weak entities</li><li>Relationships and cardinality</li><li>Participation constraints</li><li>Converting an ER diagram to tables</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you are asked to build a system for a small school. Before you buy any cabinets, you talk to the staff and write down the important things. There are students, teachers and courses. Each student has a name and a roll number. Each student enrols in several courses, and each course has many students. Writing this down as a picture first is much cheaper than rebuilding a database later.</p>
+  <p>The <strong>Entity-Relationship model</strong>, usually called the ER model, is that picture. It was designed to describe what data a database must hold and how the pieces connect, before any table is created. It has three main building blocks:</p>
+  <ul>
+    <li><strong>Entities</strong>, which are the things we store information about, such as a student or a course.</li>
+    <li><strong>Attributes</strong>, which are the facts we store about each entity, such as a student's name.</li>
+    <li><strong>Relationships</strong>, which are the links between entities, such as "student enrols in course".</li>
+  </ul>
+  <p>Once the ER diagram is right, a simple set of rules turns it into tables, which is the form a relational database uses. GATE tests both the meaning of the diagram and the conversion rules, so this page covers both.</p>
+  <p>Why this matters for GATE: questions in the database part of GATE DA often give a short description of a situation and ask for the cardinality, the number of tables, or the primary key of a table that results. Careful reading of the words "each", "at most", "at least" and "may" decides the answer.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these now. Each one is used in the explanations that follow.</p>
+  <dl>
+    <div><dt>Entity</dt><dd>A thing about which we store data. Plain meaning: a "noun" in the problem, such as Student. Precisely: an object that can be distinguished from others and has attributes.</dd></div>
+    <div><dt>Entity set</dt><dd>The collection of all entities of one kind, such as all the students in the school.</dd></div>
+    <div><dt>Attribute</dt><dd>A property of an entity, such as the name of a student. Precisely: a function that gives a value for each entity in an entity set.</dd></div>
+    <div><dt>Simple attribute</dt><dd>An attribute that cannot be split further, such as a roll number.</dd></div>
+    <div><dt>Composite attribute</dt><dd>An attribute made of smaller parts, such as an address made of street, city and postcode.</dd></div>
+    <div><dt>Derived attribute</dt><dd>An attribute whose value can be calculated from other data, such as age calculated from date of birth.</dd></div>
+    <div><dt>Multivalued attribute</dt><dd>An attribute that can hold several values for one entity, such as several phone numbers.</dd></div>
+    <div><dt>Key</dt><dd>An attribute, or set of attributes, whose values identify each entity uniquely.</dd></div>
+    <div><dt>Weak entity</dt><dd>An entity that cannot be identified by its own attributes. It needs a related owner entity to be identified.</dd></div>
+    <div><dt>Relationship</dt><dd>An association between two or more entities, such as "enrols".</dd></div>
+    <div><dt>Cardinality</dt><dd>How many entities on one side can be linked to entities on the other side. Typical values are one and many.</dd></div>
+    <div><dt>Participation</dt><dd>Whether every entity in a set must take part in a relationship (total) or not necessarily (partial).</dd></div>
+    <div><dt>Foreign key</dt><dd>An attribute in one table whose value must match a primary key value in another table.</dd></div>
+    <div><dt>Primary key</dt><dd>The key chosen to identify rows in one table. It must be unique and must not be empty.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Entities and attributes">
+  <h2>Entities, entity sets and attributes</h2>
+  <p>An entity is one specific thing. Ravi, a student with roll number 101, is one entity. The set of all students is the entity set <strong>Student</strong>. In diagrams, an entity set is drawn as a rectangle with its name inside.</p>
+  <p>Attributes are the facts about each entity. For Student we may store roll number, name, and date of birth. In diagrams, each attribute is an oval joined by a line to its entity rectangle.</p>
+  <p>Attributes come in four kinds. Learn each one with an example.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Kind</th><th>Meaning</th><th>Example for Student</th><th>How it is drawn</th></tr></thead>
+    <tbody>
+      <tr><td>Simple</td><td>One indivisible value</td><td>roll number</td><td>Plain oval</td></tr>
+      <tr><td>Composite</td><td>Made of parts, which can be used on their own</td><td>name made of first name and last name</td><td>Oval with smaller ovals joined to it</td></tr>
+      <tr><td>Derived</td><td>Calculated from another attribute</td><td>age, from date of birth</td><td>Dashed oval</td></tr>
+      <tr><td>Multivalued</td><td>Several values for one entity</td><td>phone numbers</td><td>Double oval</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>A derived attribute is not normally stored in a table, because it can be recalculated. A multivalued attribute cannot be stored in the same row as a single value without breaking the rules of a table, so it needs its own table when converted.</p></div>
+  <p>Take the entity Student with these attributes: roll number, name (composite: first name and last name), date of birth, age (derived), and phone numbers (multivalued). In a table, the composite name would become two columns. The derived age would usually be left out, and the multivalued phone numbers would move to a separate table. These conversion steps come later on this page.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A composite attribute is not the same as a multivalued attribute. Composite means one value made of parts, such as one full address. Multivalued means several values of the same kind, such as several addresses.</p></div>
+  <details class="check"><summary>Is the age of a student a simple, derived or multivalued attribute?</summary><div class="ans"><p>Derived. Age can be calculated from the date of birth and today's date, so it does not need to be stored.</p></div></details>
+  <details class="check"><summary>A person has three email addresses. What kind of attribute is email?</summary><div class="ans"><p>Multivalued, because one person can have several values of the same kind.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Keys and weak entities">
+  <h2>Keys and weak entities</h2>
+  <p>A key is an attribute, or a group of attributes, whose value identifies one entity. Two students must never share the same key. Roll number is a good key for Student, because each roll number belongs to one student. Name is a poor key, because two students may have the same name.</p>
+  <p>In ER diagrams, a key attribute is drawn with its name underlined. A <strong>candidate key</strong> is any attribute set that could be a key. The one chosen to identify rows is the <strong>primary key</strong>. For a set of attributes to be a key, it must be unique for every entity, and a smaller set of it must not still be unique. This second condition is called minimality.</p>
+  <h3>Weak entities</h3>
+  <p>Some entities cannot be identified by their own attributes. Consider Dependent, which records the children of an employee. Two employees may each have a child called Asha. The name Asha does not identify the dependent. The dependent is identified only together with the employee who is the parent. Such an entity is a <strong>weak entity</strong>.</p>
+  <p>A weak entity has a <strong>partial key</strong>, which is the set of attributes that separates it from other dependents of the same owner. For Dependent, the partial key is the dependent's name. The full key is the owner's key plus the partial key. In diagrams, a weak entity is drawn as a double rectangle, its partial key is drawn with a dashed underline, and its link to the owner is a double diamond.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The key of a weak entity is the owner's key together with its own partial key. Without the owner, the weak entity cannot be identified.</p></div>
+  <p>Example. Employee E101 has dependents Asha and Ravi. Employee E202 also has a dependent called Asha. The dependent rows are identified as (E101, Asha), (E101, Ravi) and (E202, Asha). The name Asha appears twice, but the pair is unique.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>emp_id (owner key)</th><th>dep_name (partial key)</th><th>relation</th></tr></thead>
+    <tbody>
+      <tr><td>E101</td><td>Asha</td><td>daughter</td></tr>
+      <tr><td>E101</td><td>Ravi</td><td>son</td></tr>
+      <tr><td>E202</td><td>Asha</td><td>daughter</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>A weak entity's partial key alone is not a primary key. The primary key of the weak entity's table is the owner's key together with the partial key.</p></div>
+  <details class="check"><summary>What is the primary key of the Dependent table in the example above?</summary><div class="ans"><p>The pair (emp_id, dep_name), because the owner's key emp_id plus the partial key dep_name identifies each dependent.</p></div></details>
+  <details class="check"><summary>Why is name a poor key for Student?</summary><div class="ans"><p>Two different students can share a name, so a name value does not always identify one student.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Relationships and cardinality">
+  <h2>Relationships and cardinality</h2>
+  <p>A relationship links entities. Students enrol in courses. Employees work in departments. In diagrams, a relationship is drawn as a diamond joined to the entity rectangles it connects.</p>
+  <p><strong>Cardinality</strong> describes how many entities on each side may take part. It is one of three patterns.</p>
+  <ul>
+    <li><strong>One to one (1:1).</strong> One entity on the left links to at most one on the right, and the reverse also holds. Example: each person has at most one passport, and each passport belongs to one person.</li>
+    <li><strong>One to many (1:N).</strong> One entity on the left can link to many on the right, but each entity on the right links to only one on the left. Example: one department has many employees, and each employee works in one department.</li>
+    <li><strong>Many to many (M:N).</strong> An entity on either side can link to many on the other side. Example: a student enrols in many courses, and each course has many students.</li>
+  </ul>
+  <p>A simple way to check the type is to ask two questions: "how many courses can one student take?" and "how many students can one course have?" If the answer to both is "many", the relationship is M:N. If one side says "one", check the other side.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Relationship</th><th>Question asked</th><th>Answer</th><th>Type</th></tr></thead>
+    <tbody>
+      <tr><td>Department to Employee</td><td>How many employees per department?</td><td>Many</td><td>1:N, since an employee has one department</td></tr>
+      <tr><td>Person to Passport</td><td>How many passports per person?</td><td>At most one</td><td>1:1</td></tr>
+      <tr><td>Student to Course</td><td>How many courses per student?</td><td>Many</td><td>M:N, since a course also has many students</td></tr>
+    </tbody>
+  </table></div>
+  <p>Relationships can carry their own attributes. For example, the enrolment of a student in a course may have a grade. The grade belongs to the pair, not to the student alone or the course alone. So it is drawn on the relationship diamond.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Read cardinality from the meaning in the question, not from the names. The phrase "each employee works in exactly one department" fixes one side as one. The phrase "a department may have many employees" fixes the other side as many.</p></div>
+  <details class="check"><summary>A teacher teaches many subjects, and each subject is taught by one teacher. What is the cardinality?</summary><div class="ans"><p>One to many, with the teacher on the one side and the subject on the many side.</p></div></details>
+  <details class="check"><summary>Which relationship type needs its own table when converted to tables?</summary><div class="ans"><p>The many to many relationship, which needs a separate table to hold the pairs.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Participation constraints">
+  <h2>Participation constraints</h2>
+  <p>Cardinality says how many. <strong>Participation</strong> says whether every entity must take part at all. There are two kinds.</p>
+  <ul>
+    <li><strong>Total participation.</strong> Every entity in the set must be linked. In diagrams it is a double line from the entity to the relationship.</li>
+    <li><strong>Partial participation.</strong> An entity may or may not be linked. In diagrams it is a single line.</li>
+  </ul>
+  <p>Example. Every employee must work in a department, so the Employee side of "works in" is total. A department may exist with no employees yet, so the Department side is partial.</p>
+  <p>Cardinality and participation can be stated together with a pair of numbers, the (min, max) notation. The minimum is 1 for total participation and 0 for partial. The maximum is 1 or N, where N means many. For "works in", Employee has (1, 1), because each employee works in exactly one department. Department has (0, N), because a department may have no employees, and it may have many.</p>
+  <div class="formula">(min, max) = (1, 1) means total and at most one</div>
+  <div class="formula">(min, max) = (0, N) means partial and many</div>
+  <div class="note trap"><p><span class="t">Trap</span>Students often read the (min, max) pair in the wrong place. In the notation used here, the pair beside an entity states how many relationship instances that one entity can take part in. For "works in", the pair beside Employee is (1, 1), not the pair beside Department.</p></div>
+  <details class="check"><summary>What is the participation of Employee in "works in" if every employee must have a department?</summary><div class="ans"><p>Total. Every employee must take part in the relationship.</p></div></details>
+  <details class="check"><summary>A pair (0, 1) appears beside Person in "has passport". What does it mean?</summary><div class="ans"><p>A person may have no passport, and at most one passport. Participation is partial and the maximum is one.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Weak entities in diagrams">
+  <h2>A weak entity with its owner</h2>
+  <p>Earlier we saw Dependent as a weak entity. Its link to Employee is an <strong>identifying relationship</strong>, and it is drawn with a double diamond. The relationship is always one to many, from the owner Employee to the weak entity Dependent. Each dependent belongs to exactly one employee, so the Dependent side is total.</p>
+  <p>Think of it as a rule: a weak entity cannot exist without its owner. If an employee leaves and the company deletes that employee, the dependents must also go, or they would have no owner. This is why the link is total on the weak side.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A weak entity always has total participation in its identifying relationship, and that relationship is one to many from the owner.</p></div>
+  <details class="check"><summary>Why is the participation of Dependent in the identifying relationship total?</summary><div class="ans"><p>Because every dependent must belong to an employee. A dependent with no owner cannot be identified.</p></div></details>
+  <details class="check"><summary>What does a double rectangle mean in an ER diagram?</summary><div class="ans"><p>A weak entity.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Converting to tables">
+  <h2>Converting an ER diagram to tables</h2>
+  <p>A relational database stores each entity set, and some relationships, as tables. Each row is one entity, and each column is one attribute. The conversion follows fixed rules. Learn them in this order, and check each part of the diagram once.</p>
+  <ol>
+    <li><strong>Strong entity.</strong> Make one table. Its columns are its simple attributes. Split each composite attribute into its parts. Leave out derived attributes. The primary key is the entity's key.</li>
+    <li><strong>Multivalued attribute.</strong> Make a new table with two columns: the entity's key and the value. The primary key is both columns together.</li>
+    <li><strong>Weak entity.</strong> Make one table. Its columns are its own attributes, plus the owner's key as a foreign key. The primary key is the owner's key together with the partial key.</li>
+    <li><strong>One to many relationship (1:N).</strong> Do not make a new table. Copy the primary key of the "one" side into the table of the "many" side as a foreign key. Any relationship attribute is also copied there.</li>
+    <li><strong>Many to many relationship (M:N).</strong> Make a new table. Its columns are the primary keys of both sides, plus any relationship attributes. The primary key is the pair of foreign keys.</li>
+    <li><strong>One to one relationship (1:1).</strong> Put a foreign key on one side, preferably on the side with total participation. This avoids many empty values. The other choice is to merge the two tables into one.</li>
+  </ol>
+  <p>Let us apply the rules to an example. The entities are Employee (emp_id, name) and Department (dept_id, dept_name). Each employee works in one department, so it is a 1:N relationship from Department to Employee. Each employee has many phone numbers, so phone is multivalued.</p>
+  <p>Rule 1 gives the tables Employee and Department. Rule 4 copies dept_id into Employee as a foreign key. Rule 2 makes a table Phone with columns emp_id and phone.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Department</th><th>dept_id</th><th>dept_name</th></tr></thead>
+    <tbody>
+      <tr><td>row 1</td><td>10</td><td>Physics</td></tr>
+      <tr><td>row 2</td><td>20</td><td>Chemistry</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Employee</th><th>emp_id</th><th>name</th><th>dept_id (foreign key)</th></tr></thead>
+    <tbody>
+      <tr><td>row 1</td><td>E1</td><td>Meera</td><td>10</td></tr>
+      <tr><td>row 2</td><td>E2</td><td>Arjun</td><td>10</td></tr>
+      <tr><td>row 3</td><td>E3</td><td>Kiran</td><td>20</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Phone</th><th>emp_id</th><th>phone</th></tr></thead>
+    <tbody>
+      <tr><td>row 1</td><td>E1</td><td>98100</td></tr>
+      <tr><td>row 2</td><td>E1</td><td>98200</td></tr>
+      <tr><td>row 3</td><td>E3</td><td>98300</td></tr>
+    </tbody>
+  </table></div>
+  <p>Here is the SQL that creates these tables. It is written as text for reading. It is not run here.</p>
+  <pre class="code" data-lang="sql"><code>CREATE TABLE Department (
+  dept_id INT PRIMARY KEY,
+  dept_name VARCHAR(30)
+);
+CREATE TABLE Employee (
+  emp_id CHAR(4) PRIMARY KEY,
+  name VARCHAR(30),
+  dept_id INT REFERENCES Department(dept_id)
+);
+CREATE TABLE Phone (
+  emp_id CHAR(4) REFERENCES Employee(emp_id),
+  phone VARCHAR(15),
+  PRIMARY KEY (emp_id, phone)
+);</code></pre>
+  <p>Now look at an M:N example. A student enrols in courses, and each enrolment has a grade. The relationship Enrols becomes a table with columns student_id, course_id and grade. Its primary key is (student_id, course_id). Each student-course pair appears once.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Enrols</th><th>student_id</th><th>course_id</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>row 1</td><td>S1</td><td>C10</td><td>A</td></tr>
+      <tr><td>row 2</td><td>S1</td><td>C20</td><td>B</td></tr>
+      <tr><td>row 3</td><td>S2</td><td>C10</td><td>A</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>Do not copy a foreign key into one side of an M:N relationship. One student has many courses, so the student's table cannot hold a single course id. The M:N relationship always needs its own table.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Count tables quickly with this rule: strong entities plus weak entities plus M:N relationships plus multivalued attributes. The 1:N and 1:1 relationships add no table when the foreign key approach is used.</p></div>
+  <details class="check"><summary>How many tables does a single 1:N relationship between two strong entities add to the schema?</summary><div class="ans"><p>None extra. The two entity tables stay, and a foreign key is added to the many side.</p></div></details>
+  <details class="check"><summary>What is the primary key of the Enrols table?</summary><div class="ans"><p>The pair (student_id, course_id), because each student takes each course at most once in this model.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>These rules are the core of the conversion. Use them as a checklist.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>ER feature</th><th>Table result</th><th>Primary key</th></tr></thead>
+    <tbody>
+      <tr><td>Strong entity</td><td>One table, simple attributes as columns</td><td>Entity key</td></tr>
+      <tr><td>Composite attribute</td><td>Its parts become columns</td><td>No change</td></tr>
+      <tr><td>Derived attribute</td><td>Usually not stored</td><td>No change</td></tr>
+      <tr><td>Multivalued attribute</td><td>New table, key plus value</td><td>Both columns</td></tr>
+      <tr><td>Weak entity</td><td>One table, owner key added</td><td>Owner key plus partial key</td></tr>
+      <tr><td>1:N relationship</td><td>Foreign key in the many side</td><td>Unchanged</td></tr>
+      <tr><td>M:N relationship</td><td>New table with both keys</td><td>Both foreign keys</td></tr>
+      <tr><td>1:1 relationship</td><td>Foreign key on one side, or merge</td><td>Unchanged</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not real past questions. For each one, write down the entities, relationships and attributes before you answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Classify an attribute</h3>
+    <div class="statement"><p>For the entity Customer, which kind of attribute is "number of orders placed so far", if it is calculated by counting rows in an Order table? Choose one: simple, composite, derived or multivalued.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The kind of attribute.</li>
+      <li><strong>Which idea applies.</strong> A derived attribute is calculated from other data.</li>
+      <li><strong>Work it out.</strong> The count comes from rows of the Order table, so it is calculated. It is derived. It is not split into parts, and it holds a single value.</li>
+      <li><strong>Check.</strong> Ask whether the value could be recalculated from other data. It can, so it is derived.</li>
+    </ol>
+    <p class="cx">Answer: derived.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Primary key of a weak entity</h3>
+    <div class="statement"><p>A Room entity is weak, owned by a Building entity with key building_id. Room is identified by room_number, which is unique only within a building. What is the primary key of the Room table?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The primary key columns.</li>
+      <li><strong>Which idea applies.</strong> A weak entity's key is the owner's key plus its partial key.</li>
+      <li><strong>Work it out.</strong> The partial key is room_number. The owner key is building_id. So the key is (building_id, room_number).</li>
+      <li><strong>Check.</strong> Room 101 in building B1 and room 101 in building B2 are different rows, and the pair is unique.</li>
+    </ol>
+    <p class="cx">Answer: (building_id, room_number).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Select all true statements about an ER diagram</h3>
+    <div class="statement"><p>An ER diagram has the entities Student and Course, and a relationship Enrols between them with cardinality many to many. Select all that apply.</p>
+    <ul>
+      <li>(A) The Enrols relationship must become its own table.</li>
+      <li>(B) The Student table must hold a foreign key to Course.</li>
+      <li>(C) The primary key of the Enrols table is the pair of foreign keys.</li>
+      <li>(D) A student can take many courses, and a course can have many students.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The conversion rule for M:N relationships.</li>
+      <li><strong>Work it out.</strong> (A) True, M:N needs its own table. (B) False, one student has many courses, so one foreign key cannot hold them. (C) True, the primary key is both foreign keys. (D) True, that is the meaning of many to many.</li>
+      <li><strong>Check.</strong> The reasoning follows the rule directly. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting tables in a schema</h3>
+    <div class="statement"><p>An ER diagram has 4 strong entities, 1 weak entity, 2 many to many relationships, 3 one to many relationships, and 1 multivalued attribute. Convert it using the rules on this page. How many tables does the schema have? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of tables.</li>
+      <li><strong>Which idea applies.</strong> Strong entities, weak entities, M:N relationships and multivalued attributes each give one table. One to many relationships give none.</li>
+      <li><strong>Work it out.</strong> 4 strong plus 1 weak plus 2 M:N plus 1 multivalued gives 8. The 3 one to many relationships add no tables.</li>
+      <li><strong>Check.</strong> Run the code below, which adds the counts.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>strong = 4
+weak = 1
+mn = 2
+multivalued = 1
+print(strong + weak + mn + multivalued)</code></pre>
+    <pre class="output">8</pre>
+    <p class="cx">Answer: 8.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Foreign key placement</h3>
+    <div class="statement"><p>Each Book is written by exactly one Author, and an Author may have written many books. Which table gets the foreign key, and what is the foreign key column? Give the table name and column name.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The table and the column of the foreign key.</li>
+      <li><strong>Which idea applies.</strong> For 1:N, the foreign key goes to the many side.</li>
+      <li><strong>Work it out.</strong> The Author is the one side, and Book is the many side. So Book gets a foreign key that holds the author's key.</li>
+      <li><strong>Check.</strong> One author can appear in many book rows, and each book row holds one author id, so the design fits.</li>
+    </ol>
+    <p class="cx">Answer: the Book table, with an author_id foreign key that refers to the primary key of Author.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Key of a derived table</h3>
+    <div class="statement"><p>Entities Doctor (doc_id, name) and Patient (pat_id, name) are strong. The relationship Treats is many to many, with an attribute visit_date. A doctor and a patient meet at most once on any given date, but the same pair may meet on different dates. How many columns does the table made from Treats have? Give the column count as a NAT answer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of columns of the Treats table, and the reason its key has the form it has.</li>
+      <li><strong>Which idea applies.</strong> The M:N rule: a new table with both keys plus relationship attributes.</li>
+      <li><strong>Work it out.</strong> The columns are doc_id, pat_id and visit_date, so there are 3 columns. The pair (doc_id, pat_id) cannot be the key, because the same pair meets on several dates. Adding visit_date makes each row unique, since a pair meets at most once per date. So the primary key is (doc_id, pat_id, visit_date).</li>
+      <li><strong>Check.</strong> Run the code below to count the columns.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>columns = ["doc_id", "pat_id", "visit_date"]
+print(len(columns))</code></pre>
+    <pre class="output">3</pre>
+    <p class="cx">Answer: 3 columns, with primary key (doc_id, pat_id, visit_date).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Select all true statements about cardinality and participation</h3>
+    <div class="statement"><p>Select all that apply to an ER relationship between Employee and Department, where each employee works in exactly one department.</p>
+    <ul>
+      <li>(A) The Employee side of the relationship has (min, max) equal to (1, 1).</li>
+      <li>(B) The relationship is one to many from Department to Employee.</li>
+      <li>(C) Converting this relationship alone adds a new table.</li>
+      <li>(D) If a department may have no employees, the Department side is partial.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The (min, max) notation, the 1:N type, and the 1:N conversion rule.</li>
+      <li><strong>Work it out.</strong> (A) True. Each employee has exactly one department, so the pair is (1, 1). (B) True, one department has many employees. (C) False, a 1:N relationship adds a foreign key, not a table. (D) True, a department with no employees is partial participation.</li>
+      <li><strong>Check.</strong> The reasoning follows directly from the rules above. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Cardinality mapping (NAT, 2 marks)</h3>
+    <div class="statement"><p>An ER diagram has entities A (with 2 attributes) and B (with 3 attributes), and a many-to-many relationship R with 1 attribute. Keys are single attributes. How many tables are needed in the minimal relational mapping, and how many columns does the table for R have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Table count and the R table's width.</li>
+      <li><strong>Which idea applies.</strong> A many-to-many relationship needs its own table holding both keys and its own attributes.</li>
+      <li><strong>Work it out.</strong> Tables: A, B and R, so 3. R columns: key of A, key of B, and its attribute = 3.</li>
+      <li><strong>Check.</strong> A one-to-many relationship would instead fold into the many side, needing only 2 tables.</li>
+    </ol>
+    <p class="cx">Answer: 3 tables, and R has 3 columns.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Weak entities (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) A weak entity has total participation in its identifying relationship. (B) Its primary key includes the owner's key. (C) A weak entity can exist without its owner. (D) It has a partial key (discriminator).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of weak entity sets.</li>
+      <li><strong>Which idea applies.</strong> A weak entity is identified only through its owner.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) False. (D) True.</li>
+      <li><strong>Check.</strong> Example: a dependent of an employee, keyed by (employee id, dependent name).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Minimum tables (NAT, 2 marks)</h3>
+    <div class="statement"><p>Entities E1, E2, E3 each have a simple key. E1-E2 is one-to-one with total participation on both sides, E2-E3 is one-to-many (E2 one side), and E1-E3 is many-to-many. What is the minimum number of tables?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The fewest relations after mapping.</li>
+      <li><strong>Which idea applies.</strong> A one-to-one with total participation on both sides can merge into one table. A one-to-many folds into the many side. A many-to-many needs its own table.</li>
+      <li><strong>Work it out.</strong> Merge E1 and E2 into one table. E3 is a table with a foreign key for E2. The many-to-many needs a third table. Total 3.</li>
+      <li><strong>Check.</strong> Each relationship is stored without nulls in this design.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Entity</dt><dd>A thing we store data about, such as a student.</dd></div>
+    <div><dt>Entity set</dt><dd>All the entities of one kind.</dd></div>
+    <div><dt>Attribute</dt><dd>A fact stored about each entity.</dd></div>
+    <div><dt>Simple attribute</dt><dd>An attribute that cannot be split.</dd></div>
+    <div><dt>Composite attribute</dt><dd>An attribute made of parts, which become columns.</dd></div>
+    <div><dt>Derived attribute</dt><dd>An attribute calculated from other data, usually not stored.</dd></div>
+    <div><dt>Multivalued attribute</dt><dd>An attribute with several values, which needs its own table.</dd></div>
+    <div><dt>Key</dt><dd>An attribute set that identifies each entity uniquely.</dd></div>
+    <div><dt>Primary key</dt><dd>The chosen key of a table.</dd></div>
+    <div><dt>Weak entity</dt><dd>An entity identified only with its owner's key.</dd></div>
+    <div><dt>Partial key</dt><dd>The part of a weak entity's key that separates it within one owner.</dd></div>
+    <div><dt>Relationship</dt><dd>An association between entities.</dd></div>
+    <div><dt>Cardinality</dt><dd>One to one, one to many, or many to many.</dd></div>
+    <div><dt>Total participation</dt><dd>Every entity must take part in the relationship.</dd></div>
+    <div><dt>Partial participation</dt><dd>An entity may or may not take part.</dd></div>
+    <div><dt>Foreign key</dt><dd>A column whose values must match a primary key elsewhere.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ul>
+    <li>Strong entities become tables, with composite attributes split into columns.</li>
+    <li>Multivalued attributes and many to many relationships each need their own table.</li>
+    <li>One to many relationships place a foreign key on the many side.</li>
+    <li>A weak entity's key is the owner's key plus its partial key.</li>
+    <li>Derived attributes are usually not stored.</li>
+    <li>Read cardinality and participation from the words in the question.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 86?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 86 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-085.html"><small>Previous, topic 85</small>Stack &amp; queue (recap)</a><a class="next" href="gate-087.html"><small>Next, topic 87</small>Relational model &amp; relational algebra</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

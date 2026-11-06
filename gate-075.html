@@ -1,0 +1,463 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 75: Graph theory intro + BFS/DFS traversals</title><meta name="description" content="A graph is a set of points (vertices) joined by lines (edges), such as cities and roads or people and friendships. Breadth-first search (BFS) and depth-first search (DFS) are two ways to visit every vertex. They power connectivity checks, cycle detection and many shortest-path ideas, and GATE often asks you to write their visiting order."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g75" data-key="g75" data-noun="topic" data-num="75" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Graph theory intro + BFS/DFS traversals</h1>
+<p class="lede">A graph is a set of points (vertices) joined by lines (edges), such as cities and roads or people and friendships. Breadth-first search (BFS) and depth-first search (DFS) are two ways to visit every vertex. They power connectivity checks, cycle detection and many shortest-path ideas, and GATE often asks you to write their visiting order.</p>
+<div class="station"><b>75</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Vertices, edges, directed and weighted graphs</li><li>Adjacency matrix and adjacency list</li><li>BFS with a queue, level by level</li><li>DFS with a stack or recursion</li><li>Connectivity and cycle detection</li><li>Time complexity O(V + E) and trace questions</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Picture a city map. Each junction is a point, and each road is a line between two points. If you want to visit every junction, you need a plan. Should you visit all the neighbours of your start first, then the neighbours of those neighbours? Or should you follow one road as far as it goes, then come back and try the next one? These two plans are exactly BFS and DFS.</p>
+  <p>Graphs are everywhere in computing. Social networks are graphs (people are vertices, friendships are edges). The web is a graph (pages are vertices, links are edges). A robot's map of a building is a graph (rooms are vertices, doorways are edges). Once you can describe a problem as a graph, these two searches let you answer questions like "can I get from here to there?" and "does this network have a loop?"</p>
+  <p>In GATE DA, graph questions usually give you a small graph, ask for the BFS or DFS order from a start vertex, or ask about the number of edges, the degree of a vertex, or the time complexity. The rules below will let you answer all of them.</p>
+  <div class="note key"><p><span class="t">Key idea</span>BFS explores the graph in rings around the start, using a queue (first in, first out). DFS dives as deep as it can along one path, using a stack (last in, first out) or recursion.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Every term used on this page is listed here. Read the plain meaning first, then the precise definition.</p>
+  <dl>
+    <div><dt>Vertex (node)</dt><dd>A point in the graph. Precisely: an element of the vertex set V. The number of vertices is written |V| or simply V.</dd></div>
+    <div><dt>Edge</dt><dd>A line joining two vertices. Precisely: a pair of vertices, written as (u, v). The number of edges is written |E| or E.</dd></div>
+    <div><dt>Undirected graph</dt><dd>Edges have no direction, like two-way roads. Precisely: the edge (u, v) is the same as (v, u).</dd></div>
+    <div><dt>Directed graph</dt><dd>Edges have a direction, like one-way streets. Precisely: the edge u to v is different from v to u.</dd></div>
+    <div><dt>Weighted graph</dt><dd>Each edge carries a number, such as a distance or a cost. Precisely: a weight function gives a value to each edge. An unweighted graph is the special case where every weight is the same.</dd></div>
+    <div><dt>Neighbour</dt><dd>A vertex directly joined to another by an edge. Precisely: w is a neighbour of v if (v, w) is an edge.</dd></div>
+    <div><dt>Degree</dt><dd>How many edges touch a vertex. Precisely: the number of neighbours of an undirected vertex. For directed graphs, out-degree counts outgoing edges and in-degree counts incoming ones.</dd></div>
+    <div><dt>Path</dt><dd>A sequence of vertices where each consecutive pair is joined by an edge.</dd></div>
+    <div><dt>Connected graph</dt><dd>Every vertex can be reached from every other vertex by some path. Precisely: an undirected graph with one connected component.</dd></div>
+    <div><dt>Connected component</dt><dd>A maximal group of vertices that can all reach one another. Precisely: a piece of the graph that is connected inside, with no edges to the rest.</dd></div>
+    <div><dt>Cycle</dt><dd>A path that starts and ends at the same vertex, using at least three edges in an undirected simple graph. Precisely: a closed loop.</dd></div>
+    <div><dt>Adjacency matrix</dt><dd>A V by V table of 0s and 1s (or weights). Precisely: entry (i, j) is 1 when there is an edge from vertex i to vertex j.</dd></div>
+    <div><dt>Adjacency list</dt><dd>For each vertex, a list of its neighbours. Precisely: an array of lists with one list per vertex.</dd></div>
+    <div><dt>BFS (breadth-first search)</dt><dd>Visit by levels: all vertices at distance 1, then distance 2, and so on. Precisely: uses a queue.</dd></div>
+    <div><dt>DFS (depth-first search)</dt><dd>Go as deep as possible before backtracking. Precisely: uses a stack or recursion.</dd></div>
+    <div><dt>Queue</dt><dd>A line where the first item in is the first item out. Precisely: enqueue adds at the back, dequeue removes at the front.</dd></div>
+    <div><dt>Stack</dt><dd>A pile where the last item in is the first item out. Precisely: push adds to the top, pop removes from the top.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Graphs and how to store them">
+  <h2>Graphs and how to store them</h2>
+  <p>Here is the running example for this page. Call it graph G. It has six vertices, A to F, and six undirected edges: A-B, A-C, B-D, C-E, D-E and D-F.</p>
+  <pre class="code" data-lang="text"><code>      A ---- B
+      |      |
+      C      D ---- F
+      |     /
+      E ---+          (E is joined to C and D)</code></pre>
+  <p>The diagram shows the edges, but a computer needs a structure it can read quickly. There are two common choices.</p>
+  <p><strong>Adjacency list.</strong> For each vertex, write down its neighbours. This is the most common choice for sparse graphs, meaning graphs with few edges. For G, the lists are: A: B, C; B: A, D; C: A, E; D: B, E, F; E: C, D; F: D.</p>
+  <p><strong>Adjacency matrix.</strong> Make a 6 by 6 table of 0s and 1s, with rows and columns in the order A, B, C, D, E, F. Put a 1 wherever two vertices are joined. Because G is undirected, the table is symmetric: entry (A, B) and entry (B, A) are both 1.</p>
+  <p>The Python program below builds the matrix from the list and checks the degrees. It uses the same graph G, and the lists are sorted alphabetically, which matters for the traversal examples later.</p>
+  <pre class="code" data-lang="python"><code>graph = {
+    "A": ["B", "C"],
+    "B": ["A", "D"],
+    "C": ["A", "E"],
+    "D": ["B", "E", "F"],
+    "E": ["C", "D"],
+    "F": ["D"],
+}
+
+vertices = list(graph)
+matrix = [[0] * len(vertices) for _ in vertices]
+for v in vertices:
+    for w in graph[v]:
+        matrix[vertices.index(v)][vertices.index(w)] = 1
+
+for row in matrix:
+    print(row)
+print("sum of degrees:", sum(len(graph[v]) for v in graph))</code></pre>
+  <pre class="output">[0, 1, 1, 0, 0, 0]
+[1, 0, 0, 1, 0, 0]
+[1, 0, 0, 0, 1, 0]
+[0, 1, 0, 0, 1, 1]
+[0, 0, 1, 1, 0, 0]
+[0, 0, 0, 1, 0, 0]
+sum of degrees: 12</pre>
+  <p>Read the output carefully. Row A has 1s in columns B and C, which matches the edges A-B and A-C. The sum of the degrees is 12, and that is twice the number of edges, which is 6. This is always true for an undirected graph, because each edge is counted once at each of its two ends.</p>
+  <h3>Choosing a representation</h3>
+  <p>A matrix uses V x V cells, whatever the number of edges. So for G it uses 36 cells even though there are only 6 edges. An adjacency list uses space in proportion to V + E. Checking whether one specific edge exists is fast with a matrix (one lookup) and slower with a list (scan one list). Use a matrix for dense graphs (many edges), and a list for sparse graphs (few edges).</p>
+  <div class="note trap"><p><span class="t">Trap</span>In a directed graph, the edge from A to B does not give an edge from B to A. The matrix is then not symmetric, and the degree splits into out-degree and in-degree. Do not double count.</p></div>
+  <details class="check"><summary>What is the degree of vertex D in graph G?</summary><div class="ans"><p>3. D is joined to B, E and F, so three edges touch D.</p></div></details>
+  <details class="check"><summary>A simple undirected graph has 5 vertices and 4 edges. What is the sum of all the degrees?</summary><div class="ans"><p>8. Each edge adds 1 to the degree of each of its two ends, so the sum is 2 x 4 = 8.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Breadth-first search">
+  <h2>Breadth-first search (BFS): ring by ring</h2>
+  <p>Imagine dropping a stone in a pond. The first ring of ripples reaches the vertices one edge away from the start. The next ring reaches vertices two edges away. BFS works the same way. It finishes every vertex at distance 1 before it looks at any vertex at distance 2.</p>
+  <p>BFS needs a queue. The steps are:</p>
+  <ol>
+    <li>Mark the start vertex as visited and put it in the queue.</li>
+    <li>Take the vertex at the front of the queue. Call it v.</li>
+    <li>For each neighbour w of v, in the order listed, if w is not yet visited, mark w as visited and add it to the back of the queue.</li>
+    <li>Repeat from step 2 until the queue is empty.</li>
+  </ol>
+  <p>Notice that we mark a vertex when we add it to the queue, not when we remove it. This prevents the same vertex from entering the queue twice.</p>
+  <h3>Worked trace on graph G from A</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Step</th><th>Take from front</th><th>New neighbours added</th><th>Queue after the step</th></tr></thead>
+    <tbody>
+      <tr><td>0 (start)</td><td>-</td><td>A is added</td><td>[A]</td></tr>
+      <tr><td>1</td><td>A</td><td>B and C (both unvisited)</td><td>[B, C]</td></tr>
+      <tr><td>2</td><td>B</td><td>D (A is already visited)</td><td>[C, D]</td></tr>
+      <tr><td>3</td><td>C</td><td>E (A is already visited)</td><td>[D, E]</td></tr>
+      <tr><td>4</td><td>D</td><td>F (B and E are already visited or queued)</td><td>[E, F]</td></tr>
+      <tr><td>5</td><td>E</td><td>nothing (C and D are visited)</td><td>[F]</td></tr>
+      <tr><td>6</td><td>F</td><td>nothing (D is visited)</td><td>[]</td></tr>
+    </tbody>
+  </table></div>
+  <p>The BFS order is A, B, C, D, E, F. Each vertex's distance from A is the ring it was added in: B and C are at distance 1, D and E at distance 2, and F at distance 3. Note that E is reached through C at distance 2, not through D.</p>
+  <div class="note key"><p><span class="t">Key idea</span>In an unweighted graph, BFS gives the shortest number of edges from the start to every reachable vertex. This is why BFS is the standard tool for "fewest hops" questions.</p></div>
+  <p>Cost: every vertex enters and leaves the queue once, which takes O(V) work. Every adjacency list is read once in full, and the total length of all the lists is 2E for an undirected graph. So BFS costs O(V + E) with adjacency lists. With an adjacency matrix, each vertex scans a full row of V entries, so the cost is O(V<sup>2</sup>).</p>
+  <details class="check"><summary>In BFS, which vertices are at distance 2 from A in graph G?</summary><div class="ans"><p>D and E. D is reached from B, and E is reached from C. Both B and C are one edge from A.</p></div></details>
+  <details class="check"><summary>Why do we mark a vertex when it is queued rather than when it is dequeued?</summary><div class="ans"><p>If we waited, the same vertex could be added to the queue several times by different neighbours, wasting time and possibly giving a wrong order.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Depth-first search">
+  <h2>Depth-first search (DFS): follow one road to the end</h2>
+  <p>DFS is the explorer who keeps walking down one road until it stops, then comes back to the last junction and tries the next road. The "come back" step is called <strong>backtracking</strong>. A recursive function does this naturally, because each call waits for its children to finish before returning.</p>
+  <p>The rules for recursive DFS from a vertex v are:</p>
+  <ol>
+    <li>Mark v as visited and record it.</li>
+    <li>For each neighbour w of v, in the order listed, if w is not visited, run DFS from w.</li>
+    <li>When every neighbour is done, return. The caller then continues with its next neighbour.</li>
+  </ol>
+  <h3>Worked trace on graph G from A</h3>
+  <ul>
+    <li>Visit A. Its first neighbour is B, which is unvisited, so go to B.</li>
+    <li>At B: neighbour A is visited. Next neighbour D is unvisited, so go to D.</li>
+    <li>At D: neighbour B is visited. Next neighbour E is unvisited, so go to E.</li>
+    <li>At E: neighbour C is unvisited, so go to C.</li>
+    <li>At C: neighbours A and E are both visited. Dead end. Backtrack to E.</li>
+    <li>At E: neighbour D is visited. Backtrack to D.</li>
+    <li>At D: next neighbour F is unvisited, so go to F.</li>
+    <li>At F: neighbour D is visited. Dead end. Backtrack all the way to A. Its neighbour C is already visited, so DFS finishes.</li>
+  </ul>
+  <p>The DFS order is A, B, D, E, C, F. Compare it with the BFS order A, B, C, D, E, F. Same vertices, different order. This is why a question must always say which order to use.</p>
+  <p>DFS can also be written with an explicit stack. The stack version below pushes all unvisited neighbours at once. It gives a different but still valid order, which is a common source of mistakes. The program prints all three results so you can compare them.</p>
+  <pre class="code" data-lang="python"><code>from collections import deque
+
+graph = {
+    "A": ["B", "C"],
+    "B": ["A", "D"],
+    "C": ["A", "E"],
+    "D": ["B", "E", "F"],
+    "E": ["C", "D"],
+    "F": ["D"],
+}
+
+def bfs(graph, start):
+    visited = {start}
+    order = []
+    queue = deque([start])
+    while queue:
+        v = queue.popleft()
+        order.append(v)
+        for w in graph[v]:
+            if w not in visited:
+                visited.add(w)
+                queue.append(w)
+    return order
+
+def dfs(graph, v, visited, order):
+    visited.add(v)
+    order.append(v)
+    for w in graph[v]:
+        if w not in visited:
+            dfs(graph, w, visited, order)
+
+def dfs_stack(graph, start):
+    visited = set()
+    order = []
+    stack = [start]
+    while stack:
+        v = stack.pop()
+        if v in visited:
+            continue
+        visited.add(v)
+        order.append(v)
+        for w in graph[v]:
+            if w not in visited:
+                stack.append(w)
+    return order
+
+order = []
+dfs(graph, "A", set(), order)
+print("BFS from A:", " ".join(bfs(graph, "A")))
+print("DFS from A (recursive):", " ".join(order))
+print("DFS from A (stack):", " ".join(dfs_stack(graph, "A")))</code></pre>
+  <pre class="output">BFS from A: A B C D E F
+DFS from A (recursive): A B D E C F
+DFS from A (stack): A C E D F B</pre>
+  <div class="note trap"><p><span class="t">Trap</span>The stack version pops the last neighbour pushed, so it visits C before B. Two methods, two orders. In a GATE question, use the method and the neighbour order the question states. If none is stated, use the recursive version with neighbours in alphabetical order.</p></div>
+  <details class="check"><summary>In DFS on G from A, why is C visited after E?</summary><div class="ans"><p>DFS goes from A to B, then D, then E, and only then to C, because C is reached from E before the search backtracks to A.</p></div></details>
+  <details class="check"><summary>What data structure does DFS use in place of a queue?</summary><div class="ans"><p>A stack, either explicit or the call stack of recursion (last in, first out).</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Connectivity, cycles and cost">
+  <h2>Connectivity, cycle detection and complexity</h2>
+  <p>Both searches answer a yes or no question about the whole graph. Here are the two most common uses.</p>
+  <p><strong>Connectivity and components.</strong> Start a search from one vertex. Everything it visits forms one connected component. If some vertices are still unvisited, start a new search from one of them and count another component. The number of searches you start is the number of connected components. A graph is connected exactly when one search covers every vertex.</p>
+  <p><strong>Cycle detection in an undirected graph.</strong> Run DFS, remembering the parent of each vertex (the vertex from which you arrived). If you meet a neighbour that is already visited and is not the parent, you have found a cycle. Graph G has one: A, B, D, E, C, A uses the edges A-B, B-D, D-E, E-C and C-A. The walk returns to A, so the graph contains a cycle.</p>
+  <p>A useful fact follows from this. A connected undirected graph with V vertices is a tree (no cycles) exactly when it has V - 1 edges. G has 6 vertices and 6 edges, so it is not a tree.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For an undirected graph, the sum of the degrees is 2E. A graph with V vertices, where every vertex has degree 2, has E = V edges, so it must contain a cycle.</p></div>
+  <p><strong>Time complexity.</strong> Both BFS and DFS visit each vertex once and look at each adjacency list once. With adjacency lists the total time is O(V + E). With an adjacency matrix the time is O(V<sup>2</sup>), because each vertex scans V entries. The space is O(V) for the visited marks and queue or stack, plus the graph itself.</p>
+  <div class="formula">BFS and DFS with adjacency lists: O(V + E)</div>
+  <div class="formula">BFS and DFS with adjacency matrix: O(V<sup>2</sup>)</div>
+  <details class="check"><summary>How many connected components does a graph have if a search from one vertex visits 4 of its 7 vertices, and a second search from an unvisited vertex covers the other 3?</summary><div class="ans"><p>Two. The first search gives one component, and the second search (started from an unvisited vertex) gives the other.</p></div></details>
+  <details class="check"><summary>Is graph G connected?</summary><div class="ans"><p>Yes. One search from A reaches all six vertices, so G is a connected graph with one component.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or fact</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Sum of degrees = 2E</td><td>Each undirected edge counts at both ends</td><td>Edge and degree questions</td></tr>
+      <tr><td>Simple undirected graph: E at most V(V - 1) / 2</td><td>Most edges a graph on V vertices can have</td><td>Upper bound questions</td></tr>
+      <tr><td>BFS and DFS, adjacency list: O(V + E)</td><td>Each vertex and edge handled once</td><td>Time complexity</td></tr>
+      <tr><td>BFS and DFS, adjacency matrix: O(V<sup>2</sup>)</td><td>Each vertex scans a row of V cells</td><td>Time complexity with a matrix</td></tr>
+      <tr><td>Matrix space = V<sup>2</sup>; list space = V + E</td><td>Memory needed for the graph</td><td>Space questions</td></tr>
+      <tr><td>Connected tree: E = V - 1</td><td>No cycles, one component</td><td>Tree and cycle questions</td></tr>
+      <tr><td>BFS order is by distance; DFS order is by depth</td><td>Visiting order rules</td><td>Trace questions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions. Use the graph notes above, and follow the neighbour order given in each problem.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Edges and the degree of vertex 2</h3>
+    <div class="statement"><p>An undirected graph has vertices 1 to 5 and the edges 1-2, 2-3, 3-4, 4-1 and 2-5. How many edges does it have, and what is the degree of vertex 2?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of edges, and the degree of one vertex.</li>
+      <li><strong>Which idea applies.</strong> Each listed pair is one edge. The degree of a vertex counts the edges that touch it.</li>
+      <li><strong>Work it out.</strong> The list has 5 pairs, so E = 5. Vertex 2 appears in the pairs 1-2, 2-3 and 2-5, so its degree is 3.</li>
+      <li><strong>Check.</strong> Degrees are 2, 3, 2, 2 and 1 for vertices 1 to 5. Their sum is 10, which is 2 x 5, as the handshake rule says.</li>
+    </ol>
+    <p class="cx">Answer: 5 edges, and vertex 2 has degree 3.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Ones in an adjacency matrix</h3>
+    <div class="statement"><p>An undirected simple graph has 4 vertices and 3 edges. How many entries of its adjacency matrix equal 1?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Count the 1s in the matrix.</li>
+      <li><strong>Which idea applies.</strong> In an undirected matrix, each edge sets two entries, one for each direction.</li>
+      <li><strong>Work it out.</strong> 3 edges, each setting 2 entries, gives 3 x 2 = 6 ones. The diagonal is all 0s in a simple graph (no self-loops), so no extra 1s appear there.</li>
+      <li><strong>Check.</strong> The matrix is symmetric, so the number of ones must be even. 6 is even.</li>
+    </ol>
+    <p class="cx">Answer: 6.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about BFS and DFS are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) BFS uses a queue.</li><li>(B) DFS can be written with an explicit stack.</li><li>(C) In an unweighted graph, BFS from a source reaches each vertex at the smallest number of edges from the source.</li><li>(D) DFS on an adjacency list always takes O(V<sup>2</sup>) time.</li><li>(E) On a tree, BFS from the root visits the vertices level by level.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims are true.</li>
+      <li><strong>Which idea applies.</strong> BFS uses a queue and visits by levels. DFS uses a stack or recursion. With adjacency lists, both cost O(V + E).</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True, since BFS adds vertices in rings of increasing distance. (D) False, the cost with lists is O(V + E). (E) True, a tree has no cycles, so BFS from the root gives its levels.</li>
+      <li><strong>Check.</strong> For (D), a sparse graph with V = 1,000 and E = 1,000 costs about 2,000 steps, far less than 1,000,000.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (E).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>What does this program print?</h3>
+    <div class="statement"><p>Trace the program. Each key is a vertex and each value is the list of its neighbours.</p>
+<pre class="code" data-lang="python"><code>g = {1: [2, 3], 2: [1, 4], 3: [1, 5], 4: [2, 6], 5: [3, 6], 6: [4, 5]}
+print(len(g[4]), sum(len(v) for v in g.values()) // 2)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two numbers: the length of the list for vertex 4, and the number of edges.</li>
+      <li><strong>Which idea applies.</strong> The degree of a vertex is the length of its list. The number of edges is half the sum of all degrees.</li>
+      <li><strong>Work it out.</strong> g[4] is [2, 6], which has length 2. The lengths are 2, 2, 2, 2, 2, 2, so the sum is 12, and 12 // 2 = 6.</li>
+      <li><strong>Check.</strong> Six vertices each with degree 2 form a cycle 1-2-4-6-5-3-1, which has 6 edges. Matches.</li>
+    </ol>
+    <p class="cx">Answer: the program prints "2 6".</p>
+    <pre class="code" data-lang="python"><code>g = {1: [2, 3], 2: [1, 4], 3: [1, 5], 4: [2, 6], 5: [3, 6], 6: [4, 5]}
+print(len(g[4]), sum(len(v) for v in g.values()) // 2)</code></pre>
+    <pre class="output">2 6</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Connected components after two edges are removed</h3>
+    <div class="statement"><p>Graph H has vertices 1 to 6 and the edges 1-2, 1-3, 2-4, 3-5, 4-6 and 5-6. Remove the edges 1-2 and 5-6. How many connected components remain?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of connected components after the removal.</li>
+      <li><strong>Which idea applies.</strong> Count the groups of vertices that can still reach each other.</li>
+      <li><strong>Work it out.</strong> The remaining edges are 1-3, 3-5, 2-4 and 4-6. Vertices 1, 3 and 5 are joined together. Vertices 2, 4 and 6 are joined together. No edge links the two groups, so there are two components.</li>
+      <li><strong>Check.</strong> Run a search from vertex 1 (it reaches 3 and 5 only) and from vertex 2 (it reaches 4 and 6 only). Two searches means two components. The code below counts this.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+    <pre class="code" data-lang="python"><code>graph = {1: [3], 2: [4], 3: [1, 5], 4: [2, 6], 5: [3], 6: [4]}
+seen = set()
+count = 0
+for start in graph:
+    if start in seen:
+        continue
+    count += 1
+    stack = [start]
+    while stack:
+        v = stack.pop()
+        if v in seen:
+            continue
+        seen.add(v)
+        stack.extend(graph[v])
+print(count)</code></pre>
+    <pre class="output">2</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Order of visits with neighbours in listed order</h3>
+    <div class="statement"><p>Use graph H from the previous problem, but with the original edges 1-2, 1-3, 2-4, 3-5, 4-6 and 5-6. Each neighbour list is sorted in increasing order. Write the DFS visiting order from vertex 1, using the recursive method.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The DFS order from vertex 1.</li>
+      <li><strong>Which idea applies.</strong> Recursive DFS: visit, then go to the first unvisited neighbour, recursively, and backtrack when stuck.</li>
+      <li><strong>Work it out.</strong> Visit 1. Neighbours are 2 and 3; take 2. At 2, neighbours are 1 (visited) and 4; go to 4. At 4, neighbours are 2 (visited) and 6; go to 6. At 6, neighbours are 4 (visited) and 5; go to 5. At 5, neighbours are 3 (unvisited) and 6 (visited); go to 3. At 3, neighbours 1 and 5 are visited. Backtrack all the way to 1, whose neighbour 3 is already visited. Order: 1, 2, 4, 6, 5, 3.</li>
+      <li><strong>Check.</strong> All six vertices appear once. The code below confirms the order.</li>
+    </ol>
+    <p class="cx">Answer: 1, 2, 4, 6, 5, 3.</p>
+    <pre class="code" data-lang="python"><code>graph = {1: [2, 3], 2: [1, 4], 3: [1, 5], 4: [2, 6], 5: [3, 6], 6: [4, 5]}
+
+def dfs(v, seen, order):
+    seen.add(v)
+    order.append(v)
+    for w in graph[v]:
+        if w not in seen:
+            dfs(w, seen, order)
+
+order = []
+dfs(1, set(), order)
+print(order)</code></pre>
+    <pre class="output">[1, 2, 4, 6, 5, 3]</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which representation fits which graph?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) An adjacency matrix is the better choice for a dense graph, where E is close to V<sup>2</sup>.</li><li>(B) An adjacency list uses O(V + E) space.</li><li>(C) Checking whether edge (u, v) exists takes O(1) with a matrix and O(degree of u) with a list.</li><li>(D) BFS on a graph stored as a matrix takes O(V<sup>2</sup>) time.</li><li>(E) BFS on a graph stored as a list always takes O(V<sup>2</sup>) time.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims about storage and cost are true.</li>
+      <li><strong>Which idea applies.</strong> Matrix: V<sup>2</sup> space and O(1) edge lookup. List: V + E space, and scanning a list costs its length.</li>
+      <li><strong>Work it out.</strong> (A) True, because a dense graph wastes little space in a matrix. (B) True. (C) True. (D) True, each vertex scans a row of V cells. (E) False, with lists BFS costs O(V + E), which is much less than V<sup>2</sup> for a sparse graph.</li>
+      <li><strong>Check.</strong> Take V = 1,000 and E = 2,000. A list costs about 3,000 steps, while a matrix costs 1,000,000. So (E) is clearly false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Edges in a forest</h3>
+    <div class="statement"><p>A forest is an undirected graph with no cycles. A forest has 10 vertices and exactly 3 connected components. How many edges does it have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of edges in a forest with given vertices and components.</li>
+      <li><strong>Which idea applies.</strong> Each component with k vertices and no cycles is a tree, and a tree on k vertices has k - 1 edges.</li>
+      <li><strong>Work it out.</strong> Let the components have k<sub>1</sub>, k<sub>2</sub> and k<sub>3</sub> vertices, with k<sub>1</sub> + k<sub>2</sub> + k<sub>3</sub> = 10. The edges are (k<sub>1</sub> - 1) + (k<sub>2</sub> - 1) + (k<sub>3</sub> - 1) = 10 - 3 = 7. The sizes do not matter, only the total and the count of components.</li>
+      <li><strong>Check.</strong> A single tree (1 component) on 10 vertices has 9 edges, which is 10 - 1. Each extra component removes one edge, so 9 - 2 = 7.</li>
+    </ol>
+    <p class="cx">Answer: 7 edges.</p>
+    <pre class="code" data-lang="python"><code>vertices = 10
+components = 3
+print(vertices - components)</code></pre>
+    <pre class="output">7</pre>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: BFS order (MCQ, 2 marks)</h3>
+    <div class="statement"><p>An undirected graph has edges A-B, A-C, B-D, C-D, C-E, D-F, E-F. BFS starts at A and visits neighbours in alphabetical order. What is the visit order? (A) A B C D E F (B) A B D C E F (C) A C B E D F (D) A B C E D F</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The BFS order.</li>
+      <li><strong>Which idea applies.</strong> BFS processes vertices level by level using a queue.</li>
+      <li><strong>Work it out.</strong> Level 1: B, C. From B: D. From C: E (D seen). Then F. Order A B C D E F.</li>
+      <li><strong>Check.</strong> The code runs BFS.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from collections import deque
+E = ["AB", "AC", "BD", "CD", "CE", "DF", "EF"]
+G = {}
+for u, v in E: G.setdefault(u, []).append(v); G.setdefault(v, []).append(u)
+seen, q, out = {"A"}, deque("A"), []
+while q:
+    u = q.popleft(); out.append(u)
+    for v in sorted(G[u]):
+        if v not in seen: seen.add(v); q.append(v)
+print(" ".join(out))
+</code></pre>
+    <pre class="output">A B C D E F</pre>
+    <p class="cx">Answer: (A).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Edge classes in DFS (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE for DFS? (A) In an undirected graph there are no cross edges. (B) A directed graph has a cycle iff DFS finds a back edge. (C) DFS on a graph with V vertices and E edges takes O(V + E) with adjacency lists. (D) DFS finds shortest paths in unweighted graphs.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> DFS edge facts.</li>
+      <li><strong>Which idea applies.</strong> In undirected DFS every non-tree edge links a vertex to an ancestor.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) That is BFS. False.</li>
+      <li><strong>Check.</strong> A cycle of 4 vertices shows DFS reaching a neighbour by the long way.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Connected components (NAT, 2 marks)</h3>
+    <div class="statement"><p>A graph has 12 vertices, 8 edges and no cycles. How many connected components does it have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of trees in the forest.</li>
+      <li><strong>Which idea applies.</strong> A forest with V vertices and k trees has V − k edges.</li>
+      <li><strong>Work it out.</strong> 12 − k = 8, so k = 4.</li>
+      <li><strong>Check.</strong> Each tree on t vertices uses t − 1 edges.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Vertex</dt><dd>A point in a graph.</dd></div>
+    <div><dt>Edge</dt><dd>A line joining two vertices, possibly with a direction or a weight.</dd></div>
+    <div><dt>Undirected graph</dt><dd>Edges have no direction.</dd></div>
+    <div><dt>Directed graph</dt><dd>Edges go one way only.</dd></div>
+    <div><dt>Weighted graph</dt><dd>Each edge has a number attached, such as a distance.</dd></div>
+    <div><dt>Degree</dt><dd>The number of edges touching a vertex.</dd></div>
+    <div><dt>Adjacency matrix</dt><dd>A V by V table with 1 where an edge exists. Space V<sup>2</sup>.</dd></div>
+    <div><dt>Adjacency list</dt><dd>One list of neighbours per vertex. Space V + E.</dd></div>
+    <div><dt>Connected component</dt><dd>A group of vertices that can all reach each other.</dd></div>
+    <div><dt>BFS</dt><dd>Breadth-first search. Visits by levels using a queue.</dd></div>
+    <div><dt>DFS</dt><dd>Depth-first search. Goes deep, then backtracks, using a stack or recursion.</dd></div>
+    <div><dt>Queue</dt><dd>First in, first out. Used by BFS.</dd></div>
+    <div><dt>Stack</dt><dd>Last in, first out. Used by DFS.</dd></div>
+    <div><dt>Backtracking</dt><dd>Returning to the last junction when a path has no new vertices.</dd></div>
+    <div><dt>Cycle</dt><dd>A closed loop of edges that returns to its starting vertex.</dd></div>
+    <div><dt>Time of BFS and DFS</dt><dd>O(V + E) with adjacency lists, O(V<sup>2</sup>) with a matrix.</dd></div>
+    <div><dt>Handshake rule</dt><dd>The sum of the degrees in an undirected graph is 2E.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>BFS uses a queue and gives shortest hop counts in unweighted graphs.</li>
+    <li>DFS uses a stack or recursion and backtracks when stuck.</li>
+    <li>The visiting order depends on the neighbour order, so always read the question's rule.</li>
+    <li>Mark a vertex when you first add it, not when you remove it.</li>
+    <li>Each search costs O(V + E) with adjacency lists.</li>
+    <li>A search from each unvisited vertex counts the connected components.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 75?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 75 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-074.html"><small>Previous, topic 74</small>Binary heap (new)</a><a class="next" href="gate-076.html"><small>Next, topic 76</small>Shortest path algorithms</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

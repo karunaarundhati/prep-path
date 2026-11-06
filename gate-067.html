@@ -1,0 +1,512 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 67: Linear Search & Binary Search</title><meta name="description" content="Searching means finding where a value sits in a collection, or learning that it is not there. Linear search checks items one by one, and binary search halves a sorted list at each step. GATE often asks you to count comparisons and to compare the two methods."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g67" data-key="g67" data-noun="topic" data-num="67" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Linear Search &amp; Binary Search</h1>
+<p class="lede">Searching means finding where a value sits in a collection, or learning that it is not there. Linear search checks items one by one, and binary search halves a sorted list at each step. GATE often asks you to count comparisons and to compare the two methods.</p>
+<div class="station"><b>67</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Linear search and its cost</li><li>Binary search: the halving idea</li><li>Iterative and recursive binary search</li><li>Best, worst and average case</li><li>Counting comparisons in GATE questions</li><li>Traps: sorted data, mid-point, stopping rule</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose a friend asks you to find the name "Meena" in a phone book. You could start on page 1 and read every name until you reach "Meena". That works, but it is slow. Or you could open the book near the middle, see whether "Meena" comes before or after that page, and throw away the half that cannot contain the name. Then repeat on the half that remains. The first method is <strong>linear search</strong>. The second is <strong>binary search</strong>.</p>
+  <p>The two methods have very different costs. If the book has a million names, linear search may read a million names in the worst case. Binary search needs only about 20 steps, because each step halves the work. This difference is the reason binary search is taught so early in algorithm courses.</p>
+  <p>The catch is that binary search only works when the names are <strong>sorted</strong>. A phone book is sorted by name. A pile of random receipts is not. If the data is unsorted, the halving trick throws away the wrong half, and the answer is wrong.</p>
+  <p><strong>Why this matters for GATE.</strong> Questions ask you to find the number of comparisons for a given search, the best and worst cases, and the time complexity written in Big-O form. You must also know when each method is allowed. Read the question, look for the word "sorted", and count carefully.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Search</dt><dd>Finding the position of a target value in a collection, or deciding that it is absent.</dd></div>
+    <div><dt>Target</dt><dd>The value you are looking for.</dd></div>
+    <div><dt>Linear search</dt><dd>Checking the items one after another from the start until the target is found or the list ends.</dd></div>
+    <div><dt>Binary search</dt><dd>Repeatedly comparing the target with the middle item of a sorted range, and keeping only the half that could contain the target.</dd></div>
+    <div><dt>Sorted</dt><dd>Arranged in non-decreasing order, so each item is at most the item after it.</dd></div>
+    <div><dt>Comparison</dt><dd>One test of the form "is this item equal to the target?" or "is this item less than the target?". Counting comparisons is the usual way to measure the cost of a search.</dd></div>
+    <div><dt>low, high</dt><dd>Two index variables that mark the part of the array still being searched. Index <code>low</code> is the first position still in play, and <code>high</code> is the last.</dd></div>
+    <div><dt>mid</dt><dd>The middle index of the current range, usually <code>(low + high) // 2</code>.</dd></div>
+    <div><dt>Iterative</dt><dd>Written with a loop.</dd></div>
+    <div><dt>Recursive</dt><dd>Written so the function calls itself on a smaller range.</dd></div>
+    <div><dt>Best case</dt><dd>The input for which the algorithm does the least work.</dd></div>
+    <div><dt>Worst case</dt><dd>The input for which the algorithm does the most work.</dd></div>
+    <div><dt>Average case</dt><dd>The expected work when every possible input is equally likely.</dd></div>
+    <div><dt>Big-O notation</dt><dd>A way to describe how the work grows with the size n. O(n) means the work grows in proportion to n. O(log n) means it grows with the number of times you can halve n.</dd></div>
+    <div><dt>Logarithm (base 2)</dt><dd>log2(n) is the power you need to raise 2 to, to get n. For example, log2(8) is 3, because 2 * 2 * 2 is 8.</dd></div>
+    <div><dt>Index</dt><dd>The position of an item in an array. The first position is 0.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Linear search and its cost">
+  <h2>Linear search and its cost</h2>
+  <h3>The method</h3>
+  <p>Linear search starts at index 0. It compares the target with each item in turn. If it finds an equal item, it returns that index. If it reaches the end without a match, it returns -1, a common way to say "not found". It works on any list, sorted or not, because it never assumes an order.</p>
+
+<pre class="code" data-lang="python"><code>def linear_search(arr, target):
+    comparisons = 0
+    for i in range(len(arr)):
+        comparisons = comparisons + 1
+        if arr[i] == target:
+            return i, comparisons
+    return -1, comparisons
+
+data = [7, 3, 9, 4, 1]
+print(linear_search(data, 9))
+print(linear_search(data, 8))</code></pre>
+<pre class="output">(2, 3)
+(-1, 5)</pre>
+
+  <p>The first call looks for 9. The comparisons are with 7, 3 and 9, so three comparisons are made. The second call looks for 8, which is absent. All five items are compared, and the answer is -1. The variable <code>comparisons</code> counts each test, so you can see the cost directly.</p>
+
+  <h3>How the cost grows</h3>
+  <p>If the list has n items:</p>
+  <ul>
+    <li><strong>Best case</strong>: the target is the first item. One comparison. The cost is O(1).</li>
+    <li><strong>Worst case</strong>: the target is last, or absent. n comparisons. The cost is O(n).</li>
+    <li><strong>Average case</strong>: if the target is equally likely to be at any position, the average number of comparisons for a successful search is (n + 1) / 2. This is still O(n).</li>
+  </ul>
+  <p>Check the average with the list above. Positions 1 to 5 need 1, 2, 3, 4 and 5 comparisons. The average is (1 + 2 + 3 + 4 + 5) / 5 = 3, which equals (5 + 1) / 2 = 3. It matches.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>The average formula (n + 1) / 2 is for a successful search, where the target is in the list and each position is equally likely. It is not the same as the average over all searches, which also includes absent targets.</p></div>
+
+  <details class="check"><summary>How many comparisons does linear search make for the first item of a list of 100 items?</summary><div class="ans"><p>One comparison. The target matches at index 0, so the loop returns straight away.</p></div></details>
+  <details class="check"><summary>Does linear search need the list to be sorted?</summary><div class="ans"><p>No. It checks each item and never uses the order of the items, so it works for any list.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Binary search: the halving idea">
+  <h2>Binary search: the halving idea</h2>
+  <h3>Why halving works</h3>
+  <p>Take a sorted list and look at the middle item. Two things can happen:</p>
+  <ul>
+    <li>If the middle item equals the target, you are done.</li>
+    <li>If the middle item is less than the target, the target must be to the right of the middle, because everything to the left is even smaller. So you throw away the left half and the middle.</li>
+    <li>If the middle item is greater than the target, the target must be to the left. You throw away the right half and the middle.</li>
+  </ul>
+  <p>Each comparison removes about half the remaining items. That is the whole idea. The argument is short: if the list has n items, after one comparison about n/2 remain, after two about n/4, and so on. The search ends when no items remain.</p>
+
+  <h3>The three index variables</h3>
+  <p>The algorithm keeps <code>low</code> and <code>high</code>, the first and last positions still in play. At each step:</p>
+  <ol>
+    <li>Set <code>mid = (low + high) // 2</code>. The double slash rounds down, so for low = 0 and high = 6, mid is 3.</li>
+    <li>Compare <code>arr[mid]</code> with the target.</li>
+    <li>If the item is less than the target, set <code>low = mid + 1</code>, because mid is now ruled out.</li>
+    <li>If the item is greater than the target, set <code>high = mid - 1</code>.</li>
+    <li>Stop when the target is found, or when <code>low</code> becomes greater than <code>high</code>. That means the range is empty.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>Adding 1 to <code>low</code> and subtracting 1 from <code>high</code> is what makes the range shrink. If you forget the +1 or the -1, the same middle item can be chosen again, and the loop can run forever.</p></div>
+
+  <h3>A runnable example with a count</h3>
+<pre class="code" data-lang="python"><code>def binary_search(arr, target):
+    low = 0
+    high = len(arr) - 1
+    comparisons = 0
+    while low &lt;= high:
+        mid = (low + high) // 2
+        comparisons = comparisons + 1
+        if arr[mid] == target:
+            return mid, comparisons
+        elif arr[mid] &lt; target:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return -1, comparisons
+
+sorted_data = [1, 3, 4, 7, 9, 12, 15]
+print(binary_search(sorted_data, 9))
+print(binary_search(sorted_data, 2))
+print(binary_search(sorted_data, 1))</code></pre>
+<pre class="output">(4, 3)
+(-1, 3)
+(0, 3)</pre>
+
+  <p>Let us trace the first call by hand, because this is the skill GATE tests. The list has indexes 0 to 6. The target is 9.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Step</th><th>low</th><th>high</th><th>mid</th><th>arr[mid]</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>0</td><td>6</td><td>3</td><td>7</td><td>7 is less than 9, so low = 4</td></tr>
+      <tr><td>2</td><td>4</td><td>6</td><td>5</td><td>12</td><td>12 is greater than 9, so high = 4</td></tr>
+      <tr><td>3</td><td>4</td><td>4</td><td>4</td><td>9</td><td>Equal to 9, found at index 4</td></tr>
+    </tbody>
+  </table></div>
+  <p>Three comparisons were made, and the answer is index 4. In step 2, <code>(4 + 6) // 2</code> is 5, because the sum is 10 and 10 divided by 2 is 5.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>When the range has an even number of items, the middle is the lower of the two middle positions, because <code>//</code> rounds down. For low = 4 and high = 5, mid is 4, not 5. Forgetting this rounding is a frequent error in hand traces.</p></div>
+
+  <details class="check"><summary>For a list of 8 sorted items, with low = 0 and high = 7, what is mid?</summary><div class="ans"><p>mid is (0 + 7) // 2, which is 3 with rounding down. Index 3 is the fourth item.</p></div></details>
+  <details class="check"><summary>Why does the algorithm set <code>high = mid - 1</code> and not <code>high = mid</code> when the middle item is too large?</summary><div class="ans"><p>Because the middle item has already been compared and is known not to be the target. Keeping it in the range would waste a comparison, and the range might never shrink.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Iterative and recursive binary search">
+  <h2>Iterative and recursive binary search</h2>
+  <h3>Two ways to write the same method</h3>
+  <p>The version above uses a loop, so it is <strong>iterative</strong>. The same halving idea can also be written as a function that calls itself on the half that remains. This is <strong>recursive</strong> binary search. It has a base case, which is an empty range, and a recursive case, which is a call on the smaller range.</p>
+<pre class="code" data-lang="python"><code>def bsearch(arr, target, low, high):
+    if low &gt; high:
+        return -1
+    mid = (low + high) // 2
+    if arr[mid] == target:
+        return mid
+    if arr[mid] &lt; target:
+        return bsearch(arr, target, mid + 1, high)
+    return bsearch(arr, target, low, mid - 1)
+
+sorted_data = [1, 3, 4, 7, 9, 12, 15]
+print(bsearch(sorted_data, 12, 0, len(sorted_data) - 1))
+print(bsearch(sorted_data, 5, 0, len(sorted_data) - 1))</code></pre>
+<pre class="output">5
+-1</pre>
+
+  <p>The first call finds 12 at index 5. The second call looks for 5, which is absent. Trace it by hand. The first call has range 0 to 6, mid 3, and arr[3] is 7. Since 7 is greater than 5, the next call uses range 0 to 2. Its mid is 1, and arr[1] is 3, which is less than 5, so the next call uses range 2 to 2. Its mid is 2, and arr[2] is 4, still less than 5. The next call uses range 3 to 2, where low is greater than high, so it returns -1. That is four calls in total.</p>
+
+  <h3>Which one should you use?</h3>
+  <ul>
+    <li>The iterative version uses a fixed amount of memory. It is usually the better choice in real code.</li>
+    <li>The recursive version uses one stack frame for each call. For binary search there are only about log n frames, so it is safe, but the call stack still grows.</li>
+    <li>In an exam, trace exactly the version the question describes. Both give the same answer, but the count of calls and the count of loop passes can be asked separately.</li>
+  </ul>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Questions often ask for the number of recursive calls or the number of loop iterations. Here each call or loop pass makes one comparison, so the numbers match. Read the wording carefully, because a question about calls may count the base call too.</p></div>
+
+  <details class="check"><summary>In the recursive version, what does the base case <code>low &gt; high</code> represent?</summary><div class="ans"><p>An empty range. The target is not in the array, so the function returns -1 without comparing anything.</p></div></details>
+  <details class="check"><summary>Does the recursive version make one comparison per call?</summary><div class="ans"><p>Almost. Each call that reaches <code>mid</code> compares <code>arr[mid]</code> with the target once. The base case returns before reaching <code>mid</code>, so it makes no comparison.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Best, worst and average case">
+  <h2>Best, worst and average case</h2>
+  <h3>The best case</h3>
+  <p>For binary search, the best case is when the middle item is the target at the very first step. One comparison, so the cost is O(1). For linear search the best case is the same: the target is first in the list.</p>
+
+  <h3>The worst case</h3>
+  <p>For binary search, the worst case is when the target is absent, or is found only after the range has shrunk to one item. Each step removes about half of the range, so the number of comparisons is at most floor(log2 n) + 1. Here floor means round down. The cost is O(log n).</p>
+<pre class="code" data-lang="python"><code>import math
+print(math.floor(math.log2(1000)) + 1)
+print(math.ceil(math.log2(1001)))</code></pre>
+<pre class="output">10
+10</pre>
+
+  <p>For n = 1000, the bound is 10 comparisons. Linear search needs up to 1000. The two formulas <code>floor(log2 n) + 1</code> and <code>ceiling(log2(n + 1))</code> agree for every n, so either can be used.</p>
+
+  <h3>The average case</h3>
+  <p>The average depends on where the target sits. For a successful search where each item is equally likely, the average is a little below the worst case, and it still grows like log n. For example, the next code finds every item of a sorted list and counts the comparisons.</p>
+<pre class="code" data-lang="python"><code>def binary_search(arr, target):
+    low = 0
+    high = len(arr) - 1
+    comparisons = 0
+    while low &lt;= high:
+        mid = (low + high) // 2
+        comparisons = comparisons + 1
+        if arr[mid] == target:
+            return mid, comparisons
+        elif arr[mid] &lt; target:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return -1, comparisons
+
+sorted_data = [1, 3, 4, 7, 9, 12, 15]
+for x in sorted_data:
+    print(x, binary_search(sorted_data, x)[1])</code></pre>
+<pre class="output">1 3
+3 2
+4 3
+7 1
+9 3
+12 2
+15 3</pre>
+
+  <p>Read the second column. The middle item 7 needs one comparison. Items 3 and 12 need two. Items 1, 4, 9 and 15 need three. Each value is the number of comparisons for one successful search.</p>
+<pre class="code" data-lang="python"><code>from fractions import Fraction
+counts = [3, 2, 3, 1, 3, 2, 3]
+print(sum(counts), Fraction(sum(counts), len(counts)))</code></pre>
+<pre class="output">17 17/7</pre>
+
+  <p>The total is 17 comparisons over 7 searches, so the average is 17/7, about 2.43 comparisons per successful search. Linear search would average (7 + 1) / 2 = 4 comparisons on this list, so binary search is clearly cheaper here.</p>
+
+  <h3>Linear and binary side by side</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Case</th><th>Linear search</th><th>Binary search</th></tr></thead>
+    <tbody>
+      <tr><td>Best</td><td>1 comparison (target first)</td><td>1 comparison (target is the middle)</td></tr>
+      <tr><td>Worst (n = 1000)</td><td>1000 comparisons, O(n)</td><td>10 comparisons, O(log n)</td></tr>
+      <tr><td>Average, successful</td><td>(n + 1) / 2 comparisons, O(n)</td><td>A little below the worst case, O(log n)</td></tr>
+      <tr><td>Needs sorted data?</td><td>No</td><td>Yes</td></tr>
+    </tbody>
+  </table></div>
+
+</section>
+
+<section class="unit" id="c5" data-title="Traps: sorted data, mid-point, stopping rule">
+  <h2>Traps: sorted data, mid-point, stopping rule</h2>
+  <p>Most lost marks in this topic come from three traps. The sections below show each one.</p>
+  <h3>Trap 1: unsorted data</h3>
+  <p>The code below runs both searches on the same unsorted list. The output shows what goes wrong.</p>
+  <pre class="code" data-lang="python"><code>def linear_search(arr, target):
+    for i in range(len(arr)):
+        if arr[i] == target:
+            return i
+    return -1
+
+def binary_search(arr, target):
+    low = 0
+    high = len(arr) - 1
+    comparisons = 0
+    while low &lt;= high:
+        mid = (low + high) // 2
+        comparisons = comparisons + 1
+        if arr[mid] == target:
+            return mid, comparisons
+        elif arr[mid] &lt; target:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return -1, comparisons
+
+data = [9, 2, 7, 1]
+print(binary_search(data, 9))
+print(linear_search(data, 9))</code></pre>
+<pre class="output">(-1, 3)
+0</pre>
+
+  <p>The value 9 is at index 0, so linear search is right. Binary search says "not found". It compared 9 with the middle items 2 and 7, decided 9 must be to the right, and looked in the wrong half. The halving rule depends completely on the order. Always check the question for the word "sorted" before you use binary search.</p>
+
+  <h3>Trap 2: the mid-point formula</h3>
+  <p>The formula <code>(low + high) // 2</code> is correct for Python, because Python integers never overflow. In languages with fixed-size integers, such as C or Java, the sum <code>low + high</code> can overflow when both are large. The safe form is <code>low + (high - low) // 2</code>, which gives the same answer and never overflows. Exam questions sometimes use the safe form, so recognise it.</p>
+
+  <h3>Trap 3: the stopping rule and empty arrays</h3>
+  <p>The loop must continue while <code>low &lt;= high</code>. With <code>low &lt; high</code> the single remaining item would never be checked. An empty array is handled by the same rule: its <code>high</code> is -1, so <code>low &lt;= high</code> is False from the start, and the function returns -1 with zero comparisons.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often say binary search "takes log n steps" and stop there. The exact count matters in exams. Work out the number of comparisons for the given array and target, or use floor(log2 n) + 1 for the worst case.</p></div>
+
+  <details class="check"><summary>What does binary search return for an empty list, with the code in this topic?</summary><div class="ans"><p>It returns -1 and 0 comparisons, because <code>high</code> starts at -1 and the loop condition fails at once.</p></div></details>
+  <details class="check"><summary>Which is faster on a list of 1000 sorted items for an absent target: linear or binary search?</summary><div class="ans"><p>Binary search. Linear search makes 1000 comparisons, and binary search makes at most 10.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>mid = (low + high) // 2</td><td>The middle index, rounded down</td><td>Every step of binary search</td></tr>
+      <tr><td>Linear search worst case = n comparisons</td><td>Checks every item</td><td>Target last or absent</td></tr>
+      <tr><td>Linear search successful average = (n + 1) / 2</td><td>Target equally likely at any position</td><td>Average-case questions</td></tr>
+      <tr><td>Binary search worst case = floor(log2 n) + 1</td><td>Maximum number of comparisons</td><td>Worst-case counting on sorted data</td></tr>
+      <tr><td>log2(8) = 3, log2(1000) is about 9.97</td><td>The power of 2 needed to reach n</td><td>Estimating the number of halvings</td></tr>
+      <tr><td>Linear search: O(n). Binary search: O(log n)</td><td>Growth of work with input size</td><td>Big-O answers</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style, and are not taken from any past paper. Trace each one on paper before you read the steps.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Counting a linear search</h3>
+    <div class="statement"><p>Linear search starts at index 0 and compares the target with each item in turn. It stops as soon as it finds the target. It is run on the unsorted list 5, 8, 2, 6 to find the value 2. How many comparisons are made, counting the one that finds 2?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of comparisons up to and including the successful one.</li>
+      <li><strong>Which idea applies.</strong> Linear search compares items in order from the first, and it does not need sorted data.</li>
+      <li><strong>Work it out.</strong> Compare 2 with 5: not equal. Compare with 8: not equal. Compare with 2 (index 2): equal, so stop. That is 3 comparisons.</li>
+      <li><strong>Check.</strong> The position of 2 is index 2, which is the third item, so 3 comparisons is the right count.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about searching</h3>
+    <div class="statement"><p>Select all the true statements. (A) Linear search needs the list to be sorted. (B) Binary search on n sorted items makes at most floor(log2 n) + 1 comparisons. (C) Binary search needs direct access to the middle item, which an array provides. (D) The best case of linear search takes one comparison.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every statement that is true, and only those.</li>
+      <li><strong>Which idea applies.</strong> Linear search works on any order. Binary search halves a sorted range and needs fast access to <code>arr[mid]</code>.</li>
+      <li><strong>Work it out.</strong> (A) is false, because linear search does not need order. (B) is true, as this topic showed. (C) is true, since an array gives instant access by index. (D) is true, because the target can be the first item.</li>
+      <li><strong>Check.</strong> Statement A is the usual trap, because it describes binary search and not linear search.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Binary search on ten values</h3>
+    <div class="statement"><p>The array is 2, 5, 8, 12, 16, 23, 38, 56, 72, 91 (indexes 0 to 9, sorted). Binary search with the rule <code>mid = (low + high) // 2</code> looks for 23. How many comparisons are made, counting the one that finds 23?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of comparisons until 23 is found.</li>
+      <li><strong>Which idea applies.</strong> Keep the range from <code>low</code> to <code>high</code>, and look at the middle each time.</li>
+      <li><strong>Work it out.</strong> Start: low 0, high 9, mid 4, arr[4] is 16. 16 is less than 23, so low = 5. Next: low 5, high 9, mid 7, arr[7] is 56. 56 is greater than 23, so high = 6. Next: low 5, high 6, mid 5, arr[5] is 23. Found, after 3 comparisons.</li>
+      <li><strong>Check.</strong> The range sizes went 10, then 5, then 2, and the target was found at the third look. That matches the halving pattern.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Binary search for an absent value</h3>
+    <div class="statement"><p>Use the same array as the previous problem, which is 2, 5, 8, 12, 16, 23, 38, 56, 72, 91. Binary search with <code>mid = (low + high) // 2</code> looks for 40. How many comparisons are made before the search stops?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of comparisons, for a target that is not present.</li>
+      <li><strong>Which idea applies.</strong> The search stops when <code>low</code> is greater than <code>high</code>.</li>
+      <li><strong>Work it out.</strong> Start: low 0, high 9, mid 4 (16), less than 40, so low = 5. Next: low 5, high 9, mid 7 (56), greater than 40, so high = 6. Next: low 5, high 6, mid 5 (23), less than 40, so low = 6. Next: low 6, high 6, mid 6 (38), less than 40, so low = 7. Now low 7 is greater than high 6, so the search stops. That is 4 comparisons.</li>
+      <li><strong>Check.</strong> The answer 4 is within the bound floor(log2 10) + 1 = 4 for this array size, so it is a possible worst case.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Worst case on 1000 items</h3>
+    <div class="statement"><p>A sorted array holds 1000 items. Using the worst-case bound for binary search from this topic, what is the maximum number of comparisons?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The bound floor(log2 n) + 1 for n = 1000.</li>
+      <li><strong>Which idea applies.</strong> The number of times 1000 can be halved before only one item is left.</li>
+      <li><strong>Work it out.</strong> 2 to the power 9 is 512, and 2 to the power 10 is 1024. Since 512 is at most 1000 and 1024 is more than 1000, floor(log2 1000) is 9. Then 9 + 1 = 10.</li>
+      <li><strong>Check.</strong> The earlier code printed 10 for this bound, and linear search would need up to 1000.</li>
+    </ol>
+    <p class="cx">Answer: 10</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Recursive search that fails</h3>
+    <div class="statement"><p>The recursive function below is called on the sorted array 1, 3, 4, 7, 9, 12, 15 with the target 5. Indexes run from 0 to 6, and the call is <code>bsearch(arr, 5, 0, 6)</code>. How many calls are made in total, including the first call and the base-case call? What value is returned?</p>
+<pre class="code" data-lang="python"><code>def bsearch(arr, target, low, high):
+    if low &gt; high:
+        return -1
+    mid = (low + high) // 2
+    if arr[mid] == target:
+        return mid
+    if arr[mid] &lt; target:
+        return bsearch(arr, target, mid + 1, high)
+    return bsearch(arr, target, low, mid - 1)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of calls, and the final return value.</li>
+      <li><strong>Which idea applies.</strong> Each call either returns, or makes one call on a smaller range.</li>
+      <li><strong>Work it out.</strong> Call 1: range 0 to 6, mid 3, arr[3] is 7, which is greater than 5, so call with range 0 to 2. Call 2: mid 1, arr[1] is 3, which is less than 5, so call with range 2 to 2. Call 3: mid 2, arr[2] is 4, which is less than 5, so call with range 3 to 2. Call 4: low 3 is greater than high 2, so it returns -1. The return value passes back up unchanged.</li>
+      <li><strong>Check.</strong> Four calls, each halving the range, and the final value is -1 because 5 is absent.</li>
+    </ol>
+    <p class="cx">Answer: 4 calls, and the returned value is -1</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Total comparisons over all items</h3>
+    <div class="statement"><p>The sorted array is 2, 4, 6, 8, 10, 12, 14, 16. Binary search with the loop version from this topic is run once for each item, searching for that item. What is the total number of comparisons over all 8 searches?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A single total, the sum of the 8 separate search costs.</li>
+      <li><strong>Which idea applies.</strong> Trace each successful search, counting the middle checks until the item is found.</li>
+      <li><strong>Work it out.</strong> Searching 2 takes 3 checks (mid 8, then 4, then 2). Searching 4 takes 2 (mid 8, then 4). Searching 6 takes 3 (mid 8, then 4, then 6). Searching 8 takes 1. Searching 10 takes 3 (mid 8, then 12, then 10). Searching 12 takes 2 (mid 8, then 12). Searching 14 takes 3 (mid 8, then 12, then 14). Searching 16 takes 4 (mid 8, then 12, then 14, then 16). Adding 3 + 2 + 3 + 1 + 3 + 2 + 3 + 4 gives 21.</li>
+      <li><strong>Check.</strong> The average is 21/8, which is a little under 3. That fits the sizes of the search paths, which are 1 to 4 checks.</li>
+    </ol>
+    <p class="cx">Answer: 21</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Two costs for an absent value</h3>
+    <div class="statement"><p>A sorted array has 100 items, and the target is not in the array. Give two numbers, separated by one space: the number of comparisons linear search makes, and the largest number binary search can make using the bound from this topic.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two numbers, one for each method.</li>
+      <li><strong>Which idea applies.</strong> Linear search checks every item when the target is absent. Binary search is bounded by floor(log2 n) + 1.</li>
+      <li><strong>Work it out.</strong> Linear search compares with all 100 items, so it makes 100 comparisons. For binary search, 2 to the power 6 is 64 and 2 to the power 7 is 128. So floor(log2 100) is 6, and the bound is 6 + 1 = 7.</li>
+      <li><strong>Check.</strong> 100 is much larger than 7, which shows why binary search is preferred on sorted data.</li>
+    </ol>
+    <p class="cx">Answer: 100 7</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Binary search comparisons (NAT, 2 marks)</h3>
+    <div class="statement"><p>Binary search on a sorted array of 1000 elements. What is the maximum number of comparisons (of the key with an element) needed in the worst case?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The worst-case probe count.</li>
+      <li><strong>Which idea applies.</strong> Each probe halves the remaining range, so the worst case is ⌊log<sub>2</sub> n⌋ + 1.</li>
+      <li><strong>Work it out.</strong> log<sub>2</sub> 1000 ≈ 9.97, so 9 + 1 = 10.</li>
+      <li><strong>Check.</strong> The code tries every key and missing key.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def probes(a, key):
+    lo, hi, c = 0, len(a) - 1, 0
+    while lo &lt;= hi:
+        mid = (lo + hi) // 2; c += 1
+        if a[mid] == key: return c
+        if a[mid] &lt; key: lo = mid + 1
+        else: hi = mid - 1
+    return c
+a = list(range(0, 2000, 2))
+print(max(probes(a, k) for k in range(-1, 2001)))
+</code></pre>
+    <pre class="output">10</pre>
+    <p class="cx">Answer: 10.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: First occurrence (NAT, 2 marks)</h3>
+    <div class="statement"><p>In a = [1, 2, 2, 2, 3, 5, 5, 8], a lower bound binary search returns the first index i with a[i] ≥ key. What does it return for key = 5, and for key = 4?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two lower bound indices.</li>
+      <li><strong>Which idea applies.</strong> Lower bound narrows to the first position where the key could be inserted.</li>
+      <li><strong>Work it out.</strong> For 5, the first 5 is at index 5. For 4, the insertion point is also index 5.</li>
+      <li><strong>Check.</strong> Python's bisect_left gives the same.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import bisect
+a = [1, 2, 2, 2, 3, 5, 5, 8]
+print(bisect.bisect_left(a, 5), bisect.bisect_left(a, 4))
+</code></pre>
+    <pre class="output">5 5</pre>
+    <p class="cx">Answer: 5 and 5.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Search facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Binary search needs random access to be O(log n). (B) Linear search on an unsorted array has average cost about n/2 for a present key. (C) Binary search works on any array. (D) On a sorted linked list, binary search is O(log n).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Conditions for each search to be efficient.</li>
+      <li><strong>Which idea applies.</strong> Binary search depends on sorted order and O(1) access to the middle.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) The array must be sorted. False. (D) Finding the middle of a linked list costs O(n). False.</li>
+      <li><strong>Check.</strong> Skip lists exist precisely to give linked lists fast search.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Linear search</dt><dd>Checks items one by one from the start. Works on any list.</dd></div>
+    <div><dt>Binary search</dt><dd>Halves a sorted range by comparing with the middle item.</dd></div>
+    <div><dt>Sorted</dt><dd>Items are in order, which binary search needs.</dd></div>
+    <div><dt>Target</dt><dd>The value being searched for.</dd></div>
+    <div><dt>low and high</dt><dd>The first and last positions still in play.</dd></div>
+    <div><dt>mid</dt><dd>The middle index, <code>(low + high) // 2</code>, rounded down.</dd></div>
+    <div><dt>Comparison</dt><dd>One test of an item against the target. The usual unit of cost.</dd></div>
+    <div><dt>Best case</dt><dd>The least work, usually one comparison.</dd></div>
+    <div><dt>Worst case</dt><dd>The most work. n for linear, floor(log2 n) + 1 for binary.</dd></div>
+    <div><dt>Average case</dt><dd>The expected work when every position is equally likely.</dd></div>
+    <div><dt>Big-O</dt><dd>A description of how the work grows with the size n.</dd></div>
+    <div><dt>O(n)</dt><dd>Work grows in proportion to n. Linear search.</dd></div>
+    <div><dt>O(log n)</dt><dd>Work grows with the number of halvings. Binary search.</dd></div>
+    <div><dt>log2</dt><dd>The power of 2 needed to reach a number. log2(8) is 3.</dd></div>
+    <div><dt>Iterative</dt><dd>Written with a loop.</dd></div>
+    <div><dt>Recursive</dt><dd>Written as a function that calls itself on a smaller range.</dd></div>
+    <div><dt>Base case</dt><dd>The stopping case of a recursive function.</dd></div>
+    <div><dt>Return -1</dt><dd>The usual way to report that the target is absent.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Linear search works on any list. Binary search needs a sorted list.</li>
+    <li>Binary search keeps low and high, and sets low = mid + 1 or high = mid - 1.</li>
+    <li>The loop continues while low is less than or equal to high.</li>
+    <li>Linear search makes n comparisons in the worst case, and binary search makes at most floor(log2 n) + 1.</li>
+    <li>Count the comparisons on paper with a table of low, high, mid and arr[mid].</li>
+    <li>Binary search on unsorted data can give a wrong answer, so check the order first.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 67?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 67 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-066.html"><small>Previous, topic 66</small>Python functions &amp; recursion</a><a class="next" href="gate-068.html"><small>Next, topic 68</small>Selection, Bubble &amp; Insertion Sort</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

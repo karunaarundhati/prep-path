@@ -1,0 +1,473 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 36: Exponential & Poisson distributions</title><meta name="description" content="The Poisson distribution counts rare events in a fixed time or space, such as calls arriving at a helpline. The exponential distribution measures the waiting time between those events. Together they model arrivals, failures and queues, which GATE uses often."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g36" data-key="g36" data-noun="topic" data-num="36" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Exponential &amp; Poisson distributions</h1>
+<p class="lede">The Poisson distribution counts rare events in a fixed time or space, such as calls arriving at a helpline. The exponential distribution measures the waiting time between those events. Together they model arrivals, failures and queues, which GATE uses often.</p>
+<div class="station"><b>36</b><span>Unit 3 · Probability and statistics · Paper DA · New concept</span></div>
+<ul class="topics"><li>Poisson distribution and its mean and variance</li><li>Poisson as an approximation to the binomial</li><li>Exponential distribution and its tail probability</li><li>The memoryless property</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a helpline that receives calls at random. Some minutes have no calls, some have one, and some have several. On average it gets 6 calls per hour, but the exact number changes from hour to hour. The <strong>Poisson distribution</strong> describes how such counts behave when events happen at a steady average rate and are independent of each other. It answers questions like "what is the chance of exactly 3 calls in the next hour?"</p>
+  <p>Now look at the time between calls instead of the count. Some gaps are short and some are long. The <strong>exponential distribution</strong> describes these waiting times. It is the continuous partner of the Poisson counts. If calls arrive as a Poisson process, the gaps between them follow the exponential distribution. This is a neat and important connection.</p>
+  <p>Why do these matter for GATE? Many questions describe a system where failures, requests or arrivals happen at random. The Data Science and AI (DA) paper uses these models in probability and in queueing-type reasoning. The Robotics and Automation (RA) paper uses them for failure times and for random arrivals of tasks or sensor events. The formulas are short, but you must know which one to use and how to read the rate.</p>
+  <p>A small word of warning. The Poisson distribution is discrete, so we add up a PMF. The exponential distribution is continuous, so probabilities come from areas under a curve. You will see this difference again in the next topics on continuous random variables.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these before the explanations. Each one is first given in plain words.</p>
+  <dl>
+    <div><dt>Rate λ (lambda)</dt><dd>Plain meaning: the average number of events per unit of time or space. Precise definition: the constant average number of events per unit interval in a Poisson process.</dd></div>
+    <div><dt>Rare event</dt><dd>Plain meaning: something that happens seldom in any short time slot, such as an accident in one minute. Precise definition: an event with a small chance in each tiny slot of time, where many slots are used.</dd></div>
+    <div><dt>Poisson distribution</dt><dd>Plain meaning: the distribution of the count of events in a fixed interval. Precise definition: the discrete distribution with P(X = x) = e<sup>-λ</sup> λ<sup>x</sup> / x! for x = 0, 1, 2, ....</dd></div>
+    <div><dt>Factorial x!</dt><dd>Plain meaning: multiply all whole numbers from x down to 1. Precise definition: x! = x × (x - 1) × ... × 1, with 0! = 1.</dd></div>
+    <div><dt>Euler's number e</dt><dd>Plain meaning: a fixed constant, about 2.71828, that appears in growth and decay. Precise definition: the base of the natural logarithm, e = 2.718281..., so e<sup>-λ</sup> is the reciprocal of e<sup>λ</sup>.</dd></div>
+    <div><dt>Exponential distribution</dt><dd>Plain meaning: the distribution of a waiting time when events arrive at a constant rate. Precise definition: a continuous distribution with density f(x) = λ e<sup>-λx</sup> for x ≥ 0.</dd></div>
+    <div><dt>Probability density function (PDF)</dt><dd>Plain meaning: a curve whose area gives probabilities. Precise definition: a function f(x) that is non-negative and has total area 1, with P(a ≤ X ≤ b) equal to the area under f from a to b.</dd></div>
+    <div><dt>Tail probability</dt><dd>Plain meaning: the chance that the waiting time is longer than a given time. Precise definition: P(X &gt; t), which for the exponential distribution equals e<sup>-λt</sup>.</dd></div>
+    <div><dt>Memoryless property</dt><dd>Plain meaning: having waited a while does not change the chance of waiting longer. Precise definition: P(X &gt; s + t | X &gt; s) = P(X &gt; t) for all s, t ≥ 0.</dd></div>
+    <div><dt>Poisson process</dt><dd>Plain meaning: random events that arrive at a steady average rate, independently of each other. Precise definition: a process whose counts in disjoint intervals are independent Poisson variables with mean proportional to the interval length.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The Poisson distribution">
+  <h2>Concept 1: The Poisson distribution</h2>
+  <h3>Why it matters</h3>
+  <p>Suppose a website gets an average of 3 visits per minute. Some minutes get 0 visits, some get 1, and some get 5 or more. You want the chance of each count. The Poisson distribution gives it, using only one number: the rate λ = 3.</p>
+  <p>Everyday picture: think of raindrops falling on a large paving slab. Each small square has a tiny chance of a drop, and there are very many squares. The total number of drops in the slab is Poisson. The key idea is "many chances, each with a tiny probability, adding up to a steady average".</p>
+  <h3>The PMF</h3>
+  <div class="formula">P(X = x) = e<sup>-λ</sup> λ<sup>x</sup> / x!, for x = 0, 1, 2, ...</div>
+  <p>Each symbol means:</p>
+  <ul>
+    <li><strong>x</strong> is the number of events we are counting.</li>
+    <li><strong>λ</strong> is the average number of events in the interval, which must be greater than 0.</li>
+    <li><strong>e<sup>-λ</sup></strong> is a damping factor. It ensures the probabilities add up to 1 across all x.</li>
+    <li><strong>λ<sup>x</sup> / x!</strong> grows with λ and shrinks with the factorial, so the probabilities rise to a peak and then fall.</li>
+  </ul>
+  <h3>Mean and variance</h3>
+  <div class="formula">E[X] = λ and Var(X) = λ</div>
+  <p>This is a very useful fact. For the Poisson distribution, the mean and the variance are the same number. If a question gives you a count whose variance equals its mean, the Poisson model is a likely fit.</p>
+  <h3>Worked example: calls per minute</h3>
+  <p>A helpline receives calls at an average rate of λ = 3 per minute. Find the chance of exactly 2 calls in a minute.</p>
+  <ol>
+    <li>Write the formula. P(X = 2) = e<sup>-3</sup> × 3<sup>2</sup> / 2!.</li>
+    <li>Compute the powers. 3<sup>2</sup> = 9. Also 2! = 2 × 1 = 2.</li>
+    <li>Combine. P(X = 2) = e<sup>-3</sup> × 9 / 2 = 4.5 × e<sup>-3</sup>.</li>
+    <li>Evaluate. e<sup>-3</sup> is about 0.0498, so P(X = 2) = 4.5 × 0.0498 = 0.2241, approximately.</li>
+    <li>Check. The probability 0.224 is the largest of the early values for λ = 3, which fits: the peak of a Poisson with λ = 3 is at x = 2 and x = 3.</li>
+  </ol>
+  <p>The Python block computes the chances for 0, 2 and "at most 2" calls.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+lam = 3
+
+def poisson_pmf(x, lam):
+    return math.exp(-lam) * lam**x / math.factorial(x)
+
+print(f"P(X = 0) = {poisson_pmf(0, lam):.4f}")
+print(f"P(X = 2) = {poisson_pmf(2, lam):.4f}")
+print(f"P(X &lt;= 2) = {sum(poisson_pmf(x, lam) for x in range(3)):.4f}")</code></pre>
+  <pre class="output">P(X = 0) = 0.0498
+P(X = 2) = 0.2240
+P(X &lt;= 2) = 0.4232</pre>
+  <div class="note key"><p><span class="t">Key idea</span>For a Poisson count, the mean and the variance are both λ. This one fact lets you answer many mean and variance questions in seconds.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Match the interval. If the rate is 3 per minute and the question asks about 10 minutes, the new rate is 30, not 3. Always scale λ to the length of the interval in the question.</p></div>
+  <details class="check"><summary>Self-check: calls arrive at 4 per hour. What is the rate for a 30 minute interval?</summary><div class="ans"><p>λ = 4 × 30/60 = 2 calls per 30 minutes.</p></div></details>
+  <details class="check"><summary>Self-check: a Poisson variable has mean 7. What is its variance?</summary><div class="ans"><p>The variance is also 7, because for the Poisson distribution Var(X) = E[X] = λ.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Poisson as an approximation to the binomial">
+  <h2>Concept 2: Poisson as an approximation to the binomial</h2>
+  <h3>Why it matters</h3>
+  <p>Recall the binomial distribution: n trials, each with success chance p. Sometimes n is very large and p is very small. For example, 1000 light bulbs each fail with chance 0.002. Computing C(1000, x) for large x is slow and error-prone by hand. The Poisson distribution gives a simple and accurate substitute.</p>
+  <h3>The rule</h3>
+  <p>When n is large and p is small, the binomial is close to the Poisson with the same mean. Set:</p>
+  <div class="formula">λ = np, then Bin(n, p) is approximately Poisson(λ)</div>
+  <p>The matching of means is the reason. Both distributions have mean np. The rule works well when n is at least about 20 and p is at most about 0.05, which is the usual textbook guideline.</p>
+  <h3>Worked example: the light bulbs</h3>
+  <ol>
+    <li>Take n = 1000 and p = 0.002. The mean is λ = np = 1000 × 0.002 = 2.</li>
+    <li>The exact binomial chance of no failures is (1 - p)<sup>n</sup> = 0.998<sup>1000</sup>, which is about 0.1351.</li>
+    <li>The Poisson approximation is e<sup>-2</sup>, which is about 0.1353.</li>
+    <li>Compare. The two values differ by only 0.0002, which is a very good match.</li>
+  </ol>
+  <p>The Python check below compares the two values directly.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+n, p = 1000, 0.002
+lam = n * p
+
+binom0 = (1 - p) ** n
+pois0 = math.exp(-lam)
+print(f"binomial P(X = 0) = {binom0:.4f}")
+print(f"Poisson P(X = 0) with lambda = {lam} = {pois0:.4f}")</code></pre>
+  <pre class="output">binomial P(X = 0) = 0.1351
+Poisson P(X = 0) with lambda = 2.0 = 0.1353</pre>
+  <div class="note tip"><p><span class="t">Tip</span>In a GATE question, look for words like "rare", "a very large number of trials", or "small chance per item". These signal that the Poisson approximation is intended, and that λ = np is the rate to use.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The approximation needs np to be moderate. If n is 1000 and p is 0.5, the mean is 500, and the Poisson is a poor fit. Check that p is small before you approximate.</p></div>
+  <details class="check"><summary>Self-check: n = 400 and p = 0.01. What is λ for the Poisson approximation?</summary><div class="ans"><p>λ = np = 400 × 0.01 = 4.</p></div></details>
+  <details class="check"><summary>Self-check: why do the binomial and Poisson approximation share the same mean?</summary><div class="ans"><p>Because the binomial mean is np, and the approximation is chosen to match it. A good approximation must keep the average the same.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="The exponential distribution">
+  <h2>Concept 3: The exponential distribution</h2>
+  <h3>Why it matters</h3>
+  <p>Back to the helpline. Calls arrive at 6 per hour on average. How long do you wait for the next call? Sometimes a call comes almost at once, and sometimes you wait a long time. The waiting time is a continuous quantity, so we use a continuous distribution. For arrivals at a steady rate, that distribution is the exponential.</p>
+  <h3>The density and the area</h3>
+  <p>A continuous variable has a <strong>probability density function</strong>, f(x). Probabilities are areas under the curve, not single heights. The density of the exponential distribution is:</p>
+  <div class="formula">f(x) = λ e<sup>-λx</sup>, for x ≥ 0</div>
+  <p>Each symbol means:</p>
+  <ul>
+    <li><strong>x</strong> is the waiting time, which is never negative.</li>
+    <li><strong>λ</strong> is the rate of arrivals, in events per unit of time. A larger λ means shorter waits.</li>
+    <li><strong>e<sup>-λx</sup></strong> decreases as x grows, so long waits are less likely than short ones.</li>
+  </ul>
+  <h3>The tail formula</h3>
+  <p>The most useful quantity is the tail probability, the chance of waiting longer than t:</p>
+  <div class="formula">P(X &gt; t) = e<sup>-λt</sup></div>
+  <p>This formula appears in almost every exponential GATE question. It is much quicker than integrating the density.</p>
+  <h3>Mean and variance</h3>
+  <div class="formula">E[X] = 1/λ and Var(X) = 1/λ²</div>
+  <p>The mean waiting time is the reciprocal of the rate. If calls arrive at 6 per hour, the mean wait is 1/6 of an hour, which is 10 minutes. The variance is 1/λ², so the standard deviation equals the mean, which is a special feature of this distribution.</p>
+  <h3>Worked example: the helpline</h3>
+  <p>Calls arrive at λ = 6 per hour. Find the chance that the next call takes more than 20 minutes.</p>
+  <ol>
+    <li>Use the same units. 20 minutes is 1/3 of an hour, so t = 1/3.</li>
+    <li>Write the tail formula. P(X &gt; 1/3) = e<sup>-6 × 1/3</sup>.</li>
+    <li>Simplify the exponent. 6 × 1/3 = 2, so P(X &gt; 1/3) = e<sup>-2</sup>.</li>
+    <li>Evaluate. e<sup>-2</sup> is about 0.1353, so there is about a 13.5 percent chance of a wait longer than 20 minutes.</li>
+    <li>Check. The mean wait is 10 minutes, and 20 minutes is twice the mean. A tail value of about 0.135 is a plausible small chance.</li>
+  </ol>
+  <p>The Python check computes the tail probability with a function, so you can reuse it for any t.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+lam = 0.5                        # rate: 0.5 events per minute, mean wait 2 minutes
+
+def surv(t):                     # P(X &gt; t) for the exponential distribution
+    return math.exp(-lam * t)
+
+print(f"P(X &gt; 2) = {surv(2):.4f}")
+print(f"P(X &gt; 5 given X &gt; 3) = {surv(5) / surv(3):.4f}")</code></pre>
+  <pre class="output">P(X &gt; 2) = 0.3679
+P(X &gt; 5 given X &gt; 3) = 0.3679</pre>
+  <div class="note key"><p><span class="t">Key idea</span>The exponential tail formula e<sup>-λt</sup> is the only formula you need for most waiting-time questions. Convert the time to the same unit as the rate first.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Units must match. A rate of 6 per hour with a time of 20 minutes gives the wrong answer if you plug in t = 20. Convert 20 minutes to 1/3 of an hour first.</p></div>
+  <details class="check"><summary>Self-check: λ = 2 per hour. What is P(X &gt; 1) for waiting time in hours?</summary><div class="ans"><p>P(X &gt; 1) = e<sup>-2</sup>, which is about 0.1353.</p></div></details>
+  <details class="check"><summary>Self-check: the mean waiting time is 5 minutes. What is λ per minute?</summary><div class="ans"><p>λ = 1/E[X] = 1/5 = 0.2 per minute.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="The memoryless property">
+  <h2>Concept 4: The memoryless property</h2>
+  <h3>What it means</h3>
+  <p>Imagine you have already waited 3 minutes for a bus. Does the chance that you wait at least 2 more minutes change because of the time already spent? For the exponential distribution, the answer is no. The distribution "forgets" the past. This is called the <strong>memoryless property</strong>.</p>
+  <p>Formally:</p>
+  <div class="formula">P(X &gt; s + t | X &gt; s) = P(X &gt; t)</div>
+  <p>Each symbol means:</p>
+  <ul>
+    <li><strong>s</strong> is the time already waited.</li>
+    <li><strong>t</strong> is the extra time we ask about.</li>
+    <li><strong>P(X &gt; s + t | X &gt; s)</strong> is the chance of waiting longer than s + t, given that we have already waited longer than s.</li>
+  </ul>
+  <h3>Why it is true</h3>
+  <p>Use the definition of conditional probability. The event "X &gt; s + t" is contained inside "X &gt; s", so their intersection is just "X &gt; s + t". Then:</p>
+  <div class="formula">P(X &gt; s + t | X &gt; s) = P(X &gt; s + t) / P(X &gt; s) = e<sup>-λ(s+t)</sup> / e<sup>-λs</sup> = e<sup>-λt</sup> = P(X &gt; t)</div>
+  <p>The exponent rules let us subtract λs from both parts. Only the part after s remains, so the past s has disappeared.</p>
+  <h3>Worked example: the bus</h3>
+  <p>Buses arrive at a rate of λ = 0.2 per minute, so the waiting time is exponential. You have already waited 3 minutes. Find the chance that you wait at least 2 more minutes.</p>
+  <ol>
+    <li>Identify s and t. s = 3 minutes already waited, t = 2 more minutes.</li>
+    <li>Apply the memoryless property. P(X &gt; 5 | X &gt; 3) = P(X &gt; 2).</li>
+    <li>Compute the tail. P(X &gt; 2) = e<sup>-0.2 × 2</sup> = e<sup>-0.4</sup>, which is about 0.6703.</li>
+    <li>Check by direct division. P(X &gt; 5) = e<sup>-1</sup> and P(X &gt; 3) = e<sup>-0.6</sup>. Their ratio is e<sup>-1</sup> / e<sup>-0.6</sup> = e<sup>-0.4</sup>, which is the same value.</li>
+  </ol>
+  <div class="note interview"><p><span class="t">GATE loves this</span>When a question says "already waited" or "has survived so far" and the distribution is exponential, use the memoryless property to drop the past. It saves a lot of algebra.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The memoryless property is special to the exponential distribution among continuous distributions. Do not apply it to a normal or uniform distribution, where the past does matter.</p></div>
+  <h3>The Poisson process link</h3>
+  <p>If events form a Poisson process with rate λ, the time from one event to the next is exponential with mean 1/λ. The count of events in an interval of length t is Poisson with mean λt. So the two distributions describe the same process from two different angles: the count and the gap.</p>
+  <p>The Python block below checks the memoryless ratio numerically.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+lam = 0.2
+def surv(t):
+    return math.exp(-lam * t)
+
+print(f"P(X &gt; 5 | X &gt; 3) = {surv(5) / surv(3):.4f}")
+print(f"P(X &gt; 2) = {surv(2):.4f}")</code></pre>
+  <pre class="output">P(X &gt; 5 | X &gt; 3) = 0.6703
+P(X &gt; 2) = 0.6703</pre>
+  <div class="note tip"><p><span class="t">Tip</span>When you see a Poisson count question, ask whether the question is about the number of events or the time between them. Counts use the Poisson PMF. Waiting times use the exponential tail.</p></div>
+  <details class="check"><summary>Self-check: is the memoryless property true for a uniform distribution on 0 to 10?</summary><div class="ans"><p>No. For a uniform distribution, the chance of waiting longer does depend on how long you have already waited, because the remaining range shrinks.</p></div></details>
+  <details class="check"><summary>Self-check: buses come at λ = 0.2 per minute. What is the mean waiting time?</summary><div class="ans"><p>E[X] = 1/λ = 1/0.2 = 5 minutes.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>P(X = x) = e<sup>-λ</sup> λ<sup>x</sup> / x!</td><td>Poisson PMF</td><td>Exact count of rare events in a fixed interval</td></tr>
+      <tr><td>E[X] = λ and Var(X) = λ</td><td>Poisson mean and variance</td><td>Summary numbers of a Poisson count</td></tr>
+      <tr><td>λ = np</td><td>Poisson approximation to binomial</td><td>Large n, small p</td></tr>
+      <tr><td>f(x) = λ e<sup>-λx</sup>, x ≥ 0</td><td>Exponential density</td><td>Shape of the waiting-time distribution</td></tr>
+      <tr><td>P(X &gt; t) = e<sup>-λt</sup></td><td>Exponential tail</td><td>Chance of waiting longer than t</td></tr>
+      <tr><td>E[X] = 1/λ and Var(X) = 1/λ²</td><td>Exponential mean and variance</td><td>Mean waiting time and spread</td></tr>
+      <tr><td>P(X &gt; s + t | X &gt; s) = P(X &gt; t)</td><td>Memoryless property</td><td>When time already waited is given</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past paper questions. Work each one on paper first, then compare with the solution.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Waiting for a bus</h3>
+    <div class="statement"><p>The waiting time for a bus is exponential with mean 4 minutes. Find the probability that you wait more than 4 minutes. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(X &gt; 4) for an exponential variable with mean 4.</li>
+      <li><strong>Which idea applies.</strong> The mean is 1/λ, so λ = 1/4. Then use the tail formula P(X &gt; t) = e<sup>-λt</sup>.</li>
+      <li><strong>Work it out.</strong> λ = 1/4. P(X &gt; 4) = e<sup>-(1/4) × 4</sup> = e<sup>-1</sup>, which is about 0.3679, or 0.37 to two decimals.</li>
+      <li><strong>Check.</strong> The wait is exactly the mean, so the chance of waiting longer should be a bit under one half. 0.37 is below 0.5, which is reasonable.</li>
+    </ol>
+    <p class="cx">Answer: 0.37</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Select all true statements about a Poisson variable</h3>
+    <div class="statement"><p>Let X be Poisson with λ = 4. Select all that apply.</p><p>(A) E[X] = 4.<br>(B) Var(X) = 4.<br>(C) P(X = 0) = e<sup>-4</sup>.<br>(D) The standard deviation of X is 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Tick every true statement.</li>
+      <li><strong>Which idea applies.</strong> Poisson mean and variance are both λ, and the PMF at x = 0 is e<sup>-λ</sup>.</li>
+      <li><strong>Work it out.</strong> Option A: E[X] = λ = 4, so A is true. Option B: Var(X) = λ = 4, so B is true. Option C: P(X = 0) = e<sup>-4</sup> × 4<sup>0</sup> / 0! = e<sup>-4</sup>, so C is true. Option D: the standard deviation is √4 = 2, not 4, so D is false.</li>
+      <li><strong>Check.</strong> Option D confuses the variance with the standard deviation. The variance is 4 and the standard deviation is its square root, 2.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C) are true. Option (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exactly three calls</h3>
+    <div class="statement"><p>Calls arrive at a helpline as a Poisson process at 6 per hour. Find the probability of exactly 3 calls in one hour. Give the answer correct to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(X = 3) for a count in one hour.</li>
+      <li><strong>Which idea applies.</strong> The Poisson PMF with λ = 6 for one hour, x = 3.</li>
+      <li><strong>Work it out.</strong> P(X = 3) = e<sup>-6</sup> × 6<sup>3</sup> / 3! = e<sup>-6</sup> × 216 / 6 = 36 × e<sup>-6</sup>. Since e<sup>-6</sup> is about 0.0024788, the answer is 36 × 0.0024788 = 0.089236, or 0.0892.</li>
+      <li><strong>Check.</strong> The mean count is 6, so 3 calls is in the lower tail but not extremely rare. A value near 0.09 is plausible.</li>
+    </ol>
+    <p class="cx">Answer: 0.0892</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Lifetime of a component</h3>
+    <div class="statement"><p>The lifetime of a component is exponential with mean 500 hours. Find the probability that it lasts more than 1000 hours. Give the answer correct to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(X &gt; 1000).</li>
+      <li><strong>Which idea applies.</strong> λ = 1/500 from the mean, then the tail formula.</li>
+      <li><strong>Work it out.</strong> P(X &gt; 1000) = e<sup>-1000/500</sup> = e<sup>-2</sup> = 0.135335, which is 0.1353 to four decimals.</li>
+      <li><strong>Check.</strong> 1000 hours is twice the mean. The answer e<sup>-2</sup> is about 0.135, a small chance, as expected for a long life.</li>
+    </ol>
+    <p class="cx">Answer: 0.1353</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Survival after a long run</h3>
+    <div class="statement"><p>NAT question. The lifetime of a component is exponential with mean 500 hours. It has already survived 300 hours. Find the probability that it survives at least another 200 hours. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(X &gt; 500 | X &gt; 300).</li>
+      <li><strong>Which idea applies.</strong> The memoryless property, which reduces the question to P(X &gt; 200).</li>
+      <li><strong>Work it out.</strong> λ = 1/500. P(X &gt; 200) = e<sup>-200/500</sup> = e<sup>-0.4</sup>, which is about 0.6703, or 0.67 to two decimals.</li>
+      <li><strong>Check.</strong> The past 300 hours do not change the chance. The answer 0.67 is greater than the chance e<sup>-1</sup> = 0.37 of surviving 500 hours from new, which is consistent with a short extra wait being likely.</li>
+    </ol>
+    <p class="cx">Answer: 0.67</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Poisson with a special ratio</h3>
+    <div class="statement"><p>A Poisson random variable X satisfies P(X = 1) = 2 P(X = 0). Find λ.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rate λ that makes the two probabilities have ratio 2.</li>
+      <li><strong>Which idea applies.</strong> Write both PMF values and set up the equation.</li>
+      <li><strong>Work it out.</strong> P(X = 0) = e<sup>-λ</sup> and P(X = 1) = e<sup>-λ</sup> λ. So e<sup>-λ</sup> λ = 2 e<sup>-λ</sup>. Divide both sides by e<sup>-λ</sup>, which is never zero: λ = 2.</li>
+      <li><strong>Check.</strong> With λ = 2, P(X = 0) = e<sup>-2</sup> and P(X = 1) = 2e<sup>-2</sup>. The ratio is 2, as required.</li>
+    </ol>
+    <p class="cx">Answer: λ = 2</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Poisson approximation for a rare fault</h3>
+    <div class="statement"><p>NAT question. A batch has 500 independent items. Each item is faulty with probability 0.004. Use the Poisson approximation to find the probability that the batch has no faulty item. Give the answer correct to four decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> An approximation to P(X = 0) for a binomial with n = 500 and p = 0.004.</li>
+      <li><strong>Which idea applies.</strong> Poisson approximation with λ = np.</li>
+      <li><strong>Work it out.</strong> λ = 500 × 0.004 = 2. Then P(X = 0) ≈ e<sup>-2</sup> = 0.135335, or 0.1353 to four decimals.</li>
+      <li><strong>Check.</strong> The exact binomial value is (0.996)<sup>500</sup>, which is about 0.1348. The approximation 0.1353 is close, which confirms that the approximation is good here.</li>
+    </ol>
+    <p class="cx">Answer: 0.1353</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>At least two arrivals in a minute</h3>
+    <div class="statement"><p>NAT question. Requests arrive at a server as a Poisson process with rate 2 per minute. Find the probability that at least 2 requests arrive in one minute. Give the answer correct to three decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(X ≥ 2) for a Poisson count with λ = 2.</li>
+      <li><strong>Which idea applies.</strong> Use the complement: P(X ≥ 2) = 1 - P(X = 0) - P(X = 1).</li>
+      <li><strong>Work it out.</strong> P(X = 0) = e<sup>-2</sup>. P(X = 1) = e<sup>-2</sup> × 2 = 2e<sup>-2</sup>. So P(X ≥ 2) = 1 - e<sup>-2</sup> - 2e<sup>-2</sup> = 1 - 3e<sup>-2</sup>. Since e<sup>-2</sup> is about 0.135335, we get 1 - 0.406006 = 0.593994, or 0.594 to three decimals.</li>
+      <li><strong>Check.</strong> The mean count is 2, so the chance of at least 2 should be somewhat above one half. 0.594 is above 0.5, which fits.</li>
+    </ol>
+    <p class="cx">Answer: 0.594</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Waiting after a quiet period (NAT, 2 marks)</h3>
+    <div class="statement"><p>NAT question. Calls reach a help desk at random times. The waiting time T, in hours, until the next call is exponential with rate λ = 3 per hour, so the mean waiting time is 1/3 hour. Ten minutes pass and no call arrives. Find the probability that the next call arrives more than 20 minutes after this point. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(T &gt; 30 minutes | T &gt; 10 minutes), to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> The exponential survival function P(T &gt; t) = e^(-λt), and the memoryless property, which says the wait already passed does not change the future wait.</li>
+      <li><strong>Work it out.</strong> Convert to hours: 10 minutes is 1/6 hour and 30 minutes is 1/2 hour. Then P(T &gt; 1/2 | T &gt; 1/6) = P(T &gt; 1/2) / P(T &gt; 1/6) = e^(-3 × 1/2) / e^(-3 × 1/6) = e^(-1.5) / e^(-0.5) = e^(-1) ≈ 0.3679. Rounded, the answer is 0.37.</li>
+      <li><strong>Check.</strong> The memoryless property says the answer equals P(T &gt; 20 minutes) from the start, which is e^(-3 × 1/3) = e^(-1). Both routes agree. A wait longer than the mean of 20 minutes is less likely than not, so 0.37 is below one half.</li>
+    </ol>
+    <p class="cx">Answer: 0.37</p>
+    <pre class="code" data-lang="python"><code>from math import exp
+lam = 3.0
+t1 = 10 / 60
+t2 = 20 / 60
+cond = exp(-lam * (t1 + t2)) / exp(-lam * t1)
+print("P(T exceeds 30 min given T exceeds 10 min) =", round(cond, 4))
+print("e^-(lam x 20/60) =", round(exp(-lam * t2), 4))
+print("decimal to 2 places =", round(cond, 2))</code></pre>
+    <pre class="output">P(T exceeds 30 min given T exceeds 10 min) = 0.3679
+e^-(lam x 20/60) = 0.3679
+decimal to 2 places = 0.37</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Poisson stands in for a binomial (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A website has 1000 visitors each day. Each visitor independently makes a purchase with probability 0.002, so the number of purchases X in a day is binomial with n = 1000 and p = 0.002. Because n is large and p is small, a Poisson model is a good approximation. Using the Poisson approximation, which of the following is approximately P(X ≥ 1)? (A) 0.14 (B) 0.86 (C) 0.50 (D) 0.98. Select one option.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(X ≥ 1), using a Poisson model.</li>
+      <li><strong>Which idea applies.</strong> The complement rule P(X ≥ 1) = 1 - P(X = 0), and the Poisson approximation to the binomial with λ = np.</li>
+      <li><strong>Work it out.</strong> λ = 1000 × 0.002 = 2. Then P(X = 0) ≈ e^(-2) ≈ 0.1353, so P(X ≥ 1) ≈ 1 - 0.1353 = 0.8647, which rounds to 0.86. The answer is option B.</li>
+      <li><strong>Check.</strong> The mean is 2 purchases a day, so at least one purchase is likely, which fits an answer above one half. The exact binomial value is 0.8649, very close to 0.86. Why the other options fail: (A) is P(X = 0) without the complement, (C) is a guess near one half, and (D) is too high, since 1 - e^(-2) is not 0.98.</li>
+    </ol>
+    <p class="cx">Answer: (B) 0.86</p>
+    <pre class="code" data-lang="python"><code>from math import exp
+n = 1000
+p = 0.002
+lam = n * p
+print("lambda = n p =", lam)
+print("Poisson P(X at least 1) =", round(1 - exp(-lam), 4))
+print("exact binomial P(X at least 1) =", round(1 - (1 - p) ** n, 4))</code></pre>
+    <pre class="output">lambda = n p = 2.0
+Poisson P(X at least 1) = 0.8647
+exact binomial P(X at least 1) = 0.8649</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Facts about an exponential time (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A sensor reports a fault after a random time T, measured in minutes. The time is exponential with rate λ = 0.5 per minute, so its density is f(t) = 0.5 e^(-0.5t) for t ≥ 0. Select all the statements that are true.</p>
+    <ul>
+      <li>(A) E[T] = 2 minutes</li>
+      <li>(B) Var(T) = 4</li>
+      <li>(C) P(T &gt; 2) = e^(-1)</li>
+      <li>(D) The median of T is 0.5 minutes.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are true. Select all that apply.</li>
+      <li><strong>Which idea applies.</strong> For an exponential with rate λ: E[T] = 1/λ, Var(T) = 1/λ², P(T &gt; t) = e^(-λt), and the median m solves P(T ≤ m) = 0.5.</li>
+      <li><strong>Work it out.</strong> E[T] = 1/0.5 = 2, so (A) is true. Var(T) = 1/0.5² = 4, so (B) is true. P(T &gt; 2) = e^(-0.5 × 2) = e^(-1), so (C) is true. For the median, 1 - e^(-0.5m) = 0.5 gives m = ln 2 / 0.5 = 2 ln 2 ≈ 1.386 minutes, so (D) is false.</li>
+      <li><strong>Check.</strong> The median must be below the mean for a right-skewed exponential, and 1.386 is below 2, which is consistent. Option (D) confuses the median with the rate 0.5.</li>
+    </ol>
+    <p class="cx">Answer: A, B and C</p>
+    <pre class="code" data-lang="python"><code>from math import exp, log
+lam = 0.5
+print("E[T] =", 1 / lam)
+print("Var(T) =", 1 / lam ** 2)
+print("P(T exceeds 2) =", round(exp(-lam * 2), 6), "and e^-1 =", round(exp(-1), 6))
+print("median =", round(log(2) / lam, 4))</code></pre>
+    <pre class="output">E[T] = 2.0
+Var(T) = 4.0
+P(T exceeds 2) = 0.367879 and e^-1 = 0.367879
+median = 1.3863</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Poisson failures over five days (NAT, 2 marks)</h3>
+    <div class="statement"><p>NAT question. A small server fails at random times. Failures follow a Poisson process with rate 0.4 per day, so the number of failures in any period is Poisson distributed with mean 0.4 times the length of that period in days. Over a 5-day period, let X be the number of failures. Given that there are at least 2 failures in the period, find the probability that there are exactly 2. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(X = 2 | X ≥ 2), to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> The Poisson PMF e^(-λ) λ^k / k!, the complement rule for the tail, and the conditional probability rule.</li>
+      <li><strong>Work it out.</strong> The mean over 5 days is λ = 0.4 × 5 = 2. P(X = 2) = e^(-2) × 2² / 2! = 2e^(-2) ≈ 0.2707. P(X ≥ 2) = 1 - P(X = 0) - P(X = 1) = 1 - e^(-2) - 2e^(-2) = 1 - 3e^(-2) ≈ 0.5940. So the answer is 0.2707 / 0.5940 ≈ 0.4557, which is 0.46 to two decimal places.</li>
+      <li><strong>Check.</strong> The answer is between 0 and 1, and it is below one half. That fits, since the tail from 3 upward also carries weight (about 0.32 of the total).</li>
+    </ol>
+    <p class="cx">Answer: 0.46</p>
+    <pre class="code" data-lang="python"><code>from math import exp, factorial
+lam = 0.4 * 5
+def pois(k):
+    return exp(-lam) * lam ** k / factorial(k)
+tail = 1 - pois(0) - pois(1)
+ans = pois(2) / tail
+print("lambda =", round(lam, 2))
+print("P(X = 2) =", round(pois(2), 6))
+print("P(X at least 2) =", round(tail, 6))
+print("P(X = 2 given X at least 2) =", round(ans, 4))
+print("to 2 dp:", round(ans, 2))</code></pre>
+    <pre class="output">lambda = 2.0
+P(X = 2) = 0.270671
+P(X at least 2) = 0.593994
+P(X = 2 given X at least 2) = 0.4557
+to 2 dp: 0.46</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Rate λ</dt><dd>The average number of events per unit of time or space.</dd></div>
+    <div><dt>Poisson distribution</dt><dd>The distribution of event counts in a fixed interval, with P(X = x) = e<sup>-λ</sup> λ<sup>x</sup> / x!.</dd></div>
+    <div><dt>Poisson mean and variance</dt><dd>Both equal λ.</dd></div>
+    <div><dt>Poisson approximation</dt><dd>For large n and small p, Bin(n, p) is close to Poisson with λ = np.</dd></div>
+    <div><dt>Factorial</dt><dd>x! = x × (x - 1) × ... × 1, with 0! = 1.</dd></div>
+    <div><dt>Exponential distribution</dt><dd>The distribution of waiting times with density λ e<sup>-λx</sup> for x ≥ 0.</dd></div>
+    <div><dt>Exponential tail</dt><dd>P(X &gt; t) = e<sup>-λt</sup>.</dd></div>
+    <div><dt>Exponential mean and variance</dt><dd>E[X] = 1/λ and Var(X) = 1/λ².</dd></div>
+    <div><dt>Memoryless property</dt><dd>P(X &gt; s + t | X &gt; s) = P(X &gt; t), so the past is forgotten.</dd></div>
+    <div><dt>Poisson process</dt><dd>Events at a steady rate, independent of each other. Counts are Poisson and gaps are exponential.</dd></div>
+    <div><dt>Probability density</dt><dd>A curve whose area gives probabilities for a continuous variable.</dd></div>
+    <div><dt>Complement for "at least"</dt><dd>P(X ≥ 2) = 1 - P(X = 0) - P(X = 1) for a Poisson count.</dd></div>
+    <div><dt>Unit matching</dt><dd>The rate and the time must use the same unit before you compute.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A Poisson count has mean λ and variance λ.</li>
+    <li>Scale the rate to the interval in the question before you use the Poisson formula.</li>
+    <li>For large n and small p, use Poisson with λ = np as an approximation to the binomial.</li>
+    <li>The exponential tail P(X &gt; t) = e<sup>-λt</sup> answers most waiting-time questions.</li>
+    <li>The exponential mean is 1/λ, so a mean given in minutes gives λ = 1/mean.</li>
+    <li>The exponential is the only continuous distribution with the memoryless property.</li>
+    <li>Counts use the Poisson PMF, and waiting times use the exponential tail.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 36?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 36 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-035.html"><small>Previous, topic 35</small>Uniform, Bernoulli, Binomial distributions</a><a class="next" href="gate-037.html"><small>Next, topic 37</small>Continuous random variables &amp; PDF</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

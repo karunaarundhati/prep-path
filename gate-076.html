@@ -1,0 +1,430 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 76: Shortest path algorithms</title><meta name="description" content="A shortest path algorithm answers one everyday question: what is the cheapest way to get from here to everywhere else? Dijkstra&#x27;s algorithm solves it quickly when every road cost is zero or positive. Bellman-Ford also handles negative costs and warns you when a negative loop makes the question meaningless. GATE often asks you to trace both step by step."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g76" data-key="g76" data-noun="topic" data-num="76" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Shortest path algorithms</h1>
+<p class="lede">A shortest path algorithm answers one everyday question: what is the cheapest way to get from here to everywhere else? Dijkstra&#x27;s algorithm solves it quickly when every road cost is zero or positive. Bellman-Ford also handles negative costs and warns you when a negative loop makes the question meaningless. GATE often asks you to trace both step by step.</p>
+<div class="station"><b>76</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Weighted paths and the distance table</li><li>Dijkstra: greedy steps with a worked trace</li><li>Why Dijkstra fails with negative weights</li><li>Bellman-Ford: repeated relaxation</li><li>Negative cycles</li><li>Choosing an algorithm and comparing costs</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>A navigation app that finds the fastest route to your friend's house is solving a shortest path problem. The map is a graph. Each junction is a vertex, each road is an edge, and each edge has a weight, such as the travel time in minutes. The length of a path is the sum of the weights along it. The shortest path is the path with the smallest sum.</p>
+  <p>There are two main questions in this area. The first is <strong>single-source shortest path</strong>: fix one start vertex and find the shortest path from it to every other vertex. The second is <strong>all pairs</strong>, where you want the answer for every start and every end. This page covers single-source problems, which are the common GATE type.</p>
+  <p>The two algorithms in this page work in different ways. Dijkstra is greedy: it always fixes the nearest unfinished vertex and never looks back. Bellman-Ford is patient: it relaxes every edge again and again until nothing improves. The trade-off is speed against the ability to handle negative weights.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Both algorithms keep a table of best-known distances, starting with 0 for the source and infinity for everything else. They improve the table one edge at a time. This improvement step is called relaxation.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Weight</dt><dd>The number attached to an edge, such as a cost or a time. Precisely: a value w(u, v) for each edge from u to v.</dd></div>
+    <div><dt>Path length</dt><dd>The sum of the weights of the edges on a path. Precisely: for path v<sub>0</sub>, v<sub>1</sub>, ..., v<sub>k</sub>, the length is w(v<sub>0</sub>, v<sub>1</sub>) + ... + w(v<sub>k-1</sub>, v<sub>k</sub>).</dd></div>
+    <div><dt>Source</dt><dd>The start vertex for a single-source problem. Its distance to itself is 0.</dd></div>
+    <div><dt>Distance table</dt><dd>A record of the best distance found so far for each vertex. Precisely: dist[v] is an upper bound on the true shortest distance, starting at infinity.</dd></div>
+    <div><dt>Infinity</dt><dd>A value bigger than any real distance, used before a vertex is reached. Written as inf or as the symbol for infinity.</dd></div>
+    <div><dt>Relaxation</dt><dd>Checking an edge u to v and improving dist[v] if going through u is cheaper. Precisely: if dist[u] + w(u, v) &lt; dist[v], set dist[v] = dist[u] + w(u, v).</dd></div>
+    <div><dt>Settled (finalised) vertex</dt><dd>A vertex whose distance can no longer change. Precisely: Dijkstra settles a vertex when it removes the vertex with the smallest tentative distance.</dd></div>
+    <div><dt>Greedy algorithm</dt><dd>An algorithm that makes the locally best choice at each step. Precisely: Dijkstra always settles the closest unsettled vertex.</dd></div>
+    <div><dt>Negative weight</dt><dd>An edge with a value below zero. It represents a gain, such as a refund, rather than a cost.</dd></div>
+    <div><dt>Negative cycle</dt><dd>A cycle whose total weight is below zero. Precisely: going around it again and again makes the path cost fall without limit.</dd></div>
+    <div><dt>Priority queue</dt><dd>A structure that returns the item with the smallest key quickly. Precisely: a binary heap, as on the previous recap page, is the usual choice.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Weighted paths">
+  <h2>Weighted paths and the distance table</h2>
+  <p>Here is the running example for this page. It is a directed weighted graph with vertices S, A, B, C and D. Each arrow shows a one-way road and its weight.</p>
+  <pre class="code" data-lang="text"><code>  S --4--&gt; A
+  S --1--&gt; B
+  B --2--&gt; A
+  A --5--&gt; C
+  B --8--&gt; C
+  B --6--&gt; D
+  C --3--&gt; D</code></pre>
+  <p>The picture is busy, so the list underneath is the reliable version. Every edge is one-way. Notice that S to A directly costs 4, but S to B to A costs 1 + 2 = 3, which is cheaper. A shortest path is not always the path with the fewest edges.</p>
+  <p>To keep track of progress, we use a distance table. It has one entry per vertex. At the start, the source S has distance 0, and every other vertex has distance infinity, because nothing has been reached yet. Each algorithm then improves entries by relaxation. When an entry can no longer improve, the algorithm has found the exact shortest distance.</p>
+  <div class="formula">relax(u, v): if dist[u] + w(u, v) &lt; dist[v], then dist[v] = dist[u] + w(u, v)</div>
+  <p>Worked example. Suppose dist[S] = 0 and dist[A] = infinity. Relax the edge S to A with weight 4. Is 0 + 4 less than infinity? Yes, so dist[A] becomes 4. Now relax S to B with weight 1: 0 + 1 = 1 is less than infinity, so dist[B] becomes 1. The table is now S = 0, A = 4, B = 1, C = inf, D = inf.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Relaxation is a question you ask about one edge at a time: "Is there a cheaper way to reach this vertex by going through this edge?" Keep asking it until no edge gives a better answer.</p></div>
+  <details class="check"><summary>What is the cost of the path S, B, A?</summary><div class="ans"><p>1 + 2 = 3, because S to B costs 1 and B to A costs 2.</p></div></details>
+  <details class="check"><summary>Why is the edge S to A (weight 4) not part of the final shortest path to A?</summary><div class="ans"><p>Because the route S, B, A costs 3, which is less than 4. Relaxation finds the cheaper route and replaces the direct edge.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Dijkstra">
+  <h2>Dijkstra's algorithm: always take the nearest vertex</h2>
+  <p>Dijkstra's algorithm works like a ripple spreading outward from the source. At each step it picks the unsettled vertex with the smallest tentative distance. That vertex's distance is now final, because no later path can beat it (all weights are zero or positive, so going further can only add cost). It then relaxes the edges leaving that vertex, and the process repeats.</p>
+  <p>The steps are:</p>
+  <ol>
+    <li>Set dist[source] = 0 and all others to infinity. Mark nothing as settled.</li>
+    <li>Pick the unsettled vertex u with the smallest dist. Mark u as settled.</li>
+    <li>For each edge u to v, relax it.</li>
+    <li>Repeat from step 2 until every vertex is settled or no vertex has a finite distance.</li>
+  </ol>
+  <h3>Worked trace on the running example, from S</h3>
+  <p>Read each row as a snapshot after one step. A dash means infinity.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Step</th><th>Settle</th><th>Edges relaxed</th><th>S</th><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>none</td><td>none</td><td>0</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+      <tr><td>1</td><td>S (0)</td><td>S to A gives 4, S to B gives 1</td><td>0</td><td>4</td><td>1</td><td>-</td><td>-</td></tr>
+      <tr><td>2</td><td>B (1)</td><td>B to A gives 3 (better than 4), B to C gives 9, B to D gives 7</td><td>0</td><td>3</td><td>1</td><td>9</td><td>7</td></tr>
+      <tr><td>3</td><td>A (3)</td><td>A to C gives 8 (better than 9)</td><td>0</td><td>3</td><td>1</td><td>8</td><td>7</td></tr>
+      <tr><td>4</td><td>D (7)</td><td>D has no outgoing edges</td><td>0</td><td>3</td><td>1</td><td>8</td><td>7</td></tr>
+      <tr><td>5</td><td>C (8)</td><td>C to D gives 11, which is not better than 7</td><td>0</td><td>3</td><td>1</td><td>8</td><td>7</td></tr>
+    </tbody>
+  </table></div>
+  <p>The final distances are S = 0, B = 1, A = 3, D = 7 and C = 8. To recover the paths, remember which vertex gave each improvement. D came from B, A came from B, and C came from A. So the shortest path to C is S, B, A, C with length 8.</p>
+  <p>The program below runs Dijkstra with a binary heap as the priority queue. The heap holds pairs (distance, vertex), and stale entries are skipped.</p>
+  <pre class="code" data-lang="python"><code>import heapq
+
+def dijkstra(graph, source):
+    dist = {v: float("inf") for v in graph}
+    dist[source] = 0
+    heap = [(0, source)]
+    while heap:
+        d, u = heapq.heappop(heap)
+        if d &gt; dist[u]:
+            continue
+        for v, w in graph[u]:
+            if d + w &lt; dist[v]:
+                dist[v] = d + w
+                heapq.heappush(heap, (dist[v], v))
+    return dist
+
+graph = {
+    "S": [("A", 4), ("B", 1)],
+    "A": [("C", 5)],
+    "B": [("A", 2), ("C", 8), ("D", 6)],
+    "C": [("D", 3)],
+    "D": [],
+}
+print(dijkstra(graph, "S"))</code></pre>
+  <pre class="output">{'S': 0, 'A': 3, 'B': 1, 'C': 8, 'D': 7}</pre>
+  <div class="note key"><p><span class="t">Key idea</span>Dijkstra is correct only when no edge is negative. Its guarantee rests on the fact that a settled vertex can never be improved later.</p></div>
+  <details class="check"><summary>Which vertex does Dijkstra settle second in the running example?</summary><div class="ans"><p>B, with distance 1. After S, the smallest tentative distance is 1 (for B), since A is still at 4.</p></div></details>
+  <details class="check"><summary>What is the time complexity of Dijkstra with a binary heap?</summary><div class="ans"><p>O((V + E) log V), which is usually written as O(E log V) for a connected graph. With a plain array instead of a heap, the cost is O(V<sup>2</sup>).</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Negative weights">
+  <h2>Why Dijkstra fails with negative weights, and Bellman-Ford</h2>
+  <p>Dijkstra's guarantee depends on one assumption. When it settles a vertex, no later path can be cheaper. A negative edge breaks this, because a long detour can end with a big saving.</p>
+  <p>Here is a small trap. Take three vertices with edges S to A (weight 2), S to B (weight 5) and B to A (weight -4). Dijkstra settles A first, with distance 2, because it is the nearest tentative vertex. Later it settles B with distance 5, and relaxes B to A: 5 - 4 = 1, which is less than 2. But A is already settled, so the algorithm never revisits it. It reports A = 2. The true shortest distance to A is 1, through S, B, A.</p>
+  <div class="note trap"><p><span class="t">Trap</span>When a question has a negative edge, do not use Dijkstra. Use Bellman-Ford. A common GATE trick gives a graph with one negative edge and asks for the distance that Dijkstra would wrongly report.</p></div>
+  <h3>Bellman-Ford: relax every edge, again and again</h3>
+  <p>Bellman-Ford does not try to settle vertices. It simply goes through the full list of edges and relaxes each one. It repeats this pass V - 1 times, where V is the number of vertices. Why V - 1? A shortest path that uses at most V - 1 edges is found after that many passes, because each pass extends every known path by one more edge.</p>
+  <p>Worked trace. Use edges in this order: S to X (4), S to Y (5), X to Y (-2), Y to Z (3), X to Z (6). The vertices are S, X, Y and Z, so V = 4 and there are 3 passes.</p>
+  <ul>
+    <li>Start: S = 0, X = inf, Y = inf, Z = inf.</li>
+    <li>Pass 1, edge S to X: 0 + 4 = 4 is less than inf, so X = 4.</li>
+    <li>Pass 1, edge S to Y: 0 + 5 = 5, so Y = 5.</li>
+    <li>Pass 1, edge X to Y: 4 - 2 = 2, which is less than 5, so Y = 2.</li>
+    <li>Pass 1, edge Y to Z: 2 + 3 = 5, so Z = 5.</li>
+    <li>Pass 1, edge X to Z: 4 + 6 = 10, which is not less than 5, so Z stays 5.</li>
+    <li>Pass 2 and pass 3 change nothing, so the table is final: S = 0, X = 4, Y = 2, Z = 5.</li>
+  </ul>
+  <p>The Python code below uses this method. It also includes the trap graph, which Bellman-Ford handles correctly.</p>
+  <pre class="code" data-lang="python"><code>def bellman_ford(edges, vertices, source):
+    dist = {v: float("inf") for v in vertices}
+    dist[source] = 0
+    for _ in range(len(vertices) - 1):
+        for u, v, w in edges:
+            if dist[u] + w &lt; dist[v]:
+                dist[v] = dist[u] + w
+    for u, v, w in edges:
+        if dist[u] + w &lt; dist[v]:
+            return None
+    return dist
+
+edges = [("S", "X", 4), ("S", "Y", 5), ("X", "Y", -2), ("Y", "Z", 3), ("X", "Z", 6)]
+print(bellman_ford(edges, ["S", "X", "Y", "Z"], "S"))
+
+trap = [("S", "A", 2), ("S", "B", 5), ("B", "A", -4)]
+print(bellman_ford(trap, ["S", "A", "B"], "S"))</code></pre>
+  <pre class="output">{'S': 0, 'X': 4, 'Y': 2, 'Z': 5}
+{'S': 0, 'A': 1, 'B': 5}</pre>
+  <p>Read the output carefully. In the second graph, Bellman-Ford found the value 1 for A, which is the correct answer that Dijkstra missed.</p>
+  <details class="check"><summary>How many passes does Bellman-Ford make over the edge list for a graph with 10 vertices?</summary><div class="ans"><p>9 passes (V - 1), followed by one extra check pass to look for negative cycles.</p></div></details>
+  <details class="check"><summary>In the Bellman-Ford trace above, why does pass 2 make no changes?</summary><div class="ans"><p>Every vertex already has its shortest distance after pass 1 (X = 4, Y = 2, Z = 5), so no edge can improve any entry.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Negative cycles and choosing">
+  <h2>Negative cycles, complexity and choosing an algorithm</h2>
+  <p>A negative cycle is a loop whose total weight is below zero. Suppose vertices A, B and C form the cycle A to B (weight 1), B to C (weight -3) and C to A (weight 1). Going once around costs 1 - 3 + 1 = -1. Going around twice costs -2, and so on. A path from S into this loop could be made cheaper without limit, so the shortest distance is undefined (minus infinity).</p>
+  <p>Bellman-Ford detects this. After V - 1 passes, every shortest path with at most V - 1 edges is final. If one more pass can still relax some edge, a negative cycle must exist (reachable from the source). The code above returns None in that case.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>A shortest path question with a negative cycle has no answer. If the question asks for the shortest distance, check first whether a negative cycle is reachable from the source. If one is, say so.</p></div>
+  <h3>Comparing the two algorithms</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>Dijkstra</th><th>Bellman-Ford</th></tr></thead>
+    <tbody>
+      <tr><td>Negative edge weights</td><td>Not allowed (answers can be wrong)</td><td>Allowed</td></tr>
+      <tr><td>Negative cycle detection</td><td>No</td><td>Yes (one extra pass)</td></tr>
+      <tr><td>Method</td><td>Greedy: settle the nearest vertex</td><td>Repeated relaxation of every edge</td></tr>
+      <tr><td>Time with binary heap</td><td>O((V + E) log V)</td><td>O(V E)</td></tr>
+      <tr><td>Time with array scan</td><td>O(V<sup>2</sup>)</td><td>O(V E)</td></tr>
+      <tr><td>Typical use</td><td>Road maps, network routing with positive costs</td><td>Graphs with negative costs or a need to detect negative cycles</td></tr>
+    </tbody>
+  </table></div>
+  <p>Some facts follow from the table. Bellman-Ford is always slower on large graphs, because O(V E) is larger than O((V + E) log V) for typical graphs. Dijkstra is faster, but only if the weights are non-negative. Both work on undirected graphs with non-negative weights, because each undirected edge is treated as two directed edges.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Bellman-Ford is not "always faster" or "always better". It is the right tool only when negative weights or negative cycle checks are needed. Do not pick it for ordinary positive-weight maps.</p></div>
+  <details class="check"><summary>Is a graph with a negative edge but no negative cycle a problem for Bellman-Ford?</summary><div class="ans"><p>No. Bellman-Ford handles negative edges correctly as long as no negative cycle is reachable from the source.</p></div></details>
+  <details class="check"><summary>Can Dijkstra be used on an undirected graph with positive weights?</summary><div class="ans"><p>Yes. Each undirected edge is treated as two directed edges with the same non-negative weight.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or fact</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Path length = sum of edge weights</td><td>Cost of a route</td><td>Any distance calculation</td></tr>
+      <tr><td>Relaxation: if dist[u] + w &lt; dist[v], update dist[v]</td><td>The core improvement step</td><td>Every trace question</td></tr>
+      <tr><td>Dijkstra with binary heap: O((V + E) log V)</td><td>Speed of the greedy method</td><td>Complexity options</td></tr>
+      <tr><td>Dijkstra with array: O(V<sup>2</sup>)</td><td>Simple version</td><td>Complexity options</td></tr>
+      <tr><td>Bellman-Ford: V - 1 passes, each over E edges, O(V E)</td><td>Slower but handles negatives</td><td>Complexity options</td></tr>
+      <tr><td>Negative cycle test: one more pass still relaxes an edge</td><td>Detects an undefined shortest path</td><td>Yes or no questions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions. Use a distance table for every trace.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Shortest distance from S to T</h3>
+    <div class="statement"><p>A directed graph has edges S to P (3), S to Q (7), P to Q (2), Q to T (1) and P to T (9). All weights are positive. What is the shortest distance from S to T?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One number: the least total weight from S to T.</li>
+      <li><strong>Which idea applies.</strong> List the routes from S to T and add their weights. The shortest distance is the smallest sum.</li>
+      <li><strong>Work it out.</strong> Route S, P, Q, T costs 3 + 2 + 1 = 6. Route S, P, T costs 3 + 9 = 12. Route S, Q, T costs 7 + 1 = 8. The smallest is 6.</li>
+      <li><strong>Check.</strong> The cheapest route uses three edges, not two, which is a reminder that the fewest edges is not always cheapest. The code below prints the minimum of the three sums.</li>
+    </ol>
+    <p class="cx">Answer: 6, through S, P, Q, T.</p>
+    <pre class="code" data-lang="python"><code>print(min(3 + 2 + 1, 3 + 9, 7 + 1))</code></pre>
+    <pre class="output">6</pre>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which algorithm handles negative edges?</h3>
+    <div class="statement"><p>A road network has one edge with weight -2, and no cycle of negative total weight. Select the correct algorithm: (A) Dijkstra's algorithm, (B) Bellman-Ford. Select one.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which algorithm is safe to use here.</li>
+      <li><strong>Which idea applies.</strong> Dijkstra needs all weights to be zero or positive. Bellman-Ford allows negative weights as long as no negative cycle is reachable.</li>
+      <li><strong>Work it out.</strong> The graph has a negative edge, so Dijkstra is ruled out. There is no negative cycle, so Bellman-Ford gives a correct answer.</li>
+      <li><strong>Check.</strong> Dijkstra would be fine if the -2 edge were removed, which confirms that the negative edge is the reason.</li>
+    </ol>
+    <p class="cx">Answer: (B) Bellman-Ford.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about shortest paths are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) Dijkstra's algorithm with a binary heap runs in O((V + E) log V) time.</li><li>(B) Bellman-Ford can detect a negative cycle reachable from the source.</li><li>(C) Dijkstra can return a wrong answer when some edge weight is negative.</li><li>(D) Bellman-Ford is always faster than Dijkstra.</li><li>(E) Dijkstra works on an undirected graph with non-negative weights.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims are true.</li>
+      <li><strong>Which idea applies.</strong> Use the complexity and assumptions from this page.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True, by the extra pass. (C) True, the trap graph shows this. (D) False, O(V E) is usually larger than O((V + E) log V). (E) True, each undirected edge becomes two directed edges with the same weight.</li>
+      <li><strong>Check.</strong> For (D), a graph with 1,000 vertices and 5,000 edges gives about 5,000,000 operations for Bellman-Ford and about 60,000 for Dijkstra with a heap.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (E).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>What does this heap program print?</h3>
+    <div class="statement"><p>Dijkstra keeps pairs of (distance, vertex) in a heap. Trace the program.</p>
+<pre class="code" data-lang="python"><code>import heapq
+
+h = []
+for d, v in [(5, "B"), (2, "A"), (9, "C"), (3, "D")]:
+    heapq.heappush(h, (d, v))
+print(heapq.heappop(h))
+print(heapq.heappop(h))
+print(len(h))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two popped items and the size of the heap afterwards.</li>
+      <li><strong>Which idea applies.</strong> A heap pops the smallest item first. Tuples compare by their first element, so the distance decides the order.</li>
+      <li><strong>Work it out.</strong> Pushing gives four items. The smallest distance is 2, from (2, "A"), so the first pop returns it. The next smallest is 3, from (3, "D"). After two pops, two items remain.</li>
+      <li><strong>Check.</strong> 4 items minus 2 pops leaves 2. The printed tuples are in increasing distance, as a min-heap must give.</li>
+    </ol>
+    <p class="cx">Answer: the program prints (2, 'A'), then (3, 'D'), then 2.</p>
+    <pre class="code" data-lang="python"><code>import heapq
+
+h = []
+for d, v in [(5, "B"), (2, "A"), (9, "C"), (3, "D")]:
+    heapq.heappush(h, (d, v))
+print(heapq.heappop(h))
+print(heapq.heappop(h))
+print(len(h))</code></pre>
+    <pre class="output">(2, 'A')
+(3, 'D')
+2</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>How many vertices are settled before T?</h3>
+    <div class="statement"><p>Run Dijkstra from S on a directed graph with edges S to P (2), S to Q (6), P to Q (3), P to T (9) and Q to T (1). How many vertices are settled before T is settled? Do not count T itself.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count of settled vertices that come before T.</li>
+      <li><strong>Which idea applies.</strong> Dijkstra settles vertices in increasing order of final distance.</li>
+      <li><strong>Work it out.</strong> Start: S = 0 is settled first. Relaxing gives P = 2 and Q = 6. P (2) is settled next. Relaxing P gives Q = min(6, 2 + 3) = 5 and T = 2 + 9 = 11. Q (5) is settled next. Relaxing Q gives T = min(11, 5 + 1) = 6. Now T (6) is the smallest tentative vertex and is settled. Before T, the settled vertices are S, P and Q.</li>
+      <li><strong>Check.</strong> The true distance to T is 6, which the code below confirms by listing all routes.</li>
+    </ol>
+    <p class="cx">Answer: 3 vertices (S, P and Q) are settled before T.</p>
+    <pre class="code" data-lang="python"><code>print(min(2 + 9, 2 + 3 + 1, 6 + 1))</code></pre>
+    <pre class="output">6</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Final distances after Bellman-Ford</h3>
+    <div class="statement"><p>Run Bellman-Ford from S on the edges listed in this order: S to A (5), S to B (2), B to A (-4), A to C (1), B to C (6). What is the final distance to C?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The final value of dist[C].</li>
+      <li><strong>Which idea applies.</strong> Relax the edges in the given order, pass after pass, until nothing changes.</li>
+      <li><strong>Work it out.</strong> Pass 1: S to A gives A = 5. S to B gives B = 2. B to A gives 2 - 4 = -2, which beats 5, so A = -2. A to C gives -2 + 1 = -1, so C = -1. B to C gives 2 + 6 = 8, not better. Pass 2 changes nothing: B to A gives -2, equal to the current value, which is not strictly less. So the final table is S = 0, A = -2, B = 2, C = -1.</li>
+      <li><strong>Check.</strong> The path S, B, A, C costs 2 - 4 + 1 = -1, and the code below confirms the table.</li>
+    </ol>
+    <p class="cx">Answer: dist[C] = -1.</p>
+    <pre class="code" data-lang="python"><code>def bellman_ford(edges, vertices, source):
+    dist = {v: float("inf") for v in vertices}
+    dist[source] = 0
+    for _ in range(len(vertices) - 1):
+        for u, v, w in edges:
+            if dist[u] + w &lt; dist[v]:
+                dist[v] = dist[u] + w
+    return dist
+
+edges = [("S", "A", 5), ("S", "B", 2), ("B", "A", -4), ("A", "C", 1), ("B", "C", 6)]
+print(bellman_ford(edges, ["S", "A", "B", "C"], "S"))</code></pre>
+    <pre class="output">{'S': 0, 'A': -2, 'B': 2, 'C': -1}</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Total weight of a negative cycle</h3>
+    <div class="statement"><p>A graph has the cycle A to B (weight 1), B to C (weight -3) and C to A (weight 1). Compute the total weight of one trip around this cycle. Is the cycle negative?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sum of the three weights, and whether it is below zero.</li>
+      <li><strong>Which idea applies.</strong> A cycle is negative if its total weight is less than zero.</li>
+      <li><strong>Work it out.</strong> 1 + (-3) + 1 = -1. This is below zero, so the cycle is negative.</li>
+      <li><strong>Check.</strong> Going around twice gives -2. Each trip makes the total smaller, so no shortest path through this cycle exists.</li>
+    </ol>
+    <p class="cx">Answer: the total is -1, so the cycle is negative.</p>
+    <pre class="code" data-lang="python"><code>print(1 + (-3) + 1)</code></pre>
+    <pre class="output">-1</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about Dijkstra and Bellman-Ford are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) If every edge has weight 1, Dijkstra gives the same distances as breadth-first search.</li><li>(B) Dijkstra gives correct answers when some edges have weight 0.</li><li>(C) Dijkstra gives correct answers on a directed acyclic graph that has negative edges.</li><li>(D) Adding 9 to every edge weight never changes which path is shortest.</li><li>(E) Bellman-Ford from S ignores a negative edge that cannot be reached from S.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims hold.</li>
+      <li><strong>Which idea applies.</strong> Dijkstra needs non-negative weights, zero weights are allowed. Adding a constant changes paths with different numbers of edges differently.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True, zero is non-negative. (C) False, the negative edge still breaks the greedy step. (D) False, see the code: a one-edge path costs 10 + 9 = 19, but a two-edge path costs (1 + 9) + (1 + 9) = 20, so the best path changes. (E) True, only vertices reachable from S matter.</li>
+      <li><strong>Check.</strong> The code below prints the two sums for (D).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (E).</p>
+    <pre class="code" data-lang="python"><code>print(10, 1 + 1)
+print(10 + 9, (1 + 9) + (1 + 9))</code></pre>
+    <pre class="output">10 2
+19 20</pre>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Dijkstra distances (NAT, 2 marks)</h3>
+    <div class="statement"><p>Directed edges with weights: S→A 4, S→B 1, B→A 2, A→C 1, B→C 5, C→D 3, A→D 6. Find the shortest distance from S to D.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The shortest S to D distance.</li>
+      <li><strong>Which idea applies.</strong> Dijkstra relaxes from the closest settled vertex.</li>
+      <li><strong>Work it out.</strong> B = 1, A = min(4, 1 + 2) = 3, C = min(1 + 5, 3 + 1) = 4, D = min(3 + 6, 4 + 3) = 7.</li>
+      <li><strong>Check.</strong> The code runs Dijkstra.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import heapq
+G = {"S": [("A", 4), ("B", 1)], "B": [("A", 2), ("C", 5)], "A": [("C", 1), ("D", 6)], "C": [("D", 3)], "D": []}
+d = {"S": 0}; pq = [(0, "S")]
+while pq:
+    du, u = heapq.heappop(pq)
+    if du &gt; d[u]: continue
+    for v, w in G[u]:
+        if du + w &lt; d.get(v, 1e9): d[v] = du + w; heapq.heappush(pq, (d[v], v))
+print(d)
+</code></pre>
+    <pre class="output">{'S': 0, 'A': 3, 'B': 1, 'C': 4, 'D': 7}</pre>
+    <p class="cx">Answer: 7.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Negative edges (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Dijkstra may give wrong answers with negative edges. (B) Bellman-Ford detects negative cycles reachable from the source. (C) Bellman-Ford runs in O(VE). (D) Adding a constant to every edge preserves shortest paths.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Facts about shortest path algorithms.</li>
+      <li><strong>Which idea applies.</strong> Adding a constant penalises paths with more edges.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) A path with more edges gains more. False.</li>
+      <li><strong>Check.</strong> Paths S→T of weight 3 (1 edge) and S→A→T of weight 1 + 1: adding 2 makes them 5 and 6, so the winner changes.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Floyd-Warshall entry (NAT, 2 marks)</h3>
+    <div class="statement"><p>Weights: 1→2 3, 2→3 −2, 1→3 4, 3→1 1. Run Floyd-Warshall. What is the shortest distance from 2 to 1?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One entry of the all pairs distance matrix.</li>
+      <li><strong>Which idea applies.</strong> The only route from 2 to 1 goes through 3.</li>
+      <li><strong>Work it out.</strong> 2→3→1 = −2 + 1 = −1.</li>
+      <li><strong>Check.</strong> The cycle 1→2→3→1 has weight 3 − 2 + 1 = 2, positive, so distances are well defined.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>INF = float("inf")
+D = [[0, 3, 4], [INF, 0, -2], [1, INF, 0]]
+for k in range(3):
+    for i in range(3):
+        for j in range(3):
+            D[i][j] = min(D[i][j], D[i][k] + D[k][j])
+print(D)
+</code></pre>
+    <pre class="output">[[0, 3, 1], [-1, 0, -2], [1, 4, 0]]</pre>
+    <p class="cx">Answer: −1.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Weight</dt><dd>The cost attached to an edge.</dd></div>
+    <div><dt>Path length</dt><dd>The sum of the weights along a path.</dd></div>
+    <div><dt>Single-source shortest path</dt><dd>Shortest distances from one fixed start vertex to all others.</dd></div>
+    <div><dt>Distance table</dt><dd>Best-known distance for each vertex, starting with 0 for the source and infinity for the rest.</dd></div>
+    <div><dt>Relaxation</dt><dd>If going through edge u to v is cheaper, update dist[v].</dd></div>
+    <div><dt>Settled vertex</dt><dd>A vertex whose distance is final.</dd></div>
+    <div><dt>Greedy</dt><dd>Always settle the unsettled vertex with the smallest distance.</dd></div>
+    <div><dt>Dijkstra's algorithm</dt><dd>Single-source shortest paths for non-negative weights, using a priority queue.</dd></div>
+    <div><dt>Bellman-Ford</dt><dd>Single-source shortest paths that relaxes all edges V - 1 times. Handles negative weights.</dd></div>
+    <div><dt>Negative cycle</dt><dd>A loop with total weight below zero. Shortest paths through it are undefined.</dd></div>
+    <div><dt>Negative cycle test</dt><dd>If one more Bellman-Ford pass still relaxes an edge, a reachable negative cycle exists.</dd></div>
+    <div><dt>Time of Dijkstra</dt><dd>O((V + E) log V) with a binary heap.</dd></div>
+    <div><dt>Time of Bellman-Ford</dt><dd>O(V E).</dd></div>
+    <div><dt>Undirected graph</dt><dd>Treated as two directed edges, each with the same weight.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Dijkstra needs non-negative weights. With a negative edge its answer may be wrong.</li>
+    <li>Bellman-Ford needs V - 1 passes over all edges.</li>
+    <li>Use a distance table and write down every relaxation in a trace.</li>
+    <li>A negative cycle reachable from the source makes shortest distances undefined.</li>
+    <li>The cheapest path may use more edges than another path.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 76?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 76 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-075.html"><small>Previous, topic 75</small>Graph theory intro + BFS/DFS traversals</a><a class="next" href="gate-077.html"><small>Next, topic 77</small>Functions, arrays, dict, strings (recap)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

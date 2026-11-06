@@ -1,0 +1,388 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 10: Vector projections</title><meta name="description" content="A projection finds the closest point to a vector inside a line or a subspace, just like a shadow on the floor. Projections are the heart of least squares, which is how GATE questions on data fitting and regression are solved."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g10" data-key="g10" data-noun="topic" data-num="10" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Vector projections</h1>
+<p class="lede">A projection finds the closest point to a vector inside a line or a subspace, just like a shadow on the floor. Projections are the heart of least squares, which is how GATE questions on data fitting and regression are solved.</p>
+<div class="station"><b>10</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>Dot product, length and orthogonality</li><li>Projection onto a vector</li><li>Projection matrices</li><li>Least squares and the normal equations</li><li>Gram-Schmidt orthogonalization</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Stand a pencil upright on a table with the sun shining straight down from above. The shadow of the pencil lies flat on the table. The shadow is the <strong>projection</strong> of the pencil onto the table. It is the point on the table that is closest to the top of the pencil. Nothing on the table is closer to the tip.</p>
+  <p>Vector projection works the same way. You have a vector v (the pencil) and a direction u (the line on the table). The projection of v onto u is the point on the line through u that is closest to v. The leftover part, from the projection to v itself, is perpendicular to u. That perpendicular leftover is called the <strong>residual</strong>.</p>
+  <p>Why does GATE care? When data does not fit a model exactly, we need the "best" fit. The best fit is a projection. Many DA questions on linear regression, least squares and data compression are really questions about projections, so learning this topic pays off twice.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Dot product</dt><dd>A single number from two vectors of the same length. Plain meaning: how much two arrows point in the same direction. Precise: for u = (u<sub>1</sub>, ..., u<sub>n</sub>) and v, u·v = u<sub>1</sub>v<sub>1</sub> + ... + u<sub>n</sub>v<sub>n</sub>.</dd></div>
+    <div><dt>Norm (length)</dt><dd>How long a vector is. Precise: ‖u‖ = √(u·u).</dd></div>
+    <div><dt>Orthogonal</dt><dd>Perpendicular, meaning at a right angle. Precise: u and v are orthogonal when u·v = 0.</dd></div>
+    <div><dt>Unit vector</dt><dd>A vector of length 1.</dd></div>
+    <div><dt>Projection</dt><dd>The closest point to a vector inside a line or subspace. Precise: the vector p in the subspace with v − p orthogonal to it.</dd></div>
+    <div><dt>Residual (error)</dt><dd>The leftover part v − p. It is perpendicular to the subspace.</dd></div>
+    <div><dt>Column space</dt><dd>The span of the columns of a matrix A. It is the set of all vectors Ax you can reach.</dd></div>
+    <div><dt>Projection matrix</dt><dd>A matrix P that projects every vector. Precise: p = Pv.</dd></div>
+    <div><dt>Least squares</dt><dd>The method that picks the closest possible answer when Ax = b has no exact solution.</dd></div>
+    <div><dt>Normal equations</dt><dd>The system AᵀAx = Aᵀb, which gives the least squares solution.</dd></div>
+    <div><dt>Orthonormal</dt><dd>A set of vectors that are mutually orthogonal and each of length 1.</dd></div>
+    <div><dt>Gram-Schmidt</dt><dd>A step-by-step method that turns independent vectors into orthogonal ones.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Dot product, length and orthogonality">
+  <h2>Step 1: Dot product, length and orthogonality</h2>
+  <p>We need three tools before projections. The first is the <strong>dot product</strong>. To compute it, multiply the matching entries and add the results. Think of it as a score that says how much two vectors agree in direction.</p>
+  <p><strong>Worked example.</strong> Let u = (2, 3) and v = (3, −2).</p>
+  <ol>
+    <li>Multiply the first entries: 2 × 3 = 6.</li>
+    <li>Multiply the second entries: 3 × (−2) = −6.</li>
+    <li>Add: 6 + (−6) = 0.</li>
+    <li>So u·v = 0. The two vectors are <strong>orthogonal</strong> (at a right angle).</li>
+  </ol>
+  <p>The second tool is the <strong>length</strong>. The length of u is ‖u‖ = √(u·u). For u = (2, 3), u·u = 4 + 9 = 13, so ‖u‖ = √13. Length is always zero or positive, and it is zero only for the zero vector.</p>
+  <div class="formula">u·v = Σ u<sub>i</sub>v<sub>i</sub>,  ‖u‖ = √(u·u),  u ⟂ v when u·v = 0</div>
+  <p>The third tool is a property you will use all the time: <strong>the dot product is linear</strong>. This means (c·u)·v = c(u·v), and (u + w)·v = u·v + w·v. A proof of these rules is not needed for GATE, but using them correctly is.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Orthogonal and independent are different ideas. (1, 0) and (1, 1) are independent, but their dot product is 1, not 0, so they are not orthogonal. Orthogonal nonzero vectors are always independent, but independent vectors need not be orthogonal.</p></div>
+  <details class="check"><summary>Question: what is (1, 2)·(4, −2)?</summary><div class="ans"><p>4 − 4 = 0. So (1, 2) and (4, −2) are orthogonal.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Projection onto a vector">
+  <h2>Step 2: Projection onto a vector</h2>
+  <p>Now the main question. Given a vector v and a direction u, find the point p = c·u on the line through u that is closest to v.</p>
+  <p>The idea is this. The residual v − cu must be perpendicular to u, because otherwise you could slide along the line to get closer. So we require:</p>
+  <div class="formula">(v − cu) · u = 0</div>
+  <p>Expanding gives v·u − c(u·u) = 0, so c = (v·u)/(u·u). That gives the projection formula:</p>
+  <div class="formula">proj<sub>u</sub>(v) = ((v·u)/(u·u)) u</div>
+  <p>In words: find how far v reaches along u (the dot product, divided by the length squared of u), then walk that many steps along u.</p>
+  <p><strong>Worked example.</strong> Project v = (2, 3) onto u = (1, 1).</p>
+  <ol>
+    <li>Compute v·u = 2·1 + 3·1 = 5.</li>
+    <li>Compute u·u = 1 + 1 = 2.</li>
+    <li>The scalar is c = 5/2.</li>
+    <li>The projection is p = (5/2)(1, 1) = (2.5, 2.5).</li>
+    <li>The residual is e = v − p = (2 − 2.5, 3 − 2.5) = (−0.5, 0.5).</li>
+    <li>Check orthogonality: e·u = −0.5 + 0.5 = 0. The residual is perpendicular, so p is the closest point.</li>
+  </ol>
+  <p>Look at the picture. It shows a vector v, a direction u and the projection of v onto u. Drag the tip of v and watch the projection slide along the line. Try to make v perpendicular to u. What happens to the projection then?</p>
+  <div class="viz" data-viz="projection" data-u="1,1" data-v="2,3"></div>
+  <p>Now try a second example, with a steeper direction. Drag the tip of v so that it sits exactly above the line. The residual shrinks to a point when v is on the line itself.</p>
+  <div class="viz" data-viz="projection" data-u="3,1" data-v="1,2"></div>
+  <div class="note key"><p><span class="t">Key idea</span>The projection is the closest point on the line. Every other point on the line is further from v. This is why the residual must be perpendicular.</p></div>
+  <details class="check"><summary>Question: project v = (4, 2) onto u = (2, 0).</summary><div class="ans"><p>v·u = 8, u·u = 4, so c = 2. The projection is 2 · (2, 0) = (4, 0). The residual (0, 2) is perpendicular to (2, 0).</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Projection matrices">
+  <h2>Step 3: Projection matrices</h2>
+  <p>A projection is a rule that maps every vector to its shadow. Rules that map vectors are matrices. So there must be a matrix P, called the <strong>projection matrix</strong>, with p = Pv.</p>
+  <p>For a line through u, the matrix is built from the column u and its transpose uᵀ (the same numbers written as a row):</p>
+  <div class="formula">P = u uᵀ / (uᵀu)</div>
+  <p><strong>Worked example.</strong> Let u = (1, 1). Then uuᵀ = [[1, 1], [1, 1]] and uᵀu = 2, so</p>
+  <pre class="code" data-lang="text"><code>P = (1/2) [ 1  1 ]
+          [ 1  1 ]</code></pre>
+  <p>Test it on v = (2, 3). Compute Pv: the first entry is (1/2)(2 + 3) = 2.5 and the second entry is (1/2)(2 + 3) = 2.5. So Pv = (2.5, 2.5), which matches Step 2.</p>
+  <p>Projection matrices have two special properties that link to the idempotent matrices topic:</p>
+  <ul>
+    <li><strong>P² = P.</strong> Projecting twice is the same as projecting once. A point already on the line stays where it is.</li>
+    <li><strong>Pᵀ = P.</strong> The matrix is symmetric. Orthogonal projections always have this property.</li>
+  </ul>
+  <p>To project onto a larger subspace, such as the column space of a matrix A with independent columns, the formula generalises to:</p>
+  <div class="formula">P = A(AᵀA)⁻¹Aᵀ</div>
+  <p>Here (AᵀA)⁻¹ is the inverse of the 2 × 2 (or k × k) matrix AᵀA. For a single column u, AᵀA is just uᵀu, and the formula reduces to the line formula above.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Projection matrices are rarely invertible. A projection onto a line in R<sup>2</sup> throws away one dimension, so it has determinant 0. Only the identity projects every vector to itself.</p></div>
+  <details class="check"><summary>Question: what is the trace of the projection matrix onto the line through (3, 4)?</summary><div class="ans"><p>The matrix is P = (1/25)[[9, 12], [12, 16]]. The trace is (9 + 16)/25 = 1. For a projection onto a line, the trace is always 1, which is the dimension of the line.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Least squares and the normal equations">
+  <h2>Step 4: Least squares and the normal equations</h2>
+  <p>Suppose we want to solve Ax = b, but there is no exact solution, because b is not in the column space of A. This happens all the time with real data, where measurements contain noise. What can we do? We find the vector Ax that is <em>closest</em> to b. That is the projection of b onto the column space of A.</p>
+  <p>Here is the key fact. The residual b − Ax must be perpendicular to every column of A. In matrix form, that means:</p>
+  <div class="formula">Aᵀ(b − Ax) = 0, so AᵀAx = Aᵀb</div>
+  <p>The second equation is the <strong>normal equations</strong>. If the columns of A are independent, AᵀA is invertible, and the solution is x = (AᵀA)⁻¹Aᵀb. The fitted values are p = Ax.</p>
+  <p><strong>Worked example (fitting a line).</strong> We have three points at times t = 0, 1, 2 with values b = (1, 2, 2). We want a line y = x<sub>0</sub> + x<sub>1</sub>t that fits them as well as possible. Each row of A is (1, t), so</p>
+  <pre class="code" data-lang="text"><code>A = [ 1  0 ]      b = [ 1 ]
+    [ 1  1 ]          [ 2 ]
+    [ 1  2 ]          [ 2 ]</code></pre>
+  <p>Let us solve by hand, step by step.</p>
+  <ol>
+    <li>AᵀA = [[3, 3], [3, 5]]. (Column 1 dotted with itself is 3, column 1 with column 2 is 0 + 1 + 2 = 3, column 2 with itself is 0 + 1 + 4 = 5.)</li>
+    <li>Aᵀb = (1 + 2 + 2, 0 + 2 + 4) = (5, 6).</li>
+    <li>Solve 3x<sub>0</sub> + 3x<sub>1</sub> = 5 and 3x<sub>0</sub> + 5x<sub>1</sub> = 6. Subtract the first from the second: 2x<sub>1</sub> = 1, so x<sub>1</sub> = 1/2.</li>
+    <li>Then 3x<sub>0</sub> = 5 − 3/2 = 7/2, so x<sub>0</sub> = 7/6.</li>
+    <li>The best line is y = 7/6 + (1/2)t. The fitted values are (7/6, 5/3, 13/6).</li>
+    <li>Check the residual b − p = (−1/6, 1/3, −1/6). Its dot product with the first column (1, 1, 1) is 0, and with the second column (0, 1, 2) is 1/3 − 2/6 = 0. Both zero, so the residual is perpendicular. Correct.</li>
+  </ol>
+  <p>The code below repeats these steps with exact fractions, so you can see that the answer is exact and not a rounded decimal.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+A = [[1, 0], [1, 1], [1, 2]]
+b = [1, 2, 2]
+
+AtA = [[sum(A[k][i] * A[k][j] for k in range(3)) for j in range(2)] for i in range(2)]
+Atb = [sum(A[k][i] * b[k] for k in range(3)) for i in range(2)]
+print("A^T A =", AtA)
+print("A^T b =", Atb)
+
+a, p_ = AtA[0]
+c, d = AtA[1]
+det = a * d - p_ * c
+inv = [[F(d, det), F(-p_, det)], [F(-c, det), F(a, det)]]
+x = [sum(inv[i][j] * Atb[j] for j in range(2)) for i in range(2)]
+print("x =", [str(t) for t in x])
+
+fit = [sum(A[k][i] * x[i] for i in range(2)) for k in range(3)]
+print("fitted values =", [str(t) for t in fit])
+resid = [b[k] - fit[k] for k in range(3)]
+print("residual =", [str(t) for t in resid])
+print("A^T residual =", [str(sum(A[k][i] * resid[k] for k in range(3))) for i in range(2)])</code></pre>
+  <pre class="output">A^T A = [[3, 3], [3, 5]]
+A^T b = [5, 6]
+x = ['7/6', '1/2']
+fitted values = ['7/6', '5/3', '13/6']
+residual = ['-1/6', '1/3', '-1/6']
+A^T residual = ['0', '0']</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>If a question says "find the least squares solution" or "the closest vector in the column space", write the normal equations AᵀAx = Aᵀb and solve them. Do not try to solve Ax = b directly, because it may have no solution.</p></div>
+  <details class="check"><summary>Question: why is the residual of least squares perpendicular to the columns of A?</summary><div class="ans"><p>Because the fitted vector Ax is the projection of b onto the column space. Any projection leaves a residual that is perpendicular to the space it projects onto. Moving the fitted vector along any column would only increase the distance to b.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Gram-Schmidt orthogonalization">
+  <h2>Step 5: Gram-Schmidt orthogonalization</h2>
+  <p>Projections give a direct way to build perpendicular vectors. Start with independent vectors a<sub>1</sub>, a<sub>2</sub>, ... . Gram-Schmidt keeps the first vector as it is. Then it removes from each new vector its projection onto the vectors already kept. What is left is perpendicular to all of them.</p>
+  <p>Here is the rule for two vectors:</p>
+  <div class="formula">v<sub>1</sub> = a<sub>1</sub>,   v<sub>2</sub> = a<sub>2</sub> − ((a<sub>2</sub>·v<sub>1</sub>)/(v<sub>1</sub>·v<sub>1</sub>)) v<sub>1</sub></div>
+  <p>The part subtracted is exactly the projection of a<sub>2</sub> onto v<sub>1</sub>. What remains, v<sub>2</sub>, is the residual. Dividing each v<sub>i</sub> by its length turns the set into an orthonormal set.</p>
+  <p><strong>Worked example.</strong> Take a<sub>1</sub> = (1, 1, 0) and a<sub>2</sub> = (1, 0, 1). Are they orthogonal? a<sub>1</sub>·a<sub>2</sub> = 1 + 0 + 0 = 1, which is not zero, so no. Let us fix that.</p>
+  <ol>
+    <li>Keep v<sub>1</sub> = (1, 1, 0).</li>
+    <li>Compute a<sub>2</sub>·v<sub>1</sub> = 1 and v<sub>1</sub>·v<sub>1</sub> = 2, so the coefficient is 1/2.</li>
+    <li>Subtract: v<sub>2</sub> = (1, 0, 1) − (1/2)(1, 1, 0) = (1/2, −1/2, 1).</li>
+    <li>Check: v<sub>1</sub>·v<sub>2</sub> = 1/2 − 1/2 + 0 = 0. Now the two vectors are orthogonal.</li>
+  </ol>
+  <p>The program below checks the same steps.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def dot(u, v):
+    return sum(x * y for x, y in zip(u, v))
+
+a1 = [1, 1, 0]
+a2 = [1, 0, 1]
+c = F(dot(a2, a1), dot(a1, a1))
+v2 = [F(y) - c * x for x, y in zip(a1, a2)]
+print("coefficient c =", c)
+print("v2 =", [str(t) for t in v2])
+print("v1 . v2 =", dot(a1, v2))
+print("length of v2 squared =", dot(v2, v2))</code></pre>
+  <pre class="output">coefficient c = 1/2
+v2 = ['1/2', '-1/2', '1']
+v1 . v2 = 0
+length of v2 squared = 3/2</pre>
+  <p>The output confirms the hand calculation. Notice that the length squared of v<sub>2</sub> is 3/2, so the normalised second vector would be v<sub>2</sub> divided by √(3/2).</p>
+  <details class="check"><summary>Question: in Gram-Schmidt, why do we subtract the projection rather than add it?</summary><div class="ans"><p>We want to remove the part of a<sub>2</sub> that lies along v<sub>1</sub>. That part is the projection. Subtracting it leaves the perpendicular part. Adding it would double the component along v<sub>1</sub>, and the result would not be orthogonal.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>u·v = Σ u<sub>i</sub>v<sub>i</sub></td><td>Dot product. Zero means orthogonal.</td><td>Checking perpendicularity, computing scalars.</td></tr>
+      <tr><td>proj<sub>u</sub>(v) = ((v·u)/(u·u)) u</td><td>Projection of v onto the line through u.</td><td>Projecting onto a single direction.</td></tr>
+      <tr><td>P = uuᵀ/(uᵀu)</td><td>Projection matrix onto the line through u.</td><td>When a matrix is needed, or to check P² = P.</td></tr>
+      <tr><td>P = A(AᵀA)⁻¹Aᵀ</td><td>Projection matrix onto the column space of A.</td><td>Columns of A are independent.</td></tr>
+      <tr><td>AᵀAx = Aᵀb</td><td>Normal equations.</td><td>Least squares, data fitting.</td></tr>
+      <tr><td>Aᵀ(b − Ax) = 0</td><td>The residual is perpendicular to the columns.</td><td>Checking a least squares answer.</td></tr>
+      <tr><td>v<sub>2</sub> = a<sub>2</sub> − ((a<sub>2</sub>·v<sub>1</sub>)/(v<sub>1</sub>·v<sub>1</sub>)) v<sub>1</sub></td><td>Gram-Schmidt step.</td><td>Building orthogonal vectors.</td></tr>
+      <tr><td>P² = P and Pᵀ = P</td><td>Properties of an orthogonal projection.</td><td>Testing a candidate matrix.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Try each problem before reading the answer. Problems marked "verified PYQ" are real past GATE questions. The rest are GATE-style practice problems.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Are they orthogonal?</h3>
+    <div class="statement"><p>Compute the dot product of (2, 3) and (3, −2). Are the vectors orthogonal?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A dot product, then a yes or no.</li>
+      <li><strong>Which idea applies.</strong> Orthogonal means the dot product is zero.</li>
+      <li><strong>Work it out.</strong> 2 × 3 + 3 × (−2) = 6 − 6 = 0.</li>
+      <li><strong>Check.</strong> Both vectors are non-zero, so a zero dot product means a right angle.</li>
+    </ol>
+    <p class="cx">Answer: the dot product is 0, so yes, they are orthogonal.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Project onto an axis</h3>
+    <div class="statement"><p>Find the projection of v = (4, 2) onto the line through u = (2, 0).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The closest point to v on the x-axis (the line through u).</li>
+      <li><strong>Which idea applies.</strong> The projection formula ((v·u)/(u·u)) u.</li>
+      <li><strong>Work it out.</strong> v·u = 8 and u·u = 4. The scalar is 8/4 = 2. The projection is 2(2, 0) = (4, 0).</li>
+      <li><strong>Check.</strong> The residual (0, 2) is perpendicular to (2, 0). Yes.</li>
+    </ol>
+    <p class="cx">Answer: (4, 0).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Properties of a projection matrix (MSQ)</h3>
+    <div class="statement"><p>Let P be the projection matrix onto the line through (3, 4). Select all that apply.</p><p>(A) P² = P &nbsp; (B) Pᵀ = P &nbsp; (C) P(3, 4) = (3, 4) &nbsp; (D) trace(P) = 2</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which properties hold for this P.</li>
+      <li><strong>Which idea applies.</strong> P = uuᵀ/(uᵀu) with u = (3, 4), so uᵀu = 25.</li>
+      <li><strong>Work it out.</strong> P = (1/25)[[9, 12], [12, 16]]. (A) is true, because projections satisfy P² = P. (B) is true, because P is symmetric. (C) is true, because (3, 4) lies on the line, so it is its own projection. (D) is false: the trace is (9 + 16)/25 = 1, since the projection onto a line has rank 1.</li>
+      <li><strong>Check.</strong> A quick test of (A): P² = (1/625)[[81 + 144, 108 + 192], [108 + 192, 144 + 256]] = (1/625)[[225, 300], [300, 400]] = (1/25)[[9, 12], [12, 16]] = P. Correct.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Projection of a larger number (NAT)</h3>
+    <div class="statement"><p>Let P be the projection matrix onto the line through (1, 1). What is the second entry of P(4, 0)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The second entry of the projected vector.</li>
+      <li><strong>Which idea applies.</strong> P(v) = ((v·u)/(u·u)) u.</li>
+      <li><strong>Work it out.</strong> v·u = 4 + 0 = 4 and u·u = 2. The scalar is 2, so the projection is 2(1, 1) = (2, 2). The second entry is 2.</li>
+      <li><strong>Check.</strong> The projection lies on the line through (1, 1), and the second entry equals the first, as it must.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Squared length of the residual (NAT)</h3>
+    <div class="statement"><p>Project v = (2, 3) onto u = (1, 1). Let e be the residual v − p. What is the squared length ‖e‖²? Give the answer as a number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The squared length of the leftover part.</li>
+      <li><strong>Which idea applies.</strong> Compute p first, then subtract, then use the dot product for the length.</li>
+      <li><strong>Work it out.</strong> From Step 2 of this page, p = (2.5, 2.5). So e = (−0.5, 0.5). Then ‖e‖² = (−0.5)² + (0.5)² = 0.25 + 0.25 = 0.5.</li>
+      <li><strong>Check.</strong> Since e is perpendicular to u, the Pythagorean rule gives ‖v‖² = ‖p‖² + ‖e‖². Here ‖v‖² = 13, ‖p‖² = 12.5, and 12.5 + 0.5 = 13. Consistent.</li>
+    </ol>
+    <p class="cx">Answer: 0.5 (that is, 1/2).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>One Gram-Schmidt step</h3>
+    <div class="statement"><p>Let a<sub>1</sub> = (1, 1, 0) and a<sub>2</sub> = (1, 0, 1). Find the vector v<sub>2</sub> obtained by removing from a<sub>2</sub> its projection onto a<sub>1</sub>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The residual of a<sub>2</sub> after projection onto a<sub>1</sub>.</li>
+      <li><strong>Which idea applies.</strong> Gram-Schmidt: v<sub>2</sub> = a<sub>2</sub> − proj<sub>a1</sub>(a<sub>2</sub>).</li>
+      <li><strong>Work it out.</strong> a<sub>2</sub>·a<sub>1</sub> = 1 and a<sub>1</sub>·a<sub>1</sub> = 2. So proj = (1/2)(1, 1, 0) = (1/2, 1/2, 0). Then v<sub>2</sub> = (1, 0, 1) − (1/2, 1/2, 0) = (1/2, −1/2, 1).</li>
+      <li><strong>Check.</strong> a<sub>1</sub>·v<sub>2</sub> = 1/2 − 1/2 + 0 = 0. Orthogonal, as required.</li>
+    </ol>
+    <p class="cx">Answer: v<sub>2</sub> = (1/2, −1/2, 1).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Least squares line (NAT)</h3>
+    <div class="statement"><p>Fit a line y = x<sub>0</sub> + x<sub>1</sub>t to the data (t, y) = (0, 1), (1, 3), (2, 4) by least squares. What is the slope x<sub>1</sub>? Give it as a fraction.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The slope of the least squares line.</li>
+      <li><strong>Which idea applies.</strong> Normal equations AᵀAx = Aᵀb, with rows (1, t) of A.</li>
+      <li><strong>Work it out.</strong> AᵀA = [[3, 3], [3, 5]] (same as the worked example). Aᵀb = (1 + 3 + 4, 0 + 3 + 8) = (8, 11). Solve 3x<sub>0</sub> + 3x<sub>1</sub> = 8 and 3x<sub>0</sub> + 5x<sub>1</sub> = 11. Subtracting gives 2x<sub>1</sub> = 3, so x<sub>1</sub> = 3/2. Then 3x<sub>0</sub> = 8 − 9/2 = 7/2, so x<sub>0</sub> = 7/6.</li>
+      <li><strong>Check.</strong> The fitted values are (7/6, 8/3, 25/6). The residual is (−1/6, 1/3, −1/6), and it is orthogonal to (1, 1, 1) and to (0, 1, 2), since both dot products are 0.</li>
+    </ol>
+    <p class="cx">Answer: the slope is 3/2.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Projection onto a line, verified PYQ</h3>
+    <div class="statement"><p>GATE DA 2024 · Q39 (MSQ, 2 marks) (verified PYQ). Let U be a subspace of R<sup>3</sup> and M the matrix of projection onto U. Which are TRUE?</p><p>(A) If U is 1-dimensional, the null space of M is 1-dimensional. &nbsp; (B) If U is 2-dimensional, the null space of M is 1-dimensional. &nbsp; (C) M² = M. &nbsp; (D) M³ = M.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements hold for every projection onto a subspace of R<sup>3</sup>.</li>
+      <li><strong>Which idea applies.</strong> The image of M is U, so rank(M) = dim U. The null space is the set of vectors sent to zero, and its dimension is 3 − rank(M). Also, projecting twice is the same as projecting once.</li>
+      <li><strong>Work it out.</strong> (C): with M = A(AᵀA)⁻¹Aᵀ, M² = A(AᵀA)⁻¹(AᵀA)(AᵀA)⁻¹Aᵀ = M. True. (D): M³ = M·M² = M·M = M. True. (A): dim U = 1 gives rank 1, so nullity = 2, not 1. False. (B): dim U = 2 gives rank 2, so nullity = 1. True.</li>
+      <li><strong>Check.</strong> A line in R<sup>3</sup> is sent to zero by the whole plane perpendicular to it, which has dimension 2. That matches the nullity of 2 in (A).</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Distance from a point to a line (NAT, 2 marks)</h3>
+    <div class="statement"><p>Let a = (1, 2, 2) and b = (3, 0, 4). Find the length of the component of b perpendicular to a, correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> ‖b − proj<sub>a</sub>b‖.</li>
+      <li><strong>Which idea applies.</strong> proj<sub>a</sub>b = (a·b/a·a)a. By Pythagoras, ‖b⊥‖² = ‖b‖² − (a·b)²/‖a‖².</li>
+      <li><strong>Work it out.</strong> a·b = 3 + 0 + 8 = 11, ‖a‖² = 9, ‖b‖² = 25. ‖b⊥‖² = 25 − 121/9 = 104/9. ‖b⊥‖ = √104/3 ≈ 3.40.</li>
+      <li><strong>Check.</strong> The code builds b⊥ and checks it is perpendicular to a.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>a = (1, 2, 2); b = (3, 0, 4)
+t = sum(x * y for x, y in zip(a, b)) / sum(x * x for x in a)
+perp = [y - t * x for x, y in zip(a, b)]
+print("a . perp = %.10f" % sum(x * y for x, y in zip(a, perp)))
+print("length = %.2f" % sum(v * v for v in perp) ** 0.5)
+</code></pre>
+    <pre class="output">a . perp = -0.0000000000
+length = 3.40</pre>
+    <p class="cx">Answer: about 3.40.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Projection onto a plane (NAT, 2 marks)</h3>
+    <div class="statement"><p>Project v = (1, 1, 1) onto the plane x + y − 2z = 0. Find the z coordinate of the projection.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The z component of the orthogonal projection onto a plane.</li>
+      <li><strong>Which idea applies.</strong> Remove the component along the normal n = (1, 1, −2): v<sub>plane</sub> = v − (v·n/n·n)n.</li>
+      <li><strong>Work it out.</strong> v·n = 1 + 1 − 2 = 0. The vector already lies in the plane, so the projection is v itself and z = 1.</li>
+      <li><strong>Check.</strong> Check: 1 + 1 − 2·1 = 0, so v satisfies the plane equation.</li>
+    </ol>
+    <p class="cx">Answer: 1.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Projection facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Let u be a nonzero vector in Rⁿ and p = proj<sub>u</sub>v. Which are TRUE for every v? (A) (v − p)·u = 0. (B) ‖p‖ ≤ ‖v‖. (C) proj<sub>u</sub>(proj<sub>u</sub>v) = p. (D) proj<sub>2u</sub>v = 2p.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Standard properties of projection onto a line.</li>
+      <li><strong>Which idea applies.</strong> p = (u·v/u·u)u depends only on the direction of u.</li>
+      <li><strong>Work it out.</strong> (A) The residual is orthogonal to u by construction. True. (B) ‖v‖² = ‖p‖² + ‖v − p‖². True. (C) Projecting twice changes nothing. True. (D) Replacing u by 2u gives (2u·v/4u·u)(2u) = p, not 2p. False.</li>
+      <li><strong>Check.</strong> Take u = (1, 0), v = (3, 4): p = (3, 0), and with 2u you still get (3, 0).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Dot product</dt><dd>Multiply matching entries and add. Zero means the vectors are orthogonal.</dd></div>
+    <div><dt>Length</dt><dd>‖u‖ = √(u·u), the distance from the origin to u.</dd></div>
+    <div><dt>Orthogonal</dt><dd>At a right angle, with dot product zero.</dd></div>
+    <div><dt>Projection</dt><dd>The closest point to a vector inside a line or subspace.</dd></div>
+    <div><dt>Residual</dt><dd>The leftover v − p, which is perpendicular to the subspace.</dd></div>
+    <div><dt>Projection onto a line</dt><dd>((v·u)/(u·u)) u.</dd></div>
+    <div><dt>Projection matrix</dt><dd>A matrix P with p = Pv. Symmetric and satisfies P² = P.</dd></div>
+    <div><dt>Column space</dt><dd>All vectors Ax, for every x.</dd></div>
+    <div><dt>Least squares</dt><dd>The best approximate solution of Ax = b, found by projecting b onto the column space.</dd></div>
+    <div><dt>Normal equations</dt><dd>AᵀAx = Aᵀb, the system that gives the least squares solution.</dd></div>
+    <div><dt>Gram-Schmidt</dt><dd>A method that removes earlier projections to build an orthogonal set.</dd></div>
+    <div><dt>Orthonormal</dt><dd>Orthogonal vectors, each of length 1.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>The projection is the closest point, and the residual is always perpendicular to the subspace.</li>
+    <li>For a line through u, the projection is ((v·u)/(u·u)) u.</li>
+    <li>Projection matrices satisfy P² = P and Pᵀ = P.</li>
+    <li>For least squares, solve AᵀAx = Aᵀb, not Ax = b.</li>
+    <li>Gram-Schmidt subtracts projections to make vectors orthogonal.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 10?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 10 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-009.html"><small>Previous, topic 9</small>Linear dependence and independence of vectors</a><a class="next" href="gate-011.html"><small>Next, topic 11</small>Orthogonal matrix &amp; idempotent matrix</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

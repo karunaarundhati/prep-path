@@ -1,0 +1,283 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 14: Rank & eigenvalues recap for RA context</title><meta name="description" content="A quick recap of two tools that link everything else in linear algebra: rank, which tells you whether a system of equations can be solved, and eigenvalues, which tell you about stability. You will also see how a robot arm loses control at a singular position."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g14" data-key="g14" data-noun="topic" data-num="14" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Rank &amp; eigenvalues recap for RA context</h1>
+<p class="lede">A quick recap of two tools that link everything else in linear algebra: rank, which tells you whether a system of equations can be solved, and eigenvalues, which tell you about stability. You will also see how a robot arm loses control at a singular position.</p>
+<div class="station"><b>14</b><span>Unit 1 · Linear algebra · Paper RA · Quick Recap</span></div>
+<ul class="topics"><li>Rank through echelon form</li><li>Solvability of Ax = b</li><li>Rank and the null space</li><li>Eigenvalues and singularity</li><li>Singularity in robot kinematics</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you are solving a puzzle with several clues. Some clues may repeat information you already have. The puzzle then has fewer real clues than it looks. The <strong>rank</strong> of a matrix counts how many real, non-repeated clues it contains.</p>
+  <p>Eigenvalues answer a different question: what happens when you repeat a process again and again? A direction whose eigenvalue is bigger than 1 in size grows with each step. A direction whose eigenvalue is smaller than 1 fades away.</p>
+  <p>Why does this matter for GATE RA? Robot arms, circuits and control systems are all described by matrices. Rank tells you whether the equations have a solution. Eigenvalues tell you whether a controlled system settles down.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Row operation</dt><dd>A change that keeps the solutions and the rank: swap rows, scale a row by a non-zero number, or add a multiple of one row to another.</dd></div>
+    <div><dt>Echelon form</dt><dd>A staircase shape where each row starts further right than the one above, with zeros below each pivot.</dd></div>
+    <div><dt>Pivot</dt><dd>The first non-zero entry of a row in echelon form.</dd></div>
+    <div><dt>Rank</dt><dd>The number of pivots. Equivalently, the number of independent columns.</dd></div>
+    <div><dt>Augmented matrix</dt><dd>The matrix [A | b], with the right-hand side b added as an extra column.</dd></div>
+    <div><dt>Null space and nullity</dt><dd>The null space is all x with Ax = 0. Its dimension is the nullity.</dd></div>
+    <div><dt>Characteristic polynomial</dt><dd>det(A − λI). Its roots are the eigenvalues.</dd></div>
+    <div><dt>Jacobian</dt><dd>A matrix of partial derivatives. For a robot arm, it links joint speeds to the speed of the tool tip.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Rank through echelon form">
+  <h2>Step 1: Rank through echelon form</h2>
+  <p>To find the rank, use row operations. They change the rows but keep the rank, so you can simplify freely until the pivots are visible.</p>
+  <p><strong>Worked example.</strong> Find the rank of A = [[1, 2, 3], [2, 4, 7], [1, 0, 1]].</p>
+  <ol>
+    <li>Row 2 minus 2 times row 1 gives (0, 0, 1). Row 3 minus row 1 gives (0, −2, −2).</li>
+    <li>Swap rows 2 and 3: [[1, 2, 3], [0, −2, −2], [0, 0, 1]]. This is in echelon form.</li>
+    <li>The pivots are 1, −2 and 1, one in each row, so rank(A) = 3.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>Rank equals the number of pivots. If some column has no pivot, the columns are dependent.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Do not count non-zero rows of the original matrix. Only the pivot count of the echelon form is the rank.</p></div>
+  <details class="check"><summary>Question: what is the rank of [[1, 2], [2, 4]]?</summary><div class="ans"><p>1. Row 2 minus 2 times row 1 gives (0, 0), so only one pivot remains.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Solvability of Ax = b">
+  <h2>Step 2: When does Ax = b have a solution?</h2>
+  <p>Build the augmented matrix [A | b] and compare two ranks:</p>
+  <div class="formula">Ax = b has a solution  ⇔  rank(A) = rank([A | b])</div>
+  <p>If the rank jumps when b is added, b creates a new pivot and the equations contradict each other. If the system is consistent with n unknowns:</p>
+  <ul>
+    <li><strong>Unique solution</strong> when rank(A) = n (a pivot in every column).</li>
+    <li><strong>Infinitely many solutions</strong> when the system is consistent and rank(A) &lt; n.</li>
+  </ul>
+  <p>The practice section works through the GATE questions that use this test. The key step is always the same: row reduce, then read off the pivots.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>With more equations than unknowns, solve with some of them, then test the extra ones. One failing extra equation means no solution.</p></div>
+  <details class="check"><summary>Question: a system has rank(A) = 2, rank([A | b]) = 3, and 2 unknowns. How many solutions?</summary><div class="ans"><p>None. The rank jumps when b is added, so the equations are inconsistent.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Rank and the null space">
+  <h2>Step 3: Rank and the null space</h2>
+  <p>The solutions of Ax = 0 form the null space. Its dimension is linked to the rank by the <strong>rank-nullity</strong> rule:</p>
+  <div class="formula">rank(A) + nullity(A) = number of columns of A</div>
+  <p>Each column either adds a pivot (a new direction) or does not (it is a combination of earlier columns, giving a free variable). The two counts add up to the number of columns.</p>
+  <p>For a matrix with more columns than rows, rank cannot exceed the number of rows, so the nullity is at least (columns − rows). This fact is used in the practice section.</p>
+  <details class="check"><summary>Question: a 5 × 3 matrix has rank 3. What is the dimension of its null space?</summary><div class="ans"><p>0. Rank-nullity gives 3 + nullity = 3, so nullity = 0. The only solution of Ax = 0 is x = 0.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Eigenvalues and singularity">
+  <h2>Step 4: Eigenvalues and singularity</h2>
+  <p>Eigenvalues are the roots of det(A − λI) = 0. Three statements about a square matrix always agree: A is singular (det = 0), 0 is an eigenvalue, and the rank is less than the size.</p>
+  <p><strong>Worked example.</strong> Let A = [[2, 1], [2, 1]]. The trace is 3 and the determinant is 0. The characteristic polynomial is λ² − 3λ, so the eigenvalues are 0 and 3. Because 0 is an eigenvalue, A is singular, and its rank is 1.</p>
+  <p>Eigenvalues also decide stability of ẋ = Ax, where ẋ is the rate of change of x. The solution settles to zero when every eigenvalue has a negative real part, and it blows up if any eigenvalue has a positive real part.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A homogeneous system Ax = 0 has a non-trivial solution exactly when A is singular.</p></div>
+  <details class="check"><summary>Question: a system ẋ = Ax has eigenvalues −1 and −2. Does x settle to zero?</summary><div class="ans"><p>Yes. Both eigenvalues have negative real parts, so every term decays.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Singularity in robot kinematics">
+  <h2>Step 5: Singularity in robot kinematics</h2>
+  <p>Take a planar robot arm with two links of lengths l<sub>1</sub> and l<sub>2</sub>, and joint angles θ<sub>1</sub> and θ<sub>2</sub>. The Jacobian J links joint speeds to the tool-tip speed. For this arm, its determinant simplifies to:</p>
+  <div class="formula">det J = l<sub>1</sub> l<sub>2</sub> sin θ<sub>2</sub></div>
+  <p>When det J = 0, the arm is in a <strong>singular configuration</strong>: θ<sub>2</sub> = 0 (fully stretched) or θ<sub>2</sub> = π (folded back). The rank of J drops, and the tool loses one direction of motion. No joint speed can move the tip that way.</p>
+  <p>The code below computes J at a sample pose and checks the formula.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+l1, l2 = 1.0, 1.0
+t1, t2 = 0.3, 0.5
+s1, c1 = math.sin(t1), math.cos(t1)
+s12, c12 = math.sin(t1 + t2), math.cos(t1 + t2)
+J = [[-l1 * s1 - l2 * s12, -l2 * s12], [l1 * c1 + l2 * c12, l2 * c12]]
+det = J[0][0] * J[1][1] - J[0][1] * J[1][0]
+print("det J =", round(det, 6))
+print("l1*l2*sin(theta2) =", round(l1 * l2 * math.sin(t2), 6))</code></pre>
+  <pre class="output">det J = 0.479426
+l1*l2*sin(theta2) = 0.479426</pre>
+  <div class="note trap"><p><span class="t">Trap</span>A singular configuration is not an unreachable position. The arm can reach the point, but it cannot move in one direction from there.</p></div>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>rank(A) = number of pivots</td><td>Rank via echelon form.</td><td>Any rank question.</td></tr>
+      <tr><td>Ax = b consistent ⇔ rank(A) = rank([A | b])</td><td>Existence of solutions.</td><td>Deciding if a system has a solution.</td></tr>
+      <tr><td>Unique solution ⇔ consistent and rank(A) = n</td><td>Uniqueness.</td><td>Counting solutions.</td></tr>
+      <tr><td>rank(A) + nullity(A) = number of columns</td><td>Rank-nullity.</td><td>Connecting rank and null space.</td></tr>
+      <tr><td>det(A − λI) = 0</td><td>Characteristic equation.</td><td>Finding eigenvalues.</td></tr>
+      <tr><td>A singular ⇔ det(A) = 0 ⇔ 0 is an eigenvalue</td><td>Singularity, three ways.</td><td>Checking invertibility.</td></tr>
+      <tr><td>det J = l<sub>1</sub>l<sub>2</sub> sin θ<sub>2</sub></td><td>Two-link arm Jacobian determinant.</td><td>Finding singular configurations.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Problems marked "verified PYQ" are real past GATE questions. The rest are GATE-style practice problems.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Rank of a small matrix</h3>
+    <div class="statement"><p>Find the rank of A = [[1, 2, 3], [2, 4, 6], [1, 0, 1]].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of pivots.</li>
+      <li><strong>Which idea applies.</strong> Row reduce and count pivots.</li>
+      <li><strong>Work it out.</strong> Row 2 is 2 times row 1, so it adds nothing. Row 3 minus row 1 gives (0, −2, −2), which is not zero. Two independent rows remain, so rank = 2.</li>
+      <li><strong>Check.</strong> The rank is less than 3, as expected from the repeated row.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Singular or not?</h3>
+    <div class="statement"><p>Let A = [[2, 1], [2, 1]]. Is A singular? What are its eigenvalues?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Singularity, and the eigenvalues.</li>
+      <li><strong>Which idea applies.</strong> A is singular when det = 0. Use λ² − trace·λ + det = 0.</li>
+      <li><strong>Work it out.</strong> det = 2 − 2 = 0, so A is singular. Trace = 3, so λ² − 3λ = 0, giving λ = 0 or 3.</li>
+      <li><strong>Check.</strong> The eigenvalue 0 confirms singularity, and 0 + 3 = 3 is the trace.</li>
+    </ol>
+    <p class="cx">Answer: yes, A is singular. Its eigenvalues are 0 and 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Unique solution for which α? (verified PYQ)</h3>
+    <div class="statement"><p>GATE CSE 2008 · Q3 (verified PYQ). The following system has a unique solution. What are the possible values of α?</p><p>x1 + x2 + 2x3 = 1, x1 + 2x2 + 3x3 = 2, x1 + 4x2 + αx3 = 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The values of α that give three pivots.</li>
+      <li><strong>Which idea applies.</strong> A unique solution needs rank 3, so det(A) ≠ 0.</li>
+      <li><strong>Work it out.</strong> Row 2 minus row 1 gives [0, 1, 1]. Row 3 minus row 1 gives [0, 3, α − 2]. Row 3 minus 3 times the new row 2 gives [0, 0, α − 5]. So α ≠ 5.</li>
+      <li><strong>Check.</strong> At α = 5 the last row is zero, the rank drops to 2, and there are infinitely many solutions.</li>
+    </ol>
+    <p class="cx">Answer: any real α except 5.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Condition for a non-trivial solution (verified PYQ)</h3>
+    <div class="statement"><p>GATE CSE 2015 Set 3 · Q42 (verified PYQ). If the following system has a non-trivial solution, which condition holds?</p><p>px + qy + rz = 0, qx + ry + pz = 0, rx + py + qz = 0.</p><p>(A) p − q + r = 0 or p = q = −r &nbsp; (B) p + q − r = 0 or p = −q = r &nbsp; (C) p + q + r = 0 or p = q = r &nbsp; (D) p − q + r = 0 or p = −q = −r</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The condition that makes the homogeneous system singular.</li>
+      <li><strong>Which idea applies.</strong> A square homogeneous system has a non-trivial solution exactly when its determinant is zero.</li>
+      <li><strong>Work it out.</strong> The determinant is 3pqr − (p³ + q³ + r³) = −(p + q + r)(p² + q² + r² − pq − qr − rp). The second factor is zero only when p = q = r.</li>
+      <li><strong>Check.</strong> With p = q = r = 1, every equation becomes x + y + z = 0, which has non-trivial solutions. With p = 1, q = 1, r = 0, option (A) holds, but the determinant is −2, so (A) is not sufficient.</li>
+    </ol>
+    <p class="cx">Answer: (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Rank from the null space (NAT, verified PYQ)</h3>
+    <div class="statement"><p>GATE CSE 2021 Set 2 · Q24 (verified PYQ). P is a 4 × 5 matrix such that every solution of Px = 0 is a scalar multiple of [2, 5, 4, 3, 1]ᵀ. What is the rank of P?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> rank(P).</li>
+      <li><strong>Which idea applies.</strong> Rank-nullity.</li>
+      <li><strong>Work it out.</strong> The null space is a line, so nullity = 1. P has 5 columns, so rank = 5 − 1 = 4.</li>
+      <li><strong>Check.</strong> A 4 × 5 matrix has at most 4 pivots, and 4 is that maximum.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Guaranteed solutions of Ax = 0 (NAT, verified PYQ)</h3>
+    <div class="statement"><p>GATE CSE 2024 (verified PYQ, rewritten as a number question). Let A be an n × m matrix with m &gt; n. What is the minimum number of linearly independent solutions that Ax = 0 is guaranteed to have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The guaranteed nullity over all such matrices.</li>
+      <li><strong>Which idea applies.</strong> nullity = m − rank(A), and rank(A) ≤ n.</li>
+      <li><strong>Work it out.</strong> Since rank(A) ≤ n, nullity ≥ m − n. A matrix of rank n reaches exactly m − n, so the guaranteed minimum is m − n.</li>
+      <li><strong>Check.</strong> A = 0 has nullity m, which is larger, so it does not lower the bound.</li>
+    </ol>
+    <p class="cx">Answer: m − n.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Singular configurations of a two-link arm (MSQ)</h3>
+    <div class="statement"><p>A planar two-link arm with l<sub>1</sub> = l<sub>2</sub> = 1 has Jacobian determinant det J = sin θ<sub>2</sub>. For θ<sub>2</sub> in [0, π], select all the singular values.</p><p>(A) θ<sub>2</sub> = 0 &nbsp; (B) θ<sub>2</sub> = π/2 &nbsp; (C) θ<sub>2</sub> = π &nbsp; (D) θ<sub>2</sub> = π/4</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The values of θ<sub>2</sub> where det J = 0.</li>
+      <li><strong>Which idea applies.</strong> A singular configuration is one where the Jacobian determinant is zero.</li>
+      <li><strong>Work it out.</strong> sin θ<sub>2</sub> = 0 at θ<sub>2</sub> = 0 and θ<sub>2</sub> = π. At π/2, sin = 1, and at π/4, sin = √2/2, so those are not singular.</li>
+      <li><strong>Check.</strong> θ<sub>2</sub> = 0 is fully stretched and θ<sub>2</sub> = π is folded back. In both, the links line up, which removes a direction of motion.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Rank of a diagonalizable matrix (NAT, 1 mark)</h3>
+    <div class="statement"><p>A 5 × 5 diagonalizable matrix has characteristic polynomial λ²(λ − 1)(λ − 3)². Find rank(A).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rank from the eigenvalue list.</li>
+      <li><strong>Which idea applies.</strong> For a diagonalizable matrix, the rank equals the number of nonzero eigenvalues counted with multiplicity.</li>
+      <li><strong>Work it out.</strong> Eigenvalues: 0, 0, 1, 3, 3. Nonzero count = 3. Rank = 3.</li>
+      <li><strong>Check.</strong> Diagonalizable means the zero eigenvalue has a 2 dimensional eigenspace, which is the null space, so nullity 2 and rank 5 − 2 = 3.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Rank and eigenvalue facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Let A be a real n × n matrix. Which are TRUE? (A) rank(A) is at least the number of nonzero eigenvalues counted with algebraic multiplicity. (B) If A is singular, 0 is an eigenvalue of A. (C) [[0, 1], [0, 0]] has rank 1 but no nonzero eigenvalue. (D) rank(A) always equals the number of nonzero eigenvalues counted with multiplicity.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> How rank and eigenvalues relate in general.</li>
+      <li><strong>Which idea applies.</strong> Eigenvectors for nonzero eigenvalues lie in the column space of A. A nilpotent matrix shows the rank can be larger than that count.</li>
+      <li><strong>Work it out.</strong> (A) The generalized eigenspaces for nonzero eigenvalues sit inside the column space, so the bound holds. True. (B) det(A − 0I) = det(A) = 0. True. (C) Its only eigenvalue is 0, yet one column is nonzero. True. (D) The matrix in (C) has rank 1 and zero nonzero eigenvalues. False. Equality holds for diagonalizable matrices.</li>
+      <li><strong>Check.</strong> (C) is the counterexample to (D), so (C) and (D) cannot both be true.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Rank of a Gram matrix (NAT, 2 marks)</h3>
+    <div class="statement"><p>X is a 100 × 6 data matrix of rank 4. Find the number of zero eigenvalues of XᵀX.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> How many eigenvalues of the 6 × 6 Gram matrix are zero.</li>
+      <li><strong>Which idea applies.</strong> rank(XᵀX) = rank(X), and XᵀX is symmetric so it is diagonalizable.</li>
+      <li><strong>Work it out.</strong> rank(XᵀX) = 4, so 6 − 4 = 2 eigenvalues are zero.</li>
+      <li><strong>Check.</strong> XᵀXv = 0 means ‖Xv‖² = 0, so Null(XᵀX) = Null(X) with dimension 2.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Row operation</dt><dd>A change that keeps the solutions and the rank.</dd></div>
+    <div><dt>Echelon form</dt><dd>A staircase form that shows the pivots clearly.</dd></div>
+    <div><dt>Pivot</dt><dd>The first non-zero entry of a row in echelon form.</dd></div>
+    <div><dt>Rank</dt><dd>The number of pivots.</dd></div>
+    <div><dt>Augmented matrix</dt><dd>[A | b], used to test whether Ax = b is consistent.</dd></div>
+    <div><dt>Consistent</dt><dd>The system has at least one solution.</dd></div>
+    <div><dt>Unique solution</dt><dd>Consistent and rank equal to the number of unknowns.</dd></div>
+    <div><dt>Null space</dt><dd>All solutions of Ax = 0.</dd></div>
+    <div><dt>Nullity</dt><dd>The dimension of the null space.</dd></div>
+    <div><dt>Rank-nullity</dt><dd>rank + nullity = number of columns.</dd></div>
+    <div><dt>Characteristic polynomial</dt><dd>det(A − λI), whose roots are the eigenvalues.</dd></div>
+    <div><dt>Singular</dt><dd>Determinant zero, equivalently 0 is an eigenvalue.</dd></div>
+    <div><dt>Stability</dt><dd>A system ẋ = Ax settles when all eigenvalues have negative real parts.</dd></div>
+    <div><dt>Jacobian</dt><dd>The matrix linking joint speeds to tool-tip speed.</dd></div>
+    <div><dt>Singular configuration</dt><dd>A robot pose where the Jacobian loses rank.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Rank is the number of pivots, found by row operations.</li>
+    <li>Ax = b has a solution exactly when adding b does not raise the rank.</li>
+    <li>Unique solution needs rank equal to the number of unknowns.</li>
+    <li>Rank plus nullity equals the number of columns.</li>
+    <li>A square matrix is singular exactly when its determinant is zero, which happens exactly when 0 is an eigenvalue.</li>
+    <li>In robotics, a singular configuration is where the Jacobian determinant is zero.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 14?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 14 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-013.html"><small>Previous, topic 13</small>Eigenvalues and eigenvectors</a><a class="next" href="gate-015.html"><small>Next, topic 15</small>Quadratic forms</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

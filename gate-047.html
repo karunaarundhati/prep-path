@@ -1,0 +1,392 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 47: z-test</title><meta name="description" content="A z-test is a formal way to decide whether sample evidence is strong enough to reject a claim about a population mean, when the population standard deviation is known and the sample is large. GATE DA uses it to test hypotheses, so this page builds every step from the ground up."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g47" data-key="g47" data-noun="topic" data-num="47" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>z-test</h1>
+<p class="lede">A z-test is a formal way to decide whether sample evidence is strong enough to reject a claim about a population mean, when the population standard deviation is known and the sample is large. GATE DA uses it to test hypotheses, so this page builds every step from the ground up.</p>
+<div class="station"><b>47</b><span>Unit 3 · Probability and statistics · Paper DA · New concept</span></div>
+<ul class="topics"><li>Hypotheses: the claim and its rival</li><li>The z test statistic</li><li>One-tailed and two-tailed tests, critical values and p-values</li><li>Errors in testing: Type I and Type II</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a factory says its bolts have a mean length of 50 mm. You take 25 bolts and find their average is 53 mm. Is that evidence the factory is wrong, or could a sample average of 53 easily happen by chance if the true mean really is 50?</p>
+  <p>A hypothesis test answers this in a structured way. You start by assuming the claim is true. Then you ask how surprising the sample would be under that assumption. If the result is very surprising, you reject the claim. If not, you keep it, which is not the same as proving it.</p>
+  <p>The z-test is the version of this idea used when the population standard deviation sigma is known, and the sample mean can be treated as normal, usually because the sample is large (the Central Limit Theorem applies). It is a standard topic in GATE DA, and the steps are the same every time, so it is worth learning them carefully.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Each entry gives the plain meaning first and the precise definition second.</p>
+  <dl>
+    <div><dt>Hypothesis</dt><dd>A claim about a population that you can test with data.</dd></div>
+    <div><dt>Null hypothesis (H0)</dt><dd>The default claim, usually "no effect" or "the mean equals mu0". It is assumed true until the data say otherwise.</dd></div>
+    <div><dt>Alternative hypothesis (H1)</dt><dd>The rival claim you accept if you reject H0. It can be one-sided or two-sided.</dd></div>
+    <div><dt>Test statistic</dt><dd>A number computed from the sample that measures how far the data are from H0.</dd></div>
+    <div><dt>Critical value</dt><dd>The cut-off for the test statistic. Beyond it, you reject H0.</dd></div>
+    <div><dt>Significance level (alpha)</dt><dd>The largest chance of a Type I error you accept, often 0.05.</dd></div>
+    <div><dt>p-value</dt><dd>The probability, assuming H0 is true, of getting a result at least as extreme as the one observed.</dd></div>
+    <div><dt>Type I error</dt><dd>Rejecting H0 when it is actually true. Its probability is alpha.</dd></div>
+    <div><dt>Type II error</dt><dd>Failing to reject H0 when it is actually false. Its probability is written beta.</dd></div>
+    <div><dt>Power</dt><dd>The probability of correctly rejecting a false H0, equal to 1 minus beta.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Hypotheses">
+  <h2>Hypotheses: the claim and its rival</h2>
+  <h3>Setting up H0 and H1</h3>
+  <p>Every test starts with two statements about the population mean mu. The null hypothesis is the default:</p>
+  <div class="formula">H0: mu = 50</div>
+  <p>The alternative is what you would believe if the data were strong enough to overturn H0. There are three common forms:</p>
+  <ul>
+    <li><strong>Two-tailed:</strong> H1: mu is not equal to 50. The mean could be higher or lower.</li>
+    <li><strong>Right-tailed:</strong> H1: mu is greater than 50. You only care about an increase.</li>
+    <li><strong>Left-tailed:</strong> H1: mu is less than 50. You only care about a decrease.</li>
+  </ul>
+  <p>Decide the form of H1 before you look at the data. Choosing it after seeing the data is cheating, because it makes a result look more significant than it is.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>H0 is never "proved" by a test. The test either rejects H0 or fails to reject it. "Fail to reject" means the data are not strong enough to decide against H0.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>H0 and H1 are statements about the population parameter mu, never about the sample mean x-bar. The sample mean is known, so it is not a hypothesis.</p></div>
+
+  <details class="check"><summary>Self-check: a company says its average delivery time is at most 30 minutes, and you suspect it is longer. Which is H0?</summary><div class="ans"><p>H0: mu is at most 30 (the company's claim), and H1: mu is greater than 30. You test the claim the company makes, and you reject it only if the data are strong evidence against it.</p></div></details>
+  <details class="check"><summary>Self-check: can you choose H1 after seeing the sample mean?</summary><div class="ans"><p>No. The choice must be made before looking at the data, otherwise the significance level is misstated.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="The z test statistic">
+  <h2>The z test statistic</h2>
+  <h3>The formula</h3>
+  <p>The test statistic measures how many standard errors the sample mean is from the value claimed by H0:</p>
+  <div class="formula">z = (x-bar - mu0) / (sigma / square root of n)</div>
+  <p>Symbols: x-bar is the sample mean, mu0 is the value in H0, sigma is the known population standard deviation, and n is the sample size. The denominator is the standard error from the Central Limit Theorem. Under H0, z follows the standard normal distribution.</p>
+
+  <h3>Worked example</h3>
+  <p>The factory claims mu0 = 50 mm. The known sigma is 10 mm. A sample of n = 25 gives x-bar = 53.</p>
+  <p>Step 1: standard error = 10 / square root of 25 = 10 / 5 = 2.</p>
+  <p>Step 2: z = (53 - 50) / 2 = 3 / 2 = 1.5.</p>
+  <p>Step 3: the sample mean is 1.5 standard errors above the claim. Whether that is surprising depends on the test form and the significance level, which we decide next.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>Write the standard error on its own line before you compute z. Most mistakes in z-tests come from using sigma instead of sigma over the square root of n.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Use the hypothesised value mu0 in the numerator, not the sample mean of a different sample, and not the mean you would like to test in some other context.</p></div>
+
+  <details class="check"><summary>Self-check: mu0 = 100, sigma = 20, n = 16 and x-bar = 104. Find z.</summary><div class="ans"><p>SE = 20 / 4 = 5. z = (104 - 100) / 5 = 0.8.</p></div></details>
+  <details class="check"><summary>Self-check: if z = -2.5, which way is the sample mean relative to mu0?</summary><div class="ans"><p>Below mu0, by 2.5 standard errors.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Critical values and p-values">
+  <h2>One-tailed and two-tailed tests, critical values and p-values</h2>
+  <h3>Critical value approach</h3>
+  <p>At significance level 5 per cent, the critical values are:</p>
+  <div class="tablewrap"><table><thead><tr><th>Test form</th><th>Rejection rule at alpha = 0.05</th></tr></thead><tbody>
+    <tr><td>Two-tailed</td><td>reject H0 if |z| is greater than 1.96</td></tr>
+    <tr><td>Right-tailed</td><td>reject H0 if z is greater than 1.645</td></tr>
+    <tr><td>Left-tailed</td><td>reject H0 if z is less than -1.645</td></tr>
+  </tbody></table></div>
+  <p>Two-tailed splits the 5 per cent into 2.5 per cent in each tail, which is why the cut-off is 1.96. A one-tailed test puts all 5 per cent in one tail, so the cut-off is smaller, at 1.645.</p>
+
+  <h3>p-value approach</h3>
+  <p>The p-value is the probability of a result at least as extreme as the observed z, assuming H0 is true. Reject H0 when the p-value is less than alpha. For the factory example:</p>
+  <div class="formula">one-tailed p = P(Z greater than 1.5) = 1 - 0.9332 = 0.0668</div>
+  <div class="formula">two-tailed p = 2 times 0.0668 = 0.1336</div>
+  <p>Since 0.1336 is larger than 0.05, we fail to reject H0 at the 5 per cent level, even though the sample mean looked different from 50. The sample was not big enough, or the difference was not large enough, to be convincing.</p>
+
+  <h3>A stronger result</h3>
+  <p>Now suppose the sample mean is 54, so z = 4 / 2 = 2. Then two-tailed p = 2 times P(Z greater than 2) = 2 times 0.0228 = 0.0455. This is less than 0.05, so we reject H0 at the 5 per cent level. The critical value rule agrees, because |2| is greater than 1.96.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Both approaches always give the same decision. The critical value approach compares z with a cut-off. The p-value approach compares a probability with alpha.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>A p-value is not the probability that H0 is true. It is the probability of the data, assuming H0 is true.</p></div>
+
+  <details class="check"><summary>Self-check: z = 1.8 for a right-tailed test at 5 per cent. Reject H0?</summary><div class="ans"><p>Yes. 1.8 is greater than 1.645, so reject H0. The one-tailed cut-off is smaller, so the same z is significant in one tail but not in two.</p></div></details>
+  <details class="check"><summary>Self-check: a two-tailed p-value is 0.03. At alpha = 0.05, what do you conclude?</summary><div class="ans"><p>Reject H0, since 0.03 is less than 0.05.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Type I and Type II errors">
+  <h2>Errors in testing: Type I and Type II</h2>
+  <h3>Two ways to be wrong</h3>
+  <p>The decision is based on random data, so it can be wrong in two ways:</p>
+  <div class="tablewrap"><table><thead><tr><th></th><th>H0 is actually true</th><th>H0 is actually false</th></tr></thead><tbody>
+    <tr><td>Reject H0</td><td>Type I error, probability alpha</td><td>Correct decision, power</td></tr>
+    <tr><td>Fail to reject H0</td><td>Correct decision</td><td>Type II error, probability beta</td></tr>
+  </tbody></table></div>
+  <p>Type I error is a false alarm: you reject a true claim. Its probability is exactly alpha, the significance level you chose. Type II error is a missed detection: you fail to reject a false claim. Its probability depends on how far the true mean is from mu0, on sigma, and on n.</p>
+
+  <h3>How n affects the trade-off</h3>
+  <p>Increasing n reduces the standard error, so the test becomes more sensitive. For a fixed alpha, a larger sample lowers beta and raises the power. Making alpha smaller, for example from 0.05 to 0.01, makes Type I errors rarer but makes Type II errors more likely, unless the sample grows.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>A question may ask which error is controlled directly. The answer is Type I, because alpha is chosen in advance. Type II is not fixed by the test design alone.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Failing to reject H0 does not prove H0 is true. It only means the data were not strong enough to reject it, which may be a Type II error.</p></div>
+
+  <details class="check"><summary>Self-check: alpha = 0.05 and H0 is true. What is the chance of a wrong rejection?</summary><div class="ans"><p>0.05, which is the Type I error rate by definition.</p></div></details>
+  <details class="check"><summary>Self-check: how can you increase the power without changing alpha?</summary><div class="ans"><p>Increase n, which reduces the standard error, or test a mean that is further from mu0.</p></div></details>
+
+  <h3>A Python check</h3>
+  <p>This program computes the z statistic and both p-values for two sample means, and checks the normal values used in the critical value table.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def phi(z):
+    return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+
+mu0, sigma, n = 50, 10, 25
+for xbar in (53, 54):
+    z = (xbar - mu0) / (sigma / math.sqrt(n))
+    one = 1 - phi(z)
+    two = 2 * (1 - phi(abs(z)))
+    print(f"xbar = {xbar} | z = {round(z, 4)} | one-tailed p = {round(one, 4)} | two-tailed p = {round(two, 4)}")
+
+print("critical z, two-tailed 5% =", 1.96, "| check phi:", round(phi(1.96), 4))
+print("critical z, one-tailed 5% =", 1.645, "| check phi:", round(phi(1.645), 4))
+</code></pre>
+  <pre class="output">xbar = 53 | z = 1.5 | one-tailed p = 0.0668 | two-tailed p = 0.1336
+xbar = 54 | z = 2.0 | one-tailed p = 0.0228 | two-tailed p = 0.0455
+critical z, two-tailed 5% = 1.96 | check phi: 0.975
+critical z, one-tailed 5% = 1.645 | check phi: 0.95</pre>
+  <p>The output confirms the factory example: z = 1.5 is not significant two-tailed, while z = 2 is.</p>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table><thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead><tbody>
+    <tr><td>z = (x-bar - mu0) / (sigma / square root of n)</td><td>z test statistic</td><td>Sigma known, mean test</td></tr>
+    <tr><td>Two-tailed p = 2 times P(Z greater than |z|)</td><td>Two-sided p-value</td><td>H1: mu not equal to mu0</td></tr>
+    <tr><td>One-tailed p = P(Z greater than z) for right tail</td><td>One-sided p-value</td><td>H1: mu greater than mu0</td></tr>
+    <tr><td>Critical values: 1.96 two-tailed, 1.645 one-tailed (5 per cent)</td><td>Rejection cut-offs</td><td>Critical value method</td></tr>
+    <tr><td>P(Type I error) = alpha; power = 1 - beta</td><td>Error probabilities</td><td>Interpreting a test</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original, GATE-style exercises written for practice. They are not past exam questions. Try each one on paper before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Compute a z statistic</h3>
+    <div class="statement"><p>mu0 = 40, sigma = 6, n = 36 and x-bar = 42. Find z.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The z statistic.</li>
+      <li><strong>Which idea applies.</strong> z = (x-bar - mu0) / (sigma / square root of n).</li>
+      <li><strong>Work it out.</strong> SE = 6 / 6 = 1. z = (42 - 40) / 1 = 2.</li>
+      <li><strong>Check.</strong> The sample mean is 2 standard errors above mu0.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which cut-off applies?</h3>
+    <div class="statement"><p>A right-tailed z-test is run at alpha = 0.05. What is the rejection rule?</p><ul><li>(A) reject if z is greater than 1.96</li><li>(B) reject if z is greater than 1.645</li><li>(C) reject if |z| is greater than 1.645</li><li>(D) reject if z is less than -1.645</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The correct right-tail rule.</li>
+      <li><strong>Which idea applies.</strong> A one-tailed test puts all 5 per cent in one tail.</li>
+      <li><strong>Work it out.</strong> The cut-off is 1.645 for one tail, and the rule rejects for large positive z.</li>
+      <li><strong>Check.</strong> (A) uses the two-tailed cut-off, (C) is two-sided, and (D) is the left tail.</li>
+    </ol>
+    <p class="cx">Answer: (B)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Two-tailed decision</h3>
+    <div class="statement"><p>A test of H0: mu = 100 against H1: mu is not equal to 100 uses sigma = 15 and n = 36. The sample mean is 105. Find the z statistic and state whether H0 is rejected at alpha = 0.05.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The z value and a decision.</li>
+      <li><strong>Which idea applies.</strong> z = (x-bar - mu0) / (sigma / square root of n), then compare |z| with 1.96.</li>
+      <li><strong>Work it out.</strong> SE = 15 / 6 = 2.5. z = (105 - 100) / 2.5 = 2. Since |2| is greater than 1.96, reject H0.</li>
+      <li><strong>Check.</strong> The two-tailed p-value is 0.0455, which is below 0.05, so the decision agrees.</li>
+    </ol>
+    <p class="cx">Answer: z = 2, reject H0</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about testing are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) The significance level alpha is the probability of a Type I error.</li><li>(B) A p-value of 0.2 means the probability that H0 is true is 0.2.</li><li>(C) Increasing n increases the power of the test, for fixed alpha.</li><li>(D) Failing to reject H0 proves that H0 is true.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Judge each statement.</li>
+      <li><strong>Which idea applies.</strong> Error definitions, the meaning of a p-value, and the effect of n.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False: the p-value is not the probability of H0. (C) True. (D) False: failing to reject does not prove H0.</li>
+      <li><strong>Check.</strong> Statements (B) and (D) are the two most common misreadings.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C). Select all that apply.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Compute a one-tailed p-value</h3>
+    <div class="statement"><p>A right-tailed z-test gives z = 1.8. Find the one-tailed p-value. Use P(Z greater than 1.8) = 0.0359.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The p-value for a right tail.</li>
+      <li><strong>Which idea applies.</strong> One-tailed p = P(Z greater than z).</li>
+      <li><strong>Work it out.</strong> p = 0.0359.</li>
+      <li><strong>Check.</strong> A z above 1.645 gives p below 0.05, and 0.0359 is indeed below 0.05.</li>
+    </ol>
+    <p class="cx">Answer: 0.0359</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Decision with a left-tailed test</h3>
+    <div class="statement"><p>A left-tailed z-test of H0: mu = 60 against H1: mu less than 60 uses sigma = 8 and n = 64. The sample mean is 57.4. Find z and the one-tailed p-value to 4 decimal places, using P(Z less than -2.6) = 0.0047. Decide at alpha = 0.05.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> z, the p-value, and a decision.</li>
+      <li><strong>Which idea applies.</strong> z = (x-bar - mu0) / (sigma / square root of n), and for a left test p = P(Z less than z).</li>
+      <li><strong>Work it out.</strong> SE = 8 / 8 = 1. z = (57.4 - 60) / 1 = -2.6. p = P(Z less than -2.6) = 0.0047. Since 0.0047 is less than 0.05, reject H0.</li>
+      <li><strong>Check.</strong> The sample mean is 2.6 standard errors below 60, which is well beyond the left cut-off of -1.645.</li>
+    </ol>
+    <p class="cx">Answer: z = -2.6, p = 0.0047, reject H0</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Power comparison</h3>
+    <div class="statement"><p>Two tests of H0: mu = 50 at alpha = 0.05 use a two-tailed z-test with sigma = 10. Test A uses n = 25, and test B uses n = 100. Both are run when the true mean is 53. Which statements are true?</p><ul><li>(A) Test B has a smaller standard error than test A.</li><li>(B) Test B has a higher power than test A.</li><li>(C) Test A has a Type I error rate of 0.05.</li><li>(D) Test B has a Type I error rate of 0.01.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Compare the two tests.</li>
+      <li><strong>Which idea applies.</strong> Standard error falls with n, power rises with a smaller SE for fixed alpha, and Type I error equals alpha.</li>
+      <li><strong>Work it out.</strong> SE for A = 2 and for B = 1, so (A) is false. (B) is true, because the z for B is 3 standard errors, and the power is much higher. (C) is true, since alpha = 0.05. (D) is false, because alpha = 0.05 for both.</li>
+      <li><strong>Check.</strong> The true mean of 53 is 3 units away. For A that is 1.5 standard errors, and for B it is 3 standard errors, so B detects the difference more often.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C). Select all that apply.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Two-sided p-value for bottle fill (NAT, 2 marks)</h3>
+    <div class="statement"><p>A machine should fill bottles to 50 ml on average. The standard deviation of the fill is known to be 6 ml. A random sample of 36 bottles has mean 52.4 ml. Test H0: mu = 50 against H1: mu is not equal to 50, at the 5 percent level, using the z-test. Find the two-sided p-value to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The two-sided p-value, and whether H0 is rejected.</li>
+      <li><strong>Which idea applies.</strong> The z-test with known sigma: z = (sample mean - 50) / (sigma / square root of n), then p = 2 times P(Z greater than |z|).</li>
+      <li><strong>Work it out.</strong> The standard error is 6 / 6 = 1, so z = (52.4 - 50) / 1 = 2.4. Then P(Z greater than 2.4) = 0.00820, and p = 2 times 0.00820 = 0.0164.</li>
+      <li><strong>Check.</strong> The value |z| = 2.4 is above the 5 percent critical value 1.96, so the p-value must be below 0.05, which it is. H0 is rejected.</li>
+    </ol>
+    <p class="cx">Answer: p = 0.0164 (reject H0 at the 5 percent level)</p>
+    <pre class="code" data-lang="python"><code>import math
+def Phi(z):
+    return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+mu0, sigma, n, xbar = 50, 6, 36, 52.4
+z = (xbar - mu0) / (sigma / math.sqrt(n))
+p = 2 * (1 - Phi(abs(z)))
+print(f"z = {round(z, 3)}")
+print(f"two-sided p-value = {round(p, 4)}")
+print(f"reject at 5%? {p &lt; 0.05}")</code></pre>
+    <pre class="output">z = 2.4
+two-sided p-value = 0.0164
+reject at 5%? True</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Power of an upper test (NAT, 2 marks)</h3>
+    <div class="statement"><p>A battery supplier claims a mean life of 100 hours. A test of H0: mu = 100 against H1: mu greater than 100 will use the upper one-sided z-test at significance level 5 percent, with critical z value 1.645. The population standard deviation is 12 hours and the sample size is 36. Assume the true mean life is 104 hours. Find the power of the test, which is the probability of rejecting H0, to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The probability of rejecting H0 when the true mean is 104.</li>
+      <li><strong>Which idea applies.</strong> First find the critical sample mean under H0, then find the probability that the sample mean exceeds it under H1.</li>
+      <li><strong>Work it out.</strong> The standard error is 12 / 6 = 2. The critical sample mean is 100 + 1.645 times 2 = 103.29. Under mu = 104, the power is P(X-bar greater than 103.29) = P(Z greater than (103.29 - 104) / 2) = P(Z greater than -0.355) = 0.639. The Type II error is 1 - 0.639 = 0.361.</li>
+      <li><strong>Check.</strong> The power is above 0.5 because the true mean 104 lies above the critical value 103.29.</li>
+    </ol>
+    <p class="cx">Answer: power = 0.639</p>
+    <pre class="code" data-lang="python"><code>import math
+def Phi(z):
+    return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+mu0, mu1, sigma, n, zc = 100, 104, 12, 36, 1.645
+se = sigma / math.sqrt(n)
+crit = mu0 + zc * se
+power = 1 - Phi((crit - mu1) / se)
+print(f"critical sample mean = {round(crit, 2)}")
+print(f"power = {round(power, 3)}")
+print(f"Type II error = {round(1 - power, 3)}")</code></pre>
+    <pre class="output">critical sample mean = 103.29
+power = 0.639
+Type II error = 0.361</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Which z-test statements hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Select all that apply. A z-test is run at a fixed significance level alpha, and H0 is true unless stated otherwise.</p><ul><li>(A) If the p-value is 0.03, the null hypothesis is rejected at the 5 percent level.</li><li>(B) If H0 is rejected at the 1 percent level, it is also rejected at the 5 percent level.</li><li>(C) When H0 is true, the probability of a Type I error equals the significance level alpha.</li><li>(D) If H0 is not rejected, we have proved that H0 is true.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about decisions in hypothesis testing are correct.</li>
+      <li><strong>Which idea applies.</strong> Reject H0 when the p-value is below alpha. Type I error is rejecting a true H0.</li>
+      <li><strong>Work it out.</strong> (A) True: 0.03 is below 0.05. (B) True: a 1 percent level is stricter, so anything rejected at 1 percent is also rejected at 5 percent. (C) True: by definition of the significance level. (D) False: failing to reject only means the data do not give enough evidence against H0, and says nothing about proof.</li>
+      <li><strong>Check.</strong> The Python block shows the two-sided critical z values that match the alpha levels 0.10, 0.05 and 0.01.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Select all that apply.</p>
+    <pre class="code" data-lang="python"><code>import math
+def Phi(z):
+    return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+for z in (1.645, 1.96, 2.576):
+    print(f"two-sided alpha at z = {z}: {round(2 * (1 - Phi(z)), 3)}")</code></pre>
+    <pre class="output">two-sided alpha at z = 1.645: 0.1
+two-sided alpha at z = 1.96: 0.05
+two-sided alpha at z = 2.576: 0.01</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Two-machine z-test (NAT, 2 marks)</h3>
+    <div class="statement"><p>Two machines fill cans. Machine A: a sample of 50 cans has mean 52 ml, and the known population SD is 4 ml. Machine B: a sample of 40 cans has mean 50 ml, and the known population SD is 5 ml. The two populations are independent. Test H0: the two population means are equal, against a two-sided alternative, using the two-sample z-test. Find the two-sided p-value to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The two-sided p-value for comparing two means with known variances.</li>
+      <li><strong>Which idea applies.</strong> The standard error of a difference is square root of (sigma1^2 / n1 + sigma2^2 / n2), and z = difference / standard error.</li>
+      <li><strong>Work it out.</strong> The standard error is square root of (16 / 50 + 25 / 40) = square root of 0.945 = 0.9721. Then z = (52 - 50) / 0.9721 = 2.057. The two-sided p-value is 2 times (1 - Phi(2.057)) = 2 times 0.0198 = 0.0396, rounded to 4 decimal places.</li>
+      <li><strong>Check.</strong> The p-value 0.0396 is below 0.05 but above 0.01, so H0 is rejected at the 5 percent level and not at the 1 percent level.</li>
+    </ol>
+    <p class="cx">Answer: p = 0.0396</p>
+    <pre class="code" data-lang="python"><code>import math
+def Phi(z):
+    return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+m1, s1, n1 = 52, 4, 50
+m2, s2, n2 = 50, 5, 40
+se = math.sqrt(s1 ** 2 / n1 + s2 ** 2 / n2)
+z = (m1 - m2) / se
+p = 2 * (1 - Phi(abs(z)))
+print(f"standard error = {round(se, 4)}")
+print(f"z = {round(z, 4)}")
+print(f"two-sided p-value = {round(p, 4)}")</code></pre>
+    <pre class="output">standard error = 0.9721
+z = 2.0574
+two-sided p-value = 0.0396</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Null hypothesis (H0)</dt><dd>The default claim, assumed true until rejected.</dd></div>
+    <div><dt>Alternative hypothesis (H1)</dt><dd>The rival claim, one-sided or two-sided.</dd></div>
+    <div><dt>z statistic</dt><dd>(x-bar - mu0) / (sigma / square root of n).</dd></div>
+    <div><dt>Two-tailed cut-off</dt><dd>1.96 at alpha = 0.05.</dd></div>
+    <div><dt>One-tailed cut-off</dt><dd>1.645 at alpha = 0.05.</dd></div>
+    <div><dt>p-value</dt><dd>Probability of a result at least as extreme, assuming H0 is true.</dd></div>
+    <div><dt>Decision rule</dt><dd>Reject H0 when the p-value is less than alpha.</dd></div>
+    <div><dt>Type I error</dt><dd>Rejecting a true H0. Probability alpha.</dd></div>
+    <div><dt>Type II error</dt><dd>Failing to reject a false H0. Probability beta.</dd></div>
+    <div><dt>Power</dt><dd>1 minus beta, the chance of detecting a false H0.</dd></div>
+    <div><dt>Fail to reject</dt><dd>Not the same as accepting H0.</dd></div>
+    <div><dt>Standard error</dt><dd>sigma / square root of n for a mean.</dd></div>
+    <div><dt>Significance level</dt><dd>alpha, chosen before the test.</dd></div>
+    <div><dt>Sample size effect</dt><dd>Larger n lowers the SE and raises the power.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Choose H1 before looking at the data.</li>
+    <li>The z statistic divides by the standard error, sigma over the square root of n.</li>
+    <li>Two-tailed 5 per cent cut-off is 1.96. One-tailed is 1.645.</li>
+    <li>A p-value is not the probability that H0 is true.</li>
+    <li>Failing to reject H0 does not prove H0.</li>
+    <li>Type I error is controlled by alpha. Type II error depends on the true mean and n.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 47?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 47 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-046.html"><small>Previous, topic 46</small>t-distribution &amp; Chi-squared distribution</a><a class="next" href="gate-048.html"><small>Next, topic 48</small>t-test</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

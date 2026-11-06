@@ -1,0 +1,502 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 70: Stacks and Queues</title><meta name="description" content="A stack and a queue are two simple ways to hold a line of items. A stack gives back the newest item first, and a queue gives back the oldest item first. Both appear in compilers, operating systems and many GATE questions, usually as trace problems."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g70" data-key="g70" data-noun="topic" data-num="70" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Stacks and Queues</h1>
+<p class="lede">A stack and a queue are two simple ways to hold a line of items. A stack gives back the newest item first, and a queue gives back the oldest item first. Both appear in compilers, operating systems and many GATE questions, usually as trace problems.</p>
+<div class="station"><b>70</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Stack: last in, first out</li><li>Stack applications: brackets and postfix expressions</li><li>Queue: first in, first out</li><li>Circular queue</li><li>Priority queue and deque</li><li>Time complexity and tracing</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Picture a pile of plates in a kitchen. You add a clean plate to the top, and when you need a plate you take the top one. The last plate placed is the first plate removed. That is a <strong>stack</strong>, and the rule is called <strong>LIFO</strong>, which stands for last in, first out.</p>
+  <p>Now picture a queue at a bus stop. The person who arrived first gets on the bus first. New people join at the back, and the bus takes people from the front. That is a <strong>queue</strong>, and the rule is called <strong>FIFO</strong>, which stands for first in, first out.</p>
+  <p>Both structures hold items in a line, and both have two main operations: put an item in, and take an item out. The only difference is which end the item leaves from. That single difference changes everything about how a trace works, so practise it until it feels automatic.</p>
+  <p><strong>Why this matters for GATE.</strong> Stacks are used to check brackets, to evaluate expressions, and to run recursion. Queues are used to schedule jobs and to process requests in order. Exam questions often give a sequence of operations and ask for the final contents, the output order, or the number of items left. The method is to draw the structure after each operation.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Stack</dt><dd>A list of items where items are added and removed at one end, called the top. Plain meaning: a pile of plates. Precise definition: an abstract data type with LIFO ordering.</dd></div>
+    <div><dt>LIFO</dt><dd>Last in, first out. The most recently added item is removed first.</dd></div>
+    <div><dt>push</dt><dd>Add an item to the top of a stack.</dd></div>
+    <div><dt>pop</dt><dd>Remove and return the item at the top of a stack.</dd></div>
+    <div><dt>peek (or top)</dt><dd>Look at the top item without removing it.</dd></div>
+    <div><dt>Queue</dt><dd>A list of items where items are added at the back, called the rear, and removed at the front. Precise definition: an abstract data type with FIFO ordering.</dd></div>
+    <div><dt>FIFO</dt><dd>First in, first out. The oldest item is removed first.</dd></div>
+    <div><dt>enqueue</dt><dd>Add an item at the rear of a queue.</dd></div>
+    <div><dt>dequeue</dt><dd>Remove and return the item at the front of a queue.</dd></div>
+    <div><dt>Circular queue</dt><dd>A queue stored in a fixed array where the end of the array wraps around to the start, so space is reused.</dd></div>
+    <div><dt>Overflow</dt><dd>An attempt to push or enqueue when the structure is full.</dd></div>
+    <div><dt>Underflow</dt><dd>An attempt to pop or dequeue when the structure is empty.</dd></div>
+    <div><dt>Deque</dt><dd>A double-ended queue. Items can be added and removed at both ends.</dd></div>
+    <div><dt>Priority queue</dt><dd>A collection where each removal returns the item with the highest priority, usually the smallest number.</dd></div>
+    <div><dt>Postfix notation</dt><dd>A way to write arithmetic where each operator comes after its two operands, such as <code>3 4 +</code> for 3 + 4.</dd></div>
+    <div><dt>Infix notation</dt><dd>The usual way of writing arithmetic, with the operator between its operands, such as 3 + 4.</dd></div>
+    <div><dt>Modulo (%)</dt><dd>The remainder after division. Used to wrap an index around a circular array.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Stack: last in, first out">
+  <h2>Stack: last in, first out</h2>
+  <h3>The three operations</h3>
+  <ul>
+    <li><strong>push(x)</strong>: put x on the top.</li>
+    <li><strong>pop()</strong>: take the top item off and return it.</li>
+    <li><strong>peek()</strong>: return the top item but leave it in place.</li>
+  </ul>
+  <p>In Python, a list already acts as a stack. <code>append</code> is push, and <code>pop()</code> with no argument removes the last item, which is the top. The last item of the list is written <code>stack[-1]</code>, and that is the peek.</p>
+
+<pre class="code" data-lang="python"><code>stack = []
+stack.append(10)
+stack.append(20)
+stack.append(30)
+print(stack)
+print(stack.pop())
+print(stack[-1])
+print(stack)
+print(len(stack))</code></pre>
+<pre class="output">[10, 20, 30]
+30
+20
+[10, 20]
+2</pre>
+
+  <p>Trace the code step by step. After three pushes the list is <code>[10, 20, 30]</code>, with 30 on top. <code>pop()</code> removes 30 and returns it, so the first print of the pop is 30. Now the top is 20, which <code>stack[-1]</code> shows. The list has two items left.</p>
+
+  <h3>Underflow and overflow</h3>
+  <p>Popping from an empty stack is an error, called <strong>underflow</strong>. In Python this raises an exception. In a fixed-size array implementation, pushing into a full array is an <strong>overflow</strong>. A GATE question may ask you to say which of these occurs for a given sequence of operations, so always check the size and the number of items before each operation.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>In a stack, peek shows the top, which is the last item pushed. Students often read the first item of the list by mistake. In <code>[10, 20, 30]</code> the top is 30, not 10.</p></div>
+
+  <details class="check"><summary>After push 5, push 7, pop, push 9, what is the top of the stack?</summary><div class="ans"><p>9. The pop removed 7, and then 9 was pushed on top of 5.</p></div></details>
+  <details class="check"><summary>What does pop return from an empty stack?</summary><div class="ans"><p>Nothing useful. It is an underflow error. A correct algorithm checks that the stack is not empty before a pop.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Stack applications: brackets and postfix expressions">
+  <h2>Stack applications: brackets and postfix expressions</h2>
+  <h3>Matching brackets</h3>
+  <p>An expression such as <code>(a[b]{c})</code> is balanced when every opening bracket has a matching closing bracket, and the pairs are properly nested. A stack solves this neatly. Push every opening bracket. When you meet a closing bracket, pop the top. The popped bracket must be the matching opening bracket. If it is not, or if the stack is empty at that moment, the expression is not balanced. At the end, the stack must be empty.</p>
+
+<pre class="code" data-lang="python"><code>def balanced(s):
+    stack = []
+    pairs = {")": "(", "]": "[", "}": "{"}
+    for ch in s:
+        if ch in "([{":
+            stack.append(ch)
+        elif ch in ")]}":
+            if len(stack) == 0:
+                return False
+            if stack.pop() != pairs[ch]:
+                return False
+    return len(stack) == 0
+
+print(balanced("(a[b]{c})"))
+print(balanced("(a[b)]"))
+print(balanced("(("))</code></pre>
+<pre class="output">True
+False
+False</pre>
+
+  <p>The first string is balanced. Each closing bracket meets the most recent opening bracket. The second string fails at the <code>)</code>, because the top of the stack is <code>[</code>, not <code>(</code>. The third string ends with two open brackets still on the stack, so the final check <code>len(stack) == 0</code> is False.</p>
+
+  <h3>Postfix expressions</h3>
+  <p>Humans write <code>3 + 4</code>, with the operator between the numbers. This is infix notation. It needs brackets and precedence rules to avoid confusion. <strong>Postfix</strong> notation puts each operator after its operands: <code>3 4 +</code>. There are no brackets, and the order is always clear. For this reason, postfix form is often used as an intermediate form inside programming language tools.</p>
+  <p>To evaluate postfix with a stack, read the tokens from left to right. A number is pushed. An operator pops two numbers, applies the operator, and pushes the result. At the end the stack holds the answer.</p>
+
+<pre class="code" data-lang="python"><code>def eval_postfix(tokens):
+    stack = []
+    for t in tokens:
+        if t in "+-*/":
+            b = stack.pop()
+            a = stack.pop()
+            if t == "+":
+                stack.append(a + b)
+            elif t == "-":
+                stack.append(a - b)
+            elif t == "*":
+                stack.append(a * b)
+            else:
+                stack.append(a // b)
+        else:
+            stack.append(int(t))
+    return stack.pop()
+
+print(eval_postfix(["5", "1", "2", "+", "4", "*", "+", "3", "-"]))
+print(eval_postfix(["6", "2", "3", "+", "*", "4", "-"]))</code></pre>
+<pre class="output">14
+26</pre>
+
+  <p>The function <code>int(t)</code> turns the text "12" into the number 12. The first example works like this. Push 5 and 1, then 2. The <code>+</code> pops 2 and 1, pushes 3, so the stack is 5, 3. Then 4 is pushed, and <code>*</code> pops 4 and 3, pushes 12. Then <code>+</code> pops 12 and 5, pushes 17. Finally 3 is pushed and <code>-</code> pops 3 and 17, giving 14. Notice that the operands are popped in reverse, so <code>b</code> is the top and <code>a</code> is the one below it. That is why subtraction and division use <code>a - b</code> and <code>a // b</code>.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>In postfix evaluation, the first number popped is the right operand, and the second number popped is the left operand. Getting this order wrong gives a wrong answer for <code>-</code> and <code>/</code>, which exam questions like to test.</p></div>
+
+  <h3>The call stack</h3>
+  <p>Recursion, from the recursion topic, uses a stack without you seeing it. Each function call is pushed onto the call stack, and when it returns, it is popped. That is why the "leave" lines of the countdown example appeared in reverse order. The most recent call is the first to finish.</p>
+
+  <details class="check"><summary>What is the value of the postfix expression <code>4 2 -</code>?</summary><div class="ans"><p>2. The <code>-</code> pops 2 as <code>b</code> and 4 as <code>a</code>, then computes 4 - 2.</p></div></details>
+  <details class="check"><summary>Is <code>(]</code> balanced according to the bracket code?</summary><div class="ans"><p>No. The closing <code>]</code> pops the <code>(</code>, which is not its matching <code>[</code>, so the function returns False.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Queue: first in, first out">
+  <h2>Queue: first in, first out</h2>
+  <h3>The operations</h3>
+  <ul>
+    <li><strong>enqueue(x)</strong>: add x at the rear.</li>
+    <li><strong>dequeue()</strong>: remove and return the front item.</li>
+    <li><strong>front</strong>: look at the front item without removing it.</li>
+  </ul>
+  <p>A Python list can act as a queue, but <code>pop(0)</code> removes the first item and shifts every other item one place left, which costs time. The standard library class <code>deque</code> from the <code>collections</code> module removes from the front in constant time, so it is the correct choice for a queue.</p>
+
+<pre class="code" data-lang="python"><code>from collections import deque
+q = deque()
+q.append("A")
+q.append("B")
+q.append("C")
+print(q.popleft())
+q.append("D")
+print(list(q))
+print(q[0])</code></pre>
+<pre class="output">A
+['B', 'C', 'D']
+B</pre>
+
+  <p>In this program, <code>append</code> adds at the rear, and <code>popleft</code> removes from the front. The first dequeue returns "A", because it arrived first. After adding "D", the queue holds B, C, D in that order. The front is now "B".</p>
+
+  <h3>Hand trace of a queue</h3>
+  <p>Start with an empty queue. Enqueue 3, enqueue 8, dequeue, enqueue 1. The queue is first <code>[3]</code>, then <code>[3, 8]</code>. The dequeue returns 3, leaving <code>[8]</code>. Then 1 joins the rear, giving <code>[8, 1]</code>. The front is 8.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often remove from the rear by mistake, because the last item added is the one they see first. In a queue, the item that leaves is always the one that arrived first. Write the queue as a row, with the front on the left, and move only the left end.</p></div>
+
+  <details class="check"><summary>Enqueue 4, enqueue 5, dequeue, dequeue. What is the queue now?</summary><div class="ans"><p>Empty. The first dequeue removes 4, and the second removes 5.</p></div></details>
+  <details class="check"><summary>Which end is used for enqueue in a queue?</summary><div class="ans"><p>The rear, which is the back end.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Circular queue">
+  <h2>Circular queue</h2>
+  <h3>Why a circular queue is needed</h3>
+  <p>Suppose a queue is stored in a fixed array of 4 cells, and we always add at the end of the array and remove from the start. After four enqueues and two dequeues, the front has moved to cell 2, and the rear is at the end of the array. The two freed cells at the start are wasted, because the rear cannot go back to them. A <strong>circular queue</strong> fixes this. When the rear or front reaches the end of the array, it wraps around to position 0.</p>
+  <p>The wrap is done with the remainder operator. The next position is <code>(pos + 1) % size</code>. For size 4, position 3 goes to <code>(3 + 1) % 4</code>, which is 0. Position 2 goes to 3, as usual.</p>
+
+  <h3>A runnable example</h3>
+  <p>The program below stores a circular queue of size 4 in a list. It uses a <code>count</code> variable to know how many items are present. This is the usual way to tell a full queue from an empty one, because front and rear are equal in both cases.</p>
+
+<pre class="code" data-lang="python"><code>size = 4
+buf = [None] * size
+front = 0
+rear = 0
+count = 0
+
+def enqueue(x):
+    global rear, count
+    buf[rear] = x
+    rear = (rear + 1) % size
+    count = count + 1
+
+def dequeue():
+    global front, count
+    x = buf[front]
+    front = (front + 1) % size
+    count = count - 1
+    return x
+
+enqueue(10)
+enqueue(20)
+enqueue(30)
+print(dequeue())
+enqueue(40)
+enqueue(50)
+print(buf, front, rear, count)</code></pre>
+<pre class="output">10
+[50, 20, 30, 40] 1 1 4</pre>
+
+  <p>Trace it carefully. The three enqueues fill cells 0, 1 and 2, and rear becomes 3. The dequeue returns 10 from cell 0, and front becomes 1. Enqueue 40 goes into cell 3, and rear wraps to 0. Enqueue 50 goes into cell 0, which was freed by the dequeue, so rear becomes 1. Now count is 4, and the queue is full. The front is 1 and the rear is 1 again, which is why the count is needed.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>In a circular queue of size n, the number of items is <code>count</code>. If you do not keep a count, you must leave one cell empty to tell full from empty. Exam questions often ask for the number of items when front and rear are given, so learn the formula in the formula sheet.</p></div>
+
+  <details class="check"><summary>In a circular queue of size 4, what is <code>(0 - 3) % 4</code>?</summary><div class="ans"><p>1. In Python, <code>-3 % 4</code> is 1, because -3 = 4 * (-1) + 1. This is how the wrap works when subtracting.</p></div></details>
+  <details class="check"><summary>What is the new rear after enqueue when rear is 3 and size is 4?</summary><div class="ans"><p>0. The rear moves to <code>(3 + 1) % 4</code>, which is 0.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Priority queue and deque">
+  <h2>Priority queue and deque</h2>
+  <h3>Priority queue</h3>
+  <p>A priority queue is a queue where the item with the highest priority leaves first, not the oldest item. Think of a hospital emergency room. A patient with a serious injury is treated before a patient who arrived earlier with a minor problem. In code, the priority is often a number, and the smallest number is treated as the highest priority.</p>
+  <p>Python provides this in the <code>heapq</code> module. The function <code>heappush</code> adds an item, and <code>heappop</code> removes the smallest item. The details of how the heap works are beyond this page, but the behaviour is what matters for tracing.</p>
+
+<pre class="code" data-lang="python"><code>import heapq
+pq = []
+heapq.heappush(pq, 5)
+heapq.heappush(pq, 1)
+heapq.heappush(pq, 3)
+print(heapq.heappop(pq))
+print(heapq.heappop(pq))
+print(len(pq))</code></pre>
+<pre class="output">1
+3
+1</pre>
+
+  <p>The values 5, 1 and 3 went in, but 1 came out first, then 3. The 5 is still waiting. The priority queue always returns the smallest remaining value, regardless of insertion order.</p>
+
+  <h3>Deque</h3>
+  <p>A deque, short for double-ended queue, lets you add and remove at both ends. It is useful when you need both a stack and a queue behaviour in one structure. Adding at the front uses <code>appendleft</code>, and removing from the front uses <code>popleft</code>. Removing from the rear uses <code>pop</code>. Each of these takes constant time.</p>
+
+  <details class="check"><summary>Push 9, push 2, pop (heap). What does the heap pop return?</summary><div class="ans"><p>2, the smaller value. A priority queue returns the smallest item, not the newest or the oldest.</p></div></details>
+  <details class="check"><summary>Which deque method removes from the front of the deque?</summary><div class="ans"><p><code>popleft</code>. The method <code>pop</code> without an argument removes from the rear.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Time complexity and tracing">
+  <h2>Time complexity and tracing</h2>
+  <h3>The cost of each operation</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Structure and operation</th><th>Time</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Stack push and pop (array or list)</td><td>O(1)</td><td>Only the top end is touched</td></tr>
+      <tr><td>Stack push and pop (linked list)</td><td>O(1)</td><td>Insert and delete at the head</td></tr>
+      <tr><td>Queue enqueue and dequeue (circular array)</td><td>O(1)</td><td>Uses front and rear indexes with wrap-around</td></tr>
+      <tr><td>Queue dequeue on a plain Python list with pop(0)</td><td>O(n)</td><td>Every other item shifts left</td></tr>
+      <tr><td>Queue (linked list with head and tail)</td><td>O(1)</td><td>Enqueue at tail, dequeue at head</td></tr>
+      <tr><td>Priority queue (heap) insert and remove</td><td>O(log n)</td><td>Heap operations</td></tr>
+      <tr><td>Peek (top or front)</td><td>O(1)</td><td>No removal</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Implementation with arrays or linked lists</h3>
+  <p>Both stacks and queues can be built on an array, which has a fixed size, or on a linked list, which grows one node at a time. The array version of a stack keeps a top index. The linked version keeps a pointer to the head node, and push and pop add or remove that head. The linked version never overflows except when memory runs out. The array version can overflow, and a circular array is needed to reuse space in a queue.</p>
+
+  <h3>Tracing with a table</h3>
+  <p>For a stack, draw a column with the top at the upper end. For a queue, draw a row with the front on the left. Update the picture after every operation, and write the output of every dequeue or pop as you go. The table is the most reliable way to answer trace questions.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>When a question says "after these operations, what is the output sequence?", draw the stack or queue as a picture, and write each removed item as it leaves. A question that asks for a possible output order for a stack is a common favourite.</p></div>
+
+  <details class="check"><summary>Why is <code>deque.popleft()</code> preferred over <code>list.pop(0)</code> for a queue?</summary><div class="ans"><p>Because <code>popleft</code> takes constant time, while <code>pop(0)</code> must shift every remaining item one place left, which takes time proportional to the number of items.</p></div></details>
+  <details class="check"><summary>Is a stack or a queue better for checking brackets?</summary><div class="ans"><p>A stack. The most recent opening bracket must match the next closing bracket, which is LIFO behaviour.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Next index in circular array = (pos + 1) % size</td><td>Wraps from the last cell back to cell 0</td><td>Enqueue and dequeue on a circular queue</td></tr>
+      <tr><td>Items in circular queue = (rear - front) % size, when not full</td><td>Counts the cells from front up to rear</td><td>Count questions when front and rear are given</td></tr>
+      <tr><td>Stack is empty when top = -1 (array version)</td><td>No item left to pop</td><td>Underflow checks</td></tr>
+      <tr><td>Postfix: each operator pops two operands and pushes one result</td><td>The stack shrinks by one per operator</td><td>Evaluating postfix</td></tr>
+      <tr><td>Stack or queue with n pushes and n pops</td><td>Every item goes in and comes out once</td><td>Counting total work</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style, and are not taken from any past paper. Trace each one on paper before you read the steps.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Stack size after operations</h3>
+    <div class="statement"><p>An empty stack receives these operations in order: push 5, push 7, pop, push 9, push 2, pop. How many items are in the stack at the end?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of items left after all six operations.</li>
+      <li><strong>Which idea applies.</strong> Each push adds one item, and each pop removes one item.</li>
+      <li><strong>Work it out.</strong> Count: 1 after push 5, 2 after push 7, 1 after pop, 2 after push 9, 3 after push 2, and 2 after the last pop. The contents are 5, 9.</li>
+      <li><strong>Check.</strong> Four pushes and two pops give 4 - 2 = 2 items, which matches.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about stacks and queues</h3>
+    <div class="statement"><p>Select all true statements. (A) A stack removes the oldest item first. (B) A queue removes the oldest item first. (C) A stack implemented with a Python list does push and pop in constant time. (D) A stack can be used to check whether brackets are balanced.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every true statement.</li>
+      <li><strong>Which idea applies.</strong> LIFO for stacks, FIFO for queues, and the bracket method from this page.</li>
+      <li><strong>Work it out.</strong> (A) is false, since a stack removes the newest item. (B) is true, which is FIFO. (C) is true, because append and pop at the end of a list take constant time. (D) is true, as shown with the balanced function.</li>
+      <li><strong>Check.</strong> Statement A describes a queue by mistake, which is the most common error on this topic.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Evaluate a postfix expression</h3>
+    <div class="statement"><p>Evaluate the postfix expression <code>6 2 3 + * 4 -</code>. Give the single number left on the stack.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of the expression.</li>
+      <li><strong>Which idea applies.</strong> Push numbers, and let each operator pop two numbers and push one result.</li>
+      <li><strong>Work it out.</strong> Push 6, push 2, push 3. The <code>+</code> pops 3 and 2, and pushes 5. The stack is 6, 5. The <code>*</code> pops 5 and 6, and pushes 30. The stack is 30. Push 4. The <code>-</code> pops 4 and 30, and computes 30 - 4 = 26.</li>
+      <li><strong>Check.</strong> In infix form this is 6 * (2 + 3) - 4 = 6 * 5 - 4 = 30 - 4 = 26, which matches.</li>
+    </ol>
+    <p class="cx">Answer: 26</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Front after a mixed sequence</h3>
+    <div class="statement"><p>An empty queue receives these operations in order: enqueue A, enqueue B, enqueue C, dequeue, enqueue D, dequeue. Which item is now at the front? Give the letter.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The front item after the sequence.</li>
+      <li><strong>Which idea applies.</strong> Dequeue removes the oldest item, and enqueue adds at the rear.</li>
+      <li><strong>Work it out.</strong> After three enqueues the queue is A, B, C. The first dequeue removes A, leaving B, C. Enqueue D gives B, C, D. The second dequeue removes B, leaving C, D.</li>
+      <li><strong>Check.</strong> Two items were removed from the front in order, A and then B, so C is the next to leave.</li>
+    </ol>
+    <p class="cx">Answer: C</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Circular queue state</h3>
+    <div class="statement"><p>A circular queue of size 4 starts empty with front = 0 and rear = 0. The operations are: enqueue 10, enqueue 20, enqueue 30, enqueue 40, dequeue, dequeue, enqueue 50. Give the final front, rear and count, separated by spaces.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Three numbers after the operations.</li>
+      <li><strong>Which idea applies.</strong> Enqueue writes at rear and moves rear by (rear + 1) % 4. Dequeue reads at front and moves front by (front + 1) % 4.</li>
+      <li><strong>Work it out.</strong> The four enqueues fill cells 0 to 3, so rear wraps to 0 and count is 4. Each dequeue moves front: after the first it is 1 with count 3, and after the second it is 2 with count 2. Enqueue 50 writes to cell rear = 0, moves rear to 1, and count becomes 3.</li>
+      <li><strong>Check.</strong> Items in the queue are cells 2, 3 and 0, which is 3 items, matching count = 3.</li>
+    </ol>
+    <p class="cx">Answer: 2 1 3</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which bracket strings are balanced?</h3>
+    <div class="statement"><p>Select all strings that are balanced by the rule of this topic. (A) <code>{[()]}</code> (B) <code>{[(])}</code> (C) <code>(()</code> (D) <code>[]{}()</code></p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every balanced string.</li>
+      <li><strong>Which idea applies.</strong> Push openers, and each closer must match the top.</li>
+      <li><strong>Work it out.</strong> (A): push {, [, (. The ) pops (, the ] pops [, the } pops {. Balanced. (B): push {, [, (. The ] meets the top (, which does not match. Not balanced. (C): two pushes and one pop, so one ( is left. Not balanced. (D): each pair closes at once, and the stack is empty. Balanced.</li>
+      <li><strong>Check.</strong> The two balanced strings are the ones where the pairs are nested or side by side, with no crossing.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Impossible stack outputs</h3>
+    <div class="statement"><p>The numbers 1, 2, 3 are pushed onto an empty stack in this order. Pops may happen at any time, and each number must be pushed before it can be popped. Select all output orders that are impossible. (A) 1 2 3 (B) 3 1 2 (C) 3 2 1 (D) 2 3 1</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The output orders that no sequence of pushes and pops can produce.</li>
+      <li><strong>Which idea applies.</strong> Because of LIFO, a number deeper in the stack cannot leave before the numbers above it.</li>
+      <li><strong>Work it out.</strong> (A): push 1, pop 1, push 2, pop 2, push 3, pop 3. Possible. (C): push 1, 2, 3, then pop 3, 2, 1. Possible. (D): push 1, push 2, pop 2, push 3, pop 3, pop 1. Possible. (B): to get 3 first, all three must be pushed, so the stack is 1, 2, 3 with 3 on top. The next pop gives 2, not 1. So 1 cannot come next. Impossible.</li>
+      <li><strong>Check.</strong> Of the 6 possible orders of three numbers, a stack can produce 5. The one it cannot produce is 3 1 2, which is the answer.</li>
+    </ol>
+    <p class="cx">Answer: (B)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Items in a circular queue</h3>
+    <div class="statement"><p>A circular queue has size 5. Its front is at index 3 and its rear is at index 1. Here the rear points to the next free cell. How many items are in the queue? Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of items, given front and rear.</li>
+      <li><strong>Which idea applies.</strong> Items = (rear - front) % size, when the queue is not full.</li>
+      <li><strong>Work it out.</strong> (1 - 3) % 5 = (-2) % 5 = 3, because -2 = 5 * (-1) + 3. The items are in cells 3, 4 and 0.</li>
+      <li><strong>Check.</strong> Counting cells from 3 up to but not including 1, with wrap-around, gives cells 3, 4 and 0, which is 3 cells.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Stack permutations (MCQ, 2 marks)</h3>
+    <div class="statement"><p>The numbers 1, 2, 3, 4 are pushed in that order and pops may happen at any time. Which output order is impossible? (A) 2, 1, 4, 3 (B) 3, 2, 4, 1 (C) 4, 1, 2, 3 (D) 1, 2, 3, 4</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The order no stack can produce.</li>
+      <li><strong>Which idea applies.</strong> Once 4 is popped first, 3, 2, 1 are still stacked and must come out as 3, 2, 1.</li>
+      <li><strong>Work it out.</strong> (C) needs 1 right after 4, but 3 is on top. Impossible.</li>
+      <li><strong>Check.</strong> The code simulates each order.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def ok(out):
+    st, nxt = [], 1
+    for x in out:
+        while nxt &lt;= x:
+            st.append(nxt); nxt += 1
+        if st[-1] != x:
+            return False
+        st.pop()
+    return True
+for o in ([2, 1, 4, 3], [3, 2, 4, 1], [4, 1, 2, 3], [1, 2, 3, 4]):
+    print(o, ok(o))
+</code></pre>
+    <pre class="output">[2, 1, 4, 3] True
+[3, 2, 4, 1] True
+[4, 1, 2, 3] False
+[1, 2, 3, 4] True</pre>
+    <p class="cx">Answer: (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Postfix evaluation (NAT, 2 marks)</h3>
+    <div class="statement"><p>Evaluate the postfix expression 6 2 3 + − 3 8 2 / + * using a stack.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of the expression.</li>
+      <li><strong>Which idea applies.</strong> Push numbers. On an operator, pop b then a and push a op b.</li>
+      <li><strong>Work it out.</strong> 2 + 3 = 5, 6 − 5 = 1. 8/2 = 4, 3 + 4 = 7. 1 * 7 = 7.</li>
+      <li><strong>Check.</strong> The code evaluates it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>st = []
+for t in "6 2 3 + - 3 8 2 / + *".split():
+    if t in "+-*/":
+        b, a = st.pop(), st.pop()
+        st.append({'+': a + b, '-': a - b, '*': a * b, '/': a / b}[t])
+    else:
+        st.append(int(t))
+print(st)
+</code></pre>
+    <pre class="output">[7.0]</pre>
+    <p class="cx">Answer: 7.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Queue with two stacks (NAT, 2 marks)</h3>
+    <div class="statement"><p>A queue is built from two stacks: enqueue pushes onto S1. Dequeue pops from S2, and if S2 is empty it first moves everything from S1 to S2. For enqueue 1, 2, 3, dequeue, enqueue 4, dequeue, dequeue, dequeue, how many single element moves from S1 to S2 happen?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total transfer count.</li>
+      <li><strong>Which idea applies.</strong> Transfers happen only when S2 is empty at a dequeue.</li>
+      <li><strong>Work it out.</strong> First dequeue moves 1, 2, 3 (3 moves). Then 2 and 3 are dequeued from S2. Last dequeue finds S2 empty and moves 4 (1 move). Total 4.</li>
+      <li><strong>Check.</strong> Each element is moved exactly once, which is why the amortized cost is O(1).</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Stack</dt><dd>Items added and removed at the top. LIFO.</dd></div>
+    <div><dt>push</dt><dd>Adds an item to the top of a stack.</dd></div>
+    <div><dt>pop</dt><dd>Removes and returns the top item.</dd></div>
+    <div><dt>peek</dt><dd>Returns the top item without removing it.</dd></div>
+    <div><dt>Queue</dt><dd>Items added at the rear and removed at the front. FIFO.</dd></div>
+    <div><dt>enqueue</dt><dd>Adds an item at the rear of a queue.</dd></div>
+    <div><dt>dequeue</dt><dd>Removes the front item of a queue.</dd></div>
+    <div><dt>Circular queue</dt><dd>A queue in a fixed array where indexes wrap around with the remainder operator.</dd></div>
+    <div><dt>Underflow</dt><dd>Removing from an empty structure.</dd></div>
+    <div><dt>Overflow</dt><dd>Adding to a full fixed-size structure.</dd></div>
+    <div><dt>Deque</dt><dd>A queue that allows adding and removing at both ends.</dd></div>
+    <div><dt>Priority queue</dt><dd>Removes the item with the highest priority, usually the smallest value.</dd></div>
+    <div><dt>Postfix</dt><dd>Operators written after their operands, such as 3 4 +.</dd></div>
+    <div><dt>Balanced brackets</dt><dd>Every opener has a matching closer, and the pairs are properly nested.</dd></div>
+    <div><dt>Call stack</dt><dd>The stack that Python uses to track active function calls.</dd></div>
+    <div><dt>O(1)</dt><dd>Constant time for stack operations and circular queue operations.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>A stack is LIFO and a queue is FIFO. Never mix them up in a trace.</li>
+    <li>Peek on a stack shows the top, which is the newest item.</li>
+    <li>Bracket matching uses a stack, with an empty-stack check at the end.</li>
+    <li>In postfix evaluation, the first popped number is the right operand.</li>
+    <li>In a circular queue, the next index is (pos + 1) % size.</li>
+    <li>Use a count, or leave one cell empty, to tell full from empty in a circular queue.</li>
+    <li>Use collections.deque for a queue in Python, because popleft is constant time.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 70?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 70 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-069.html"><small>Previous, topic 69</small>Merge Sort &amp; Quick Sort</a><a class="next" href="gate-071.html"><small>Next, topic 71</small>Linked Lists</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

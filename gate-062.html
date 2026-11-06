@@ -1,0 +1,454 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 62: Finite differences</title><meta name="description" content="A finite difference is the change in a function between neighbouring points that are equally spaced. Differences let us estimate derivatives from a table of values, and they let us build Newton&#x27;s interpolation formulas, which estimate values between table entries. This page builds the difference table step by step and shows the GATE-style calculations."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g62" data-key="g62" data-noun="topic" data-num="62" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Finite differences</h1>
+<p class="lede">A finite difference is the change in a function between neighbouring points that are equally spaced. Differences let us estimate derivatives from a table of values, and they let us build Newton&#x27;s interpolation formulas, which estimate values between table entries. This page builds the difference table step by step and shows the GATE-style calculations.</p>
+<div class="station"><b>62</b><span>Unit 5 · Numerical methods · Paper RA · New concept</span></div>
+<ul class="topics"><li>Equally spaced points and the step size h</li><li>Forward, backward and central differences</li><li>Building a difference table</li><li>Numerical differentiation from differences</li><li>Newton&#x27;s forward and backward interpolation</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose a sensor records the temperature of a motor every minute. You have a list of numbers, but no formula. How fast is the temperature rising? To answer, you look at how much it changed from one minute to the next. Those changes are <strong>differences</strong>. A difference of two neighbouring values is the simplest way to measure change.</p>
+  <p>Now imagine that the change itself is recorded too. The differences of differences are the <strong>second differences</strong>. They tell you whether the rise is speeding up or slowing down. An analogy helps: if your car's odometer is read every second, the differences give the distance per second, which is the speed. The differences of those differences give how the speed changes.</p>
+  <p>A <strong>difference table</strong> lays out all these layers in neat columns. It is a quick way to see the pattern in a table of data. A striking fact follows. If the data come from a polynomial of degree n, the n-th differences are all the same, and the next layer is all zero. This lets us find the polynomial that fits the table.</p>
+  <p><strong>Why this matters for GATE.</strong> In the Robotics and Automation paper, you may be given a table of values from a sensor or a simulation, and asked to estimate a derivative or a value between table entries. Building the difference table by hand is the core skill, and it is fast once you see the pattern.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now. Come back to it when a symbol is unfamiliar.</p>
+  <dl>
+    <div><dt>Step size h</dt><dd>The fixed gap between neighbouring x-values, so x<sub>i+1</sub> = x<sub>i</sub> + h.</dd></div>
+    <div><dt>Equally spaced points</dt><dd>Points x<sub>0</sub>, x<sub>0</sub> + h, x<sub>0</sub> + 2h, and so on. Newton's formulas need this.</dd></div>
+    <div><dt>Forward difference Δ</dt><dd>Δy<sub>i</sub> = y<sub>i+1</sub> - y<sub>i</sub>. It looks forward to the next point.</dd></div>
+    <div><dt>Backward difference ∇</dt><dd>∇y<sub>i</sub> = y<sub>i</sub> - y<sub>i-1</sub>. It looks back to the previous point.</dd></div>
+    <div><dt>Central difference δ</dt><dd>δy<sub>i</sub> = y<sub>i+1/2</sub> - y<sub>i-1/2</sub>. It is centred between two points, and it is written with half-step indices.</dd></div>
+    <div><dt>Second difference</dt><dd>A difference of differences. Δ<sup>2</sup>y<sub>i</sub> = Δy<sub>i+1</sub> - Δy<sub>i</sub>.</dd></div>
+    <div><dt>Difference table</dt><dd>A table where each column is the difference of the column before, with the first entries of each column read off along a diagonal.</dd></div>
+    <div><dt>Degree of a polynomial</dt><dd>The highest power of x in a polynomial. For example, x<sup>3</sup> + 2x has degree 3.</dd></div>
+    <div><dt>Numerical differentiation</dt><dd>Estimating a derivative from a table of values rather than from a formula.</dd></div>
+    <div><dt>Interpolation</dt><dd>Estimating a value between table entries by fitting a curve through them.</dd></div>
+    <div><dt>Newton's forward formula</dt><dd>An interpolation formula that starts at the first point and uses forward differences.</dd></div>
+    <div><dt>Newton's backward formula</dt><dd>An interpolation formula that starts at the last point and uses backward differences.</dd></div>
+    <div><dt>Truncation error</dt><dd>The error made by stopping a formula after a few terms or by approximating a derivative with a difference.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Forward, backward and central differences">
+  <h2>Step 1: Forward, backward and central differences</h2>
+  <h3>Equally spaced points</h3>
+  <p>Most table-based methods use points spaced by a fixed step h. If x<sub>0</sub> = 0 and h = 1, the points are x = 0, 1, 2, 3, and so on. If h = 0.5, the points are 0, 0.5, 1, 1.5. The corresponding values are written y<sub>0</sub>, y<sub>1</sub>, y<sub>2</sub>, and so on, where y<sub>i</sub> = f(x<sub>i</sub>).</p>
+
+  <h3>The three basic differences</h3>
+  <div class="formula">Forward:  Δy<sub>i</sub> = y<sub>i+1</sub> - y<sub>i</sub></div>
+  <div class="formula">Backward: ∇y<sub>i</sub> = y<sub>i</sub> - y<sub>i-1</sub></div>
+  <div class="formula">Central:  δy<sub>i</sub> = y<sub>i+1/2</sub> - y<sub>i-1/2</sub></div>
+  <p>Read the forward difference in words: "the next value minus the current value". The backward difference is "the current value minus the previous value". The central difference is taken across the point, using the values half a step either side. In practice, central differences are often written with two whole steps, as y<sub>i+1</sub> - y<sub>i-1</sub>, which spans the same centred interval.</p>
+
+  <h3>Worked example 1: differences of a short table</h3>
+  <p>Take the table x = 0, 1, 2, 3 and y = 1, 3, 7, 13.</p>
+  <ol>
+    <li><strong>Forward difference at i = 0.</strong> Δy<sub>0</sub> = y<sub>1</sub> - y<sub>0</sub> = 3 - 1 = 2.</li>
+    <li><strong>Forward difference at i = 1.</strong> Δy<sub>1</sub> = 7 - 3 = 4.</li>
+    <li><strong>Forward difference at i = 2.</strong> Δy<sub>2</sub> = 13 - 7 = 6.</li>
+    <li><strong>Backward difference at i = 3.</strong> ∇y<sub>3</sub> = y<sub>3</sub> - y<sub>2</sub> = 13 - 7 = 6. Notice that this equals Δy<sub>2</sub>. In general, ∇y<sub>i</sub> = Δy<sub>i-1</sub>, so the two kinds of difference are the same numbers shifted by one place.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>Forward and backward differences are the same numbers shifted by one place. Choose whichever one fits the formula in the question, and do not mix them up.</p></div>
+
+  <h3>Second differences</h3>
+  <p>The second forward difference is the difference of the first differences. For the table above, the first differences are 2, 4, 6, and the second differences are Δ<sup>2</sup>y<sub>0</sub> = 4 - 2 = 2 and Δ<sup>2</sup>y<sub>1</sub> = 6 - 4 = 2. The constant second difference tells us the table is quadratic. The formula that fits the table exactly is y = x<sup>2</sup> + x + 1. Check: at x = 2, 4 + 2 + 1 = 7, which matches.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A difference is always the later value minus the earlier one. Students often reverse the order, which flips the sign. For Δy<sub>i</sub>, the answer is y<sub>i+1</sub> minus y<sub>i</sub>, never the other way round.</p></div>
+
+  <details class="check"><summary>Question: For y = 2, 5, 10, 17 at x = 0, 1, 2, 3, what is Δy<sub>1</sub>?</summary><div class="ans"><p>Δy<sub>1</sub> = y<sub>2</sub> - y<sub>1</sub> = 10 - 5 = 5.</p></div></details>
+  <details class="check"><summary>Question: Why does the backward difference at i equal the forward difference at i - 1?</summary><div class="ans"><p>Both measure the change between the same two neighbouring points. ∇y<sub>i</sub> = y<sub>i</sub> - y<sub>i-1</sub> and Δy<sub>i-1</sub> = y<sub>i</sub> - y<sub>i-1</sub> are identical.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Building a difference table">
+  <h2>Step 2: Building a difference table</h2>
+  <h3>Method</h3>
+  <p>A difference table has one column for each order of difference. Start with the values y in the first column. Each entry in the next column is the difference of two neighbours in the column before. Keep going until one entry is left.</p>
+  <ol>
+    <li>Write the y-values in the first column.</li>
+    <li>Subtract each pair of neighbours to fill the first-difference column.</li>
+    <li>Subtract each pair in the first-difference column to fill the second-difference column.</li>
+    <li>Continue until the column has a single entry. Each column is one shorter than the one before.</li>
+  </ol>
+
+  <h3>Worked example 2: the cubes</h3>
+  <p>Take y = x<sup>3</sup> at x = 0, 1, 2, 3, 4. The values are 0, 1, 8, 27, 64. Build the table.</p>
+  <ol>
+    <li><strong>First differences.</strong> 1 - 0 = 1, 8 - 1 = 7, 27 - 8 = 19, 64 - 27 = 37.</li>
+    <li><strong>Second differences.</strong> 7 - 1 = 6, 19 - 7 = 12, 37 - 19 = 18.</li>
+    <li><strong>Third differences.</strong> 12 - 6 = 6, 18 - 12 = 6. Both are equal.</li>
+    <li><strong>Fourth differences.</strong> 6 - 6 = 0.</li>
+  </ol>
+  <p>The third differences are constant at 6, and the fourth differences are zero. This is the signature of a cubic polynomial. The program builds the table automatically.</p>
+  <pre class="code" data-lang="python"><code>def difference_table(y):
+    table = [y]
+    while len(table[-1]) &gt; 1:
+        last = table[-1]
+        table.append([last[i + 1] - last[i] for i in range(len(last) - 1)])
+    return table
+
+xs = [0, 1, 2, 3, 4]
+ys = [x ** 3 for x in xs]
+for level, row in enumerate(difference_table(ys)):
+    print("order", level, row)</code></pre>
+  <pre class="output">order 0 [0, 1, 8, 27, 64]
+order 1 [1, 7, 19, 37]
+order 2 [6, 12, 18]
+order 3 [6, 6]
+order 4 [0]</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>If the n-th differences are constant and the (n + 1)-th differences are zero, the data came from a polynomial of degree n. The cubes show this: the third differences are constant at 6, and the fourth are zero.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Write the table with the differences lined up between the values they come from. Each new entry sits halfway between two entries above it, so a misplaced entry is easy to spot.</p></div>
+
+  <details class="check"><summary>Question: A table of 6 equally spaced points has its first differences listed. How many entries does the second-difference column have?</summary><div class="ans"><p>Four. Each column has one fewer entry than the column before, so 6 values give 5 first differences and 4 second differences.</p></div></details>
+  <details class="check"><summary>Question: The third differences of a table are all equal to 12. What can you say about the table?</summary><div class="ans"><p>The values are consistent with a cubic polynomial, with a leading coefficient of 12/(3! h<sup>3</sup>) = 2/h<sup>3</sup>. The fourth differences are zero if the data came exactly from a cubic.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Numerical differentiation">
+  <h2>Step 3: Numerical differentiation from differences</h2>
+  <h3>The idea</h3>
+  <p>A derivative is a slope, and a slope is a change divided by a step. So a difference divided by the step size gives an estimate of the derivative. Three standard formulas follow:</p>
+  <div class="formula">Forward: f'(x) ≈ (f(x + h) - f(x))/h = Δy/h</div>
+  <div class="formula">Backward: f'(x) ≈ (f(x) - f(x - h))/h = ∇y/h</div>
+  <div class="formula">Central: f'(x) ≈ (f(x + h) - f(x - h))/(2h)</div>
+  <p>Each one is an approximation. The error depends on the step size h. The forward and backward formulas have an error proportional to h, written O(h). The central formula has an error proportional to h<sup>2</sup>, written O(h<sup>2</sup>). For small h, that makes the central formula much more accurate.</p>
+  <p>For the second derivative, a common formula is f''(x) ≈ (f(x + h) - 2f(x) + f(x - h))/h<sup>2</sup>. It uses the second difference divided by h<sup>2</sup>.</p>
+
+  <h3>Worked example 3: the derivative of x squared at x = 1</h3>
+  <p>Let f(x) = x<sup>2</sup>, so f'(1) = 2. Use h = 0.1. The values needed are f(0.9) = 0.81, f(1) = 1, and f(1.1) = 1.21.</p>
+  <ol>
+    <li><strong>Forward.</strong> (f(1.1) - f(1))/0.1 = (1.21 - 1)/0.1 = 0.21/0.1 = 2.1. The error is 0.1.</li>
+    <li><strong>Central.</strong> (f(1.1) - f(0.9))/0.2 = (1.21 - 0.81)/0.2 = 0.4/0.2 = 2.0. The error is 0.</li>
+    <li><strong>Why central is exact here.</strong> The central error depends on the third derivative, which is zero for a quadratic. So the central formula is exact for any quadratic.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>def f(x):
+    return x * x
+
+x, h = 1.0, 0.1
+forward = (f(x + h) - f(x)) / h
+central = (f(x + h) - f(x - h)) / (2 * h)
+print("forward:", round(forward, 6))
+print("central:", round(central, 6))
+print("true value:", 2 * x)</code></pre>
+  <pre class="output">forward: 2.1
+central: 2.0
+true value: 2.0</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Smaller h is not always better in hand calculations. When h is tiny, f(x + h) and f(x) are almost equal, and their difference loses accuracy. Pick h of moderate size, such as 0.1 or 0.01, when working from a table.</p></div>
+
+  <details class="check"><summary>Question: Which derivative formula is exact for any quadratic polynomial?</summary><div class="ans"><p>The central difference (f(x + h) - f(x - h))/(2h). Its error depends on f''', which is zero for quadratics.</p></div></details>
+  <details class="check"><summary>Question: The forward difference of f(x) = x<sup>2</sup> at x = 2 with h = 1 is what value?</summary><div class="ans"><p>(f(3) - f(2))/1 = 9 - 4 = 5. The true derivative is 4, so the error is 1, which equals h because f'' = 2.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Newton's interpolation formulas">
+  <h2>Step 4: Newton's forward and backward interpolation</h2>
+  <h3>The aim</h3>
+  <p>Interpolation means estimating a value between the points of a table. Newton's formulas do this by writing the answer as a sum of differences, multiplied by factors that depend on how far you are from the start. Let s be the number of steps from the starting point:</p>
+  <div class="formula">Forward: s = (x - x<sub>0</sub>)/h, and p(x) = y<sub>0</sub> + sΔy<sub>0</sub> + s(s - 1)/2! Δ<sup>2</sup>y<sub>0</sub> + s(s - 1)(s - 2)/3! Δ<sup>3</sup>y<sub>0</sub> + ...</div>
+  <div class="formula">Backward: s = (x - x<sub>n</sub>)/h, and p(x) = y<sub>n</sub> + s∇y<sub>n</sub> + s(s + 1)/2! ∇<sup>2</sup>y<sub>n</sub> + s(s + 1)(s + 2)/3! ∇<sup>3</sup>y<sub>n</sub> + ...</div>
+  <p>Here 2! means 2 factorial, which is 2, and 3! is 6. The forward formula starts at the first point, x<sub>0</sub>, and uses the top diagonal of the table. The backward formula starts at the last point, x<sub>n</sub>, and uses the bottom diagonal. Use forward for an x near the start and backward for an x near the end.</p>
+
+  <h3>Worked example 4: forward at x = 1.5</h3>
+  <p>Use the table x = 0, 1, 2, 3 and y = 1, 3, 7, 13, with h = 1. Find the value at x = 1.5.</p>
+  <ol>
+    <li><strong>Differences from the top.</strong> y<sub>0</sub> = 1, Δy<sub>0</sub> = 2, Δ<sup>2</sup>y<sub>0</sub> = 2, Δ<sup>3</sup>y<sub>0</sub> = 0.</li>
+    <li><strong>Find s.</strong> s = (1.5 - 0)/1 = 1.5.</li>
+    <li><strong>Substitute.</strong> p = 1 + 1.5 × 2 + (1.5)(0.5)/2 × 2 + 0 = 1 + 3 + 0.75 = 4.75.</li>
+    <li><strong>Check.</strong> The table fits y = x<sup>2</sup> + x + 1, and at x = 1.5 this gives 2.25 + 1.5 + 1 = 4.75. The formula is exact here.</li>
+  </ol>
+
+  <h3>Worked example 5: backward at x = 2.5</h3>
+  <p>Use the same table, now starting from the last point, x<sub>3</sub> = 3. Find the value at x = 2.5.</p>
+  <ol>
+    <li><strong>Differences from the bottom.</strong> y<sub>3</sub> = 13, ∇y<sub>3</sub> = 6, ∇<sup>2</sup>y<sub>3</sub> = 2, ∇<sup>3</sup>y<sub>3</sub> = 0.</li>
+    <li><strong>Find s.</strong> s = (2.5 - 3)/1 = -0.5. The negative sign shows that x is before the last point.</li>
+    <li><strong>Substitute.</strong> p = 13 + (-0.5)(6) + (-0.5)(0.5)/2 × 2 + 0 = 13 - 3 - 0.25 = 9.75.</li>
+    <li><strong>Check.</strong> y = x<sup>2</sup> + x + 1 at 2.5 gives 6.25 + 2.5 + 1 = 9.75, which matches.</li>
+  </ol>
+
+  <h3>Worked example 6: the cubes at x = 2.5</h3>
+  <p>Take y = x<sup>3</sup> at x = 0, 1, 2, 3, 4, with h = 1. The forward differences from the top are y<sub>0</sub> = 0, Δy<sub>0</sub> = 1, Δ<sup>2</sup>y<sub>0</sub> = 6, Δ<sup>3</sup>y<sub>0</sub> = 6. At x = 2.5, s = 2.5. Then:</p>
+  <div class="formula">p = 0 + 2.5(1) + (2.5)(1.5)/2 × 6 + (2.5)(1.5)(0.5)/6 × 6 = 2.5 + 11.25 + 1.875 = 15.625</div>
+  <p>The true value is 2.5<sup>3</sup> = 15.625. Because the data are exactly cubic, the formula gives the exact answer. The program below confirms both examples and this one.</p>
+  <pre class="code" data-lang="python"><code>def differences_from_first(ys):
+    diffs = [ys[0]]
+    row = ys[:]
+    for _ in range(1, len(ys)):
+        row = [row[i + 1] - row[i] for i in range(len(row) - 1)]
+        diffs.append(row[0])
+    return diffs
+
+def differences_from_last(ys):
+    diffs = [ys[-1]]
+    row = ys[:]
+    for _ in range(1, len(ys)):
+        row = [row[i + 1] - row[i] for i in range(len(row) - 1)]
+        diffs.append(row[-1])
+    return diffs
+
+def newton_forward(ys, s):
+    total, term = 0.0, 1.0
+    for k, d in enumerate(differences_from_first(ys)):
+        total += term * d
+        term *= (s - k) / (k + 1)
+    return total
+
+def newton_backward(ys, s):
+    total, term = 0.0, 1.0
+    for k, d in enumerate(differences_from_last(ys)):
+        total += term * d
+        term *= (s + k) / (k + 1)
+    return total
+
+ys = [1, 3, 7, 13]
+print("forward at x = 1.5:", newton_forward(ys, (1.5 - 0) / 1))
+print("backward at x = 2.5:", newton_backward(ys, (2.5 - 3) / 1))
+print("cubes at x = 2.5:", newton_forward([0, 1, 8, 27, 64], 2.5))</code></pre>
+  <pre class="output">forward at x = 1.5: 4.75
+backward at x = 2.5: 9.75
+cubes at x = 2.5: 15.625</pre>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Newton's formula with k terms is exact for any polynomial of degree less than k. If the k-th differences are constant, the formula is exact. Otherwise the error is about the first neglected difference term.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Using s = (x - x<sub>0</sub>)/h in the backward formula, or the wrong starting value, gives a wrong answer with no warning. Write the starting point and s on the first line of your working.</p></div>
+
+  <details class="check"><summary>Question: Which formula should you use to interpolate at x = 3.8 from a table that runs from x = 0 to x = 4?</summary><div class="ans"><p>Newton's backward formula, because x = 3.8 is close to the last point, x = 4. It is the formula that starts from the bottom of the table.</p></div></details>
+  <details class="check"><summary>Question: A table has a constant third difference of 6 and zero fourth differences. Which formula is exact for interpolation?</summary><div class="ans"><p>Newton's formula with terms up to the third differences. The data are exactly cubic, so the formula gives the exact value at any point.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Δy<sub>i</sub> = y<sub>i+1</sub> - y<sub>i</sub></td><td>Forward difference</td><td>Building the difference table from the top</td></tr>
+      <tr><td>∇y<sub>i</sub> = y<sub>i</sub> - y<sub>i-1</sub> = Δy<sub>i-1</sub></td><td>Backward difference</td><td>Building the table from the bottom</td></tr>
+      <tr><td>Δ<sup>n</sup>y<sub>0</sub> = Δ<sup>n-1</sup>y<sub>1</sub> - Δ<sup>n-1</sup>y<sub>0</sub></td><td>Higher forward differences</td><td>Extending the table one column</td></tr>
+      <tr><td>f'(x) ≈ Δy/h</td><td>Forward derivative, error O(h)</td><td>Quick estimates from a table</td></tr>
+      <tr><td>f'(x) ≈ (f(x + h) - f(x - h))/(2h)</td><td>Central derivative, error O(h<sup>2</sup>)</td><td>More accurate estimates</td></tr>
+      <tr><td>f''(x) ≈ (f(x + h) - 2f(x) + f(x - h))/h<sup>2</sup></td><td>Second derivative</td><td>Curvature from a table</td></tr>
+      <tr><td>Forward: s = (x - x<sub>0</sub>)/h, sΔy<sub>0</sub> + s(s - 1)/2! Δ<sup>2</sup>y<sub>0</sub> + ...</td><td>Newton forward interpolation</td><td>x near the start of the table</td></tr>
+      <tr><td>Backward: s = (x - x<sub>n</sub>)/h, s∇y<sub>n</sub> + s(s + 1)/2! ∇<sup>2</sup>y<sub>n</sub> + ...</td><td>Newton backward interpolation</td><td>x near the end of the table</td></tr>
+      <tr><td>Polynomial of degree n: Δ<sup>n</sup> constant, Δ<sup>n+1</sup> zero</td><td>Detecting the degree of the data</td><td>Choosing how many terms to use</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one on paper before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>A second difference from a table</h3>
+    <div class="statement"><p>The values of y at x = 0, 1, 2, 3 are 2, 5, 10, 17. Find Δ<sup>2</sup>y<sub>0</sub>. (Answer type: NAT, a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The second forward difference starting at the first point.</li>
+      <li><strong>Which idea applies.</strong> Build the first differences, then take their differences.</li>
+      <li><strong>Work it out.</strong> First differences: 5 - 2 = 3, 10 - 5 = 5, 17 - 10 = 7. Second differences: 5 - 3 = 2 and 7 - 5 = 2. So Δ<sup>2</sup>y<sub>0</sub> = 2.</li>
+      <li><strong>Check.</strong> The second differences are constant, so the table is quadratic, consistent with y = x<sup>2</sup> + 2.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which difference statements are true?</h3>
+    <div class="statement"><p>Select all the statements that are true.</p>
+    <p>(A) The forward difference is Δy<sub>i</sub> = y<sub>i+1</sub> - y<sub>i</sub>.<br>
+    (B) The backward difference is ∇y<sub>i</sub> = y<sub>i+1</sub> - y<sub>i</sub>.<br>
+    (C) For y = x<sup>3</sup> with h = 1, the third difference is 6.<br>
+    (D) The central difference formula gives exactly 2 for the derivative of x<sup>2</sup> at x = 1 with h = 0.1.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which definitions and values are correct.</li>
+      <li><strong>Which idea applies.</strong> The definitions of Δ and ∇, the cubes table, and the exactness of the central formula for quadratics.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, since ∇y<sub>i</sub> = y<sub>i</sub> - y<sub>i-1</sub>. (C) True, as in Worked example 2. (D) True, since (1.21 - 0.81)/0.2 = 2.0.</li>
+      <li><strong>Check.</strong> Statement (B) reverses the order, which is the common trap described in the lesson.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>A quadratic estimate between table points</h3>
+    <div class="statement"><p>The values of y at x = 0, 1, 2, 3, 4 are 1, 2, 4, 8, 16. Use Newton's forward formula with terms up to Δ<sup>2</sup>y<sub>0</sub> (with h = 1) to estimate y at x = 2.5. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> An estimate at x = 2.5 using only the first two differences.</li>
+      <li><strong>Which idea applies.</strong> Newton's forward formula, with s = 2.5.</li>
+      <li><strong>Work it out.</strong> The first differences are 1, 2, 4, 8, so Δy<sub>0</sub> = 1. The second differences are 1, 2, 4, so Δ<sup>2</sup>y<sub>0</sub> = 1. Then p = 1 + 2.5 × 1 + (2.5)(1.5)/2 × 1 = 1 + 2.5 + 1.875 = 5.375.</li>
+      <li><strong>Check.</strong> The true value 2<sup>2.5</sup> is about 5.657. The estimate is close but not exact, because the data are not a quadratic.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>s = 2.5
+print(1 + s * 1 + s * (s - 1) / 2 * 1)</code></pre>
+    <pre class="output">5.375</pre>
+    <p class="cx">Answer: 5.375.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Forward derivative of the exponential</h3>
+    <div class="statement"><p>Let f(x) = e<sup>x</sup>. Use the forward difference with h = 0.1 to estimate f'(0). Give the answer rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The forward estimate of the slope at x = 0.</li>
+      <li><strong>Which idea applies.</strong> f'(0) ≈ (f(0.1) - f(0))/0.1.</li>
+      <li><strong>Work it out.</strong> f(0.1) = e<sup>0.1</sup> ≈ 1.105171, and f(0) = 1. So the estimate is (1.105171 - 1)/0.1 ≈ 1.05171.</li>
+      <li><strong>Check.</strong> The true derivative is e<sup>0</sup> = 1, so the error is about 0.052, roughly h/2 times f''(0) = 0.05.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round((math.exp(0.1) - 1) / 0.1, 4))</code></pre>
+    <pre class="output">1.0517</pre>
+    <p class="cx">Answer: 1.0517.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Central derivative of the exponential</h3>
+    <div class="statement"><p>Let f(x) = e<sup>x</sup>. Use the central difference with h = 0.1 to estimate f'(0). Give the answer rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The central estimate of the slope at x = 0.</li>
+      <li><strong>Which idea applies.</strong> f'(0) ≈ (f(0.1) - f(-0.1))/0.2.</li>
+      <li><strong>Work it out.</strong> f(0.1) ≈ 1.105171 and f(-0.1) = e<sup>-0.1</sup> ≈ 0.904837. The difference is 0.200334, and dividing by 0.2 gives about 1.00167.</li>
+      <li><strong>Check.</strong> The error is about 0.0017, much smaller than the forward error of about 0.052 in the previous problem, as expected for an O(h<sup>2</sup>) formula.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round((math.exp(0.1) - math.exp(-0.1)) / 0.2, 4))</code></pre>
+    <pre class="output">1.0017</pre>
+    <p class="cx">Answer: 1.0017.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Backward interpolation near the end of a cubic table</h3>
+    <div class="statement"><p>The values of y at x = 1, 2, 3, 4 are 1, 8, 27, 64. Use Newton's backward formula with terms up to ∇<sup>3</sup>y<sub>n</sub> (with h = 1) to estimate y at x = 3.5. Give the exact fraction. (Answer type: NAT, a fraction.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> An estimate at x = 3.5, near the end of the table.</li>
+      <li><strong>Which idea applies.</strong> Backward formula with the last point x<sub>n</sub> = 4 and s = (3.5 - 4)/1 = -1/2.</li>
+      <li><strong>Work it out.</strong> From the bottom: y<sub>n</sub> = 64, ∇y<sub>n</sub> = 37, ∇<sup>2</sup>y<sub>n</sub> = 18, ∇<sup>3</sup>y<sub>n</sub> = 6. Then p = 64 + (-1/2)(37) + (-1/2)(1/2)/2 × 18 + (-1/2)(1/2)(3/2)/6 × 6 = 64 - 18.5 - 2.25 - 0.375 = 42.875.</li>
+      <li><strong>Check.</strong> The data are exactly cubic, so the answer must equal 3.5<sup>3</sup> = 42.875. The program uses exact fractions.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+s = Fraction(-1, 2)
+p = 64 + s * 37 + s * (s + 1) / 2 * 18 + s * (s + 1) * (s + 2) / 6 * 6
+print(p, float(p))</code></pre>
+    <pre class="output">343/8 42.875</pre>
+    <p class="cx">Answer: 343/8, which is 42.875.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about difference tables are true?</h3>
+    <div class="statement"><p>Select all the statements that are true, for equally spaced data.</p>
+    <p>(A) If all fourth differences of a table are zero, the table fits a polynomial of degree at most 3.<br>
+    (B) Newton's forward formula needs the points to be equally spaced and taken from the starting point onwards.<br>
+    (C) The error of the central derivative formula is proportional to h.<br>
+    (D) For y = x<sup>2</sup> with h = 1, the forward difference at x = 1 is 3.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which general statements about difference tables are true.</li>
+      <li><strong>Which idea applies.</strong> Polynomial detection, the setup of Newton's formula, the error orders, and a direct computation.</li>
+      <li><strong>Work it out.</strong> (A) True: zero fourth differences mean the data are exactly a cubic. (B) True. (C) False: the central formula's error is proportional to h<sup>2</sup>. (D) True: y(2) - y(1) = 4 - 1 = 3.</li>
+      <li><strong>Check.</strong> Statement (C) is the usual mistake. The central formula cancels the first-order error, which is why it is more accurate.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Forward difference table (NAT, 2 marks)</h3>
+    <div class="statement"><p>For f(x) = x³ at x = 0, 1, 2, 3, 4, find the third forward difference Δ³f(0).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The third difference of a cubic.</li>
+      <li><strong>Which idea applies.</strong> For a polynomial of degree n with step h, Δⁿf = n! aₙ hⁿ, a constant.</li>
+      <li><strong>Work it out.</strong> 3! · 1 · 1 = 6.</li>
+      <li><strong>Check.</strong> The code builds the table.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>v = [x ** 3 for x in range(5)]
+for k in range(3):
+    v = [b - a for a, b in zip(v, v[1:])]
+    print("level", k + 1, v)
+</code></pre>
+    <pre class="output">level 1 [1, 7, 19, 37]
+level 2 [6, 12, 18]
+level 3 [6, 6]</pre>
+    <p class="cx">Answer: 6.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Central difference derivative (NAT, 2 marks)</h3>
+    <div class="statement"><p>Estimate f′(1) for f(x) = eˣ using the central difference with h = 0.1, correct to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> [f(1.1) − f(0.9)]/0.2.</li>
+      <li><strong>Which idea applies.</strong> The central difference has error of order h².</li>
+      <li><strong>Work it out.</strong> (3.004166 − 2.459603)/0.2 = 2.7228. The true value e = 2.7183.</li>
+      <li><strong>Check.</strong> The error 0.0045 ≈ eh²/6, as expected.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("%.4f %.4f" % ((math.exp(1.1) - math.exp(0.9)) / 0.2, math.e))
+</code></pre>
+    <pre class="output">2.7228 2.7183</pre>
+    <p class="cx">Answer: about 2.7228.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Operator identities (MSQ, 2 marks)</h3>
+    <div class="statement"><p>With Δ the forward, ∇ the backward difference and E the shift operator, which are TRUE? (A) Δ = E − 1 (B) ∇ = 1 − E<sup>−1</sup> (C) Δ∇ = Δ − ∇ (D) E = e<sup>hD</sup>, where D is differentiation</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Standard operator relations.</li>
+      <li><strong>Which idea applies.</strong> Ef(x) = f(x + h). Taylor's theorem gives E = e<sup>hD</sup>.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) Δ∇ = (E − 1)(1 − E<sup>−1</sup>) = E − 2 + E<sup>−1</sup>, and Δ − ∇ = E − 1 − 1 + E<sup>−1</sup>, the same. True. (D) True.</li>
+      <li><strong>Check.</strong> All four are standard identities.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Step size h</dt><dd>The fixed gap between equally spaced x-values.</dd></div>
+    <div><dt>Forward difference Δy<sub>i</sub></dt><dd>y<sub>i+1</sub> - y<sub>i</sub>, the change to the next point.</dd></div>
+    <div><dt>Backward difference ∇y<sub>i</sub></dt><dd>y<sub>i</sub> - y<sub>i-1</sub>, the change from the previous point.</dd></div>
+    <div><dt>Central difference δy<sub>i</sub></dt><dd>The change taken across the point, using points on both sides.</dd></div>
+    <div><dt>Second difference Δ<sup>2</sup>y<sub>i</sub></dt><dd>The difference of the first differences.</dd></div>
+    <div><dt>Difference table</dt><dd>A table of successive differences, one column for each order.</dd></div>
+    <div><dt>Constant differences</dt><dd>When the n-th differences are constant and the next are zero, the data have degree n.</dd></div>
+    <div><dt>Forward derivative</dt><dd>f'(x) ≈ Δy/h, with error proportional to h.</dd></div>
+    <div><dt>Central derivative</dt><dd>f'(x) ≈ (f(x + h) - f(x - h))/(2h), with error proportional to h<sup>2</sup>.</dd></div>
+    <div><dt>Second derivative</dt><dd>f''(x) ≈ (f(x + h) - 2f(x) + f(x - h))/h<sup>2</sup>.</dd></div>
+    <div><dt>Interpolation</dt><dd>Estimating values between table points by fitting a formula through them.</dd></div>
+    <div><dt>Newton forward formula</dt><dd>Interpolation that starts at the first point and uses forward differences.</dd></div>
+    <div><dt>Newton backward formula</dt><dd>Interpolation that starts at the last point and uses backward differences.</dd></div>
+    <div><dt>Step count s</dt><dd>The number of steps from the starting point, s = (x - x<sub>0</sub>)/h or s = (x - x<sub>n</sub>)/h.</dd></div>
+    <div><dt>Factorial</dt><dd>n! is the product 1 × 2 × ... × n, so 3! = 6.</dd></div>
+    <div><dt>Truncation error</dt><dd>The error made by using a finite formula, such as a difference, in place of the exact value.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Forward difference is the next value minus the current value. Backward is the current value minus the previous value.</li>
+    <li>If the third differences are constant and the fourth are zero, the data are exactly cubic.</li>
+    <li>The central derivative formula is more accurate than the forward formula, because its error is O(h<sup>2</sup>).</li>
+    <li>Use Newton's forward formula near the start of a table and backward near the end.</li>
+    <li>Write the starting point and s before you substitute into a Newton formula.</li>
+    <li>Build the difference table carefully, one column at a time.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 62?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 62 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-061.html"><small>Previous, topic 61</small>Solving linear &amp; non-linear algebraic equations numerically</a><a class="next" href="gate-063.html"><small>Next, topic 63</small>Numerical integration: Trapezoidal &amp; Simpson&#x27;s rules</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

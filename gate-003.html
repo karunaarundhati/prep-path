@@ -1,0 +1,385 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 3: Matrices: operations, projection matrix</title><meta name="description" content="Matrices can be added, multiplied, transposed and inverted, but the most useful one is the projection matrix. It gives the closest point to a vector inside a chosen line or plane, the same idea as a shadow on a wall. Projections appear in GATE DA questions on least squares and regression."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g3" data-key="g3" data-noun="topic" data-num="3" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Matrices: <em>operations, projection matrix</em></h1>
+<p class="lede">Matrices can be added, multiplied, transposed and inverted, but the most useful one is the projection matrix. It gives the closest point to a vector inside a chosen line or plane, the same idea as a shadow on a wall. Projections appear in GATE DA questions on least squares and regression.</p>
+<div class="station"><b>3</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>Adding, scaling and multiplying matrices, with the rules that hold</li><li>Special matrices: diagonal, symmetric and skew-symmetric</li><li>Projecting a vector onto a line</li><li>The projection matrix onto a line and onto a column space</li><li>Properties of projection matrices: symmetric, idempotent, trace equals rank</li><li>Solved GATE-style problems on projections</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a lamp shining straight down onto a table. A pencil held above the table casts a shadow on it. The shadow is the closest point on the table to the tip of the pencil. This shadow is a <strong>projection</strong>.</p>
+  <p>In linear algebra, the table is a line or plane through the origin, and the pencil is a vector. A <strong>projection matrix</strong> is a machine that finds this shadow for every vector at once. Real data never lies exactly on a line, so the "best" line gives the closest prediction, and finding it is a projection. This is the heart of least squares, which GATE DA questions use often.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Dot product u . v</dt><dd>Multiply matching entries and add. Equals u<sup>T</sup>v. Plain meaning: how much two arrows point the same way.</dd></div>
+    <div><dt>Length, ||u||</dt><dd>How long an arrow is. ||u||<sup>2</sup> = u . u.</dd></div>
+    <div><dt>Orthogonal</dt><dd>Two vectors whose dot product is 0. They meet at a right angle.</dd></div>
+    <div><dt>Projection</dt><dd>The closest point to a vector inside a line, plane or subspace.</dd></div>
+    <div><dt>Residual, e</dt><dd>The leftover part, e = b - p, where p is the projection.</dd></div>
+    <div><dt>Column space, C(A)</dt><dd>All vectors Ax: all mixes of the columns of A.</dd></div>
+    <div><dt>Projection matrix, P</dt><dd>A square matrix with P<sup>T</sup> = P (symmetric) and P<sup>2</sup> = P (idempotent).</dd></div>
+    <div><dt>Idempotent</dt><dd>A matrix that gives the same result when applied twice. P<sup>2</sup> = P.</dd></div>
+    <div><dt>Diagonal matrix</dt><dd>A square matrix with zeros everywhere except possibly on the diagonal.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Operations you need for projections">
+  <h2>Matrix operations you will use in projections</h2>
+  <p>Matrices of the same size add entry by entry, and a scalar multiplies every entry. Products follow the row-times-column rule. Three laws hold: (AB)C = A(BC), A(B + C) = AB + AC, and (cA)B = c(AB). The one law that fails is commutativity: AB is usually not BA. Keep the order.</p>
+  <p>Transposes and inverses reverse the order of products: (AB)<sup>T</sup> = B<sup>T</sup>A<sup>T</sup> and (AB)<sup>-1</sup> = B<sup>-1</sup>A<sup>-1</sup>. The trace satisfies tr(AB) = tr(BA). The Python block below checks these ideas, and it also shows a fact used in GATE questions: tr(C<sup>T</sup>C) equals the sum of the squares of all entries of C.</p>
+  <pre class="code" data-lang="python"><code>def matmul(X, Y):
+    n, k, m = len(X), len(Y), len(Y[0])
+    return [[sum(X[i][t] * Y[t][j] for t in range(k)) for j in range(m)] for i in range(n)]
+
+def transpose(M):
+    return [list(col) for col in zip(*M)]
+
+A = [[1, 2], [0, 1]]
+B = [[2, 0], [1, 1]]
+print("A + B =", [[A[i][j] + B[i][j] for j in range(2)] for i in range(2)])
+print("2A - B =", [[2 * A[i][j] - B[i][j] for j in range(2)] for i in range(2)])
+
+C = [[1, 2], [3, 4]]
+CtC = matmul(transpose(C), C)
+print("trace of C^T C =", sum(CtC[i][i] for i in range(2)))
+print("sum of squares =", sum(x * x for row in C for x in row))</code></pre>
+  <pre class="output">A + B = [[3, 2], [1, 2]]
+2A - B = [[0, 4], [-1, 1]]
+trace of C^T C = 30
+sum of squares = 30</pre>
+  <details class="check"><summary>What is AB for A = [[1, 0], [0, 2]] and B = [[0, 1], [1, 0]]?</summary><div class="ans"><p>Entry (1,1) = 0, entry (1,2) = 1, entry (2,1) = 2, entry (2,2) = 0. So AB = [[0, 1], [2, 0]].</p></div></details>
+  <details class="check"><summary>Is (A + B)(A - B) always equal to A<sup>2</sup> - B<sup>2</sup>?</summary><div class="ans"><p>No. Expanding gives A<sup>2</sup> - AB + BA - B<sup>2</sup>, and the middle terms cancel only when AB = BA.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Special matrices">
+  <h2>Special matrices: diagonal, symmetric and skew-symmetric</h2>
+  <p>A <strong>diagonal</strong> matrix has numbers only on its diagonal, such as D = [[3, 0], [0, 5]]. Multiplying by it scales rows one at a time. A <strong>symmetric</strong> matrix satisfies A<sup>T</sup> = A, such as S = [[1, 2], [2, 1]]. Every projection matrix is symmetric. A <strong>skew-symmetric</strong> matrix satisfies A<sup>T</sup> = -A, such as K = [[0, 3], [-3, 0]], and its diagonal is 0.</p>
+  <p>A skew-symmetric matrix can never be a projection except the zero matrix, because a projection must be symmetric.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Every square matrix is a symmetric matrix plus a skew-symmetric matrix: A = (A + A<sup>T</sup>)/2 + (A - A<sup>T</sup>)/2.</p></div>
+  <details class="check"><summary>Is the zero matrix both symmetric and skew-symmetric?</summary><div class="ans"><p>Yes. It equals its transpose, and -0 is 0.</p></div></details>
+  <details class="check"><summary>Is every diagonal matrix symmetric?</summary><div class="ans"><p>Yes. Flipping over the diagonal changes nothing, because the off-diagonal entries are all 0.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Projecting a vector onto a line">
+  <h2>Projecting a vector onto a line</h2>
+  <p>Take a line through the origin in the direction of u, and a vector v. The projection p is the point on the line closest to the tip of v. Because p lies on the line, p = c u for some number c. The leftover v - p is perpendicular to u, so (v - p) . u = 0. Solving for c gives:</p>
+  <div class="formula">p = (u . v / u . u) u</div>
+  <p>Here u . v is the dot product and u . u is the squared length of u. Take u = (2, 1) and v = (1, 2). Then u . v = 2 + 2 = 4 and u . u = 5, so c = 4/5 and p = (8/5, 4/5). The leftover is (1 - 8/5, 2 - 4/5) = (-3/5, 6/5), and its dot product with u is -6/5 + 6/5 = 0, so it is perpendicular.</p>
+  <p>Drag the tip of v in the picture. The foot of the perpendicular slides along the line, and the dashed leftover always stays at a right angle.</p>
+  <div class="viz" data-viz="projection" data-u="2,1" data-v="1,2"></div>
+  <div class="note trap"><p><span class="t">Trap</span>The projection depends only on the direction of u. Scaling u to 10u gives the same projection, because the factor u . v / u . u changes too.</p></div>
+  <details class="check"><summary>Project v = (3, 0) onto the line through u = (1, 2).</summary><div class="ans"><p>u . v = 3 and u . u = 5, so p = (3/5)(1, 2) = (3/5, 6/5).</p></div></details>
+  <details class="check"><summary>If v is already on the line through u, what is its projection?</summary><div class="ans"><p>Its own vector v. For example, v = 2u gives c = 2, so p = 2u = v.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="The projection matrix">
+  <h2>The projection matrix onto a line and onto a column space</h2>
+  <p>Since p = (u<sup>T</sup>v / u<sup>T</sup>u) u, the projection onto the line through u is the matrix P = u u<sup>T</sup> / (u<sup>T</sup>u). Here u u<sup>T</sup> is a column times a row, which gives a square matrix. For u = (2, 1), u u<sup>T</sup> = [[4, 2], [2, 1]] and u<sup>T</sup>u = 5, so P = (1/5)[[4, 2], [2, 1]]. Check: Pv = (1/5)(4 + 4, 2 + 2) = (8/5, 4/5), the same projection as before.</p>
+  <p>For a plane or any larger subspace, project onto the column space of A:</p>
+  <div class="formula">P = A (A<sup>T</sup>A)<sup>-1</sup> A<sup>T</sup></div>
+  <p>Here A<sup>T</sup>A is square and symmetric, and its inverse exists when the columns of A are independent. Take A = [[1, 0], [0, 1], [1, 1]]. Then A<sup>T</sup>A = [[2, 1], [1, 2]], whose inverse is (1/3)[[2, -1], [-1, 2]]. Multiplying out gives P = [[2/3, -1/3, 1/3], [-1/3, 2/3, 1/3], [1/3, 1/3, 2/3]]. The Python block does every step with exact fractions and tests the properties of the next section.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def matmul(X, Y):
+    n, k, m = len(X), len(Y), len(Y[0])
+    return [[sum(X[i][t] * Y[t][j] for t in range(k)) for j in range(m)] for i in range(n)]
+
+def transpose(M):
+    return [list(col) for col in zip(*M)]
+
+def inv2(M):
+    a, b = M[0]
+    c, d = M[1]
+    det = a * d - b * c
+    return [[F(d, det), F(-b, det)], [F(-c, det), F(a, det)]]
+
+def show(name, M):
+    print(name)
+    for row in M:
+        print("  ", [str(x) for x in row])
+
+A = [[1, 0], [0, 1], [1, 1]]
+At = transpose(A)
+G = matmul(At, A)
+P = matmul(matmul(A, inv2(G)), At)
+show("A^T A =", G)
+show("P =", P)
+print("P symmetric:", P == transpose(P))
+print("P squared equals P:", matmul(P, P) == P)
+print("trace of P:", sum(P[i][i] for i in range(3)))
+b = [[1], [0], [0]]
+print("P b =", [str(x[0]) for x in matmul(P, b)])</code></pre>
+  <pre class="output">A^T A =
+   ['2', '1']
+   ['1', '2']
+P =
+   ['2/3', '-1/3', '1/3']
+   ['-1/3', '2/3', '1/3']
+   ['1/3', '1/3', '2/3']
+P symmetric: True
+P squared equals P: True
+trace of P: 2
+P b = ['2/3', '-1/3', '1/3']</pre>
+  <div class="note key"><p><span class="t">Key idea</span>If b is already a mix of the columns of A, then Pb = b. For example, (1, 2, 3) = 1 (1, 0, 1) + 2 (0, 1, 1), so P leaves (1, 2, 3) unchanged.</p></div>
+  <details class="check"><summary>What is P applied to u for the line projection P = (1/5)[[4, 2], [2, 1]] and u = (2, 1)?</summary><div class="ans"><p>(1/5)(8 + 2, 4 + 1) = (2, 1). Since u is on the line, it is unchanged.</p></div></details>
+  <details class="check"><summary>Why is A<sup>T</sup>A always symmetric?</summary><div class="ans"><p>(A<sup>T</sup>A)<sup>T</sup> = A<sup>T</sup>(A<sup>T</sup>)<sup>T</sup> = A<sup>T</sup>A, so it equals its own transpose.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Properties of projection matrices">
+  <h2>Properties of projection matrices</h2>
+  <p>Every projection matrix has these properties, and they let you rule out wrong options quickly.</p>
+  <h3>Symmetric and idempotent</h3>
+  <div class="formula">P<sup>T</sup> = P and P<sup>2</sup> = P</div>
+  <p>Idempotent means "same again". Projecting a point that is already on the subspace changes nothing. The Python output above showed P symmetric and P squared equal to P.</p>
+  <h3>Trace equals rank</h3>
+  <p>For a projection, the trace equals the dimension of the subspace, which equals the rank. In the example the trace is 2/3 + 2/3 + 2/3 = 2, and the plane is two-dimensional.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>To find the rank of a projection matrix in an exam, add its diagonal entries. This is usually faster than row reduction.</p></div>
+  <h3>The leftover matrix</h3>
+  <p>Let Q = I - P. Then Q is also a projection, onto the perpendicular space. For b = (1, 0, 0) in the example, the residual is Qb = (1/3, 1/3, -1/3).</p>
+  <div class="note trap"><p><span class="t">Trap</span>Idempotent alone is not enough. A projection must also be symmetric. For example, [[1, 1], [0, 0]] satisfies P<sup>2</sup> = P, but its transpose is different, so it is not an orthogonal projection.</p></div>
+  <details class="check"><summary>What is the trace of the projection onto a line?</summary><div class="ans"><p>1, because a line is one-dimensional. For the line through (2, 1), the trace is (4 + 1)/5 = 1.</p></div></details>
+  <details class="check"><summary>Is [[1, 1], [0, 0]] squared equal to itself?</summary><div class="ans"><p>Yes: row 1 times column 1 is 1, and row 1 times column 2 is 1. So P<sup>2</sup> = P.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>(AB)<sup>T</sup> = B<sup>T</sup>A<sup>T</sup></td><td>Transpose reverses order</td><td>Transposing products</td></tr>
+      <tr><td>(AB)<sup>-1</sup> = B<sup>-1</sup>A<sup>-1</sup></td><td>Inverse reverses order</td><td>Inverting products</td></tr>
+      <tr><td>tr(C<sup>T</sup>C) = sum of squares of entries of C</td><td>Trace of a Gram matrix</td><td>Quick norms</td></tr>
+      <tr><td>u . v = u<sup>T</sup>v</td><td>Dot product</td><td>Projections and angles</td></tr>
+      <tr><td>p = (u . v / u . u) u</td><td>Projection onto the line through u</td><td>Projecting onto a line</td></tr>
+      <tr><td>P = u u<sup>T</sup> / (u<sup>T</sup>u)</td><td>Projection matrix onto a line</td><td>Building P</td></tr>
+      <tr><td>P = A (A<sup>T</sup>A)<sup>-1</sup> A<sup>T</sup></td><td>Projection onto the column space of A</td><td>Planes and subspaces</td></tr>
+      <tr><td>P<sup>T</sup> = P and P<sup>2</sup> = P</td><td>Defining properties</td><td>Checking a candidate</td></tr>
+      <tr><td>tr(P) = rank(P) = dimension</td><td>Trace equals dimension</td><td>Finding the dimension</td></tr>
+      <tr><td>e = b - Pb = (I - P) b</td><td>Residual</td><td>Least squares error</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Problems 1 to 7 are original GATE-style problems. Problems 8 and 9 are real past questions from GATE papers, rewritten in this format and marked as verified PYQs.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Add and scale matrices</h3>
+    <div class="statement"><p>Let A = [[1, 2], [0, 1]] and B = [[2, 0], [1, 1]]. Find 2A - B.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One matrix, made by scaling A and subtracting B.</li>
+      <li><strong>Which idea applies.</strong> Scale each entry of A by 2, then subtract the matching entries of B.</li>
+      <li><strong>Work it out.</strong> 2A = [[2, 4], [0, 2]], so 2A - B = [[0, 4], [-1, 1]].</li>
+      <li><strong>Check.</strong> Entry (2,1): 0 minus 1 gives -1, which matches.</li>
+    </ol>
+    <p class="cx">Answer: [[0, 4], [-1, 1]].</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Symmetric and skew-symmetric (MSQ)</h3>
+    <div class="statement"><p>(A) K = [[0, 3], [-3, 0]] is skew-symmetric. (B) S = [[1, 2], [2, 1]] is symmetric. (C) T = [[1, 2], [3, 1]] is symmetric. (D) Z = [[0, 0], [0, 0]] is both symmetric and skew-symmetric. Select all true statements.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test each matrix against A<sup>T</sup> = A and A<sup>T</sup> = -A.</li>
+      <li><strong>Which idea applies.</strong> Compare mirror entries across the diagonal.</li>
+      <li><strong>Work it out.</strong> (A) true, since K<sup>T</sup> = -K. (B) true, since both mirror entries are 2. (C) false, since 2 and 3 differ. (D) true.</li>
+      <li><strong>Check.</strong> Only matrices whose mirror entries are equal or opposite pass.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Sum of squares as a trace (NAT)</h3>
+    <div class="statement"><p>Let C = [[1, 2], [3, 4]]. Find the trace of C<sup>T</sup>C. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One number.</li>
+      <li><strong>Which idea applies.</strong> The diagonal of C<sup>T</sup>C holds the squared lengths of the columns of C.</li>
+      <li><strong>Work it out.</strong> Column 1 is (1, 3), with squared sum 10. Column 2 is (2, 4), with squared sum 20. Total 30.</li>
+      <li><strong>Check.</strong> C<sup>T</sup>C = [[10, 14], [14, 20]], whose trace is 30.</li>
+    </ol>
+    <p class="cx">Answer: 30.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Projecting onto a line (NAT)</h3>
+    <div class="statement"><p>Let u = (1, 2) and v = (3, 0). Let p be the projection of v onto the line through u. Find the second entry of p.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One entry of p.</li>
+      <li><strong>Which idea applies.</strong> p = (u . v / u . u) u.</li>
+      <li><strong>Work it out.</strong> u . v = 3 and u . u = 5, so p = (3/5)(1, 2) = (3/5, 6/5). The second entry is 6/5.</li>
+      <li><strong>Check.</strong> The leftover (12/5, -6/5) has dot product 12/5 - 12/5 = 0 with u.</li>
+    </ol>
+    <p class="cx">Answer: 6/5 (that is, 1.2).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Properties of a line projection (MSQ)</h3>
+    <div class="statement"><p>Let P be the projection matrix onto the line through u = (1, 2), so P = (1/5)[[1, 2], [2, 4]]. Select all true statements.</p>
+    <p>(A) P is symmetric<br>(B) P<sup>2</sup> = P<br>(C) P = I<br>(D) tr(P) = 1</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Check four properties.</li>
+      <li><strong>Which idea applies.</strong> Symmetry, idempotence, and trace equals the dimension of the line.</li>
+      <li><strong>Work it out.</strong> (A) true, since the off-diagonal entries are both 2/5. (B): P<sup>2</sup> = (1/25)[[5, 10], [10, 20]] = (1/5)[[1, 2], [2, 4]] = P, true. (C) false, since P has entries such as 1/5 and 2/5. (D): (1 + 4)/5 = 1, true.</li>
+      <li><strong>Check.</strong> A line is one-dimensional, so the trace must be 1.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Residual of a projection onto a line (MSQ)</h3>
+    <div class="statement"><p>Let a = (1, 2, 2). Project b = (3, 0, 0) onto the line through a, giving p, and let e = b - p. Select all true statements.</p>
+    <p>(A) p = (1/3, 2/3, 2/3)<br>(B) e is perpendicular to a<br>(C) the length of e is 3<br>(D) Pb = b, where P is the projection matrix onto the line</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Compute the projection and residual, then test each statement.</li>
+      <li><strong>Which idea applies.</strong> p = (a . b / a . a) a, and the residual is perpendicular to a.</li>
+      <li><strong>Work it out.</strong> a . b = 3 and a . a = 9, so p = (1/3, 2/3, 2/3). (A) true. The residual is e = (8/3, -2/3, -2/3). Its dot product with a is 8/3 - 4/3 - 4/3 = 0, so (B) true. Its squared length is 64/9 + 4/9 + 4/9 = 8, so the length is about 2.83, not 3, and (C) is false. (D) is false because b is not on the line.</li>
+      <li><strong>Check.</strong> p + e = (1/3 + 8/3, 2/3 - 2/3, 2/3 - 2/3) = (3, 0, 0) = b.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Trace of a projection onto a plane (NAT)</h3>
+    <div class="statement"><p>Let A = [[1, 0], [0, 1], [1, 1]] and P = A (A<sup>T</sup>A)<sup>-1</sup> A<sup>T</sup>. Find the sum of the three diagonal entries of P. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The trace of P.</li>
+      <li><strong>Which idea applies.</strong> The trace of a projection equals the dimension of the space it projects onto.</li>
+      <li><strong>Work it out.</strong> The column space has two independent columns, so the dimension is 2. From the worked example, the diagonal of P is 2/3, 2/3, 2/3, with sum 2.</li>
+      <li><strong>Check.</strong> The trace matches the dimension.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>GATE DA 2024 Q39 (verified PYQ): projections in R<sup>3</sup> (MSQ)</h3>
+    <div class="statement"><p>Let U be a subspace of R<sup>3</sup>, and let M be the 3 x 3 matrix that projects vectors onto U. Select all true statements.</p>
+    <p>(A) If U is 1-dimensional, the null space of M is 1-dimensional<br>(B) If U is 2-dimensional, the null space of M is 1-dimensional<br>(C) M<sup>2</sup> = M<br>(D) M<sup>3</sup> = M</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about a projection matrix are true.</li>
+      <li><strong>Which idea applies.</strong> The output of M is U, so rank(M) = dim U, and the null space has dimension 3 minus the rank.</li>
+      <li><strong>Work it out.</strong> (C) true, because projecting twice equals projecting once. (D) true, since M<sup>3</sup> = M<sup>2</sup>M = MM = M. (A) false: rank 1 gives nullity 2. (B) true: rank 2 gives nullity 1.</li>
+      <li><strong>Check.</strong> For a plane U, the vectors killed by M form the perpendicular line, which is 1-dimensional.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D). This is a verified PYQ from GATE DA 2024, Q39, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>GATE DA 2026 (verified PYQ): centering matrix (MSQ)</h3>
+    <div class="statement"><p>Let 1 be the column of n ones and let M = I<sub>n</sub> - (1/n) 11<sup>T</sup>. Select all true statements.</p>
+    <p>(A) M is a projection matrix<br>(B) M<sup>T</sup> = M<br>(C) M<sup>2</sup> = I<br>(D) tr(M) = n</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Check each property of M.</li>
+      <li><strong>Which idea applies.</strong> Let J = 11<sup>T</sup>. Each entry of J<sup>2</sup> is a sum of n ones, so J<sup>2</sup> = nJ.</li>
+      <li><strong>Work it out.</strong> (B) true, since J is symmetric. M<sup>2</sup> = I - (2/n)J + (1/n<sup>2</sup>)nJ = I - (1/n)J = M, so (C) is false. (A) true, because M is symmetric and idempotent. (D) false: tr(M) = n - 1.</li>
+      <li><strong>Check.</strong> For n = 2, M = [[1/2, -1/2], [-1/2, 1/2]] has trace 1 = n - 1, and M squared equals M.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B). This is a verified PYQ from GATE DA 2026, rewritten into the format of this page.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Projection onto a column space (NAT, 2 marks)</h3>
+    <div class="statement"><p>Let A = [[1, 0], [1, 1], [0, 1]] and P = A(AᵀA)<sup>−1</sup>Aᵀ. Find tr(P) and the (1, 1) entry of P.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The trace of the projection matrix and its top left entry.</li>
+      <li><strong>Which idea applies.</strong> P projects onto the column space of A. For any projection, the trace equals the rank.</li>
+      <li><strong>Work it out.</strong> AᵀA = [[2, 1], [1, 2]], inverse (1/3)[[2, −1], [−1, 2]]. Row 1 of A is (1, 0), so P<sub>11</sub> = (1, 0)(1/3)[[2, −1], [−1, 2]](1, 0)ᵀ = 2/3. The rank of A is 2, so tr(P) = 2.</li>
+      <li><strong>Check.</strong> The code forms P exactly.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+A = [[1, 0], [1, 1], [0, 1]]
+G = [[sum(A[k][i] * A[k][j] for k in range(3)) for j in range(2)] for i in range(2)]
+d = F(G[0][0] * G[1][1] - G[0][1] * G[1][0])
+Gi = [[G[1][1] / d, -G[0][1] / d], [-G[1][0] / d, G[0][0] / d]]
+P = [[sum(A[i][a] * Gi[a][b] * A[j][b] for a in range(2) for b in range(2)) for j in range(3)] for i in range(3)]
+print("P11 =", P[0][0], " trace =", sum(P[i][i] for i in range(3)))
+</code></pre>
+    <pre class="output">P11 = 2/3  trace = 2</pre>
+    <p class="cx">Answer: tr(P) = 2 and P<sub>11</sub> = 2/3 ≈ 0.667.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Products that commute (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Let P be a real n × n orthogonal projection (P = Pᵀ = P²), P ≠ 0, P ≠ I. Which are TRUE? (A) I − P is a projection. (B) P(I − P) = 0. (C) P is invertible. (D) Every eigenvalue of P is 0 or 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of a non-trivial orthogonal projection.</li>
+      <li><strong>Which idea applies.</strong> Use P² = P directly, and the eigen equation Px = λx.</li>
+      <li><strong>Work it out.</strong> (A) (I − P)² = I − 2P + P² = I − P and it is symmetric. True. (B) P − P² = 0. True. (C) P ≠ I with P² = P: if P were invertible, multiplying P² = P by P<sup>−1</sup> gives P = I. False. (D) Px = λx gives λ²x = λx, so λ is 0 or 1. True.</li>
+      <li><strong>Check.</strong> P = [[1, 0], [0, 0]] is a quick example: det 0, eigenvalues 1 and 0.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Matrix power by pattern (NAT, 2 marks)</h3>
+    <div class="statement"><p>Let N = [[0, 1, 2], [0, 0, 3], [0, 0, 0]] and A = I + N. Find the (1, 3) entry of A<sup>10</sup>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One entry of a high power of a unipotent matrix.</li>
+      <li><strong>Which idea applies.</strong> N is strictly upper triangular, so N³ = 0. I and N commute, so the binomial theorem gives A<sup>10</sup> = I + 10N + 45N².</li>
+      <li><strong>Work it out.</strong> N² = [[0, 0, 3], [0, 0, 0], [0, 0, 0]]. The (1, 3) entry is 0 + 10·2 + 45·3 = 20 + 135 = 155.</li>
+      <li><strong>Check.</strong> The code multiplies A by itself ten times.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def mul(X, Y):
+    return [[sum(X[i][k] * Y[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+A = [[1, 1, 2], [0, 1, 3], [0, 0, 1]]
+R = [[int(i == j) for j in range(3)] for i in range(3)]
+for _ in range(10):
+    R = mul(R, A)
+print("(1,3) entry of A^10 =", R[0][2])
+</code></pre>
+    <pre class="output">(1,3) entry of A^10 = 155</pre>
+    <p class="cx">Answer: 155.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Dot product</dt><dd>Multiply matching entries and add. Equals u<sup>T</sup>v.</dd></div>
+    <div><dt>Projection</dt><dd>The closest point to a vector inside a line, plane or subspace.</dd></div>
+    <div><dt>Residual</dt><dd>The leftover e = b - p, perpendicular to the subspace.</dd></div>
+    <div><dt>Orthogonal</dt><dd>Two vectors whose dot product is 0.</dd></div>
+    <div><dt>Projection onto a line</dt><dd>p = (u . v / u . u) u.</dd></div>
+    <div><dt>Projection matrix onto a line</dt><dd>P = u u<sup>T</sup> / (u<sup>T</sup>u).</dd></div>
+    <div><dt>Projection matrix onto a column space</dt><dd>P = A (A<sup>T</sup>A)<sup>-1</sup> A<sup>T</sup>.</dd></div>
+    <div><dt>Symmetric</dt><dd>P<sup>T</sup> = P. Every projection is symmetric.</dd></div>
+    <div><dt>Idempotent</dt><dd>P<sup>2</sup> = P. Projecting twice equals projecting once.</dd></div>
+    <div><dt>Trace of a projection</dt><dd>Equals the dimension of the subspace.</dd></div>
+    <div><dt>Diagonal matrix</dt><dd>Zeros off the main diagonal.</dd></div>
+    <div><dt>Skew-symmetric matrix</dt><dd>A<sup>T</sup> = -A. Its diagonal is 0.</dd></div>
+    <div><dt>Column space</dt><dd>All vectors of the form Ax.</dd></div>
+    <div><dt>Order matters</dt><dd>AB is usually not equal to BA. The product of inverses reverses order.</dd></div>
+      <div><dt>Least squares</dt><dd>Finding the closest point in a subspace, which is exactly a projection.</dd></div>
+    <div><dt>Perpendicular vectors</dt><dd>Two vectors with dot product 0, which is what makes a residual perpendicular.</dd></div>
+</dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A projection gives the closest point, and the leftover is perpendicular to the subspace.</li>
+    <li>Projection matrices are symmetric and idempotent. Check both.</li>
+    <li>The trace of a projection equals the dimension of the space it projects onto.</li>
+    <li>For a projection onto a plane in R<sup>3</sup>, the null space is a line, so the nullity is 1.</li>
+    <li>Use P = A (A<sup>T</sup>A)<sup>-1</sup> A<sup>T</sup> when the subspace is the column space of A.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 3?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 3 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-002.html"><small>Previous, topic 2</small>Matrix transpose, trace and adjoint (recap)</a><a class="next" href="gate-004.html"><small>Next, topic 4</small>Determinant, rank and nullity</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

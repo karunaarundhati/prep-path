@@ -1,0 +1,416 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 72: Hash Tables</title><meta name="description" content="A hash table stores items so that you can find any item almost immediately, by computing a number from its key. Because two keys can map to the same slot, the page also explains collisions, the ways to resolve them, and the load factor, which tells you when the table is getting too full."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g72" data-key="g72" data-noun="topic" data-num="72" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Hash Tables</h1>
+<p class="lede">A hash table stores items so that you can find any item almost immediately, by computing a number from its key. Because two keys can map to the same slot, the page also explains collisions, the ways to resolve them, and the load factor, which tells you when the table is getting too full.</p>
+<div class="station"><b>72</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Hash functions and the idea of a slot</li><li>Collisions</li><li>Chaining</li><li>Open addressing: linear and quadratic probing, double hashing</li><li>Load factor and rehashing</li><li>Average and worst case, and GATE numericals</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a cloakroom at a concert with 10 numbered hooks. When you hand in a coat, the attendant does not search every hook. Instead the attendant uses a rule: take your ticket number, divide it by 10, and use the remainder as the hook number. Next time, the same rule tells the attendant exactly where to look. This is the central idea of a <strong>hash table</strong>. A <strong>hash function</strong> turns a key, such as a name or a student number, into a slot number.</p>
+  <p>The rule is fast, because computing a remainder takes the same time no matter how many coats are stored. This is why a good hash table can find an item in about constant time, written O(1). But the rule is not perfect. Two different tickets can give the same remainder, and then two coats want the same hook. This is a <strong>collision</strong>, and handling it is the main work of hashing.</p>
+  <p>The two main ways to handle collisions are <strong>chaining</strong>, where each hook holds a small list of coats, and <strong>open addressing</strong>, where a coat that finds its hook taken tries another hook nearby by a fixed rule.</p>
+  <p><strong>Why this matters for GATE.</strong> Questions give a table size, a hash function and a sequence of keys, then ask where each key lands, how many probes are made, or what the load factor is. They also ask about the average and the worst case. Drawing the table after each insertion is the reliable method.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Hash table</dt><dd>A table of slots in which each key is placed at a position computed from the key. Plain meaning: a row of hooks. Precise definition: an array plus a hash function that maps keys to array indexes.</dd></div>
+    <div><dt>Key</dt><dd>The value you use to find an item, such as a student number.</dd></div>
+    <div><dt>Hash function</dt><dd>A rule that turns a key into a whole number slot index. Plain meaning: the attendant's rule. Precise definition: a function h that maps keys to {0, 1, ..., m - 1}, where m is the table size.</dd></div>
+    <div><dt>Slot (or bucket)</dt><dd>A position in the table. Each slot can hold one item, or in chaining, a list of items.</dd></div>
+    <div><dt>Table size m</dt><dd>The number of slots in the table.</dd></div>
+    <div><dt>Collision</dt><dd>When two different keys have the same hash value and want the same slot.</dd></div>
+    <div><dt>Chaining</dt><dd>Handling collisions by storing all colliding items in a linked list or list attached to the slot.</dd></div>
+    <div><dt>Open addressing</dt><dd>Handling collisions by probing: trying other slots in the same array until a free one is found.</dd></div>
+    <div><dt>Probe</dt><dd>One look at a slot during insertion or search.</dd></div>
+    <div><dt>Linear probing</dt><dd>Probing the next slots one after another: h, h + 1, h + 2, and so on, wrapping around at the end.</dd></div>
+    <div><dt>Quadratic probing</dt><dd>Probing slots h + 1², h + 2², h + 3², and so on, wrapping around the table.</dd></div>
+    <div><dt>Double hashing</dt><dd>Probing with a step size given by a second hash function, so that different keys use different probe sequences.</dd></div>
+    <div><dt>Primary clustering</dt><dd>A problem with linear probing, where filled runs of slots grow and make later insertions slow.</dd></div>
+    <div><dt>Load factor</dt><dd>The number of stored keys n divided by the table size m. It measures how full the table is.</dd></div>
+    <div><dt>Rehashing</dt><dd>Building a new, larger table and inserting every key again with the new size.</dd></div>
+    <div><dt>Mod (%)</dt><dd>The remainder operator. <code>17 % 5</code> is 2, because 17 = 5 * 3 + 2.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Hash functions and the idea of a slot">
+  <h2>Hash functions and the idea of a slot</h2>
+  <h3>Why not just use an array?</h3>
+  <p>An array lets you find item i directly, but only if you know the position i. If the key is a student roll number such as 1045, you would need an array of at least 1046 cells, most of them empty. A hash table solves this. It uses a small array of m cells, and a hash function that maps any key into one of those cells.</p>
+
+  <h3>The simplest hash function</h3>
+  <p>In GATE questions the hash function is usually the remainder function <code>h(k) = k % m</code>. For m = 7, the key 22 gives 22 % 7, which is 1, because 22 = 7 * 3 + 1. So 22 goes to slot 1. The key 15 gives 15 % 7 = 1 as well. Keep this second key in mind, because it causes a collision.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>A good hash function spreads keys evenly over the slots. A bad one puts most keys into a few slots, and then the table is no faster than a list.</p></div>
+
+  <h3>Lookup</h3>
+  <p>To find a key, compute its hash, go to that slot, and compare. If the key is there, you have found it. If the slot holds another key, you must follow the collision rule of the method, which is covered in the next sections. If there is no collision at all, a lookup takes one probe.</p>
+
+  <details class="check"><summary>With h(k) = k % 10, which slot does the key 47 use?</summary><div class="ans"><p>Slot 7, because 47 = 10 * 4 + 7.</p></div></details>
+  <details class="check"><summary>Why is the remainder a useful hash function?</summary><div class="ans"><p>It always gives a value from 0 to m - 1, so the result is always a valid slot, and it takes constant time to compute.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Collisions">
+  <h2>Collisions</h2>
+  <h3>Why collisions happen</h3>
+  <p>Suppose you have 10 slots and 25 keys. By the pigeonhole idea, at least one slot must hold more than one key. So collisions are not a rare accident. They are certain once the table is crowded, and even with fewer keys they happen by chance. The birthday effect shows this: in a group of only 23 people, two people are more likely than not to share a birthday, even though there are 365 days.</p>
+
+  <h3>The collision rule must be fixed</h3>
+  <p>When a collision happens, the table needs a rule to decide where the new key goes. Both the insertion and the search must follow the same rule. If insertion moves a key to slot 4 and search looks only in slot 1, the key will be reported as missing. Exam questions often hide this trap, so always follow the rule exactly.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A search that stops at the first empty slot is correct only in open addressing, where a key is never placed after an empty slot. In chaining, the search looks only in the one bucket for its hash.</p></div>
+
+  <details class="check"><summary>Table size 7, h(k) = k % 7. Keys 22 and 15 are inserted in that order. Do they collide?</summary><div class="ans"><p>Yes. Both have hash value 1, so the second key must be handled by the collision rule.</p></div></details>
+  <details class="check"><summary>Why must insertion and search use the same probe sequence?</summary><div class="ans"><p>Because search retraces the path insertion took. If the paths differ, a key that was stored will not be found.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Chaining">
+  <h2>Chaining</h2>
+  <h3>The idea</h3>
+  <p>In chaining, every slot holds a list, called a bucket. Insertion computes the hash, then adds the key to the list in that bucket. Nothing is ever moved to another slot, so the table never fills up in the usual sense. The table can hold any number of keys, but the lists get longer as more keys arrive.</p>
+  <p>Searching a key means computing its hash, then scanning the list in that bucket. If the lists are short, the search is fast.</p>
+
+<pre class="code" data-lang="python"><code>m = 5
+buckets = []
+for i in range(m):
+    buckets.append([])
+for key in [10, 15, 7, 20, 3]:
+    buckets[key % m].append(key)
+print(buckets)
+print(len(buckets[0]), 5 / 5)</code></pre>
+<pre class="output">[[10, 15, 20], [], [7], [3], []]
+3 1.0</pre>
+
+  <p>The keys 10, 15 and 20 all have hash value 0, because each one is a multiple of 5. They are stored in the same bucket in the order they arrived. The bucket 1 and bucket 4 are empty. The last line shows the length of bucket 0, which is 3, and the load factor 5 / 5, which is 1.0.</p>
+
+  <h3>Cost of chaining</h3>
+  <ul>
+    <li><strong>Average</strong>: if the keys spread evenly, each bucket holds about n / m keys. A search costs about 1 + n/m steps. If n/m is kept small, this is O(1).</li>
+    <li><strong>Worst</strong>: if every key lands in one bucket, the search scans all n keys, so the cost is O(n).</li>
+    <li><strong>Memory</strong>: each stored key needs space for the list entry, so chaining uses extra memory beyond the table.</li>
+  </ul>
+
+  <details class="check"><summary>In chaining with m = 4 and keys 4, 8, 12 (all multiples of 4), how many keys share bucket 0?</summary><div class="ans"><p>All three, because 4 % 4, 8 % 4 and 12 % 4 are all 0. The bucket holds 3 keys.</p></div></details>
+  <details class="check"><summary>In chaining, can the table ever be full?</summary><div class="ans"><p>Not in the usual sense, because buckets can grow. The cost grows instead, as the lists become longer.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Open addressing: linear and quadratic probing, double hashing">
+  <h2>Open addressing: linear and quadratic probing, double hashing</h2>
+  <h3>Linear probing</h3>
+  <p>In open addressing, every key is stored in the table array itself, one key per slot. If the hash slot is taken, the key is placed in the next free slot, following the rule <code>slot = (h + i) % m</code> for i = 0, 1, 2, and so on. Probing stops at the first empty slot.</p>
+  <p>The next code inserts five keys into a table of size 7 with linear probing. It prints the slot used and the number of slots examined for each key. "Examined" counts the first look at the hash slot as well.</p>
+
+<pre class="code" data-lang="python"><code>def insert_linear(table, key):
+    m = len(table)
+    slot = key % m
+    examined = 1
+    while table[slot] is not None:
+        slot = (slot + 1) % m
+        examined = examined + 1
+    table[slot] = key
+    return slot, examined
+
+m = 7
+table = [None] * m
+for key in [22, 15, 8, 29, 1]:
+    slot, examined = insert_linear(table, key)
+    print(key, slot, examined)
+print(table)</code></pre>
+<pre class="output">22 1 1
+15 2 2
+8 3 3
+29 4 4
+1 5 5
+[None, 22, 15, 8, 29, 1, None]</pre>
+
+  <p>Every key has hash value 1, so every key after the first must probe forward. The keys fill slots 1, 2, 3, 4 and 5 in turn. Each new key examines one more slot than the one before. This is <strong>primary clustering</strong>: a long filled run grows, and each new key with a hash inside the run must walk to the end of it.</p>
+
+  <h3>Quadratic probing</h3>
+  <p>Quadratic probing jumps further each time, using <code>slot = (h + i * i) % m</code>. The offsets are 0, 1, 4, 9, and so on. This breaks up the long runs that linear probing creates. A risk is that the probe sequence may not visit every slot, so the table should be kept less than half full for quadratic probing to be sure of finding an empty slot when m is prime.</p>
+
+  <h3>Double hashing</h3>
+  <p>Double hashing uses a second hash function h2 to decide the step size. The probe sequence is <code>slot = (h1(k) + i * h2(k)) % m</code>. Two keys with the same first hash now usually take different paths, so clustering is much reduced. The second hash must never return 0, which is why it is often written as 1 + k % (m - 1), for a prime m. Expect GATE questions to give h2 directly.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Questions give the probe formula, the table size and the keys, then ask for the final slot or the number of probes. Compute each probe in the given formula, one i at a time, and stop at the first empty slot.</p></div>
+
+  <details class="check"><summary>With linear probing and table size 7, a key whose hash is 6 is inserted when slot 6 is full. Which slot is tried next?</summary><div class="ans"><p>Slot 0, because the probe wraps around: (6 + 1) % 7 = 0.</p></div></details>
+  <details class="check"><summary>Which probing method uses offsets 0, 1, 4, 9 and so on?</summary><div class="ans"><p>Quadratic probing.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Load factor and rehashing">
+  <h2>Load factor and rehashing</h2>
+  <h3>The load factor</h3>
+  <p>The load factor, written alpha, is the number of stored keys n divided by the table size m. A table with 8 keys in 10 slots has load factor 0.8. For chaining, the load factor is the average number of keys per bucket. For open addressing, it is the fraction of the array that is full, and it must be less than 1.</p>
+  <div class="formula">load factor alpha = n / m</div>
+
+  <p>The load factor controls the cost. A low load factor means most probes or bucket scans succeed quickly. A high load factor means long probe sequences in open addressing, and long lists in chaining.</p>
+
+  <h3>Rehashing</h3>
+  <p>When the load factor passes a chosen limit, such as 0.75 for open addressing, the table is <strong>rehashed</strong>. A new, larger table is created, usually about twice the size, and every key is inserted again using the new size. The new size changes the hash values, so every key may move. This copying costs time, but it happens rarely, so the average cost per insertion stays low.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>After rehashing, the keys are placed by the new hash values, not the old ones. A question that gives the old table and asks for a slot after rehashing must recompute every hash with the new m.</p></div>
+
+  <details class="check"><summary>A table of size 10 holds 8 keys. What is the load factor?</summary><div class="ans"><p>0.8, because 8 / 10 = 0.8.</p></div></details>
+  <details class="check"><summary>Why does a load factor of 1 cause trouble in open addressing?</summary><div class="ans"><p>When all slots are full, the table cannot hold another key. Probing would loop forever unless it is stopped after m tries.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Average and worst case, and GATE numericals">
+  <h2>Average and worst case, and GATE numericals</h2>
+  <h3>Average case</h3>
+  <p>When keys spread evenly and the load factor is kept below a fixed limit, the average cost of search and insertion is O(1). Chaining averages about 1 + alpha probes for a successful search. Open addressing averages a constant number of probes when alpha is well below 1, but that constant grows quickly as alpha approaches 1.</p>
+
+  <h3>Worst case</h3>
+  <p>The worst case happens when every key collides with the others, for example when all keys hash to the same slot. In chaining, the search then scans a list of length n, so the cost is O(n). In open addressing, the probe sequence may pass through almost every slot, which is also O(n). The worst case is rare with a good hash function, but GATE asks about it, so know both.</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Operation</th><th>Average</th><th>Worst</th></tr></thead>
+    <tbody>
+      <tr><td>Search, insertion and deletion in a hash table</td><td>O(1)</td><td>O(n)</td></tr>
+      <tr><td>Rehashing one time</td><td>Costs O(m + n), done rarely</td><td>Not applicable as a per-operation bound</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Applications</h3>
+  <p>Hash tables are used when you need to test whether a key is present, count how many times a key occurs, or look up a value by name. Many programming languages use them behind the scenes for sets and dictionaries. Python's <code>dict</code> and <code>set</code> are hash tables.</p>
+
+<pre class="code" data-lang="python"><code>ages = {"Ravi": 19, "Meena": 22}
+ages["Asha"] = 20
+print(ages["Meena"])
+print("Ravi" in ages, "Kiran" in ages)
+print(len(ages))</code></pre>
+<pre class="output">22
+True False
+3</pre>
+
+  <p>Each lookup uses the key's hash to find its slot, which is why <code>"Meena" in ages</code> does not scan the other keys. The printed results show the value 22, the membership tests, and the count of three keys.</p>
+
+  <details class="check"><summary>What is the average search time in a hash table with a low load factor?</summary><div class="ans"><p>O(1). Most searches find the key, or an empty slot, in a constant number of probes.</p></div></details>
+  <details class="check"><summary>What is the worst-case search time in chaining?</summary><div class="ans"><p>O(n), when all keys are in one bucket and the search must scan them all.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>h(k) = k % m</td><td>Basic hash function, slot from 0 to m - 1</td><td>Finding the first slot of a key</td></tr>
+      <tr><td>Linear probing: slot = (h + i) % m</td><td>Next slots, one by one</td><td>Open addressing with linear steps</td></tr>
+      <tr><td>Quadratic probing: slot = (h + i * i) % m</td><td>Offsets 0, 1, 4, 9, ...</td><td>Open addressing with quadratic steps</td></tr>
+      <tr><td>Double hashing: slot = (h1(k) + i * h2(k)) % m</td><td>Step size from a second hash</td><td>Open addressing with two hash functions</td></tr>
+      <tr><td>Load factor alpha = n / m</td><td>Fraction of the table in use</td><td>Deciding when to rehash</td></tr>
+      <tr><td>Chaining, successful search: about 1 + alpha</td><td>Average bucket scan length</td><td>Average-case questions</td></tr>
+      <tr><td>Items in a chain of length L = L</td><td>Each bucket holds its own list</td><td>Counting keys in a bucket</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style, and are not taken from any past paper. Trace each one on paper before you read the steps.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Slot from the remainder</h3>
+    <div class="statement"><p>A hash table has 7 slots, and the hash function is h(k) = k % 7. Which slot does the key 23 use? Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The slot index of the key 23.</li>
+      <li><strong>Which idea applies.</strong> The hash value is the remainder after dividing by the table size.</li>
+      <li><strong>Work it out.</strong> 23 = 7 * 3 + 2, so 23 % 7 = 2.</li>
+      <li><strong>Check.</strong> The answer is between 0 and 6, as every slot index must be.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about hashing</h3>
+    <div class="statement"><p>Select all true statements. (A) The average search time in a well-spread hash table is O(1). (B) In chaining, the worst case is O(n) when all keys fall in one bucket. (C) Linear probing never produces clusters. (D) The load factor is the number of keys divided by the table size.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every true statement.</li>
+      <li><strong>Which idea applies.</strong> Average and worst cases, collision resolution, and the definition of the load factor.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is false, because linear probing creates primary clustering. (D) is true, since the load factor is n / m.</li>
+      <li><strong>Check.</strong> Statement C is the common trap, because linear probing is known for clustering.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Where does the third key go</h3>
+    <div class="statement"><p>A table has 7 slots, numbered 0 to 6, and uses h(k) = k % 7 with linear probing. The keys 9, 16 and 2 are inserted in this order into an empty table. Which slot does the key 2 end up in? Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The final slot of the key 2.</li>
+      <li><strong>Which idea applies.</strong> Linear probing moves forward from the hash slot to the first empty slot, wrapping at the end.</li>
+      <li><strong>Work it out.</strong> 9 % 7 = 2, so 9 goes to slot 2. 16 % 7 = 2, which is taken, so 16 goes to slot 3. 2 % 7 = 2, which is taken, slot 3 is taken, so 2 goes to slot 4.</li>
+      <li><strong>Check.</strong> Slots 2, 3 and 4 are now filled by 9, 16 and 2, which is a cluster of three, as linear probing predicts.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Total probes for three keys</h3>
+    <div class="statement"><p>The same table and keys as in the previous problem are used. Count the total number of slots examined while inserting 9, 16 and 2, where the first look at the hash slot counts as one examined slot. Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sum of examined slots for the three insertions.</li>
+      <li><strong>Which idea applies.</strong> Each insertion examines its hash slot, then each occupied slot it skips, then the empty slot where it is placed.</li>
+      <li><strong>Work it out.</strong> 9 examines slot 2, which is empty: 1 slot. 16 examines slot 2 (taken) and slot 3 (empty): 2 slots. 2 examines slot 2 (taken), slot 3 (taken) and slot 4 (empty): 3 slots. The total is 1 + 2 + 3 = 6.</li>
+      <li><strong>Check.</strong> The number of examined slots equals the number of keys already in the cluster, plus one, for each insertion in this sequence.</li>
+    </ol>
+    <p class="cx">Answer: 6</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Average chain length</h3>
+    <div class="statement"><p>A chaining hash table has 10 slots, and 30 keys are stored in it, spread evenly over the slots. What is the average length of a chain? Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The average number of keys per bucket.</li>
+      <li><strong>Which idea applies.</strong> In chaining, the load factor is the average chain length, n / m.</li>
+      <li><strong>Work it out.</strong> 30 / 10 = 3.</li>
+      <li><strong>Check.</strong> 10 buckets with 3 keys each gives 30 keys, which matches the total.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about collision handling are true?</h3>
+    <div class="statement"><p>Select all true statements. (A) Chaining stores colliding keys in a list attached to the slot. (B) Deletion in linear probing needs care so that later keys can still be found. (C) Double hashing uses a second hash function to choose the step. (D) Quadratic probing checks consecutive slots, one after the other.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every true statement.</li>
+      <li><strong>Which idea applies.</strong> The definitions of each collision method.</li>
+      <li><strong>Work it out.</strong> (A) is true: that is chaining. (B) is true: removing a key can break a probe path, so deleted slots must be marked. (C) is true: that is double hashing. (D) is false: quadratic probing jumps by 1, 4, 9, and so on, not by consecutive steps.</li>
+      <li><strong>Check.</strong> Statement D describes linear probing, which is the common confusion.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Quadratic probing trace</h3>
+    <div class="statement"><p>A table has 7 slots with h(k) = k % 7, and quadratic probing with slot = (h + i * i) % 7. The keys 8, 1 and 15 are inserted in this order into an empty table. Which slot does the key 15 end up in? Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The final slot of 15.</li>
+      <li><strong>Which idea applies.</strong> Try i = 0, 1, 2, and so on, until an empty slot is found.</li>
+      <li><strong>Work it out.</strong> 8 % 7 = 1, so 8 goes to slot 1. 1 % 7 = 1, taken; i = 1 gives (1 + 1) % 7 = 2, empty, so 1 goes to slot 2. 15 % 7 = 1, taken; i = 1 gives 2, taken; i = 2 gives (1 + 4) % 7 = 5, empty, so 15 goes to slot 5.</li>
+      <li><strong>Check.</strong> The probes for 15 were slots 1, 2 and then 5, which are the offsets 0, 1 and 4 added to 1, as the quadratic rule says.</li>
+    </ol>
+    <p class="cx">Answer: 5</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Rehash or not</h3>
+    <div class="statement"><p>An open addressing table has 10 slots, and a rehash is performed when the load factor would exceed 0.75. The table currently holds 7 keys, and one more key is to be inserted. Does a rehash happen before this insertion, and if so, what is the new table size if the size is doubled? Give the answer as "yes" or "no", then the new size, separated by a space.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Whether the load factor after the insertion passes the limit, and the new size if it does.</li>
+      <li><strong>Which idea applies.</strong> Load factor = n / m, with n counting the key being inserted.</li>
+      <li><strong>Work it out.</strong> After the insertion there are 8 keys, so the load factor would be 8 / 10 = 0.8. This is above 0.75, so the rule triggers a rehash. Doubling 10 gives 20.</li>
+      <li><strong>Check.</strong> 7 / 10 = 0.7 is below the limit, but 0.8 is above it, so the threshold is crossed exactly by this insertion.</li>
+    </ol>
+    <p class="cx">Answer: yes 20</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Worst-case chaining</h3>
+    <div class="statement"><p>A chaining table has m = 8 buckets. Suppose 16 keys are inserted, and every key happens to hash to the same bucket. How many keys must a successful search for the last key inserted examine in the worst case? Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of keys scanned in the one bucket to reach the last inserted key.</li>
+      <li><strong>Which idea applies.</strong> In chaining, the lookup scans the bucket list from its start, so a key at the end of a list of length n is found after n comparisons.</li>
+      <li><strong>Work it out.</strong> All 16 keys are in one bucket, and the last key inserted is at the end of the list. Scanning from the start examines all 16 keys.</li>
+      <li><strong>Check.</strong> The other 7 buckets are empty and play no part in the search, so the load factor per bucket is not what matters here. The worst case is the full length of the one list.</li>
+    </ol>
+    <p class="cx">Answer: 16</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Linear probing (NAT, 2 marks)</h3>
+    <div class="statement"><p>Keys 12, 22, 32, 5, 15 are inserted in that order into a table of size 10 with h(k) = k mod 10 and linear probing. At which index is 15 stored?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The final slot of key 15.</li>
+      <li><strong>Which idea applies.</strong> Collisions move to the next free slot.</li>
+      <li><strong>Work it out.</strong> 12 → 2. 22 → 3. 32 → 4. 5 → 5. 15: slot 5 taken, 6 free. Index 6.</li>
+      <li><strong>Check.</strong> The code simulates the table.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>T = [None] * 10
+for k in (12, 22, 32, 5, 15):
+    i = k % 10
+    while T[i] is not None:
+        i = (i + 1) % 10
+    T[i] = k
+print(T)
+</code></pre>
+    <pre class="output">[None, None, 12, 22, 32, 5, 15, None, None, None]</pre>
+    <p class="cx">Answer: 6.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Expected chain length (NAT, 1 mark)</h3>
+    <div class="statement"><p>200 keys are hashed by simple uniform hashing into a chained table with 50 slots. What is the expected number of keys examined in an unsuccessful search?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The load factor α.</li>
+      <li><strong>Which idea applies.</strong> An unsuccessful search scans a whole chain, of expected length α = n/m.</li>
+      <li><strong>Work it out.</strong> α = 200/50 = 4.</li>
+      <li><strong>Check.</strong> A successful search costs about 1 + α/2 = 3 on average.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Hashing facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Open addressing requires load factor at most 1. (B) Linear probing suffers from primary clustering. (C) Double hashing reduces clustering. (D) Chaining needs the table size to exceed the number of keys.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of collision handling.</li>
+      <li><strong>Which idea applies.</strong> Open addressing stores every key in the table itself. Chaining stores keys in lists.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) Chaining works for any load factor. False.</li>
+      <li><strong>Check.</strong> For open addressing, the expected unsuccessful probes are about 1/(1 − α), which explodes as α nears 1.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Hash table</dt><dd>An array with a hash function that maps keys to slots.</dd></div>
+    <div><dt>Hash function</dt><dd>A rule that turns a key into a slot index, such as k % m.</dd></div>
+    <div><dt>Slot</dt><dd>A position in the table where a key or a bucket is stored.</dd></div>
+    <div><dt>Collision</dt><dd>Two keys wanting the same slot.</dd></div>
+    <div><dt>Chaining</dt><dd>Each slot holds a list of keys that collided.</dd></div>
+    <div><dt>Open addressing</dt><dd>Keys are stored in the array itself, using probes to find a free slot.</dd></div>
+    <div><dt>Linear probing</dt><dd>Probe h, h + 1, h + 2, and so on, with wrap-around.</dd></div>
+    <div><dt>Quadratic probing</dt><dd>Probe h + i * i for i = 0, 1, 2, and so on.</dd></div>
+    <div><dt>Double hashing</dt><dd>Probe h1(k) + i * h2(k) with a second hash for the step.</dd></div>
+    <div><dt>Primary clustering</dt><dd>Long filled runs formed by linear probing.</dd></div>
+    <div><dt>Load factor</dt><dd>n / m, the fraction of the table in use or the average chain length.</dd></div>
+    <div><dt>Rehashing</dt><dd>Building a larger table and inserting every key again.</dd></div>
+    <div><dt>Average case</dt><dd>O(1) for search and insertion with a good hash and a low load factor.</dd></div>
+    <div><dt>Worst case</dt><dd>O(n) when many keys collide.</dd></div>
+    <div><dt>Probe</dt><dd>One look at a slot during insertion or search.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>The remainder k % m is always a slot from 0 to m - 1.</li>
+    <li>Linear probing creates primary clustering. Quadratic probing jumps by i * i.</li>
+    <li>Insert and search must follow the same probe sequence.</li>
+    <li>Load factor is n / m. Rehash when it passes the chosen limit.</li>
+    <li>Chaining average search cost is about 1 + n / m. Worst case is O(n).</li>
+    <li>After rehashing, recompute every slot with the new table size.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 72?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 72 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-071.html"><small>Previous, topic 71</small>Linked Lists</a><a class="next" href="gate-073.html"><small>Next, topic 73</small>Trees &amp; Binary Search Trees</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

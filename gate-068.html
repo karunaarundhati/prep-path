@@ -1,0 +1,516 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 68: Selection, Bubble & Insertion Sort</title><meta name="description" content="Sorting means arranging items in order, such as smallest to largest. Selection, bubble and insertion sort are the three simplest sorting methods. They are slow on large inputs, but they are the best place to learn how sorts work, and GATE often asks you to show the array after each pass."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g68" data-key="g68" data-noun="topic" data-num="68" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Selection, Bubble &amp; Insertion Sort</h1>
+<p class="lede">Sorting means arranging items in order, such as smallest to largest. Selection, bubble and insertion sort are the three simplest sorting methods. They are slow on large inputs, but they are the best place to learn how sorts work, and GATE often asks you to show the array after each pass.</p>
+<div class="station"><b>68</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Selection sort: pick the smallest</li><li>Bubble sort: push the largest to the end</li><li>Insertion sort: place each card in order</li><li>Best and worst cases, and stability</li><li>Tracing passes and counting swaps</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you have a row of playing cards in a random order and you want them sorted from smallest to largest. You could do it in three ordinary ways. You could search the row for the smallest card and move it to the front, then repeat for the rest. You could walk along the row and let the biggest card "bubble" to the right end. Or you could pick up cards one at a time and slide each one into the right place in a sorted pile in your hand.</p>
+  <p>These three ways are exactly <strong>selection sort</strong>, <strong>bubble sort</strong> and <strong>insertion sort</strong>. Each is easy to explain, and each is easy to trace on paper. Their weakness is speed. For n items, each of them does work that grows roughly with n times n. So for very large lists, better methods are used. For GATE, you need to know how each one behaves, what the array looks like after each pass, and how many comparisons and swaps it makes.</p>
+  <p>A <strong>pass</strong> is one full sweep over part of the array. The word matters, because a question asking "the array after pass 2" needs you to know exactly what one pass does in that method.</p>
+  <p><strong>Why this matters for GATE.</strong> Sorting questions appear as trace questions ("what is the array after pass k?"), counting questions ("how many swaps?") and theory questions ("which sort is stable?" or "what is the best case?"). All three are answered by careful tracing, and this page shows how.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Sorting</dt><dd>Rearranging items into a given order, usually increasing. Plain meaning: putting things in line. Precise definition: producing a permutation of the input in which every item is at most the item after it.</dd></div>
+    <div><dt>Array</dt><dd>A list of items stored in positions numbered from 0.</dd></div>
+    <div><dt>Comparison</dt><dd>A test of the form "is this item bigger than that item?" Counting comparisons measures the work done.</dd></div>
+    <div><dt>Swap</dt><dd>Exchanging the values at two positions. You need a temporary variable to do it safely.</dd></div>
+    <div><dt>Pass</dt><dd>One full sweep over part of the array. The exact meaning depends on the method, so always read how the question defines it.</dd></div>
+    <div><dt>Sorted prefix</dt><dd>The part at the start of the array that has already been put in order.</dd></div>
+    <div><dt>Minimum</dt><dd>The smallest value in a group.</dd></div>
+    <div><dt>In place</dt><dd>Sorting by rearranging the items inside the array, using only a fixed amount of extra space.</dd></div>
+    <div><dt>Stable sort</dt><dd>A sort that keeps items with equal keys in their original relative order. Plain meaning: ties stay in the order they started. Precise definition: if two items have equal keys and item A comes before item B in the input, A comes before B in the output.</dd></div>
+    <div><dt>Inversion</dt><dd>A pair of positions i less than j where the item at i is larger than the item at j. An array is sorted exactly when it has no inversions.</dd></div>
+    <div><dt>Shift</dt><dd>Moving one item one place to the right to make room for another item.</dd></div>
+    <div><dt>Best case</dt><dd>The input order that makes the method do the least work.</dd></div>
+    <div><dt>Worst case</dt><dd>The input order that makes the method do the most work.</dd></div>
+    <div><dt>O(n²) (quadratic)</dt><dd>Work that grows with the square of n. Doubling n makes the work about four times larger.</dd></div>
+    <div><dt>O(n)</dt><dd>Work that grows in proportion to n.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Selection sort: pick the smallest">
+  <h2>Selection sort: pick the smallest</h2>
+  <h3>The idea</h3>
+  <p>Selection sort builds the sorted answer from the front. Pass 1 looks at the whole array, finds the smallest value, and swaps it into position 0. Pass 2 looks at positions 1 to the end, finds the smallest of those, and swaps it into position 1. Each pass fixes one more position, and the sorted prefix grows by one.</p>
+  <p>Think of choosing the shortest student in a class to stand at the front of a photo line. You look at everyone, pick the shortest, and bring that person to the front. Then you look at the rest, pick the shortest of them, and place that person second. The line is finished when everyone has a place.</p>
+
+  <h3>The steps for one pass</h3>
+  <ol>
+    <li>Set <code>m</code> to the current position <code>i</code>. This means "the smallest so far is here".</li>
+    <li>Compare every item from position <code>i + 1</code> to the end with <code>a[m]</code>. Whenever an item is smaller, set <code>m</code> to its position.</li>
+    <li>After the scan, <code>m</code> is the position of the minimum of the unsorted part.</li>
+    <li>Swap <code>a[i]</code> and <code>a[m]</code>. A swap needs a temporary variable: copy the first value aside, move the second into its place, then move the copy.</li>
+  </ol>
+
+  <h3>A runnable example</h3>
+  <p>The code below runs all three sorts on the same list, <code>[5, 2, 4, 6, 1, 3]</code>. Each sort prints the array after each pass. Read the selection part first. You will recognise the same idea in the other two parts.</p>
+<pre class="code" data-lang="python"><code>def selection_sort(arr):
+    a = list(arr)
+    n = len(a)
+    for i in range(n - 1):
+        m = i
+        for j in range(i + 1, n):
+            if a[j] &lt; a[m]:
+                m = j
+        temp = a[i]
+        a[i] = a[m]
+        a[m] = temp
+        print("selection pass", i + 1, a)
+    return a
+
+def bubble_sort(arr):
+    a = list(arr)
+    n = len(a)
+    for i in range(n - 1):
+        swapped = False
+        for j in range(n - 1 - i):
+            if a[j] &gt; a[j + 1]:
+                temp = a[j]
+                a[j] = a[j + 1]
+                a[j + 1] = temp
+                swapped = True
+        print("bubble pass", i + 1, a)
+        if not swapped:
+            break
+    return a
+
+def insertion_sort(arr):
+    a = list(arr)
+    for i in range(1, len(a)):
+        key = a[i]
+        j = i - 1
+        while j &gt;= 0 and a[j] &gt; key:
+            a[j + 1] = a[j]
+            j = j - 1
+        a[j + 1] = key
+        print("insertion step", i, a)
+    return a
+
+data = [5, 2, 4, 6, 1, 3]
+print("selection result:", selection_sort(data))
+print("bubble result:", bubble_sort(data))
+print("insertion result:", insertion_sort(data))
+print("original:", data)</code></pre>
+<pre class="output">selection pass 1 [1, 2, 4, 6, 5, 3]
+selection pass 2 [1, 2, 4, 6, 5, 3]
+selection pass 3 [1, 2, 3, 6, 5, 4]
+selection pass 4 [1, 2, 3, 4, 5, 6]
+selection pass 5 [1, 2, 3, 4, 5, 6]
+selection result: [1, 2, 3, 4, 5, 6]
+bubble pass 1 [2, 4, 5, 1, 3, 6]
+bubble pass 2 [2, 4, 1, 3, 5, 6]
+bubble pass 3 [2, 1, 3, 4, 5, 6]
+bubble pass 4 [1, 2, 3, 4, 5, 6]
+bubble pass 5 [1, 2, 3, 4, 5, 6]
+bubble result: [1, 2, 3, 4, 5, 6]
+insertion step 1 [2, 5, 4, 6, 1, 3]
+insertion step 2 [2, 4, 5, 6, 1, 3]
+insertion step 3 [2, 4, 5, 6, 1, 3]
+insertion step 4 [1, 2, 4, 5, 6, 3]
+insertion step 5 [1, 2, 3, 4, 5, 6]
+insertion result: [1, 2, 3, 4, 5, 6]
+original: [5, 2, 4, 6, 1, 3]</pre>
+
+  <p>Trace selection pass 1 by hand. The array is 5, 2, 4, 6, 1, 3. The smallest value is 1, at position 4. Swap positions 0 and 4. The array becomes 1, 2, 4, 6, 5, 3. Position 0 is now final. Pass 2 scans positions 1 to 5, finds 2 already in place at position 1, and makes no real change. Pass 3 finds 3 at position 5 and swaps it with position 2, giving 1, 2, 3, 6, 5, 4.</p>
+
+  <h3>Cost and stability</h3>
+  <p>Selection sort always scans the rest of the array, even when the array is already sorted. For n items, the first pass makes n - 1 comparisons, the next makes n - 2, and so on down to 1. The total is (n - 1) + (n - 2) + ... + 1, which equals n(n - 1)/2. This is O(n²) in every case: best, worst and average. It makes at most n - 1 swaps, which is a small number.</p>
+  <p>Selection sort is <strong>not stable</strong>. Here is why. Take three cards: a 2 labelled "a", a 2 labelled "b", and a 1. Pass 1 finds the 1 at the end and swaps it with the first position. The 2a card moves to the end, behind 2b. So the two 2s are now in the order b, a, which changed their original order.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Selection sort is slow even on a sorted array, because it still scans everything to find the minimum. Do not write "best case O(n)" for selection sort. Its best case is O(n²) too.</p></div>
+
+  <details class="check"><summary>For n = 6 items, how many comparisons does selection sort make in total?</summary><div class="ans"><p>5 + 4 + 3 + 2 + 1 = 15, which is n(n - 1)/2 = 6 * 5 / 2 = 15.</p></div></details>
+  <details class="check"><summary>Why is selection sort at most n - 1 swaps?</summary><div class="ans"><p>It does one swap per pass, and it makes n - 1 passes. In the last pass only one item is left, so no swap is needed for it.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Bubble sort: push the largest to the end">
+  <h2>Bubble sort: push the largest to the end</h2>
+  <h3>The idea</h3>
+  <p>Bubble sort walks along the array from left to right. Each time it looks at two neighbours, and if the left one is bigger, it swaps them. After one full walk, the largest value has been carried to the far right, like a bubble rising to the top of water. After the second walk, the second largest is in place, and so on.</p>
+  <p>The useful fact is that after pass k, the last k positions hold the k largest values in their final order. So each later pass can stop one place earlier.</p>
+
+  <h3>The steps for one pass</h3>
+  <ol>
+    <li>Start at position 0. Compare <code>a[j]</code> with <code>a[j + 1]</code>.</li>
+    <li>If <code>a[j]</code> is bigger, swap them. The bigger value moves one step to the right.</li>
+    <li>Move one place right and repeat, up to the last unsorted pair.</li>
+  </ol>
+  <p>Note that bubble sort swaps only when the left item is strictly bigger. Equal neighbours are never swapped. This is why bubble sort is stable.</p>
+
+  <h3>The swapped flag</h3>
+  <p>A small improvement stops the sort early. If a whole pass makes no swap, the array must already be sorted. The variable <code>swapped</code> records whether any swap happened in the pass. In the code above, the <code>break</code> ends the outer loop when <code>swapped</code> is still False.</p>
+  <p>Trace pass 1 of the example <code>[5, 2, 4, 6, 1, 3]</code> by hand. Compare 5 and 2: swap, giving 2, 5, 4, 6, 1, 3. Compare 5 and 4: swap, giving 2, 4, 5, 6, 1, 3. Compare 5 and 6: no swap. Compare 6 and 1: swap, giving 2, 4, 5, 1, 6, 3. Compare 6 and 3: swap, giving 2, 4, 5, 1, 3, 6. The biggest value 6 is now at the end. The output line "bubble pass 1 [2, 4, 5, 1, 3, 6]" matches.</p>
+
+  <h3>Cost and stability</h3>
+  <ul>
+    <li><strong>Worst case</strong>: the array is in reverse order. Every pair is compared, so the comparisons total n(n - 1)/2, which is O(n²).</li>
+    <li><strong>Best case</strong>: the array is already sorted. With the swapped flag, one pass of n - 1 comparisons finds no swaps, and the sort stops. The cost is O(n).</li>
+    <li><strong>Without the flag</strong>: even a sorted array takes n(n - 1)/2 comparisons. So the best case is O(n) only with the optimisation.</li>
+    <li><strong>Stable</strong>: yes, because equal neighbours are never swapped.</li>
+  </ul>
+
+  <div class="note key"><p><span class="t">Key idea</span>Each swap in bubble sort fixes exactly one inversion, which is a pair that is out of order. So the total number of swaps equals the number of inversions in the input. This fact answers many GATE questions quickly.</p></div>
+
+  <details class="check"><summary>After pass 1 of bubble sort on 9, 8, 7, which value is at the end?</summary><div class="ans"><p>9. Pass 1 compares 9 with 8 (swap, 8 9 7), then 9 with 7 (swap, 8 7 9). The largest value, 9, is at the end.</p></div></details>
+  <details class="check"><summary>Why does bubble sort stop early on a sorted array, when the flag is used?</summary><div class="ans"><p>In a sorted array, no neighbour pair is out of order, so no swap happens in the pass. The flag is still False, and the <code>break</code> ends the sort.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Insertion sort: place each card in order">
+  <h2>Insertion sort: place each card in order</h2>
+  <h3>The idea</h3>
+  <p>Insertion sort works the way many people sort a hand of cards. You take the next card from the table and slide it into the right place among the cards already in your hand, which are kept in order. The cards already in your hand form the <strong>sorted prefix</strong>.</p>
+  <p>The array starts with a sorted prefix of length 1, which is just the first item. Each step takes the next item, called the <strong>key</strong>, and moves it left past every larger item in the sorted prefix. Then it places the key in the gap.</p>
+
+  <h3>The steps for one insertion</h3>
+  <ol>
+    <li>Set <code>key</code> to <code>a[i]</code>, the next item to insert.</li>
+    <li>Set <code>j</code> to <code>i - 1</code>, the last position of the sorted prefix.</li>
+    <li>While <code>j</code> is still a valid position and <code>a[j]</code> is greater than the key, shift <code>a[j]</code> one place right, and move <code>j</code> one place left.</li>
+    <li>Put the key in position <code>j + 1</code>, the gap.</li>
+  </ol>
+  <p>The loop condition checks <code>j &gt;= 0</code> first. This order is important. If <code>j</code> is -1, Python must stop before it reads <code>a[-1]</code>, which would be the last item and give a wrong result. The <code>and</code> operator stops as soon as its left side is False.</p>
+
+  <h3>Trace by hand</h3>
+  <p>Take the array 5, 2, 4, 6, 1, 3. The sorted prefix is 5.</p>
+  <ul>
+    <li>Insert 2: 5 is greater than 2, so shift 5 right. The prefix is 2, 5. The array is 2, 5, 4, 6, 1, 3.</li>
+    <li>Insert 4: 5 is greater than 4, so shift 5. Then 2 is not greater than 4, so stop. Put 4 in the gap. The prefix is 2, 4, 5.</li>
+    <li>Insert 6: 5 is not greater than 6, so the gap is right where 6 is. The prefix is 2, 4, 5, 6.</li>
+    <li>Insert 1: shift 6, 5, 4 and 2 to the right. Place 1 at the front. The prefix is 1, 2, 4, 5, 6.</li>
+    <li>Insert 3: shift 6, 5 and 4. Place 3 after 2. The array is 1, 2, 3, 4, 5, 6.</li>
+  </ul>
+  <p>The lines printed by the code match these steps exactly. Notice that the printed array after "insertion step 3" is unchanged, because 6 was already in the right place.</p>
+
+  <h3>Cost and stability</h3>
+  <ul>
+    <li><strong>Best case</strong>: the array is already sorted. Each key is compared once with its left neighbour and is not greater, so no shifts happen. The cost is O(n), with n - 1 comparisons.</li>
+    <li><strong>Worst case</strong>: the array is in reverse order. Each key is smaller than everything before it, so every item shifts all the way to the front. The cost is about n(n - 1)/2, which is O(n²).</li>
+    <li><strong>Average case</strong>: O(n²).</li>
+    <li><strong>Stable</strong>: yes, because a key shifts past a value only when that value is strictly greater. An equal value stays in front.</li>
+  </ul>
+
+  <div class="note trap"><p><span class="t">Trap</span>Insertion sort is stable only because the test is <code>&gt;</code> and not <code>&gt;=</code>. If you change the test to <code>&gt;=</code>, equal items would move past each other, and the sort would become unstable. A GATE question may ask about this exact change.</p></div>
+
+  <details class="check"><summary>How many shifts does insertion sort make on the sorted array 1, 2, 3?</summary><div class="ans"><p>None. Each key is already greater than or equal to the item before it, so the while loop never shifts anything.</p></div></details>
+  <details class="check"><summary>What is the sorted prefix after the first insertion in the example 5, 2, 4?</summary><div class="ans"><p>It is 2, 5. The key 2 shifted 5 right, and 2 was placed at the front.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Best and worst cases, and stability">
+  <h2>Best and worst cases, and stability</h2>
+  <h3>Side-by-side comparison</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Best case</th><th>Worst case</th><th>Stable?</th><th>Idea in one line</th></tr></thead>
+    <tbody>
+      <tr><td>Selection</td><td>O(n²)</td><td>O(n²)</td><td>No</td><td>Find the minimum, swap it to the front</td></tr>
+      <tr><td>Bubble (with flag)</td><td>O(n)</td><td>O(n²)</td><td>Yes</td><td>Swap neighbours until the largest reaches the end</td></tr>
+      <tr><td>Bubble (no flag)</td><td>O(n²)</td><td>O(n²)</td><td>Yes</td><td>Same, but always full passes</td></tr>
+      <tr><td>Insertion</td><td>O(n)</td><td>O(n²)</td><td>Yes</td><td>Slide each item into the sorted prefix</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Counting comparisons in code</h3>
+  <p>The next program counts comparisons for bubble sort on three inputs. It uses the same loop as before, but adds one to <code>comps</code> each time the two neighbours are compared.</p>
+<pre class="code" data-lang="python"><code>def bubble_comparisons(arr):
+    a = list(arr)
+    n = len(a)
+    comps = 0
+    for i in range(n - 1):
+        swapped = False
+        for j in range(n - 1 - i):
+            comps = comps + 1
+            if a[j] &gt; a[j + 1]:
+                temp = a[j]
+                a[j] = a[j + 1]
+                a[j + 1] = temp
+                swapped = True
+        if not swapped:
+            break
+    return comps
+
+print(bubble_comparisons([1, 2, 3, 4, 5]))
+print(bubble_comparisons([5, 4, 3, 2, 1]))
+print(bubble_comparisons([3, 1, 2]))</code></pre>
+<pre class="output">4
+10
+3</pre>
+
+  <p>The sorted array takes 4 comparisons, which is n - 1 for n = 5, because the first pass finds no swap and the sort stops. The reversed array takes 10 comparisons, which is n(n - 1)/2 for n = 5, because every pass runs in full. The small array <code>[3, 1, 2]</code> takes 3 comparisons: 2 in pass 1, then 1 in pass 2, which finds no swap.</p>
+
+  <details class="check"><summary>For n = 5 in reverse order, how many comparisons does the flagged bubble sort make?</summary><div class="ans"><p>10, the full count of n(n - 1)/2 for n = 5. Reverse order gives no early stop.</p></div></details>
+  <details class="check"><summary>Which input is the best case for bubble sort with the flag?</summary><div class="ans"><p>Any sorted array. One pass of n - 1 comparisons finds no swap and the sort stops.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Tracing passes and counting swaps">
+  <h2>Tracing passes and counting swaps</h2>
+  <h3>A method for trace questions</h3>
+  <p>GATE trace questions give you an array and a method, then ask for the array after a given pass. Use this method every time:</p>
+  <ol>
+    <li><strong>Write the array</strong> with its positions numbered from 0.</li>
+    <li><strong>Read the definition of a pass</strong> in the question. For bubble sort, one pass is one left-to-right walk. For selection sort, one pass places one minimum. For insertion sort, the question may count one insertion as one pass.</li>
+    <li><strong>Do the work one comparison at a time</strong>, rewriting the array after each swap or shift. Do not try to jump to the result.</li>
+    <li><strong>Stop at the requested pass</strong>, and write the array.</li>
+  </ol>
+
+  <h3>Counting swaps with inversions</h3>
+  <p>An inversion is a pair of positions i less than j where the value at i is bigger than the value at j. Bubble sort swaps exactly once for each inversion. Each swap removes exactly one inversion, and the array is sorted when none are left. So the number of swaps in bubble sort equals the number of inversions. Insertion sort makes the same number of shifts, for the same reason.</p>
+<pre class="code" data-lang="python"><code>def bubble_swaps(arr):
+    a = list(arr)
+    n = len(a)
+    swaps = 0
+    for i in range(n - 1):
+        for j in range(n - 1 - i):
+            if a[j] &gt; a[j + 1]:
+                temp = a[j]
+                a[j] = a[j + 1]
+                a[j + 1] = temp
+                swaps = swaps + 1
+    return swaps
+
+def inversions(arr):
+    count = 0
+    for i in range(len(arr)):
+        for j in range(i + 1, len(arr)):
+            if arr[i] &gt; arr[j]:
+                count = count + 1
+    return count
+
+data = [5, 2, 4, 6, 1, 3]
+print(bubble_swaps(data), inversions(data))</code></pre>
+<pre class="output">9 9</pre>
+
+  <p>Count the inversions by hand to see it. The value 5 is bigger than 2, 4, 1 and 3, which gives 4 inversions. The value 2 is bigger than 1, which gives 1. The value 4 is bigger than 1 and 3, which gives 2. The value 6 is bigger than 1 and 3, which gives 2. The value 1 is bigger than nothing after it, and 3 is last. The total is 4 + 1 + 2 + 2 = 9, matching the program.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>If a question asks for the number of swaps made by bubble sort or the number of shifts made by insertion sort, count the inversions first. It is faster than tracing every pass, and it is exact.</p></div>
+
+  <h3>Counting selection sort swaps</h3>
+  <p>Selection sort makes at most one swap per pass, and it can also swap a value with itself, which changes nothing. Its number of real swaps depends on the input. The number of comparisons, however, is always n(n - 1)/2, so comparison questions for selection sort have a simple answer.</p>
+
+  <details class="check"><summary>Does bubble sort on <code>[2, 1]</code> make one swap?</summary><div class="ans"><p>Yes. The array has one inversion, the pair 2 and 1, and the first and only comparison swaps them.</p></div></details>
+  <details class="check"><summary>How many inversions does the sorted array 1, 2, 3, 4 have?</summary><div class="ans"><p>None. An array is sorted exactly when it has no inversions, so no swaps are needed.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Selection comparisons = n(n - 1)/2</td><td>Every pass scans the unsorted part</td><td>Always, for any input</td></tr>
+      <tr><td>Bubble comparisons (no flag) = n(n - 1)/2</td><td>Full passes every time</td><td>Worst case, or without the flag</td></tr>
+      <tr><td>Bubble comparisons (with flag), sorted input = n - 1</td><td>One pass finds no swap</td><td>Best case questions</td></tr>
+      <tr><td>Bubble swaps = number of inversions</td><td>Each swap removes one inversion</td><td>Swap-count questions</td></tr>
+      <tr><td>Insertion shifts = number of inversions</td><td>Each shift removes one inversion</td><td>Shift-count questions</td></tr>
+      <tr><td>Insertion comparisons, sorted input = n - 1</td><td>Each key is compared once and not shifted</td><td>Best case questions</td></tr>
+      <tr><td>Maximum inversions in n items = n(n - 1)/2</td><td>Reverse order has every pair inverted</td><td>Worst case for bubble and insertion</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style, and are not taken from any past paper. Trace each one on paper before you read the steps.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>One bubble pass</h3>
+    <div class="statement"><p>Bubble sort, with left-to-right passes, is applied to the array 4, 3, 2, 1. Give the array after pass 1, as four numbers separated by commas.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The array after one left-to-right walk.</li>
+      <li><strong>Which idea applies.</strong> Each neighbour pair is compared, and swapped if the left is bigger.</li>
+      <li><strong>Work it out.</strong> Compare 4 and 3: swap, giving 3, 4, 2, 1. Compare 4 and 2: swap, giving 3, 2, 4, 1. Compare 4 and 1: swap, giving 3, 2, 1, 4.</li>
+      <li><strong>Check.</strong> The largest value 4 is at the end, which is what one bubble pass must do.</li>
+    </ol>
+    <p class="cx">Answer: 3, 2, 1, 4</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about the three sorts</h3>
+    <div class="statement"><p>Select all true statements. (A) Selection sort is stable. (B) Bubble sort with the swapped flag takes O(n) time on a sorted array. (C) Insertion sort takes O(n) time on a sorted array. (D) Selection sort takes O(n) time on a sorted array.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every true statement, and only those.</li>
+      <li><strong>Which idea applies.</strong> Stability and best cases, from the comparison table.</li>
+      <li><strong>Work it out.</strong> (A) is false: selection sort can reorder equal items. (B) is true: one pass finds no swap and stops. (C) is true: each key is compared once. (D) is false: selection sort always scans the rest of the array, so it is O(n²).</li>
+      <li><strong>Check.</strong> Only the two methods with a fast best case, bubble and insertion, are true.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting bubble swaps</h3>
+    <div class="statement"><p>How many swaps does bubble sort perform on the array 6, 1, 5, 2? Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of swaps over all passes.</li>
+      <li><strong>Which idea applies.</strong> The number of swaps equals the number of inversions.</li>
+      <li><strong>Work it out.</strong> The value 6 is bigger than 1, 5 and 2, which gives 3 inversions. The value 1 is bigger than nothing after it. The value 5 is bigger than 2, which gives 1 inversion. The total is 3 + 1 = 4.</li>
+      <li><strong>Check.</strong> A pass-by-pass trace agrees. Pass 1 swaps 6 with 1, giving 1, 6, 5, 2. Then it swaps 6 with 5, giving 1, 5, 6, 2. Then it swaps 6 with 2, giving 1, 5, 2, 6. That is 3 swaps. Pass 2 compares 1 with 5 (no swap), then 5 with 2 (swap, giving 1, 2, 5, 6). That is 1 more swap, for 4 in total.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Selection sort after two passes</h3>
+    <div class="statement"><p>Selection sort is applied to 7, 3, 9, 1, 5. Give the array after pass 2, as five numbers separated by commas. Pass 1 places the smallest value in position 0, and pass 2 places the smallest of the rest in position 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The array after two selection passes.</li>
+      <li><strong>Which idea applies.</strong> Each pass finds the minimum of the unsorted part and swaps it into place.</li>
+      <li><strong>Work it out.</strong> Pass 1: the smallest value is 1 at position 3. Swap positions 0 and 3, giving 1, 3, 9, 7, 5. Pass 2: the smallest of 3, 9, 7, 5 is 3, already at position 1. No change, giving 1, 3, 9, 7, 5.</li>
+      <li><strong>Check.</strong> Positions 0 and 1 hold the two smallest values, 1 and 3, which is what two passes must achieve.</li>
+    </ol>
+    <p class="cx">Answer: 1, 3, 9, 7, 5</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Total insertion shifts</h3>
+    <div class="statement"><p>Insertion sort is applied to 4, 1, 3, 2. Count the total number of shifts, where a shift is one element moving one place to the right. Give one number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total count of moves to the right.</li>
+      <li><strong>Which idea applies.</strong> Insert each key into the sorted prefix, shifting bigger items right.</li>
+      <li><strong>Work it out.</strong> Insert 1: the 4 is bigger, so 1 shift. Array 1, 4, 3, 2. Insert 3: the 4 is bigger, 1 shift, and 1 is not bigger than 3. Array 1, 3, 4, 2. Insert 2: the 4 and the 3 are bigger, 2 shifts, and 1 is not bigger. Total 1 + 1 + 2 = 4.</li>
+      <li><strong>Check.</strong> The number of inversions of 4, 1, 3, 2 is 4: the pairs (4,1), (4,3), (4,2) and (3,2). It matches.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which sorts keep equal items in order?</h3>
+    <div class="statement"><p>Three items are 3a, 1, 3b, where 3a and 3b both have the key 3 and 3a comes first in the input. Select all methods that keep 3a before 3b in the output. (A) Insertion sort (B) Bubble sort with the swap test "left bigger than right" (C) Selection sort.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The methods that are stable on this input.</li>
+      <li><strong>Which idea applies.</strong> Stability depends on whether equal items can move past each other.</li>
+      <li><strong>Work it out.</strong> Insertion: key 1 shifts 3a right, giving 1, 3a, 3b. The key 3b is not shifted past 3a, since 3a is not greater than 3b. Stable. Bubble: the first comparison swaps 3a and 1, giving 1, 3a, 3b. The pair 3a and 3b is equal, so no swap. Stable. Selection: pass 1 swaps the 1 with 3a, giving 1, 3b, 3a. Now 3b is before 3a. Not stable.</li>
+      <li><strong>Check.</strong> The only method that moved an equal pair past each other is selection sort, which is the known unstable case.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Comparisons with the flag</h3>
+    <div class="statement"><p>Bubble sort with the swapped flag, as in this topic, is applied to 2, 1, 3, 4, 5, 6. Each neighbour comparison counts as one comparison. How many comparisons are made in total?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of neighbour comparisons, stopping at the flag.</li>
+      <li><strong>Which idea applies.</strong> Pass i compares n - 1 - (i - 1) pairs. The sort stops after a pass with no swap.</li>
+      <li><strong>Work it out.</strong> Pass 1 compares 5 pairs: (2,1) swaps, then (2,3), (3,4), (4,5), (5,6) do not. Array is 1, 2, 3, 4, 5, 6 and swapped is True. Pass 2 compares 4 pairs, with no swap, so swapped is False and the sort stops. Total 5 + 4 = 9.</li>
+      <li><strong>Check.</strong> With no swap at all, the flag would stop after 5 comparisons. With full passes on 6 items, the count would be 15. The answer 9 lies between these two values, as it should.</li>
+    </ol>
+    <p class="cx">Answer: 9</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Shifts on a reversed array</h3>
+    <div class="statement"><p>Insertion sort is applied to the array 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, which has 10 items in reverse order. Give the total number of shifts.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of shifts for a reversed array of 10 items.</li>
+      <li><strong>Which idea applies.</strong> Insertion shifts equal the number of inversions. In reverse order every pair is an inversion.</li>
+      <li><strong>Work it out.</strong> Insertion step i (for i from 1 to 9) moves the key past all i items before it, so it makes i shifts. The total is 1 + 2 + ... + 9 = 45. Using the formula n(n - 1)/2 with n = 10 gives 10 * 9 / 2 = 45.</li>
+      <li><strong>Check.</strong> The number of pairs of 10 items is 45, and every pair is inverted in reverse order, so the shifts equal 45.</li>
+    </ol>
+    <p class="cx">Answer: 45</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Bubble sort swaps (NAT, 2 marks)</h3>
+    <div class="statement"><p>How many swaps does bubble sort perform on [5, 1, 4, 2, 8, 3]?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The swap count, which equals the number of inversions.</li>
+      <li><strong>Which idea applies.</strong> Each adjacent swap removes exactly one inversion.</li>
+      <li><strong>Work it out.</strong> Inversions: (5,1), (5,4), (5,2), (5,3), (4,2), (4,3), (8,3). Total 7.</li>
+      <li><strong>Check.</strong> The code runs bubble sort and counts.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>a = [5, 1, 4, 2, 8, 3]; s = 0
+for i in range(len(a)):
+    for j in range(len(a) - 1 - i):
+        if a[j] &gt; a[j + 1]:
+            a[j], a[j + 1] = a[j + 1], a[j]; s += 1
+print(a, "swaps =", s)
+</code></pre>
+    <pre class="output">[1, 2, 3, 4, 5, 8] swaps = 7</pre>
+    <p class="cx">Answer: 7.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Insertion sort comparisons on sorted input (NAT, 1 mark)</h3>
+    <div class="statement"><p>Insertion sort is run on an already sorted array of 50 elements. How many key comparisons are made?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The best-case comparison count.</li>
+      <li><strong>Which idea applies.</strong> Each new element is compared once with its left neighbour and stays put.</li>
+      <li><strong>Work it out.</strong> Elements 2 to 50 each need one comparison: 49.</li>
+      <li><strong>Check.</strong> This is why insertion sort is O(n) on nearly sorted data.</li>
+    </ol>
+    <p class="cx">Answer: 49.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Stability and swaps (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE for the standard textbook versions? (A) Selection sort makes at most n − 1 swaps. (B) Insertion sort is stable. (C) Selection sort is stable. (D) Bubble sort is stable.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Properties of three simple sorts.</li>
+      <li><strong>Which idea applies.</strong> Stable means equal keys keep their order.</li>
+      <li><strong>Work it out.</strong> (A) One swap per pass. True. (B) It shifts only strictly larger items. True. (C) A long swap can jump an equal key: [2a, 2b, 1] becomes [1, 2b, 2a]. False. (D) It swaps only when strictly greater. True.</li>
+      <li><strong>Check.</strong> The code shows selection sort breaking order.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>a = [(2, 'a'), (2, 'b'), (1, 'c')]
+for i in range(len(a)):
+    m = min(range(i, len(a)), key=lambda k: a[k][0])
+    a[i], a[m] = a[m], a[i]
+print(a)
+</code></pre>
+    <pre class="output">[(1, 'c'), (2, 'b'), (2, 'a')]</pre>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Sorting</dt><dd>Rearranging items into order, usually smallest to largest.</dd></div>
+    <div><dt>Pass</dt><dd>One sweep over part of the array. Its meaning depends on the method.</dd></div>
+    <div><dt>Selection sort</dt><dd>Finds the minimum of the unsorted part and swaps it into place.</dd></div>
+    <div><dt>Bubble sort</dt><dd>Swaps neighbours that are out of order, so the largest value reaches the end.</dd></div>
+    <div><dt>Insertion sort</dt><dd>Slides each key left into the sorted prefix.</dd></div>
+    <div><dt>Sorted prefix</dt><dd>The part at the start of the array already in order.</dd></div>
+    <div><dt>Key</dt><dd>The item being inserted in insertion sort.</dd></div>
+    <div><dt>Swap</dt><dd>Exchanging two values, which needs a temporary variable.</dd></div>
+    <div><dt>Shift</dt><dd>Moving one item one place right to make room.</dd></div>
+    <div><dt>Inversion</dt><dd>A pair in the wrong order. A sorted array has none.</dd></div>
+    <div><dt>Stable sort</dt><dd>Keeps equal items in their original relative order.</dd></div>
+    <div><dt>In place</dt><dd>Rearranges the array itself, using only a fixed amount of extra space.</dd></div>
+    <div><dt>Swapped flag</dt><dd>A variable that records whether a pass made any swap. It allows an early stop.</dd></div>
+    <div><dt>O(n²)</dt><dd>Work that grows with the square of n.</dd></div>
+    <div><dt>O(n)</dt><dd>Work that grows in proportion to n.</dd></div>
+    <div><dt>Best case</dt><dd>The input that gives the least work for the method.</dd></div>
+    <div><dt>Worst case</dt><dd>The input that gives the most work for the method.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Selection sort always makes n(n - 1)/2 comparisons, and it is not stable.</li>
+    <li>Bubble sort swaps exactly once per inversion, and it is stable.</li>
+    <li>Insertion sort shifts exactly once per inversion, and it is stable when the test is strictly greater.</li>
+    <li>With the swapped flag, bubble sort and insertion sort both take O(n) time on sorted input.</li>
+    <li>Reverse order is the worst case for bubble and insertion, with n(n - 1)/2 inversions.</li>
+    <li>Always read the definition of a pass in the question before you count.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 68?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 68 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-067.html"><small>Previous, topic 67</small>Linear Search &amp; Binary Search</a><a class="next" href="gate-069.html"><small>Next, topic 69</small>Merge Sort &amp; Quick Sort</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

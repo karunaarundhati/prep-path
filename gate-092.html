@@ -1,0 +1,464 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 92: File organization & indexing (B/B+ trees)</title><meta name="description" content="A database stores millions of records on disk, and reading them one by one is far too slow. File organization and indexes, especially the B-tree and B+ tree, are the tools that let a database find a record with only a few disk reads. GATE asks for the cost and the size of these structures."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g92" data-key="g92" data-noun="topic" data-num="92" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>File organization &amp; indexing (B/B+ trees)</h1>
+<p class="lede">A database stores millions of records on disk, and reading them one by one is far too slow. File organization and indexes, especially the B-tree and B+ tree, are the tools that let a database find a record with only a few disk reads. GATE asks for the cost and the size of these structures.</p>
+<div class="station"><b>92</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>File organization: heap, sequential and hashed files</li><li>Data types in a DBMS</li><li>Index basics: primary, clustering and secondary indexes</li><li>Single-level and multilevel indexes</li><li>B-trees and B+ trees: structure, search, insertion and deletion</li><li>Order and height calculations for B+ trees</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a library with one million books on one long shelf, in no particular order. To find one book you must look at every book until you find it. That is slow. Now imagine the books are sorted by title, and there is a card catalogue at the front that says which shelf holds which title range. You go to the card catalogue, then walk straight to the right shelf. That is fast.</p>
+  <p>A database works the same way. Data lives on <strong>disk</strong>, and disks are read in fixed-size chunks called <strong>blocks</strong>. Reading one block is the expensive step, far slower than comparing values in memory. So a DBMS counts its work mainly in <strong>block accesses</strong>. The two ideas on this page are:</p>
+  <ul>
+    <li><strong>File organization:</strong> the order in which records are placed in blocks.</li>
+    <li><strong>Indexing:</strong> a separate, smaller structure, like the card catalogue, that points to records quickly.</li>
+  </ul>
+  <p>GATE Data Science and AI (paper DA) and Robotics and Automation (paper RA) ask numerical questions on these topics. You may be asked how many blocks a search reads, how many entries fit in a block, or how tall a B+ tree becomes. Each of these is a small calculation, and this page shows every step.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The number of block accesses is the main cost measure. A structure is good when it lets you reach the right block after reading very few blocks.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Disk block</dt><dd>The unit in which data is read or written. Plain meaning: one chunk of disk. Precise definition: a fixed-size unit of storage, often 512 bytes or 4 KB, transferred in one I/O.</dd></div>
+    <div><dt>Record</dt><dd>One row of data in a file. Plain meaning: one entry, such as one student.</dd></div>
+    <div><dt>Heap file</dt><dd>A file where records are placed wherever there is room, with no order. Plain meaning: a pile.</dd></div>
+    <div><dt>Sequential file</dt><dd>A file where records are kept in order of a key. Plain meaning: a sorted list.</dd></div>
+    <div><dt>Hashed file</dt><dd>A file where a hash function on a key picks the block of each record. Plain meaning: the key is converted into an address.</dd></div>
+    <div><dt>Index</dt><dd>A separate structure of key and pointer pairs that helps find records. Plain meaning: a card catalogue.</dd></div>
+    <div><dt>Index key and pointer</dt><dd>The index entry stores a key value and a pointer to a block or record.</dd></div>
+    <div><dt>Primary index</dt><dd>An index on the ordering key of a sequential file, where each key value appears once in the file.</dd></div>
+    <div><dt>Clustering index</dt><dd>An index on a non-key field whose values are kept in order in the file.</dd></div>
+    <div><dt>Secondary index</dt><dd>An index on a field that is not the ordering field of the file.</dd></div>
+    <div><dt>Dense index</dt><dd>An index with one entry for every record.</dd></div>
+    <div><dt>Sparse index</dt><dd>An index with one entry for each block. It works only on a sorted file.</dd></div>
+    <div><dt>Multilevel index</dt><dd>An index built on top of another index, repeated until the top fits in one block.</dd></div>
+    <div><dt>B-tree</dt><dd>A balanced search tree where every node holds keys and record pointers. Plain meaning: a tree that stays flat and even.</dd></div>
+    <div><dt>B+ tree</dt><dd>A B-tree where internal nodes hold only keys and pointers, and all record pointers sit in the leaves. The leaves are linked in order.</dd></div>
+    <div><dt>Order p</dt><dd>The maximum number of child pointers an internal node can hold. An internal node holds at most p - 1 keys.</dd></div>
+    <div><dt>Height</dt><dd>The number of levels from the root to the leaves. On this page, a single node has height 1.</dd></div>
+    <div><dt>Balanced tree</dt><dd>A tree where all leaves are at the same depth.</dd></div>
+    <div><dt>Node</dt><dd>One block of a tree. Plain meaning: one box of the tree.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="File organization and data types">
+  <h2>Concept 1: File organization and data types</h2>
+  <h3>Why the order of records matters</h3>
+  <p>Records on disk are packed into blocks. How they are placed decides how quickly we can find one. There are three common organizations.</p>
+  <ul>
+    <li><strong>Heap (unordered) file.</strong> New records go into any block with free space. Inserting is cheap. Searching is slow, because we may have to read every block. For a file of b blocks, a search reads about b/2 blocks on average, and b blocks in the worst case.</li>
+    <li><strong>Sequential (sorted) file.</strong> Records are kept in key order. Binary search can find a block in about log<sub>2</sub>(b) reads. Inserting is costly, because records must be shifted to keep the order.</li>
+    <li><strong>Hashed file.</strong> A hash function turns the key into a block address. A search reads about one block if there are no collisions. Hashing is good for exact matches, but it does not help with range queries such as "all keys between 10 and 20".</li>
+  </ul>
+  <h3>A numerical example</h3>
+  <p>A sorted file has b = 1024 blocks. Binary search checks the middle block, then halves the range each time. The number of halvings needed to go from 1024 blocks to 1 block is log<sub>2</sub>(1024) = 10. So a search reads about 10 blocks. A heap file with the same 1024 blocks reads about 512 blocks on average. The Python check at the end of this unit confirms the numbers.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Binary search on a file works only when the file is sorted on the search key. On a heap file, you must read blocks one after another.</p></div>
+  <h3>Data types in a DBMS</h3>
+  <p>Every column has a data type, which decides how many bytes each value uses. Some common types are:</p>
+  <ul>
+    <li><strong>Numeric:</strong> INT (fixed size, for example 4 bytes), FLOAT and DECIMAL.</li>
+    <li><strong>Character:</strong> CHAR(n) always uses n bytes, padding short values. VARCHAR(n) uses only as many bytes as the value needs, plus a small length field.</li>
+    <li><strong>Date and time:</strong> DATE and TIMESTAMP, each with a fixed size.</li>
+  </ul>
+  <p>Fixed-size types make it easy to compute where a field sits in a record. Variable-size types save space but make calculations less predictable. In the B+ tree calculations later on this page, we use the key size V and the pointer size P, which are simply the number of bytes each takes.</p>
+  <details class="check"><summary>Question: Why is an unordered heap file cheap to insert into but expensive to search?</summary><div class="ans"><p>Inserting only needs a block with free space, so one block access is often enough. Searching has no order to use, so we may have to read many or all blocks.</p></div></details>
+  <details class="check"><summary>Question: A sorted file has 256 blocks. About how many blocks does binary search read?</summary><div class="ans"><p>log<sub>2</sub>(256) = 8 blocks.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Indexes">
+  <h2>Concept 2: Index basics, primary, clustering and secondary</h2>
+  <h3>What an index is</h3>
+  <p>An index is a second structure that stores pairs of the form (key value, pointer). To find a record with a given key, we search the index first, then follow the pointer. The index is much smaller than the data, so it is usually faster to search.</p>
+  <p>Think of the card catalogue again. Each card has a title and a shelf number. We search the cards, which are small and sorted, and then walk to the shelf.</p>
+  <h3>Three kinds of index</h3>
+  <ul>
+    <li><strong>Primary index.</strong> Built on the ordering key of a sorted file, where the key is unique. Each key value appears once.</li>
+    <li><strong>Clustering index.</strong> Built on an ordering field that is not unique, such as dept. Records with the same value sit together in the file.</li>
+    <li><strong>Secondary index.</strong> Built on a field that is not the ordering field. The records are not sorted by this field, so every record needs its own index entry. This is a dense index.</li>
+  </ul>
+  <h3>Dense and sparse</h3>
+  <p>A <strong>dense</strong> index has one entry for every record. A <strong>sparse</strong> index has one entry for each block. A sparse index is smaller, and it works only on a file that is sorted by the indexed key.</p>
+  <div class="tablewrap"><table>
+    <caption>A sorted file of 6 records in 3 blocks (block size 2 records)</caption>
+    <thead><tr><th>Block</th><th>Records (key values)</th></tr></thead>
+    <tbody>
+      <tr><td>B1</td><td>10, 20</td></tr>
+      <tr><td>B2</td><td>30, 40</td></tr>
+      <tr><td>B3</td><td>50, 60</td></tr>
+    </tbody>
+  </table></div>
+  <p>A sparse index on this file has three entries: (10, B1), (30, B2) and (50, B3). A dense index has six entries, one per key. To find 40, the sparse index tells us that 40 lies between 30 and 50, so the block is B2. We read B2 and find 40 there.</p>
+  <div class="note tip"><p><span class="t">Tip</span>For a sparse index, the number of index entries equals the number of data blocks. For a dense index, it equals the number of records.</p></div>
+  <h3>Single-level and multilevel indexes</h3>
+  <p>A single-level index is one list of entries. If the index itself has many blocks, searching it becomes slow. So we build an index on the index. This is a <strong>multilevel index</strong>. Each level is smaller than the one below, and the top level fits in one block. The number of block accesses for a search is the number of index levels plus one for the data block.</p>
+  <details class="check"><summary>Question: A file has 1000 blocks. How many entries does a sparse index have?</summary><div class="ans"><p>1000, one for each block.</p></div></details>
+  <details class="check"><summary>Question: Why must a sparse index use a sorted file?</summary><div class="ans"><p>A sparse index only stores the first key of each block. To find a key, we must know that the block's key range contains it, which needs the file to be in key order.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="B-trees and B+ trees">
+  <h2>Concept 3: B-trees and B+ trees</h2>
+  <h3>Why a tree?</h3>
+  <p>A multilevel index is a tree in disguise. A tree is a good fit for a database because it stays <strong>balanced</strong>: every leaf is the same distance from the root. A balanced tree with a large order has very few levels. A tree with a million keys and order 100 has only about three levels.</p>
+  <h3>The structure of a B+ tree</h3>
+  <p>A B+ tree of order p has these rules:</p>
+  <ol>
+    <li><strong>Internal nodes</strong> hold at most p child pointers and at most p - 1 keys. They guide the search.</li>
+    <li><strong>Leaf nodes</strong> hold the keys and the record pointers. A leaf holds at most p - 1 keys. Each leaf also has one pointer to the next leaf, so the leaves form a sorted chain.</li>
+    <li><strong>All leaves are at the same level.</strong></li>
+    <li>Each internal node has at least ⌈p/2⌉ children, except the root. Each leaf has at least ⌈(p-1)/2⌉ keys, except possibly the root.</li>
+  </ol>
+  <p>Notice that internal nodes do not store record pointers. This lets more keys fit in each internal node, so the tree is flatter.</p>
+  <h3>Searching</h3>
+  <p>To search for key k, start at the root. In each internal node, pick the child whose key range contains k. Repeat until a leaf is reached. Then look for k in the leaf. The number of block reads is the height h, plus one more read for the data record if the leaf holds only pointers.</p>
+  <h3>Insertion, step by step</h3>
+  <p>We use order p = 3, so a leaf holds at most 2 keys and an internal node holds at most 2 keys. Insert 10, 20, 30, 40 and 50 in this order.</p>
+  <ol>
+    <li><strong>Insert 10 and 20.</strong> The root is a leaf: [10, 20].</li>
+    <li><strong>Insert 30.</strong> The leaf would have 3 keys, which is too many. Split it into [10] and [20, 30]. Copy 20 up as a separator. Root: [20].</li>
+    <li><strong>Insert 40.</strong> Go right, to [20, 30, 40]. Too many keys. Split into [20] and [30, 40]. Copy 30 up. Root: [20, 30], which is allowed because it has 2 keys.</li>
+    <li><strong>Insert 50.</strong> Go to the right leaf: [30, 40, 50]. Split into [30] and [40, 50]. Copy 40 up. The root would have [20, 30, 40], which has 3 keys. Split the internal node: move 30 up as the new root, with [20] on the left and [40] on the right.</li>
+  </ol>
+  <p>The final tree has three levels. The root is [30]. Its left child is [20], with leaves [10] and [20]. Its right child is [40], with leaves [30] and [40, 50]. Notice that a leaf split copies the key up, while an internal split moves the key up, so it does not stay in the child.</p>
+  <div class="note trap"><p><span class="t">Trap</span>In a leaf split, the separator key is copied up and still appears in the leaf. In an internal split, the middle key moves up and is removed from both halves. Mixing these up is a common error.</p></div>
+  <h3>Deletion</h3>
+  <p>When a key is deleted and a leaf has fewer keys than its minimum, the node either borrows a key from a sibling with extra keys, or merges with a sibling. A merge removes a separator from the parent. If the parent becomes too small, the same repair continues upward. Deletion can reduce the height of the tree.</p>
+  <h3>Why B+ trees are used in DBMS</h3>
+  <ul>
+    <li>All record pointers are in the leaves, so internal nodes hold more keys and the tree is shorter.</li>
+    <li>The leaves are linked, so a range query such as "keys from 20 to 40" finds the first key and then follows the chain.</li>
+    <li>The tree is always balanced, so every search costs about the same.</li>
+  </ul>
+  <div class="note interview"><p><span class="t">GATE loves this</span>A B tree stores record pointers in every node, and a B+ tree stores them only in leaves. Expect questions comparing fan-out or range queries. For both, the B+ tree is the usual answer, because its internal nodes hold more keys and its leaves are linked.</p></div>
+  <details class="check"><summary>Question: In a B+ tree of order 3, why is 20 still in the leaf after the first split?</summary><div class="ans"><p>A leaf split copies the separator up to the parent, but the key must remain in the leaf, because leaves hold all the record pointers.</p></div></details>
+  <details class="check"><summary>Question: Why is a B+ tree better than a B tree for range queries?</summary><div class="ans"><p>The leaves form a sorted linked chain. A range query finds the start key once, then follows the links without going back up the tree.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Order and height calculations">
+  <h2>Concept 4: Order and height calculations</h2>
+  <h3>Finding the order from block size</h3>
+  <p>A block must hold an internal node. Suppose the block size is B bytes, a block pointer takes P bytes, and a key takes V bytes. An internal node has p pointers and p - 1 keys, so it needs:</p>
+  <div class="formula">p × P + (p - 1) × V ≤ B</div>
+  <p>Read the symbols: p is the order we want, P is the pointer size, V is the key size, and B is the block size. The largest p that fits is the order of internal nodes.</p>
+  <p>Example: B = 512 bytes, P = 6, V = 10. Try p = 32: 32 × 6 + 31 × 10 = 192 + 310 = 502, which fits in 512. Try p = 33: 33 × 6 + 32 × 10 = 198 + 320 = 518, which does not fit. So p = 32 for internal nodes.</p>
+  <p>Leaves also need space for record pointers Pr, and a next-leaf pointer P. A leaf with p - 1 keys, each with a record pointer, and one next pointer needs:</p>
+  <div class="formula">(p - 1) × (V + Pr) + P ≤ B</div>
+  <p>With Pr = 7 bytes, the same block gives (p - 1) × 17 + 6 ≤ 512. Try p = 30: 29 × 17 + 6 = 499, which fits. Try p = 31: 30 × 17 + 6 = 516, which does not. So the leaves allow p = 30. The order of the whole tree is the smaller of the two, which is 30.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The order of the tree is limited by whichever node type is larger. Always check both the internal node formula and the leaf formula, then take the smaller.</p></div>
+  <h3>Height limits for n keys</h3>
+  <p>Suppose we know the order p and want the height of a B+ tree that stores n keys. We use two extremes.</p>
+  <ul>
+    <li><strong>Minimum height</strong> comes from full nodes. A tree of height h has at most (p - 1) × p<sup>h-1</sup> keys when every leaf is full. The smallest h with this capacity at least n is the minimum height.</li>
+    <li><strong>Maximum height</strong> comes from minimally filled nodes. The fewest keys for height h uses the smallest allowed number of children and keys. The largest h whose minimum key count is at most n is the maximum height.</li>
+  </ul>
+  <p>Example: order p = 4 and n = 100 keys. Full nodes: height 3 holds at most 3 × 4<sup>2</sup> = 48 keys, and height 4 holds at most 3 × 4<sup>3</sup> = 192 keys. Since 48 is less than 100 and 192 is at least 100, the minimum height is 4.</p>
+  <p>Minimal nodes: each internal node has at least ⌈4/2⌉ = 2 children, and each leaf has at least ⌈3/2⌉ = 2 keys. For height 6, the tree has at least 2 × 2<sup>4</sup> = 32 leaves, with at least 64 keys. For height 7, it has at least 64 leaves and 128 keys, which is more than 100. So the maximum height is 6.</p>
+  <p>The next program applies these formulas. It is a direct translation of the steps above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+B, P, V, Pr = 512, 6, 10, 7
+
+internal = max(p for p in range(1, 200) if p * P + (p - 1) * V &lt;= B)
+leaf = max(p for p in range(1, 200) if (p - 1) * (V + Pr) + P &lt;= B)
+print("internal order:", internal, "leaf order:", leaf, "tree order:", min(internal, leaf))
+
+print("binary search on 1024 blocks:", math.ceil(math.log2(1024)), "blocks")
+
+def max_keys(p, h):
+    return (p - 1) * p ** (h - 1)
+
+def min_keys(p, h):
+    if h == 1:
+        return 1
+    leaves = 2 * math.ceil(p / 2) ** (h - 2)
+    return leaves * math.ceil((p - 1) / 2)
+
+p, n = 4, 100
+print("minimum height for 100 keys:", min(h for h in range(1, 50) if max_keys(p, h) &gt;= n))
+print("maximum height for 100 keys:", max(h for h in range(1, 50) if min_keys(p, h) &lt;= n))
+</code></pre>
+  <pre class="output">internal order: 32 leaf order: 30 tree order: 30
+binary search on 1024 blocks: 10 blocks
+minimum height for 100 keys: 4
+maximum height for 100 keys: 6</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Height conventions differ. Some textbooks count edges, so a single root has height 0. A GATE question states its convention. This page counts levels, so a single root has height 1.</p></div>
+  <details class="check"><summary>Question: Why must the order be taken from the smaller of the internal and leaf limits?</summary><div class="ans"><p>Every node of the tree must fit in one block. If either node type does not fit at order p, the tree cannot use that order.</p></div></details>
+  <details class="check"><summary>Question: With order p = 4, how many keys can a full tree of height 2 hold?</summary><div class="ans"><p>(p - 1) × p = 3 × 4 = 12 keys. The root has 4 children, and each leaf has 3 keys.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Heap file search: about b/2 blocks (worst b)</td><td>Read blocks one by one</td><td>Unordered file</td></tr>
+      <tr><td>Sorted file search: about log<sub>2</sub>(b)</td><td>Binary search on blocks</td><td>Sorted file</td></tr>
+      <tr><td>Sparse index entries = number of blocks</td><td>One entry per block</td><td>Index on a sorted file</td></tr>
+      <tr><td>Dense index entries = number of records</td><td>One entry per record</td><td>Secondary index</td></tr>
+      <tr><td>p × P + (p - 1) × V ≤ B</td><td>Internal node fits in a block</td><td>Finding order p</td></tr>
+      <tr><td>(p - 1) × (V + Pr) + P ≤ B</td><td>Leaf node fits in a block</td><td>Finding order p for leaves</td></tr>
+      <tr><td>Max keys with height h: (p - 1) × p<sup>h-1</sup></td><td>All nodes full</td><td>Minimum height</td></tr>
+      <tr><td>Min keys with height h: 2 × ⌈p/2⌉<sup>h-2</sup> × ⌈(p - 1)/2⌉</td><td>All nodes minimally filled</td><td>Maximum height</td></tr>
+      <tr><td>Search cost: h block reads, plus 1 for the record if needed</td><td>Path from root to leaf</td><td>Counting block accesses</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Blocks read in a heap search</h3>
+    <div class="statement"><p>A heap file has 200 blocks. On average, how many blocks does a successful search read?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The average block reads for a heap file.</li>
+      <li><strong>Which idea applies.</strong> A heap has no order, so we read blocks one at a time until we find the record. On average we read half the file.</li>
+      <li><strong>Work it out.</strong> Half of 200 is 100.</li>
+      <li><strong>Check.</strong> The worst case is 200, and the average must be less.</li>
+    </ol>
+    <p class="cx">Answer: 100 blocks.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Index entries</h3>
+    <div class="statement"><p>A sorted file has 5000 records stored in 250 blocks. How many entries does a sparse index on the sort key have? Then how many entries does a dense index have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two counts.</li>
+      <li><strong>Which idea applies.</strong> Sparse: one entry per block. Dense: one entry per record.</li>
+      <li><strong>Work it out.</strong> Sparse: 250 entries. Dense: 5000 entries.</li>
+      <li><strong>Check.</strong> The dense index is larger, as expected.</li>
+    </ol>
+    <p class="cx">Answer: sparse 250, dense 5000.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about file organization</h3>
+    <div class="statement"><p>Select all that apply. For a file of b blocks:</p>
+      <p>(A) Binary search on a heap file takes about log<sub>2</sub>(b) reads.</p>
+      <p>(B) A sorted file supports binary search on its ordering key.</p>
+      <p>(C) A hashed file is good for range queries such as "keys between 10 and 20".</p>
+      <p>(D) A heap file is cheap to insert into.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Binary search needs sorted data. Hashing spreads keys randomly, so it loses order.</li>
+      <li><strong>Work it out.</strong> (A) False, a heap has no order. (B) True. (C) False, hashing does not keep keys in order. (D) True, a new record goes into any block with space.</li>
+      <li><strong>Check.</strong> The two true statements are about order (B) and about placement (D).</li>
+    </ol>
+    <p class="cx">Answer: (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Search cost of a multilevel index</h3>
+    <div class="statement"><p>A B+ tree has height 3. How many block reads does a search for one key take if the leaf holds record pointers only, and the record must be read separately?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of block reads.</li>
+      <li><strong>Which idea applies.</strong> One block per tree level, plus one block for the record.</li>
+      <li><strong>Work it out.</strong> 3 tree levels give 3 reads. The record adds 1. Total 4.</li>
+      <li><strong>Check.</strong> The answer is the height plus one.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Order of a B+ tree</h3>
+    <div class="statement"><p>Block size is 512 bytes, block pointer size is 6 bytes, and key size is 10 bytes. What is the largest order p for the internal nodes? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The largest p that fits.</li>
+      <li><strong>Which idea applies.</strong> p × P + (p - 1) × V ≤ B.</li>
+      <li><strong>Work it out.</strong> Substitute: 6p + 10(p - 1) ≤ 512, so 16p - 10 ≤ 512, so 16p ≤ 522, so p ≤ 32.6. The largest whole p is 32.</li>
+      <li><strong>Check.</strong> For p = 32: 192 + 310 = 502 bytes, which fits. For p = 33: 518 bytes, which does not.</li>
+    </ol>
+    <p class="cx">Answer: 32.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Height after insertions</h3>
+    <div class="statement"><p>A B+ tree of order 3 starts empty. The keys 10, 20, 30, 40 and 50 are inserted in that order. How many levels does the tree have after the last insertion? Use the convention that a single root has height 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of levels after five insertions.</li>
+      <li><strong>Which idea applies.</strong> Trace the splits, as in Concept 3.</li>
+      <li><strong>Work it out.</strong> After 10, 20 and 30 the root is [20] with two leaves, so 2 levels. After 40 the root is [20, 30]. After 50 the leaf [30, 40, 50] splits and the root overflows, so the root [30] has children [20] and [40], and the leaves below them. That makes 3 levels.</li>
+      <li><strong>Check.</strong> Leaves are at the bottom level, and the root level is above the internal level, so there are three levels.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about B and B+ trees</h3>
+    <div class="statement"><p>Select all that apply. Which statements about a B+ tree of order p are true?</p>
+      <p>(A) Internal nodes store record pointers.</p>
+      <p>(B) All leaves are at the same level.</p>
+      <p>(C) A range query can follow linked leaves in order.</p>
+      <p>(D) Deleting keys can reduce the height of a B+ tree.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The B+ tree rules: record pointers only in leaves, balanced, linked leaves.</li>
+      <li><strong>Work it out.</strong> (A) False, internal nodes hold only keys and child pointers. (B) True, the tree is balanced. (C) True, the leaves form a sorted chain. (D) True, when a merge leaves the root with one child, that child becomes the new root and the height drops.</li>
+      <li><strong>Check.</strong> The false statement is the one that says internal nodes hold data pointers.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: smallest B+ tree for 20 keys (NAT, 2 marks)</h3>
+    <div class="statement"><p>A B+ tree index is built on 20 distinct key values. Each leaf holds at most 3 keys. Each internal node has at most 4 children. To find the smallest possible tree, pack every node as full as the rules allow, one level at a time, until a single root remains. Count the total number of nodes, including the root and all the leaves.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimum total node count.</li>
+      <li><strong>Which idea applies.</strong> Pack each level full, then build the next level from those nodes.</li>
+      <li><strong>Work it out.</strong> 20 keys at 3 per leaf need 7 leaves (20 / 3 = 6.67, rounded up). 7 leaves under parents with 4 children need 2 internal nodes (7 / 4 = 1.75, rounded up). Two internal nodes fit under one root. The total is 7 + 2 + 1 = 10.</li>
+      <li><strong>Check.</strong> Six full leaves hold 18 keys and the seventh holds 2, so 20 keys fit in 7 leaves.</li>
+    </ol>
+    <p class="cx">Answer: 10 nodes (7 leaves, 2 internal nodes and 1 root).</p>
+    <pre class="code" data-lang="python"><code>import math
+keys=20
+leaf_cap=3
+fanout=4
+n=math.ceil(keys/leaf_cap)
+levels=[n]
+total=n
+while n&gt;1:
+    n=math.ceil(n/fanout)
+    levels.append(n)
+    total+=n
+print(levels)
+print(total)</code></pre>
+    <pre class="output">[7, 2, 1]
+10</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: levels of a B+ tree on a disk (NAT, 2 marks)</h3>
+    <div class="statement"><p>A disk block is 4096 bytes. A key takes 10 bytes and a pointer takes 6 bytes. An internal node with p pointers holds p - 1 keys and must fit in one block. Find the largest possible p. Each leaf holds p - 1 keys. A B+ tree is built over 1,000,000 keys. How many levels does the tree have, counting the root and the leaves?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of levels.</li>
+      <li><strong>Which idea applies.</strong> The block size fixes the fan-out. Then count the nodes on each level, from the bottom up.</li>
+      <li><strong>Work it out.</strong> The rule 6p + 10(p - 1) ≤ 4096 gives 16p ≤ 4106, so p = 256, since 16 × 256 = 4096 fits and 16 × 257 = 4112 does not. Leaves hold 255 keys, so 1,000,000 / 255 needs 3922 leaves (rounded up). Each parent has 256 children, so 3922 / 256 needs 16 nodes, and 16 / 256 needs 1 root.</li>
+      <li><strong>Check.</strong> The levels hold 3922, 16 and 1 nodes, so the tree has 3 levels, which is 2 edges from the root to a leaf.</li>
+    </ol>
+    <p class="cx">Answer: 3 levels.</p>
+    <pre class="code" data-lang="python"><code>import math
+block=4096
+key=10
+ptr=6
+p=(block+key)//(ptr+key)
+print(p)
+records=10**6
+leaf_keys=p-1
+n=math.ceil(records/leaf_keys)
+levels=[n]
+while n&gt;1:
+    n=math.ceil(n/p)
+    levels.append(n)
+print(levels)
+print(len(levels))</code></pre>
+    <pre class="output">256
+[3922, 16, 1]
+3</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: true statements about a B+ tree (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A B+ tree has order 6, so each internal node has at most 6 children. Select all that apply. Which of these statements about B+ trees are true?</p>
+      <p>(A) Every data pointer is stored in a leaf node.</p>
+      <p>(B) The root may have a single child.</p>
+      <p>(C) The leaves are linked, so a range query can scan forward along them.</p>
+      <p>(D) Internal nodes store full data records.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which properties hold for a B+ tree of order 6.</li>
+      <li><strong>Which idea applies.</strong> In a B+ tree, data pointers sit only in leaves, the leaves form a linked list, and every non-root node must be at least half full.</li>
+      <li><strong>Work it out.</strong> The minimum number of children is 2 for the root and ceil(6/2) = 3 for other internal nodes. Non-root leaves need at least ceil(5/2) = 3 keys. A non-leaf root needs 2 children, so (B) is false.</li>
+      <li><strong>Check.</strong> (A) and (C) describe the defining features. (D) is false, because internal nodes hold only separator keys and child pointers.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C). Why the others fail: (B) a non-leaf root needs at least 2 children; (D) internal nodes hold only separator keys and child pointers, so the records live in the leaves.</p>
+    <pre class="code" data-lang="python"><code>import math
+p=6
+min_root_children=2
+min_internal_children=math.ceil(p/2)
+min_leaf_keys=math.ceil((p-1)/2)
+print(min_root_children, min_internal_children, min_leaf_keys)
+print(min_leaf_keys)</code></pre>
+    <pre class="output">2 3 3
+3</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: block reads with a cached root (NAT, 2 marks)</h3>
+    <div class="statement"><p>A B+ tree index has 3 levels, counting the root and the leaves. The data file is separate from the index. A lookup reads one index block per level, then one data block. The root block is kept in memory, so reading it costs nothing. How many block reads do 50 independent lookups need in total?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total block reads for 50 lookups.</li>
+      <li><strong>Which idea applies.</strong> Count the reads per lookup, leaving out the cached root, then multiply by the number of lookups.</li>
+      <li><strong>Work it out.</strong> 3 levels minus the cached root leaves 2 index blocks. Add 1 data block, which gives 3 reads per lookup. 50 × 3 = 150.</li>
+      <li><strong>Check.</strong> Two index reads and one data read make 3 per lookup, and 3 × 50 = 150.</li>
+    </ol>
+    <p class="cx">Answer: 150 block reads.</p>
+    <pre class="code" data-lang="python"><code>levels=3
+cached_root=1
+lookups=50
+per_lookup=(levels-cached_root)+1
+print(per_lookup)
+print(per_lookup*lookups)</code></pre>
+    <pre class="output">3
+150</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Disk block</dt><dd>The unit of disk transfer. Block accesses are the main cost.</dd></div>
+    <div><dt>Heap file</dt><dd>Unordered file. Cheap insert, slow search.</dd></div>
+    <div><dt>Sequential file</dt><dd>Sorted by key. Binary search costs about log<sub>2</sub>(b).</dd></div>
+    <div><dt>Hashed file</dt><dd>Hash function picks the block. Good for exact matches only.</dd></div>
+    <div><dt>Data type</dt><dd>Decides how many bytes a value uses.</dd></div>
+    <div><dt>Index</dt><dd>A smaller structure of key and pointer pairs.</dd></div>
+    <div><dt>Primary index</dt><dd>Index on the unique ordering key of a sorted file.</dd></div>
+    <div><dt>Clustering index</dt><dd>Index on a non-unique ordering field.</dd></div>
+    <div><dt>Secondary index</dt><dd>Index on a field that is not the ordering field.</dd></div>
+    <div><dt>Dense index</dt><dd>One entry per record.</dd></div>
+    <div><dt>Sparse index</dt><dd>One entry per block, for sorted files only.</dd></div>
+    <div><dt>Multilevel index</dt><dd>An index built on another index.</dd></div>
+    <div><dt>B-tree</dt><dd>Balanced tree with record pointers in every node.</dd></div>
+    <div><dt>B+ tree</dt><dd>Balanced tree with record pointers only in leaves, and linked leaves.</dd></div>
+    <div><dt>Order p</dt><dd>Maximum number of child pointers in an internal node.</dd></div>
+    <div><dt>Height</dt><dd>Number of levels from root to leaves.</dd></div>
+    <div><dt>Leaf split</dt><dd>The separator is copied up, and stays in the leaf.</dd></div>
+    <div><dt>Internal split</dt><dd>The middle key moves up and leaves the child nodes.</dd></div>
+    <div><dt>Balanced tree</dt><dd>All leaves at the same depth.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A heap search reads about half the blocks on average. Binary search on a sorted file reads about log<sub>2</sub>(b).</li>
+    <li>A sparse index has one entry per block. A dense index has one entry per record.</li>
+    <li>Find the order from the internal formula p × P + (p - 1) × V ≤ B, and the leaf formula too.</li>
+    <li>B+ trees keep record pointers only in leaves, which makes them flatter.</li>
+    <li>Leaf splits copy the separator up. Internal splits move the middle key up.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 92?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 92 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-091.html"><small>Previous, topic 91</small>Normal forms (1NF-BCNF)</a><a class="next" href="gate-093.html"><small>Next, topic 93</small>Data warehouse modelling: schema types</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

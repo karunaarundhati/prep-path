@@ -1,0 +1,392 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 83: Linked list (recap)</title><meta name="description" content="A linked list is a chain of small boxes, where each box stores a value and a pointer to the next box. This quick recap covers singly and doubly linked lists, how to insert and delete, how to walk the list, and how their costs compare with arrays, which GATE asks about often."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g83" data-key="g83" data-noun="topic" data-num="83" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Linked list (recap)</h1>
+<p class="lede">A linked list is a chain of small boxes, where each box stores a value and a pointer to the next box. This quick recap covers singly and doubly linked lists, how to insert and delete, how to walk the list, and how their costs compare with arrays, which GATE asks about often.</p>
+<div class="station"><b>83</b><span>Unit 6 · Programming and data structures · Paper RA · Quick Recap</span></div>
+<ul class="topics"><li>Nodes and pointers</li><li>Singly linked lists</li><li>Insertion and deletion</li><li>Doubly linked lists</li><li>Comparing with arrays</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a train. Each carriage holds some passengers, and it is hitched to the next carriage. To visit every carriage you start at the engine and walk from one to the next. You cannot jump straight to carriage 7. You must pass carriages 1 to 6 first.</p>
+  <p>A <strong>linked list</strong> works the same way. Each box, called a <strong>node</strong>, stores a value and a <strong>pointer</strong>, which is a reference that says where the next node is. The list itself is remembered by one pointer, called the <strong>head</strong>, which points to the first node.</p>
+  <p>Why this matters for GATE: linked lists appear in questions about the cost of insertion and deletion, about how many pointers change, and about comparing lists with arrays. The key fact is simple. Changing a link is cheap. Finding the place to change is often the expensive part.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Node</dt><dd>A box holding a value and one or more pointers.</dd></div>
+    <div><dt>Pointer (link)</dt><dd>A stored address that tells you where another node is.</dd></div>
+    <div><dt>Head</dt><dd>The pointer to the first node of the list. If the list is empty, the head is empty (None in Python).</dd></div>
+    <div><dt>Singly linked list</dt><dd>A list where each node has one pointer, to the next node.</dd></div>
+    <div><dt>Doubly linked list</dt><dd>A list where each node has two pointers, one to the next node and one to the previous node.</dd></div>
+    <div><dt>Traversal</dt><dd>Visiting every node in order, by following the pointers from the head.</dd></div>
+    <div><dt>Predecessor</dt><dd>The node just before a given node.</dd></div>
+    <div><dt>Time complexity</dt><dd>How the number of steps grows as the list gets longer. O(1) means a fixed number of steps. O(n) means about n steps for n nodes.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Singly linked lists">
+  <h2>Singly linked lists</h2>
+  <p>A singly linked list stores the values 10, 20 and 30 like this. Each arrow is a pointer.</p>
+  <div class="formula">head → [10 | ●] → [20 | ●] → [30 | None]</div>
+  <p>The last node points to nothing, so you know the list has ended. To read the whole list you start at the head and follow each arrow. This is traversal. Finding the node at position k needs k steps, so reading the k-th value costs O(k), and in the worst case O(n).</p>
+  <p>Here is a small Python version. The class <code>Node</code> holds one value and one pointer. The class <code>LinkedList</code> holds the head and offers the operations we will use.</p>
+  <pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+class LinkedList:
+    def __init__(self):
+        self.head = None
+
+    def insert_front(self, data):
+        node = Node(data)
+        node.next = self.head
+        self.head = node
+
+    def insert_end(self, data):
+        node = Node(data)
+        if self.head is None:
+            self.head = node
+            return
+        cur = self.head
+        while cur.next is not None:
+            cur = cur.next
+        cur.next = node
+
+    def delete(self, data):
+        if self.head is None:
+            return False
+        if self.head.data == data:
+            self.head = self.head.next
+            return True
+        prev = self.head
+        while prev.next is not None:
+            if prev.next.data == data:
+                prev.next = prev.next.next
+                return True
+            prev = prev.next
+        return False
+
+    def to_list(self):
+        items = []
+        cur = self.head
+        while cur is not None:
+            items.append(cur.data)
+            cur = cur.next
+        return items
+
+lst = LinkedList()
+lst.insert_end(10)
+lst.insert_end(20)
+lst.insert_front(5)
+print(lst.to_list())
+lst.delete(20)
+print(lst.to_list())
+print(len(lst.to_list()))
+print(lst.delete(99))</code></pre>
+  <pre class="output">[5, 10, 20]
+[5, 10]
+2
+False</pre>
+  <p>Read the output line by line. The insert at the front gave 5 in the first place. The delete of 20 removed the last node by changing one pointer, the pointer of node 10, so it now points to None. The search for 99 found nothing, so the method returned False.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Always check for an empty list before you touch <code>head.next</code>. Trying to read a field of None is an error, not a zero.</p></div>
+  <details class="check"><summary>In the code above, which pointer changes when 20 is deleted?</summary><div class="ans"><p>The next pointer of the node holding 10. It is changed from pointing to 20 to pointing to None.</p></div></details>
+  <details class="check"><summary>Can you reach the third node of a singly linked list without visiting the first two?</summary><div class="ans"><p>No. You must follow the pointers from the head, one node at a time.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Insertion and deletion">
+  <h2>Insertion and deletion</h2>
+  <p>Insertion and deletion are cheap only when you already hold the right pointer. The cost depends on where you act.</p>
+  <ul>
+    <li><strong>Insert at the front.</strong> Make the new node point to the old head, then move the head to the new node. Two pointer changes, no walking. This is O(1).</li>
+    <li><strong>Insert at the end.</strong> With only a head pointer, you must walk to the last node first. That takes n steps for n nodes, so this is O(n). If the list also keeps a tail pointer, this becomes O(1).</li>
+    <li><strong>Insert after a given node.</strong> If you already hold a pointer to that node, change two pointers. This is O(1).</li>
+    <li><strong>Delete the first node.</strong> Move the head to the second node. This is O(1).</li>
+    <li><strong>Delete a node by value.</strong> You must find its predecessor first, so this is O(n) in the worst case.</li>
+  </ul>
+  <p>Here is a worked example. The list is 10, 20, 30, 40. We delete 30. The predecessor of 30 is 20. We set the pointer of 20 to point to 40, skipping 30. Nothing else changes. The node 30 is now unreachable, and the language removes it.</p>
+  <div class="formula">Before: 10 → 20 → 30 → 40 → None</div>
+  <div class="formula">After: 10 → 20 → 40 → None</div>
+  <div class="note key"><p><span class="t">Key idea</span>Deleting a node needs the pointer to the node before it. In a singly linked list you usually find that by walking from the head, which is why deleting by value is O(n).</p></div>
+  <details class="check"><summary>What is the cost of inserting at the front of a singly linked list with only a head pointer?</summary><div class="ans"><p>O(1). Two pointers change and nothing is walked.</p></div></details>
+  <details class="check"><summary>Why does deleting the node 30 need the node 20?</summary><div class="ans"><p>Because the pointer that must be changed belongs to 20. Only 20 can be redirected from 30 to 40.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Doubly linked lists">
+  <h2>Doubly linked lists</h2>
+  <p>A doubly linked list gives each node two pointers: <code>next</code> for the node after it, and <code>prev</code> for the node before it. It is like a train where each carriage has a hook at both ends.</p>
+  <div class="formula">None ← [10] ⇄ [20] ⇄ [30] → None</div>
+  <p>The extra pointer costs memory, because each node stores one more reference. In return, you can walk in both directions, and you can delete a node when you already hold a pointer to it, without walking from the head.</p>
+  <p>To delete a node <code>x</code> in a doubly linked list, set <code>x.prev.next</code> to <code>x.next</code>, and set <code>x.next.prev</code> to <code>x.prev</code>. Take care with the first and last nodes, where one of these pointers is None. The whole change takes a fixed number of steps, so it is O(1).</p>
+  <div class="note trap"><p><span class="t">Trap</span>A doubly linked list does not make search faster. Finding a value still walks the list, which is O(n). The gain is only in insertion and deletion once you hold a pointer to the place.</p></div>
+  <details class="check"><summary>What does a doubly linked list gain compared with a singly linked list?</summary><div class="ans"><p>It can move backward, and it can delete a node in O(1) when a pointer to that node is given. It costs one extra pointer per node.</p></div></details>
+  <details class="check"><summary>How many pointers change when a middle node is deleted from a doubly linked list?</summary><div class="ans"><p>Two: the next pointer of its predecessor and the prev pointer of its successor.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Comparing with arrays">
+  <h2>Comparing with arrays</h2>
+  <p>An array stores its items side by side in memory, so you can jump directly to item k. A linked list stores each item in a separate node, and you must walk to it. This difference drives most GATE comparisons.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Operation</th><th>Singly linked list (head only)</th><th>Doubly linked list (head and tail)</th><th>Array</th></tr></thead>
+    <tbody>
+      <tr><td>Access the k-th item</td><td>O(k)</td><td>O(k)</td><td>O(1)</td></tr>
+      <tr><td>Insert at the front</td><td>O(1)</td><td>O(1)</td><td>O(n)</td></tr>
+      <tr><td>Insert at the end</td><td>O(n)</td><td>O(1)</td><td>O(1) amortised</td></tr>
+      <tr><td>Delete the front</td><td>O(1)</td><td>O(1)</td><td>O(n)</td></tr>
+      <tr><td>Delete a given node</td><td>O(n)</td><td>O(1)</td><td>O(n) to find, then shift</td></tr>
+      <tr><td>Search by value</td><td>O(n)</td><td>O(n)</td><td>O(n) unsorted</td></tr>
+    </tbody>
+  </table></div>
+  <p>The table says: use an array when you read by position often. Use a linked list when you insert or delete at the front or at a known place often, and you do not need fast access by position.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Read the question for the phrase "given a pointer to the node" or "at the beginning". These phrases change the answer from O(n) to O(1).</p></div>
+  <details class="check"><summary>Which is faster for reading the 1000th item: an array or a singly linked list?</summary><div class="ans"><p>An array. Its access is O(1). The linked list needs 1000 steps from the head.</p></div></details>
+  <details class="check"><summary>What does "amortised" mean in the table?</summary><div class="ans"><p>It means the average cost over a long run of operations is constant, even though a single operation may occasionally be slow, for example when an array must be resized.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Quantity</th><th>Rule</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Pointers per node</td><td>Singly: 1. Doubly: 2.</td><td>Memory questions</td></tr>
+      <tr><td>Steps to reach node k</td><td>k steps from the head</td><td>Access cost</td></tr>
+      <tr><td>Insert or delete at front</td><td>O(1)</td><td>Stack-like use</td></tr>
+      <tr><td>Delete by value (singly)</td><td>O(n) worst case, to find the predecessor</td><td>Search plus change</td></tr>
+      <tr><td>Delete given node (doubly)</td><td>O(1), two pointer changes</td><td>Cache and LRU style questions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not real past questions. Trace the pointers on paper before you check with code.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Order of values after three insertions</h3>
+    <div class="statement"><p>An empty singly linked list receives 10 at the end, then 20 at the end, then 5 at the front. In what order are the values read from the head?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The order of the values from the head.</li>
+      <li><strong>Which idea applies.</strong> Insert at the end adds after the last node. Insert at the front puts the new node first.</li>
+      <li><strong>Work it out.</strong> After the first two steps the list is 10, 20. The front insertion puts 5 first, so the list is 5, 10, 20.</li>
+      <li><strong>Check.</strong> Run the code below. A Python list stands in for the order of values.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>items = []
+items.append(10)
+items.append(20)
+items.insert(0, 5)
+print(items)</code></pre>
+    <pre class="output">[5, 10, 20]</pre>
+    <p class="cx">Answer: 5, 10, 20.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Cheapest insertion</h3>
+    <div class="statement"><p>A singly linked list has only a head pointer. Which operation costs O(1): insert at the front, or insert at the end? Give one word.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The cheaper of two insertions.</li>
+      <li><strong>Which idea applies.</strong> Insert at the end needs a walk to the last node, but insert at the front does not.</li>
+      <li><strong>Work it out.</strong> Insert at the front changes two pointers and walks nothing. So it is O(1).</li>
+      <li><strong>Check.</strong> A walk over n nodes takes n steps, so insert at the end is O(n). The front wins.</li>
+    </ol>
+    <p class="cx">Answer: front.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Select all true statements about list costs</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <ul>
+      <li>(A) In a singly linked list, deleting a node when only its pointer is given takes O(n) time in the worst case.</li>
+      <li>(B) In a doubly linked list, deleting a node when its pointer is given takes O(1) time.</li>
+      <li>(C) An array gives O(1) access to its k-th item, but a singly linked list needs k steps.</li>
+      <li>(D) A singly linked list can be read backward in O(1) time per node.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Deletion needs the predecessor, and only doubly linked nodes can reach it directly.</li>
+      <li><strong>Work it out.</strong> (A) With only the pointer to the node, you cannot reach its predecessor without walking from the head, so O(n). True. (B) The node holds prev, so two pointers change directly. True. (C) Array access is O(1), and reaching the k-th node costs k steps. True. (D) A singly linked list has no backward pointer, so reading backward needs a walk from the head. False.</li>
+      <li><strong>Check.</strong> The statements are checked by the reasoning above. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Visits to reach the end</h3>
+    <div class="statement"><p>A singly linked list has 5 nodes, and the head points to the first. To insert a new node at the end, the algorithm walks from the head until it reaches the last node. How many nodes does the walk visit, counting the last node? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of node visits in the walk.</li>
+      <li><strong>Which idea applies.</strong> Each step visits one node, and the walk stops at the last node.</li>
+      <li><strong>Work it out.</strong> The walk visits node 1, node 2, node 3, node 4, and node 5. That is 5 visits.</li>
+      <li><strong>Check.</strong> Run the code below. It follows the next pointers and counts each visit.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>nxt = {"a": "b", "b": "c", "c": "d", "d": "e", "e": None}
+cur = "a"
+steps = 0
+while cur is not None:
+    steps = steps + 1
+    cur = nxt[cur]
+print(steps)</code></pre>
+    <pre class="output">5</pre>
+    <p class="cx">Answer: 5.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Deleting from the middle</h3>
+    <div class="statement"><p>The list 10, 20, 30, 40 is stored with a next pointer for each node. The node 30 is deleted by changing one pointer. Which values are read from the head after the deletion?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The values read from the head after the change.</li>
+      <li><strong>Which idea applies.</strong> The predecessor of 30 is 20. Its pointer must skip over 30.</li>
+      <li><strong>Work it out.</strong> Set the next pointer of 20 to 40. The list is now 10, 20, 40.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>nxt = {10: 20, 20: 30, 30: 40, 40: None}
+nxt[20] = nxt[30]
+del nxt[30]
+out = []
+cur = 10
+while cur is not None:
+    out.append(cur)
+    cur = nxt[cur]
+print(out)</code></pre>
+    <pre class="output">[10, 20, 40]</pre>
+    <p class="cx">Answer: 10, 20, 40.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Reversing a singly linked list</h3>
+    <div class="statement"><p>The list 1, 2, 3, 4 is reversed by changing the next pointers, one node at a time. Which values are read from the new head? Give the list in order.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The order of values after reversal.</li>
+      <li><strong>Which idea applies.</strong> For each node, save its old next pointer, point it backward to the previous node, then move both markers forward.</li>
+      <li><strong>Work it out.</strong> Start with prev = None and cur = 1. Each step makes cur point back to prev. After node 1 points to None, node 2 points to 1, node 3 points to 2, and node 4 points to 3. The last node, 4, becomes the new head. Reading from 4 gives 4, 3, 2, 1.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>nxt = {1: 2, 2: 3, 3: 4, 4: None}
+head = 1
+prev = None
+cur = head
+while cur is not None:
+    after = nxt[cur]
+    nxt[cur] = prev
+    prev = cur
+    cur = after
+head = prev
+out = []
+cur = head
+while cur is not None:
+    out.append(cur)
+    cur = nxt[cur]
+print(out)</code></pre>
+    <pre class="output">[4, 3, 2, 1]</pre>
+    <p class="cx">Answer: 4, 3, 2, 1.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Select all true statements about a doubly linked list</h3>
+    <div class="statement"><p>A doubly linked list keeps a head pointer and a tail pointer. Select all that apply.</p>
+    <ul>
+      <li>(A) Inserting a new node at the tail takes O(1) time.</li>
+      <li>(B) Deleting the last node takes O(1) time.</li>
+      <li>(C) Deleting a middle node changes the prev pointer of its successor and the next pointer of its predecessor.</li>
+      <li>(D) Each node uses less memory than in a singly linked list holding the same values.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The tail pointer gives direct access to the end. Each node stores two pointers.</li>
+      <li><strong>Work it out.</strong> (A) The tail is known, so a new node is linked after it in O(1). True. (B) The tail's prev pointer leads to the new last node, so the removal is O(1). True. (C) This is exactly the two-pointer change described earlier. True. (D) A doubly linked node stores one extra pointer, so it uses more memory. False.</li>
+      <li><strong>Check.</strong> The reasoning above covers each statement. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Reverse a linked list (NAT, 2 marks)</h3>
+    <div class="statement"><p>Iterative reversal of a singly linked list with n = 1000 nodes changes how many next pointers?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of pointer reassignments.</li>
+      <li><strong>Which idea applies.</strong> Each node's next is reassigned exactly once.</li>
+      <li><strong>Work it out.</strong> 1000.</li>
+      <li><strong>Check.</strong> The old head's next becomes None, which also counts as a change.</li>
+    </ol>
+    <p class="cx">Answer: 1000.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Floyd cycle detection (NAT, 2 marks)</h3>
+    <div class="statement"><p>A list has a tail of 3 nodes before a cycle of 5 nodes. Slow moves 1, fast moves 2, both from the head. After how many steps do they first meet?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first meeting time.</li>
+      <li><strong>Which idea applies.</strong> Simulate positions; nodes 0, 1, 2 are the tail and 3 to 7 form the cycle.</li>
+      <li><strong>Work it out.</strong> Number the tail nodes 0, 1, 2 and the cycle nodes 3 to 7. After t steps (t ≥ 3) both pointers are on the cycle and the gap between them is t. They meet when t is a multiple of 5, and the first such t ≥ 3 is 5.</li>
+      <li><strong>Check.</strong> The code simulates both pointers.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def nxt(i): return i + 1 if i &lt; 7 else 3
+s = f = 0; t = 0
+while True:
+    s = nxt(s); f = nxt(nxt(f)); t += 1
+    if s == f: break
+print("meet after", t, "steps at node", s)
+</code></pre>
+    <pre class="output">meet after 5 steps at node 5</pre>
+    <p class="cx">Answer: 5.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: List operations (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are O(1) on a singly linked list with only a head pointer? (A) Insert at head (B) Delete the last node (C) Access the k-th node (D) Delete the head</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Constant-time operations.</li>
+      <li><strong>Which idea applies.</strong> Anything near the tail needs a walk without a tail pointer.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) Needs the second last node. O(n). (C) O(k). (D) True.</li>
+      <li><strong>Check.</strong> A doubly linked list with a tail pointer makes (B) O(1).</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Node</dt><dd>A box with a value and pointers.</dd></div>
+    <div><dt>Pointer</dt><dd>A stored reference to another node.</dd></div>
+    <div><dt>Head</dt><dd>The pointer to the first node.</dd></div>
+    <div><dt>Singly linked list</dt><dd>Each node has one pointer, to the next node.</dd></div>
+    <div><dt>Doubly linked list</dt><dd>Each node has a next and a prev pointer.</dd></div>
+    <div><dt>Traversal</dt><dd>Visiting every node by following pointers from the head.</dd></div>
+    <div><dt>Predecessor</dt><dd>The node just before the given node.</dd></div>
+    <div><dt>Insert at front</dt><dd>O(1) in both list types.</dd></div>
+    <div><dt>Insert at end</dt><dd>O(n) with head only, O(1) with a tail pointer.</dd></div>
+    <div><dt>Delete given node</dt><dd>O(1) in a doubly linked list, O(n) in a singly linked list.</dd></div>
+    <div><dt>Access by position</dt><dd>O(k) in a linked list, O(1) in an array.</dd></div>
+    <div><dt>Reversal</dt><dd>Redirect each next pointer to the previous node, one node at a time.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ul>
+    <li>Linked lists are fast to change and slow to search or index.</li>
+    <li>Insertion at the front is always O(1).</li>
+    <li>Deletion needs the predecessor, so it is O(n) in a singly linked list.</li>
+    <li>A doubly linked list costs one extra pointer per node.</li>
+    <li>Arrays give O(1) access by position, linked lists do not.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 83?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 83 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-082.html"><small>Previous, topic 82</small>Binary search tree (recap)</a><a class="next" href="gate-084.html"><small>Next, topic 84</small>Graph (recap)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,506 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 87: Relational model & relational algebra</title><meta name="description" content="A relational database stores data in tables, and relational algebra is a small set of operations that takes tables and produces new tables. This topic covers the relational model and its keys, the operations selection, projection, set operations, product, join and rename, and how to read an algebra expression as a SQL query, which GATE uses in its numerical questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g87" data-key="g87" data-noun="topic" data-num="87" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Relational model &amp; relational algebra</h1>
+<p class="lede">A relational database stores data in tables, and relational algebra is a small set of operations that takes tables and produces new tables. This topic covers the relational model and its keys, the operations selection, projection, set operations, product, join and rename, and how to read an algebra expression as a SQL query, which GATE uses in its numerical questions.</p>
+<div class="station"><b>87</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Relations, tuples, attributes and keys</li><li>Selection and projection</li><li>Union, intersection and difference</li><li>Cartesian product and joins</li><li>Rename and building expressions</li><li>Translating algebra to SQL</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a school register. Each row is one student, and each column is one fact about the student, such as roll number, name or department. The register is a table. A database is a collection of such tables.</p>
+  <p>Now think of a cook following a recipe. The cook takes ingredients, chops some of them, mixes two bowls together, and sets some aside. Each step uses one or two bowls and makes a new bowl. <strong>Relational algebra</strong> works in exactly this way. Its ingredients are tables. Its steps are operations, such as choosing some rows, choosing some columns, or combining two tables. Each operation produces a new table, so steps can be chained.</p>
+  <p>The relational model is the rule book behind this. A table is called a <strong>relation</strong>. A row is a <strong>tuple</strong>. A column is an <strong>attribute</strong>. The rows of a relation form a set, so there are no duplicate rows and the order of rows does not matter.</p>
+  <p>Why this matters for GATE: GATE DA asks questions where you are given tables and a relational algebra expression, and you must work out the resulting rows. It also asks about keys, and about translating a query between algebra and SQL. The method is always the same: follow each operation in order, and write the table you get after each step.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Relation</dt><dd>A table with a name and a fixed set of columns. Precisely: a set of tuples over a fixed list of attributes.</dd></div>
+    <div><dt>Tuple</dt><dd>One row of a relation.</dd></div>
+    <div><dt>Attribute</dt><dd>One named column of a relation.</dd></div>
+    <div><dt>Degree</dt><dd>The number of attributes (columns) in a relation.</dd></div>
+    <div><dt>Cardinality</dt><dd>The number of tuples (rows) in a relation.</dd></div>
+    <div><dt>Super key</dt><dd>Any set of attributes whose values are unique for each tuple.</dd></div>
+    <div><dt>Candidate key</dt><dd>A super key from which no attribute can be removed and still be unique. A minimal super key.</dd></div>
+    <div><dt>Primary key</dt><dd>The candidate key chosen to identify tuples. It is never empty.</dd></div>
+    <div><dt>Foreign key</dt><dd>An attribute in one relation whose values must appear as primary key values in another relation.</dd></div>
+    <div><dt>Selection (σ)</dt><dd>Keeps only the tuples that satisfy a condition.</dd></div>
+    <div><dt>Projection (π)</dt><dd>Keeps only the chosen attributes, and removes duplicate tuples.</dd></div>
+    <div><dt>Union-compatible</dt><dd>Two relations with the same number of attributes, in the same order, with matching types. Only such relations can be combined with union or difference.</dd></div>
+    <div><dt>Cartesian product (×)</dt><dd>Pairs every tuple of one relation with every tuple of the other.</dd></div>
+    <div><dt>Join (⋈)</dt><dd>A product followed by a selection on matching values. The natural join matches equal values on the common attribute names.</dd></div>
+    <div><dt>Rename (ρ)</dt><dd>Gives a relation or its attributes a new name.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Relations and keys">
+  <h2>Relations, tuples, attributes and keys</h2>
+  <p>We use three small tables throughout this page. They describe students, the courses they take, and the grades they earn.</p>
+  <p><strong>Student</strong> has the attributes sid, name and dept.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>sid</th><th>name</th><th>dept</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>Asha</td><td>CS</td></tr>
+      <tr><td>S2</td><td>Ravi</td><td>EE</td></tr>
+      <tr><td>S3</td><td>Meera</td><td>CS</td></tr>
+      <tr><td>S4</td><td>Kiran</td><td>ME</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Enrol</strong> has the attributes sid, cid and grade. It records which student took which course.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>sid</th><th>cid</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>C1</td><td>A</td></tr>
+      <tr><td>S1</td><td>C2</td><td>B</td></tr>
+      <tr><td>S2</td><td>C1</td><td>C</td></tr>
+      <tr><td>S3</td><td>C2</td><td>A</td></tr>
+      <tr><td>S3</td><td>C3</td><td>B</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Course</strong> has the attributes cid, title and credits.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>cid</th><th>title</th><th>credits</th></tr></thead>
+    <tbody>
+      <tr><td>C1</td><td>Databases</td><td>4</td></tr>
+      <tr><td>C2</td><td>Algorithms</td><td>3</td></tr>
+      <tr><td>C3</td><td>Networks</td><td>4</td></tr>
+    </tbody>
+  </table></div>
+  <p>Student has degree 3, since it has three attributes, and cardinality 4, since it has four tuples. Enrol has degree 3 and cardinality 5.</p>
+  <h3>Keys</h3>
+  <p>Look at Student. The value sid is different for every row, so sid identifies each tuple. The set {sid, name} is also unique, but it is not minimal, because sid alone already works. So sid is a candidate key. In this relation, name is not a candidate key, because two students could share a name.</p>
+  <p>Look at Enrol. The attribute sid alone repeats (S1 appears twice), and cid alone repeats too. The pair (sid, cid) is unique in every row. So (sid, cid) is the candidate key, and we choose it as the primary key.</p>
+  <p>A foreign key links two relations. In Enrol, sid must match a sid in Student, and cid must match a cid in Course. So sid and cid are foreign keys in Enrol.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A key is decided by the meaning of the data and by the rules the database must enforce, not by the sample rows alone. Sample rows can show that an attribute is not a key, but they cannot prove that it is one.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>A relation has no duplicate tuples. If a question shows two identical rows, the relation as a set keeps only one of them.</p></div>
+  <details class="check"><summary>What is the degree and cardinality of the Course relation?</summary><div class="ans"><p>Degree 3 (cid, title, credits), and cardinality 3 (three rows).</p></div></details>
+  <details class="check"><summary>Is grade alone a candidate key of Enrol?</summary><div class="ans"><p>No. Grade A appears in more than one row, so grade does not identify each tuple.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Selection and projection">
+  <h2>Selection and projection</h2>
+  <p><strong>Selection</strong>, written σ, chooses rows. The condition goes under the sigma. For example, σ<sub>dept = 'CS'</sub>(Student) keeps only the rows where dept is CS.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>sid</th><th>name</th><th>dept</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>Asha</td><td>CS</td></tr>
+      <tr><td>S3</td><td>Meera</td><td>CS</td></tr>
+    </tbody>
+  </table></div>
+  <p>The result has the same attributes as the input. It has at most as many rows as the input, because it only removes rows. Conditions can use =, ≠, &lt;, &gt;, ≤, ≥, and can be joined with AND and OR.</p>
+  <p><strong>Projection</strong>, written π, chooses columns. For example, π<sub>name</sub>(Student) keeps only the name column. Projection also removes duplicate tuples, because a relation is a set. So a projection can have fewer rows than its input.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>dept</th></tr></thead>
+    <tbody>
+      <tr><td>CS</td></tr>
+      <tr><td>EE</td></tr>
+      <tr><td>ME</td></tr>
+    </tbody>
+  </table></div>
+  <p>The table above is π<sub>dept</sub>(Student). The input had four rows, but CS appeared twice, so the result has three rows.</p>
+  <div class="note trap"><p><span class="t">Trap</span>In relational algebra, projection removes duplicates. In SQL, SELECT does not remove duplicates unless you write SELECT DISTINCT. This difference is often tested, so read the question carefully.</p></div>
+  <p>Selection and projection can be combined. π<sub>name</sub>(σ<sub>dept = 'CS'</sub>(Student)) first keeps the CS students, then keeps only their names. The result is one column, with the values Asha and Meera.</p>
+  <details class="check"><summary>How many rows does σ<sub>dept = 'EE'</sub>(Student) have?</summary><div class="ans"><p>One row, the tuple for Ravi.</p></div></details>
+  <details class="check"><summary>How many rows does π<sub>grade</sub>(Enrol) have?</summary><div class="ans"><p>Three rows: A, B and C. Grade A appears twice and grade B appears twice, but duplicates are removed.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Set operations">
+  <h2>Union, intersection and difference</h2>
+  <p>Relations are sets of tuples, so the usual set operations apply. Two relations can be combined only if they are union-compatible. This means they have the same number of attributes, in the same order, with matching types. A student table and a course table cannot be combined with union, because their attributes do not match.</p>
+  <ul>
+    <li><strong>Union (∪)</strong> gives all tuples that appear in either relation, with duplicates removed.</li>
+    <li><strong>Difference (−)</strong> gives the tuples in the first relation that do not appear in the second.</li>
+    <li><strong>Intersection (∩)</strong> gives the tuples that appear in both. It is not a basic operation, but it equals A − (A − B).</li>
+  </ul>
+  <p>Example. Let X be the sids that appear in Enrol, and Y be the sids of CS students. X = π<sub>sid</sub>(Enrol) has the values S1, S2 and S3. Y = π<sub>sid</sub>(σ<sub>dept = 'CS'</sub>(Student)) has the values S1 and S3.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Expression</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>X</td><td>S1, S2, S3</td></tr>
+      <tr><td>Y</td><td>S1, S3</td></tr>
+      <tr><td>X − Y</td><td>S2</td></tr>
+      <tr><td>X ∪ Y</td><td>S1, S2, S3</td></tr>
+      <tr><td>X ∩ Y</td><td>S1, S3</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>The difference is not symmetric. X − Y is not the same as Y − X. For this example Y − X is empty, because every CS student is enrolled in some course.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Students often write A − B and expect the answer to include rows of B. It never does. The difference keeps only rows of A.</p></div>
+  <details class="check"><summary>What is X ∪ Y when X = {S1, S2, S3} and Y = {S1, S3}?</summary><div class="ans"><p>{S1, S2, S3}. Union keeps each value once.</p></div></details>
+  <details class="check"><summary>Why can we not take the union of Student and Course?</summary><div class="ans"><p>They are not union-compatible. They have different numbers of attributes and different attribute types.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Product and joins">
+  <h2>Cartesian product and joins</h2>
+  <p>The <strong>Cartesian product</strong>, written ×, pairs every tuple of the first relation with every tuple of the second. If the first has m tuples and the second has n tuples, the product has m × n tuples. Its attributes are all the attributes of both relations.</p>
+  <p>Product alone is rarely useful, because most pairs are meaningless. For example, Student × Course has 4 × 3 = 12 rows, and most of them pair a student with a course that the student did not take. The join removes the meaningless pairs.</p>
+  <p>The <strong>natural join</strong>, written ⋈, takes the product and keeps only the pairs where the common attributes have equal values. Student and Enrol have the common attribute sid. So Student ⋈ Enrol keeps each enrolment and attaches the student's name and dept to it.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>sid</th><th>name</th><th>dept</th><th>cid</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>S1</td><td>Asha</td><td>CS</td><td>C1</td><td>A</td></tr>
+      <tr><td>S1</td><td>Asha</td><td>CS</td><td>C2</td><td>B</td></tr>
+      <tr><td>S2</td><td>Ravi</td><td>EE</td><td>C1</td><td>C</td></tr>
+      <tr><td>S3</td><td>Meera</td><td>CS</td><td>C2</td><td>A</td></tr>
+      <tr><td>S3</td><td>Meera</td><td>CS</td><td>C3</td><td>B</td></tr>
+    </tbody>
+  </table></div>
+  <p>The result has 5 rows. Kiran (S4) is missing, because he has no row in Enrol. The natural join drops tuples that have no match on the other side.</p>
+  <p>A <strong>theta join</strong> uses any condition, written under the join symbol. An <strong>equi-join</strong> is a theta join where the condition is only equality. If the two relations have no common attribute, the natural join is the same as the Cartesian product.</p>
+  <p>The code below runs these operations on the three tables. Each function does one job. The select function keeps the rows that pass a test. The project function keeps chosen columns and removes duplicates. The natural join function matches rows on the common names.</p>
+  <pre class="code" data-lang="python"><code>Student = [
+    {"sid": "S1", "name": "Asha", "dept": "CS"},
+    {"sid": "S2", "name": "Ravi", "dept": "EE"},
+    {"sid": "S3", "name": "Meera", "dept": "CS"},
+    {"sid": "S4", "name": "Kiran", "dept": "ME"},
+]
+Enrol = [
+    {"sid": "S1", "cid": "C1", "grade": "A"},
+    {"sid": "S1", "cid": "C2", "grade": "B"},
+    {"sid": "S2", "cid": "C1", "grade": "C"},
+    {"sid": "S3", "cid": "C2", "grade": "A"},
+    {"sid": "S3", "cid": "C3", "grade": "B"},
+]
+Course = [
+    {"cid": "C1", "title": "Databases", "credits": 4},
+    {"cid": "C2", "title": "Algorithms", "credits": 3},
+    {"cid": "C3", "title": "Networks", "credits": 4},
+]
+
+def select(rel, pred):
+    return [r for r in rel if pred(r)]
+
+def project(rel, attrs):
+    out = []
+    for r in rel:
+        t = {a: r[a] for a in attrs}
+        if t not in out:
+            out.append(t)
+    return out
+
+def natural_join(r1, r2):
+    common = [a for a in r1[0] if a in r2[0]]
+    out = []
+    for x in r1:
+        for y in r2:
+            if all(x[a] == y[a] for a in common):
+                t = dict(x)
+                t.update(y)
+                out.append(t)
+    return out
+
+def product(r1, r2):
+    return [dict(x, **y) for x in r1 for y in r2]
+
+cs = select(Student, lambda r: r["dept"] == "CS")
+print("sigma dept=CS:", [r["sid"] for r in cs])
+print("pi name:", [r["name"] for r in project(Student, ["name"])])
+j = natural_join(Student, Enrol)
+print("Student join Enrol rows:", len(j))
+print("pi name, cid of join:", [(r["name"], r["cid"]) for r in project(j, ["name", "cid"])])
+cs_j = select(j, lambda r: r["dept"] == "CS")
+print("CS names with courses:", [r["name"] for r in project(cs_j, ["name"])])
+print("Product size:", len(product(Student, Course)))
+enrolled = project(Enrol, ["sid"])
+cs_ids = project(cs, ["sid"])
+diff = [t for t in enrolled if t not in cs_ids]
+print("enrolled minus CS:", [t["sid"] for t in diff])
+print("join with Course on cid:", len(natural_join(Enrol, Course)))
+print("credits sum of grade A rows:", sum(r["credits"] for r in natural_join(select(Enrol, lambda r: r["grade"] == "A"), Course)))</code></pre>
+  <pre class="output">sigma dept=CS: ['S1', 'S3']
+pi name: ['Asha', 'Ravi', 'Meera', 'Kiran']
+Student join Enrol rows: 5
+pi name, cid of join: [('Asha', 'C1'), ('Asha', 'C2'), ('Ravi', 'C1'), ('Meera', 'C2'), ('Meera', 'C3')]
+CS names with courses: ['Asha', 'Meera']
+Product size: 12
+enrolled minus CS: ['S2']
+join with Course on cid: 5
+credits sum of grade A rows: 7</pre>
+  <p>Read the output against the tables. The join has 5 rows, as the table above showed. The difference of the sids gives S2, as in the set example. The last line adds the credits of the two grade A rows, which are 4 from Databases and 3 from Algorithms.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a natural join with no common attributes, the result size is |R| × |S|. For a natural join where one attribute is a key of S, each tuple of R matches at most one tuple of S, so the result has at most |R| tuples.</p></div>
+  <details class="check"><summary>If R has 6 tuples and S has 4 tuples, how many tuples does R × S have?</summary><div class="ans"><p>24, because 6 × 4 = 24.</p></div></details>
+  <details class="check"><summary>Why does Kiran not appear in Student ⋈ Enrol?</summary><div class="ans"><p>Because the natural join keeps only pairs with a matching sid in Enrol. Kiran has no enrolment, so his tuple has no match.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Rename and expressions">
+  <h2>Rename and building expressions</h2>
+  <p><strong>Rename</strong>, written ρ, gives a new name to a relation or to its attributes. It is needed when two copies of the same relation are joined with themselves, or when attribute names must match for a natural join. For example, if we want to join Student with itself on dept, we rename one copy so that its attributes do not clash.</p>
+  <p>Operations can be nested. An expression such as π<sub>name, title</sub>(σ<sub>grade = 'A'</sub>(Student ⋈ Enrol) ⋈ Course) reads from the inside out:</p>
+  <ol>
+    <li>Join Student and Enrol on sid. This is the table from the join section.</li>
+    <li>Select the rows with grade A. This keeps the rows for Asha in C1 and Meera in C2.</li>
+    <li>Join the result with Course on cid. Asha gains Databases and Meera gains Algorithms.</li>
+    <li>Project onto name and title. The final table has two rows: Asha with Databases, and Meera with Algorithms.</li>
+  </ol>
+  <div class="tablewrap"><table>
+    <thead><tr><th>name</th><th>title</th></tr></thead>
+    <tbody>
+      <tr><td>Asha</td><td>Databases</td></tr>
+      <tr><td>Meera</td><td>Algorithms</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note tip"><p><span class="t">Tip</span>When you evaluate a long expression, write a new small table after each operator, with a label such as "step 2". This habit prevents most mistakes in GATE numerical questions.</p></div>
+  <details class="check"><summary>In the expression above, why is the selection done before the join with Course?</summary><div class="ans"><p>The selection reduces the number of rows before the second join. The result is the same either way, but the work is smaller.</p></div></details>
+  <details class="check"><summary>What does the rename operator add to an expression that joins a relation with itself?</summary><div class="ans"><p>It gives one copy a different name, so that its attributes can be distinguished.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Translating to SQL">
+  <h2>Translating algebra to SQL</h2>
+  <p>SQL is the language most databases use. Every basic algebra operation has a matching SQL form. Learn the matches, and you can move between the two notations in either direction.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Algebra</th><th>SQL</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>σ<sub>cond</sub>(R)</td><td>SELECT * FROM R WHERE cond</td><td>Rows chosen</td></tr>
+      <tr><td>π<sub>A, B</sub>(R)</td><td>SELECT DISTINCT A, B FROM R</td><td>DISTINCT removes duplicates, as in algebra</td></tr>
+      <tr><td>R × S</td><td>SELECT * FROM R, S</td><td>No condition, so every pair is kept</td></tr>
+      <tr><td>R ⋈ S (natural)</td><td>SELECT * FROM R NATURAL JOIN S</td><td>Matches the common attributes</td></tr>
+      <tr><td>R ⋈<sub>cond</sub> S</td><td>SELECT * FROM R JOIN S ON cond</td><td>Theta join</td></tr>
+      <tr><td>R ∪ S</td><td>SELECT ... FROM R UNION SELECT ... FROM S</td><td>Removes duplicates</td></tr>
+      <tr><td>R − S</td><td>SELECT ... FROM R EXCEPT SELECT ... FROM S</td><td>Keeps rows of R only</td></tr>
+    </tbody>
+  </table></div>
+  <p>Take π<sub>name</sub>(σ<sub>dept = 'CS'</sub>(Student)). In SQL, this is:</p>
+  <pre class="code" data-lang="sql"><code>SELECT DISTINCT name
+FROM Student
+WHERE dept = 'CS';</code></pre>
+  <p>The WHERE clause is the selection, the column list is the projection, and DISTINCT is the duplicate removal that algebra does automatically. The result is the single column with the values Asha and Meera.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The product in SQL with no WHERE clause keeps every pair. Adding a condition that matches the common attribute turns it into a join. Forgetting that condition is a common source of wrong answers.</p></div>
+  <details class="check"><summary>Which SQL keyword plays the role of projection duplicate removal in algebra?</summary><div class="ans"><p>DISTINCT, when used with the column list.</p></div></details>
+  <details class="check"><summary>Which SQL keyword matches the difference operator?</summary><div class="ans"><p>EXCEPT.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Let R and S be relations with |R| and |S| tuples.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Operation</th><th>Size of result</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>σ(R)</td><td>At most |R|</td><td>Only removes rows</td></tr>
+      <tr><td>π(R)</td><td>At most |R|</td><td>Duplicates removed</td></tr>
+      <tr><td>R ∪ S</td><td>At most |R| + |S|</td><td>Duplicates removed</td></tr>
+      <tr><td>R − S</td><td>At most |R|</td><td>Only rows of R are kept</td></tr>
+      <tr><td>R × S</td><td>Exactly |R| × |S|</td><td>Every pair</td></tr>
+      <tr><td>R ⋈ S (no common attributes)</td><td>Exactly |R| × |S|</td><td>Same as product</td></tr>
+      <tr><td>R ⋈ S (common key of S)</td><td>At most |R|</td><td>Each R tuple matches at most one S tuple</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not real past questions. Write each intermediate table on paper, then check with code.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Degree and cardinality</h3>
+    <div class="statement"><p>The relation Enrol has the attributes sid, cid and grade, and five tuples. What are its degree and its cardinality? Give the degree first.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two numbers: the columns, then the rows.</li>
+      <li><strong>Which idea applies.</strong> Degree counts attributes. Cardinality counts tuples.</li>
+      <li><strong>Work it out.</strong> There are three attributes, so the degree is 3. There are five tuples, so the cardinality is 5.</li>
+      <li><strong>Check.</strong> Run the code below, which stores the tuples as lists of three values.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>enrol = [("S1", "C1", "A"), ("S1", "C2", "B"), ("S2", "C1", "C"),
+         ("S3", "C2", "A"), ("S3", "C3", "B")]
+print(len(enrol[0]), len(enrol))</code></pre>
+    <pre class="output">3 5</pre>
+    <p class="cx">Answer: degree 3, cardinality 5.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Candidate key test</h3>
+    <div class="statement"><p>Is sid alone a candidate key of Enrol, given the five tuples above? Is the pair (sid, cid) a candidate key? Answer both questions.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Whether each attribute set identifies every tuple.</li>
+      <li><strong>Which idea applies.</strong> A candidate key takes unique values for every tuple, with no spare attribute.</li>
+      <li><strong>Work it out.</strong> sid repeats: S1 appears in two tuples, so sid alone is not a key. The pair (sid, cid) is unique in every tuple, so it is a candidate key.</li>
+      <li><strong>Check.</strong> Run the code below. The first line tests the pair. The second line tests sid alone.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>enrol = [("S1", "C1", "A"), ("S1", "C2", "B"), ("S2", "C1", "C"),
+         ("S3", "C2", "A"), ("S3", "C3", "B")]
+print(len(set((s, c) for s, c, g in enrol)) == len(enrol))
+print(len(set(s for s, c, g in enrol)) == len(enrol))</code></pre>
+    <pre class="output">True
+False</pre>
+    <p class="cx">Answer: sid alone is not a candidate key. The pair (sid, cid) is.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Select all true statements about relational algebra</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <ul>
+      <li>(A) Two relations can be combined with union only if they are union-compatible.</li>
+      <li>(B) Selection can produce more tuples than its input.</li>
+      <li>(C) Projection removes duplicate tuples.</li>
+      <li>(D) The natural join of two relations with no common attribute is the Cartesian product.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The definitions of union, selection, projection and natural join.</li>
+      <li><strong>Work it out.</strong> (A) True, that is the rule for union. (B) False, selection only keeps rows. (C) True, because a relation is a set. (D) True. With no common attribute, every pair agrees on the empty set of attributes, so every pair is kept.</li>
+      <li><strong>Check.</strong> The definitions settle each statement. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Rows after a projection</h3>
+    <div class="statement"><p>Using the Student table above, how many tuples does π<sub>dept</sub>(Student) have? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of rows after projection.</li>
+      <li><strong>Which idea applies.</strong> Projection keeps the chosen column and removes duplicates.</li>
+      <li><strong>Work it out.</strong> The dept values are CS, EE, CS, ME. Removing the duplicate CS leaves CS, EE and ME, so 3 tuples.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>dept = ["CS", "EE", "CS", "ME"]
+print(len(set(dept)))</code></pre>
+    <pre class="output">3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Size of a product</h3>
+    <div class="statement"><p>Student has 4 tuples and Course has 3 tuples. How many tuples does Student × Course have? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of pairs.</li>
+      <li><strong>Which idea applies.</strong> Every tuple of the first is paired with every tuple of the second.</li>
+      <li><strong>Work it out.</strong> Each of the 4 student tuples pairs with 3 course tuples, so 4 × 3 = 12.</li>
+      <li><strong>Check.</strong> Run the code below, which lists every pair.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>students = ["S1", "S2", "S3", "S4"]
+courses = ["C1", "C2", "C3"]
+pairs = [(s, c) for s in students for c in courses]
+print(len(pairs))</code></pre>
+    <pre class="output">12</pre>
+    <p class="cx">Answer: 12.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Credits of grade A enrolments</h3>
+    <div class="statement"><p>Consider the grade A rows of Enrol, joined with Course on cid. What is the sum of the credits over those rows? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A sum of credits over selected joined rows.</li>
+      <li><strong>Which idea applies.</strong> Select, then join, then add.</li>
+      <li><strong>Work it out.</strong> The grade A rows are (S1, C1) and (S3, C2). Joined with Course, they bring the credits 4 (Databases) and 3 (Algorithms). The sum is 4 + 3 = 7.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>enrol = [("S1", "C1", "A"), ("S1", "C2", "B"), ("S2", "C1", "C"),
+         ("S3", "C2", "A"), ("S3", "C3", "B")]
+credits = {"C1": 4, "C2": 3, "C3": 4}
+total = sum(credits[c] for s, c, g in enrol if g == "A")
+print(total)</code></pre>
+    <pre class="output">7</pre>
+    <p class="cx">Answer: 7.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Select all true statements about translating to SQL</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <ul>
+      <li>(A) The selection σ corresponds to a WHERE clause.</li>
+      <li>(B) The projection π corresponds to the column list of a SELECT, with duplicates removed.</li>
+      <li>(C) The product R × S corresponds to FROM R, S with no condition on the pairs.</li>
+      <li>(D) The difference R − S corresponds to UNION in SQL.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which translations are correct.</li>
+      <li><strong>Which idea applies.</strong> The translation table in this section.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True, using SELECT DISTINCT. (C) True, with no WHERE condition every pair is kept. (D) False. Difference is EXCEPT, and UNION is the union operator.</li>
+      <li><strong>Check.</strong> The table in the translation section settles each statement. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Natural join size (NAT, 2 marks)</h3>
+    <div class="statement"><p>R(A, B) = {(1, 2), (2, 3), (3, 3)} and S(B, C) = {(2, 5), (3, 6), (3, 7), (4, 8)}. How many tuples are in R ⋈ S?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The size of the natural join.</li>
+      <li><strong>Which idea applies.</strong> Match tuples on equal B.</li>
+      <li><strong>Work it out.</strong> B = 2: 1 · 1 = 1. B = 3: 2 · 2 = 4. Total 5.</li>
+      <li><strong>Check.</strong> The code joins them.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>R = [(1, 2), (2, 3), (3, 3)]; S = [(2, 5), (3, 6), (3, 7), (4, 8)]
+print(len([(a, b, c) for a, b in R for b2, c in S if b == b2]))
+</code></pre>
+    <pre class="output">5</pre>
+    <p class="cx">Answer: 5.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Division (MCQ, 2 marks)</h3>
+    <div class="statement"><p>Enrolled(S, C) has tuples (s1, c1), (s1, c2), (s2, c1), (s3, c1), (s3, c2), (s3, c3). Course(C) = {c1, c2}. What is Enrolled ÷ Course? (A) {s1} (B) {s1, s3} (C) {s3} (D) {s1, s2, s3}</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Students enrolled in every listed course.</li>
+      <li><strong>Which idea applies.</strong> Division keeps the S values paired with all C values in the divisor.</li>
+      <li><strong>Work it out.</strong> s1 has c1, c2. s3 has c1, c2, c3. s2 lacks c2.</li>
+      <li><strong>Check.</strong> Extra courses do not hurt, so s3 qualifies.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Expression equivalence (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are always TRUE? (A) σ<sub>p</sub>(σ<sub>q</sub>(R)) = σ<sub>p∧q</sub>(R) (B) π<sub>A</sub>(R ∪ S) = π<sub>A</sub>(R) ∪ π<sub>A</sub>(S) (C) π<sub>A</sub>(R − S) = π<sub>A</sub>(R) − π<sub>A</sub>(S) (D) σ<sub>p</sub>(R ∪ S) = σ<sub>p</sub>(R) ∪ σ<sub>p</sub>(S)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which algebraic rewrites are valid.</li>
+      <li><strong>Which idea applies.</strong> Projection does not distribute over set difference because it can merge tuples.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) R = {(1, 1), (1, 2)}, S = {(1, 2)}: left is {1}, right is empty. False. (D) True.</li>
+      <li><strong>Check.</strong> The code shows the counterexample.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>R = {(1, 1), (1, 2)}; S = {(1, 2)}
+pi = lambda X: {t[0] for t in X}
+print(pi(R - S), pi(R) - pi(S))
+</code></pre>
+    <pre class="output">{1} set()</pre>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Relation</dt><dd>A table with a fixed set of attributes and a set of tuples.</dd></div>
+    <div><dt>Tuple</dt><dd>One row of a relation.</dd></div>
+    <div><dt>Degree</dt><dd>The number of attributes.</dd></div>
+    <div><dt>Cardinality</dt><dd>The number of tuples.</dd></div>
+    <div><dt>Candidate key</dt><dd>A minimal set of attributes that is unique for every tuple.</dd></div>
+    <div><dt>Primary key</dt><dd>The candidate key chosen to identify tuples.</dd></div>
+    <div><dt>Foreign key</dt><dd>An attribute whose values must match a key in another relation.</dd></div>
+    <div><dt>Selection σ</dt><dd>Keeps the tuples that satisfy a condition.</dd></div>
+    <div><dt>Projection π</dt><dd>Keeps chosen attributes and removes duplicates.</dd></div>
+    <div><dt>Union-compatible</dt><dd>Same number and types of attributes, needed for union and difference.</dd></div>
+    <div><dt>Difference −</dt><dd>Tuples of the first relation not in the second.</dd></div>
+    <div><dt>Cartesian product ×</dt><dd>Every pair of tuples, size |R| × |S|.</dd></div>
+    <div><dt>Natural join ⋈</dt><dd>A product keeping pairs that agree on common attributes.</dd></div>
+    <div><dt>Rename ρ</dt><dd>Gives a new name to a relation or its attributes.</dd></div>
+    <div><dt>SQL equivalent</dt><dd>WHERE for selection, SELECT DISTINCT for projection, JOIN for join, EXCEPT for difference.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ul>
+    <li>Work through an algebra expression from the inside out, writing a table after each operation.</li>
+    <li>Projection removes duplicates, because a relation is a set.</li>
+    <li>Selection never adds rows, and its result has at most as many rows as its input.</li>
+    <li>A product of R and S has exactly |R| × |S| tuples.</li>
+    <li>Union and difference need union-compatible relations.</li>
+    <li>A candidate key is decided by the meaning of the data, not by a few sample rows.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 87?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 87 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-086.html"><small>Previous, topic 86</small>ER-Model</a><a class="next" href="gate-088.html"><small>Next, topic 88</small>Integrity constraints</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,612 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 91: Normal forms (1NF-BCNF)</title><meta name="description" content="Normalization is the careful design of tables so that the same fact is stored only once. This topic explains functional dependencies, keys, the normal forms from 1NF to BCNF, and how to split a table safely."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g91" data-key="g91" data-noun="topic" data-num="91" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Normal forms (1NF-BCNF)</h1>
+<p class="lede">Normalization is the careful design of tables so that the same fact is stored only once. This topic explains functional dependencies, keys, the normal forms from 1NF to BCNF, and how to split a table safely.</p>
+<div class="station"><b>91</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Why normalization: redundancy and anomalies</li><li>Functional dependencies and Armstrong&#x27;s axioms</li><li>Attribute closure and candidate keys</li><li>The normal forms: 1NF, 2NF, 3NF and BCNF</li><li>Decomposition: lossless join and dependency preservation</li><li>Normalizing a relation step by step</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you keep a list of students in a notebook. For every course a student takes, you write the student's name, department and phone number on that line. A student who takes five courses has the same name, department and phone number written five times.</p>
+  <p>Now the student changes phone number. You must find all five lines and change each one. If you miss one line, the notebook now disagrees with itself. This is the core problem that <strong>normalization</strong> solves. Normalization is the process of designing tables so that each fact is written in one place only.</p>
+  <p>GATE questions usually give a relation and its dependencies, then ask for the keys, the highest normal form, or a safe decomposition. The method is mechanical once you know the steps.</p>
+  <p>We will use one running example. Here is a table that stores enrolments with student details repeated on each row.</p>
+  <div class="tablewrap"><table>
+    <caption>Enrol_Full (sid, name, dept, cid, grade)</caption>
+    <thead><tr><th>sid</th><th>name</th><th>dept</th><th>cid</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>Asha</td><td>CS</td><td>CS101</td><td>9</td></tr>
+      <tr><td>101</td><td>Asha</td><td>CS</td><td>CS301</td><td>8</td></tr>
+      <tr><td>102</td><td>Ravi</td><td>EE</td><td>EE201</td><td>7</td></tr>
+      <tr><td>103</td><td>Meena</td><td>CS</td><td>CS101</td><td>10</td></tr>
+      <tr><td>103</td><td>Meena</td><td>CS</td><td>CS301</td><td>9</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>Normalization is a way of finding and removing repeated facts. The rules tell you which facts depend on which, and the table is split so that each fact lives in one place.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Redundancy</dt><dd>Storing the same fact more than once. Plain meaning: writing the same thing in two places.</dd></div>
+    <div><dt>Anomaly</dt><dd>A problem caused by redundancy or poor design. There are three kinds: update, insertion and deletion anomalies.</dd></div>
+    <div><dt>Functional dependency (FD)</dt><dd>A rule X → Y that says: if two rows agree on X, they must agree on Y. Plain meaning: X decides Y.</dd></div>
+    <div><dt>Trivial FD</dt><dd>An FD whose right side is a subset of its left side, such as AB → A. It always holds, so it tells you nothing new.</dd></div>
+    <div><dt>Armstrong's axioms</dt><dd>Three rules for deriving new FDs: reflexivity, augmentation and transitivity.</dd></div>
+    <div><dt>Attribute closure X+</dt><dd>All attributes that are determined by X. Plain meaning: everything X can tell you.</dd></div>
+    <div><dt>Superkey</dt><dd>A set of attributes whose closure is all attributes. Plain meaning: enough columns to identify each row.</dd></div>
+    <div><dt>Candidate key</dt><dd>A minimal superkey. Minimal means that no smaller set of its attributes is also a superkey.</dd></div>
+    <div><dt>Prime attribute</dt><dd>An attribute that belongs to at least one candidate key.</dd></div>
+    <div><dt>Nonprime attribute</dt><dd>An attribute that belongs to no candidate key.</dd></div>
+    <div><dt>Partial dependency</dt><dd>A nonprime attribute depends on part of a candidate key, not on the whole key.</dd></div>
+    <div><dt>Transitive dependency</dt><dd>A nonprime attribute depends on another nonprime attribute, which depends on the key. Plain meaning: a chain of two steps.</dd></div>
+    <div><dt>Normal form</dt><dd>A rule that a table must satisfy to avoid a certain kind of problem. The forms are 1NF, 2NF, 3NF and BCNF.</dd></div>
+    <div><dt>Decomposition</dt><dd>Splitting one table into several smaller tables. Plain meaning: cutting a table into pieces.</dd></div>
+    <div><dt>Lossless join</dt><dd>A decomposition where joining the pieces gives back exactly the original table, with no extra rows.</dd></div>
+    <div><dt>Dependency preservation</dt><dd>A decomposition where every original FD can still be checked inside one of the pieces.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Redundancy and anomalies">
+  <h2>Concept 1: Why normalization: redundancy and anomalies</h2>
+  <h3>Three kinds of trouble</h3>
+  <p>Look again at Enrol_Full. The name and dept of Asha appear twice, and the same is true of Meena. This repetition causes three kinds of anomaly:</p>
+  <ul>
+    <li><strong>Update anomaly.</strong> If Asha changes dept, we must change both rows. If we change only one, the table contradicts itself.</li>
+    <li><strong>Insertion anomaly.</strong> We cannot store a new student who has no course yet, because there is no cid to put in the row. We would need a fake cid or a NULL.</li>
+    <li><strong>Deletion anomaly.</strong> If Ravi drops his only course and we delete that row, we lose Ravi's name and dept completely.</li>
+  </ul>
+  <p>Normalization removes these anomalies by splitting the table, so student facts and enrolment facts each have their own table.</p>
+  <h3>The split by hand</h3>
+  <div class="tablewrap"><table>
+    <caption>Student (sid, name, dept)</caption>
+    <thead><tr><th>sid</th><th>name</th><th>dept</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>Asha</td><td>CS</td></tr>
+      <tr><td>102</td><td>Ravi</td><td>EE</td></tr>
+      <tr><td>103</td><td>Meena</td><td>CS</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <caption>Enrol (sid, cid, grade)</caption>
+    <thead><tr><th>sid</th><th>cid</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>CS101</td><td>9</td></tr>
+      <tr><td>101</td><td>CS301</td><td>8</td></tr>
+      <tr><td>102</td><td>EE201</td><td>7</td></tr>
+      <tr><td>103</td><td>CS101</td><td>10</td></tr>
+      <tr><td>103</td><td>CS301</td><td>9</td></tr>
+    </tbody>
+  </table></div>
+  <p>Now Asha's dept is written once, a new student can be added with no course, and deleting Ravi's enrolment leaves Ravi in place. The rules below show how to find such splits.</p>
+  <details class="check"><summary>Question: Why is an insertion anomaly a problem for a new student who has no course yet?</summary><div class="ans"><p>In the single table, every row must include a cid and a grade. A student with no course cannot be stored without inventing values or using NULL in key columns.</p></div></details>
+  <details class="check"><summary>Question: Which anomaly occurs when deleting Ravi's only enrolment also removes Ravi from the database?</summary><div class="ans"><p>The deletion anomaly. The student facts were stored only in the enrolment rows, so removing those rows removes the facts too.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Functional dependencies and closure">
+  <h2>Concept 2: Functional dependencies, Armstrong's axioms and closure</h2>
+  <h3>What X → Y means</h3>
+  <p>A functional dependency is a rule about the data that must always hold. Read <code>X → Y</code> as "X functionally determines Y". Here is the meaning, in two steps:</p>
+  <ol>
+    <li>Take any two rows of the table.</li>
+    <li>If the two rows have the same values on X, they must also have the same values on Y.</li>
+  </ol>
+  <p>In Enrol_Full, sid → name holds, because each sid has one name. But cid alone does not determine grade, because CS101 has grade 9 for Asha and 10 for Meena.</p>
+  <div class="note trap"><p><span class="t">Trap</span>An FD is a rule about the meaning of the data. A small sample can disprove an FD, but it can never prove one. In GATE, the FDs are given to you.</p></div>
+  <h3>Trivial and nontrivial FDs</h3>
+  <p>An FD is trivial when Y is a subset of X. For example, AB → A is trivial, because if two rows agree on A and B they also agree on A. Trivial FDs add nothing, so when we talk about FDs we mean nontrivial ones.</p>
+  <h3>Armstrong's axioms</h3>
+  <p>Three rules let us derive new FDs from given ones. They are sound (they never give a false FD) and complete (they give every FD that follows).</p>
+  <ul>
+    <li><strong>Reflexivity:</strong> if Y is a subset of X, then X → Y. Example: AB → A.</li>
+    <li><strong>Augmentation:</strong> if X → Y, then XZ → YZ. Example: if A → B, then AC → BC.</li>
+    <li><strong>Transitivity:</strong> if X → Y and Y → Z, then X → Z. Example: if A → B and B → C, then A → C.</li>
+  </ul>
+  <h3>Attribute closure</h3>
+  <p>The closure X+ is the set of all attributes that X determines, using the given FDs and Armstrong's axioms. We compute it by a simple loop:</p>
+  <ol>
+    <li>Start with X+ equal to X.</li>
+    <li>Look for an FD L → R in the given set where L is inside X+ and R is not yet inside X+.</li>
+    <li>Add R to X+. Repeat step 2 until nothing new is added.</li>
+  </ol>
+  <p>Example. Let R = (A, B, C, D) with F1 = {A → B, B → C}. Compute A+:</p>
+  <ul>
+    <li>Start: A+ = {A}.</li>
+    <li>A → B applies, because A is in A+. Add B. Now A+ = {A, B}.</li>
+    <li>B → C applies, because B is in A+. Add C. Now A+ = {A, B, C}.</li>
+    <li>No more FDs add anything. So A+ = ABC. D is not determined by A.</li>
+  </ul>
+  <p>The Python program below implements this loop, and checks the closure of AD as well.</p>
+  <pre class="code" data-lang="python"><code>from itertools import combinations
+
+def closure(attrs, fds):
+    result = set(attrs)
+    changed = True
+    while changed:
+        changed = False
+        for lhs, rhs in fds:
+            if set(lhs) &lt;= result and not set(rhs) &lt;= result:
+                result |= set(rhs)
+                changed = True
+    return "".join(sorted(result))
+
+R = "ABCD"
+F1 = [("A", "B"), ("B", "C")]
+print("A+ =", closure("A", F1))
+print("AD+ =", closure("AD", F1))
+print("B+ =", closure("B", F1))
+</code></pre>
+  <pre class="output">A+ = ABC
+AD+ = ABCD
+B+ = BC</pre>
+  <details class="check"><summary>Question: Using transitivity, why does A → C follow from A → B and B → C?</summary><div class="ans"><p>Because A determines B, and B determines C. Any two rows that agree on A agree on B, and then they agree on C.</p></div></details>
+  <details class="check"><summary>Question: Is AB → A a trivial FD?</summary><div class="ans"><p>Yes. A is a subset of AB, so it is trivial under reflexivity.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Candidate keys and normal forms">
+  <h2>Concept 3: Candidate keys and the normal forms</h2>
+  <h3>Superkeys and candidate keys</h3>
+  <p>A superkey is a set of attributes whose closure is all attributes of R. It identifies every row. A candidate key is a minimal superkey: remove any attribute and it stops being a superkey.</p>
+  <p>For R = (A, B, C, D) with F1, the closure of A is ABC, which lacks D. So A is not a key. The closure of AD is ABCD, which is everything. Removing A leaves D, whose closure is just D. Removing D leaves A, which is not enough. So AD is a candidate key, and it is the only one.</p>
+  <p>Once keys are known, we split attributes into two groups. Attributes that appear in some candidate key are <strong>prime</strong>. The rest are <strong>nonprime</strong>. Here, A and D are prime, and B and C are nonprime.</p>
+  <h3>1NF: atomic values</h3>
+  <p>A table is in <strong>first normal form (1NF)</strong> when every cell holds a single atomic value. A cell that holds a list of phone numbers, such as "9876, 9123", breaks 1NF. Most modern database designs assume 1NF from the start, so GATE questions on 1NF are usually simple.</p>
+  <h3>2NF: no partial dependency</h3>
+  <p>A table is in <strong>second normal form (2NF)</strong> when it is in 1NF and no nonprime attribute depends on part of a candidate key. This matters only when a key has two or more attributes.</p>
+  <p>Example with R = (A, B, C, D), F1, key AD. The FD A → B says that the nonprime B depends on A, which is only part of the key AD. This is a partial dependency. So R is not in 2NF.</p>
+  <h3>3NF: no transitive dependency</h3>
+  <p>A table is in <strong>third normal form (3NF)</strong> when, for every nontrivial FD X → Y, at least one of these holds:</p>
+  <ul>
+    <li>X is a superkey, or</li>
+    <li>every attribute of Y is prime.</li>
+  </ul>
+  <p>In R with F1: the FD B → C has B as a non-superkey (B+ = BC) and C as nonprime. So 3NF fails. C depends on B, and B depends on A: this is a transitive dependency through a nonprime attribute.</p>
+  <h3>BCNF: the strict rule</h3>
+  <p><strong>Boyce-Codd normal form (BCNF)</strong> is stricter than 3NF. A table is in BCNF when, for every nontrivial FD X → Y, X is a superkey. There is no exception for prime attributes.</p>
+  <p>R with F1 fails BCNF in two places: A → B (A is not a superkey) and B → C (B is not a superkey). BCNF is the normal form most GATE questions ask for.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The normal forms form a ladder: every BCNF table is in 3NF, every 3NF table is in 2NF, and every 2NF table is in 1NF. Each rung removes one kind of dependency.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>To find the highest normal form, check in this order: BCNF first. If it fails, check 3NF. Then 2NF, then 1NF. Stop at the first form that holds, because the forms are nested.</p></div>
+  <details class="check"><summary>Question: In a table with key AB and FD C → B, why might 3NF hold while BCNF fails?</summary><div class="ans"><p>In 3NF, the right side B is prime if B is part of some key. If B is prime, the FD C → B is allowed by 3NF even though C is not a superkey. BCNF does not allow exceptions, so it fails.</p></div></details>
+  <details class="check"><summary>Question: Is a table in BCNF always in 2NF?</summary><div class="ans"><p>Yes. BCNF is stricter than 2NF, and the normal forms are nested. A table that passes BCNF also passes 3NF, 2NF and 1NF.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Decomposition">
+  <h2>Concept 4: Decomposition, lossless join and dependency preservation</h2>
+  <h3>Why decomposition needs care</h3>
+  <p>To reach BCNF we split tables. A good split keeps two properties.</p>
+  <ul>
+    <li><strong>Lossless join.</strong> When we join the pieces again, we get back exactly the original rows, with no extra and no missing rows.</li>
+    <li><strong>Dependency preservation.</strong> Every original FD can still be checked inside one of the pieces, without a costly join.</li>
+  </ul>
+  <h3>Lossless join with a common attribute</h3>
+  <p>When a table R is split into two pieces R1 and R2, the split is lossless if the common attributes R1 ∩ R2 form a key of R1 or of R2. In words: the shared column must determine one of the pieces completely. A quick check uses the FDs: if (R1 ∩ R2) → R1 or (R1 ∩ R2) → R2 follows from F, the split is lossless.</p>
+  <p>Example. Split R = (A, B, C, D) with F1 into R1 = (B, C) and R2 = (A, B, D). The common attribute is B. B → C is given, so B determines all of R1. The split is lossless.</p>
+  <p>Counter-example. Split R into (A, B) and (C, D). They share nothing, so joining them pairs every AB row with every CD row. This split is lossy.</p>
+  <h3>The chase test</h3>
+  <p>For more than two pieces, GATE uses the <strong>chase</strong>. Write one row per piece, with "a" where the piece has the attribute and a unique symbol elsewhere. Apply each FD: when two rows agree on its left side, make them agree on its right side. If some row becomes all "a", the split is lossless. The code below applies this test.</p>
+  <h3>Dependency preservation</h3>
+  <p>If an FD can only be checked by joining two pieces, the database pays for an expensive join on every insert. A dependency preserving split avoids this. The test is a loop: start with the left side of an FD, and keep adding attributes that each piece can determine. If the right side is reached, the FD is preserved.</p>
+  <div class="note trap"><p><span class="t">Trap</span>BCNF decomposition can lose dependencies. Example: R = (A, B, C) with FDs AB → C and C → B. Its keys are AB and AC, and B is prime, so R is in 3NF. But C → B violates BCNF, so we split into (C, B) and (A, C). The FD AB → C is now lost, because A, B and C never sit together in one piece.</p></div>
+  <p>This is the reason 3NF exists. A 3NF decomposition always keeps dependencies, while a BCNF decomposition may not. GATE questions often ask you to pick the correct statement about this trade-off.</p>
+  <pre class="code" data-lang="python"><code>from itertools import combinations
+
+def closure(attrs, fds):
+    result = set(attrs)
+    changed = True
+    while changed:
+        changed = False
+        for lhs, rhs in fds:
+            if set(lhs) &lt;= result and not set(rhs) &lt;= result:
+                result |= set(rhs)
+                changed = True
+    return "".join(sorted(result))
+
+def lossless(attributes, fds, decomposition):
+    cols = list(attributes)
+    rows = [[("a", c) if c in frag else ("b", r, c) for c in cols]
+            for r, frag in enumerate(decomposition)]
+    changed = True
+    while changed:
+        changed = False
+        for lhs, rhs in fds:
+            li = [cols.index(x) for x in lhs]
+            for r1 in rows:
+                for r2 in rows:
+                    if all(r1[i] == r2[i] for i in li):
+                        for y in rhs:
+                            k = cols.index(y)
+                            if r1[k] != r2[k]:
+                                new, old = min(r1[k], r2[k]), max(r1[k], r2[k])
+                                for row in rows:
+                                    for j in range(len(cols)):
+                                        if row[j] == old:
+                                            row[j] = new
+                                changed = True
+    return any(all(cell == ("a", c) for cell, c in zip(row, cols)) for row in rows)
+
+def dependency_preserved(fds, decomposition):
+    for lhs, rhs in fds:
+        z = set(lhs)
+        changed = True
+        while changed:
+            changed = False
+            for frag in decomposition:
+                new = set(closure(z &amp; set(frag), fds)) &amp; set(frag)
+                if not new &lt;= z:
+                    z |= new
+                    changed = True
+        if not set(rhs) &lt;= z:
+            return False
+    return True
+
+R = "ABCD"
+F1 = [("A", "B"), ("B", "C")]
+print("BC and ABD lossless:", lossless(R, F1, [("B", "C"), ("A", "B", "D")]))
+print("AB and CD lossless:", lossless(R, F1, [("A", "B"), ("C", "D")]))
+print("BC and ABD preserves F1:", dependency_preserved(F1, [("B", "C"), ("A", "B", "D")]))
+
+F3 = [("AB", "C"), ("C", "B")]
+print("CB and AC lossless:", lossless("ABC", F3, [("C", "B"), ("A", "C")]))
+print("CB and AC preserves all FDs:", dependency_preserved(F3, [("C", "B"), ("A", "C")]))
+</code></pre>
+  <pre class="output">BC and ABD lossless: True
+AB and CD lossless: False
+BC and ABD preserves F1: True
+CB and AC lossless: True
+CB and AC preserves all FDs: False</pre>
+  <details class="check"><summary>Question: Why is the split of R into (A, B) and (C, D) lossy?</summary><div class="ans"><p>The two pieces share no attribute, so joining them pairs every row of one with every row of the other. The result has extra rows that were not in R.</p></div></details>
+  <details class="check"><summary>Question: Which dependency is lost when (A, B, C) with AB → C and C → B is split into (C, B) and (A, C)?</summary><div class="ans"><p>AB → C. No piece contains A, B and C together, so the FD cannot be checked inside a single piece.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Normalizing step by step">
+  <h2>Concept 5: Normalizing a relation step by step</h2>
+  <h3>The algorithm</h3>
+  <p>The usual BCNF procedure for a relation R with FDs F is:</p>
+  <ol>
+    <li>Find the candidate keys of R.</li>
+    <li>Check BCNF: for each nontrivial FD X → Y in F, is X a superkey? If yes for all, R is in BCNF and we stop.</li>
+    <li>If some FD X → Y violates BCNF, split R into R1 = X ∪ Y and R2 = R minus (Y without X).</li>
+    <li>Repeat the procedure on R1 and R2, with the FDs that apply to each piece.</li>
+  </ol>
+  <h3>Worked example</h3>
+  <p>Take R = (A, B, C, D) with F1 = {A → B, B → C}.</p>
+  <ol>
+    <li><strong>Keys.</strong> The only candidate key is AD, found in Concept 3.</li>
+    <li><strong>Highest form.</strong> A → B fails 2NF, because A is part of the key AD and B is nonprime. So R is only in 1NF.</li>
+    <li><strong>Split on B → C.</strong> B is not a superkey. Split into R1 = (B, C) and R2 = (A, B, D). The FD B → C goes to R1, and the remaining FD A → B goes to R2.</li>
+    <li><strong>Check R1 = (B, C).</strong> Its only FD is B → C, and B is its key. R1 is in BCNF.</li>
+    <li><strong>Check R2 = (A, B, D).</strong> Its key is AD, and the FD A → B has A that is not a superkey. Split on A → B into R21 = (A, B) and R22 = (A, D).</li>
+    <li><strong>Check the pieces.</strong> R21 = (A, B) has key A, so it is in BCNF. R22 = (A, D) has only trivial FDs, so it is in BCNF.</li>
+  </ol>
+  <p>The final decomposition is (B, C), (A, B) and (A, D). The Python program checked earlier shows that the first split is lossless and preserves the FDs. 
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule or formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td><code>X → Y</code></td><td>Rows agreeing on X must agree on Y</td><td>Reading the given dependencies</td></tr>
+      <tr><td>Reflexivity: Y ⊆ X ⇒ X → Y</td><td>Trivial FDs always hold</td><td>Spotting trivial FDs</td></tr>
+      <tr><td>Augmentation: X → Y ⇒ XZ → YZ</td><td>Add the same attributes to both sides</td><td>Deriving new FDs</td></tr>
+      <tr><td>Transitivity: X → Y, Y → Z ⇒ X → Z</td><td>Chain two FDs</td><td>Deriving new FDs</td></tr>
+      <tr><td>X+ (closure)</td><td>Everything X determines</td><td>Testing keys and FDs</td></tr>
+      <tr><td>X is a superkey iff X+ = all attributes</td><td>X identifies each row</td><td>Checking BCNF and keys</td></tr>
+      <tr><td>1NF: every cell atomic</td><td>No lists or sets in cells</td><td>First check</td></tr>
+      <tr><td>2NF: no nonprime depends on part of a key</td><td>No partial dependency</td><td>Keys with two or more attributes</td></tr>
+      <tr><td>3NF: for X → A, X superkey or A prime</td><td>No transitive dependency on nonprime</td><td>Designs that must keep FDs</td></tr>
+      <tr><td>BCNF: for X → A, X superkey</td><td>Every determinant is a key</td><td>Removing all redundancy from FDs</td></tr>
+      <tr><td>R1 ∩ R2 → R1 or R2</td><td>Binary split is lossless</td><td>Checking a two-piece split</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Closure of a chain</h3>
+    <div class="statement"><p>For R(P, Q, R, S) with FDs P → Q, Q → R and R → S, find P+.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Everything P determines.</li>
+      <li><strong>Which idea applies.</strong> Start with P, then apply each FD whose left side is already in the set.</li>
+      <li><strong>Work it out.</strong> Start: {P}. P → Q adds Q, giving {P, Q}. Q → R adds R, giving {P, Q, R}. R → S adds S, giving {P, Q, R, S}.</li>
+      <li><strong>Check.</strong> The closure has all four attributes, so P is a superkey.</li>
+    </ol>
+    <p class="cx">Answer: PQRS. P is a superkey of R.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>A cell with two values</h3>
+    <div class="statement"><p>A table stores, in one cell, a list of two phone numbers for each student. Which is the highest normal form that this table satisfies?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The highest normal form that holds.</li>
+      <li><strong>Which idea applies.</strong> 1NF requires every cell to hold a single atomic value.</li>
+      <li><strong>Work it out.</strong> A cell with a list is not atomic, so 1NF fails. Higher forms are defined only for tables that are already in 1NF.</li>
+          </ol>
+    <p class="cx">Answer: none. The table is not even in 1NF.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Keys and normal form check</h3>
+    <div class="statement"><p>Select all that apply. For R(A, B, C, D) with FDs A → B and B → C:</p>
+      <p>(A) AD is a candidate key.</p>
+      <p>(B) A is a candidate key.</p>
+      <p>(C) R is in BCNF.</p>
+      <p>(D) R is in 1NF.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Compute closures, then test the normal forms.</li>
+      <li><strong>Work it out.</strong> A+ = ABC, which lacks D, so A is not a key. AD+ = ABCD, and neither A nor D alone is a key, so AD is the candidate key. (A) is true, (B) is false. Since B → C has a non-superkey on the left, R is not in BCNF, so (C) is false. All cells are atomic, so R is in 1NF, and (D) is true.</li>
+          </ol>
+    <p class="cx">Answer: (A) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting candidate keys</h3>
+    <div class="statement"><p>How many candidate keys does R(A, B, C) have with FDs AB → C and C → B? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of minimal superkeys.</li>
+      <li><strong>Which idea applies.</strong> Test the closure of each small set.</li>
+      <li><strong>Work it out.</strong> A+ = A, B+ = B, C+ = BC. None is all of ABC. AB+ = ABC, so AB is a key. AC+ = ABC (C gives B), so AC is a key. BC+ = BC, not a key.</li>
+      <li><strong>Check.</strong> Two keys, AB and AC, and neither contains the other.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Is the split lossless?</h3>
+    <div class="statement"><p>R(A, B, C) has the FD B → A. Is the decomposition into (A, B) and (B, C) lossless? Answer yes or no.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Lossless or not.</li>
+      <li><strong>Which idea applies.</strong> For a two-piece split, check whether the common attribute determines one piece.</li>
+      <li><strong>Work it out.</strong> The common attribute is B. The FD B → A says B determines A, so B determines the whole piece (A, B).</li>
+    </ol>
+    <p class="cx">Answer: yes.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Number of attributes in the key</h3>
+    <div class="statement"><p>R(A, B, C, D, E) has FDs A → B and C → D. How many attributes does its candidate key contain?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The size of the candidate key.</li>
+      <li><strong>Which idea applies.</strong> E appears on no right side, so E must be in every key. A and C appear only on left sides, so they must also be in the key.</li>
+      <li><strong>Work it out.</strong> Start with ACE. Its closure is ACE, then A → B adds B, then C → D adds D, giving ABCDE. So ACE is a superkey. Removing any attribute leaves a set whose closure is smaller, so ACE is minimal.</li>
+    </ol>
+    <p class="cx">Answer: 3 (the key is ACE).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about the split are true</h3>
+    <div class="statement"><p>Select all that apply. For R(A, B, C) with FDs AB → C and C → B:</p>
+      <p>(A) The split into (C, B) and (A, C) is lossless.</p>
+      <p>(B) The split into (C, B) and (A, C) preserves AB → C.</p>
+      <p>(C) R is in 3NF.</p>
+      <p>(D) R is in BCNF.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Lossless, dependency preservation, and normal forms.</li>
+      <li><strong>Which idea applies.</strong> The common attribute of the split is C, and C → B holds. For preservation, check whether A, B and C ever sit in one piece.</li>
+      <li><strong>Work it out.</strong> (A) C is common, and C → B means C determines (C, B). Lossless. True. (B) No piece contains A, B and C together, so AB → C is lost. False. (C) B is prime, because AB is a key, and C → B has B prime. So 3NF holds. True. (D) C is not a superkey, since C+ = BC, but C → B violates BCNF. False.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Highest normal form of a chain</h3>
+    <div class="statement"><p>R(A, B, C, D) has FDs A → B, B → C and C → D. What is the highest normal form that R satisfies? Choose from 1NF, 2NF, 3NF or BCNF.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The highest form that holds.</li>
+      <li><strong>Which idea applies.</strong> Find the key, then test the forms from BCNF downward.</li>
+      <li><strong>Work it out.</strong> A+ = ABCD, so A is the only candidate key. BCNF fails, because B → C has B that is not a superkey. 3NF fails, because C is not a superkey and C is nonprime (C → D). 2NF holds, because the key A has only one attribute, so no partial dependency is possible.</li>
+      <li><strong>Check.</strong> The forms are nested, so 2NF is the answer once BCNF and 3NF are ruled out.</li>
+    </ol>
+    <p class="cx">Answer: 2NF.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: counting candidate keys (NAT, 2 marks)</h3>
+    <div class="statement"><p>Relation R(A, B, C, D) has the functional dependencies AB → C, C → D and D → A. A candidate key is a minimal set of attributes whose closure contains all four attributes. Use attribute closure to test each set of attributes, starting from single attributes. Remember that a key must be minimal, so a set that contains a smaller key is not a candidate key. How many candidate keys does R have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of minimal keys.</li>
+      <li><strong>Which idea applies.</strong> The attribute closure X+ shows everything X determines. X is a superkey when X+ contains all of ABCD.</li>
+      <li><strong>Work it out.</strong> AB+ gives C, then D, so ABCD: AB is a key. BC+ gives D, then A, so BC is a key. BD+ gives A, then C, so BD is a key. A+, C+, D+, AC+, AD+ and CD+ never reach B, so none of them is a key.</li>
+      <li><strong>Check.</strong> No single attribute is a key, and any three-attribute set without B fails. The three pairs are the only minimal keys, so the count is 3.</li>
+    </ol>
+    <p class="cx">Answer: 3 (AB, BC and BD).</p>
+    <pre class="code" data-lang="python"><code>from itertools import combinations
+attrs='ABCD'
+fds=[('AB','C'),('C','D'),('D','A')]
+def closure(X):
+    res=set(X)
+    changed=True
+    while changed:
+        changed=False
+        for l,r in fds:
+            if set(l).issubset(res) and not set(r).issubset(res):
+                res|=set(r); changed=True
+    return res
+keys=[]
+for k in range(1,len(attrs)+1):
+    for X in combinations(attrs,k):
+        if set(attrs).issubset(closure(X)) and not any(set(K).issubset(X) for K in keys):
+            keys.append(''.join(X))
+print(keys)
+print(len(keys))</code></pre>
+    <pre class="output">['AB', 'BC', 'BD']
+3</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: highest normal form (MCQ, 2 marks)</h3>
+    <div class="statement"><p>Relation R(A, B, C, D, E) has the functional dependencies A → B, B → C, C → D and D → E. Which is the highest normal form that R satisfies? Find the candidate keys first, test each form in order from the top down, and then choose one.</p>
+      <p>(A) 1NF</p>
+      <p>(B) 2NF</p>
+      <p>(C) 3NF</p>
+      <p>(D) BCNF</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The highest normal form that R satisfies.</li>
+      <li><strong>Which idea applies.</strong> Find the candidate keys first, then test BCNF, then 3NF, then 2NF.</li>
+      <li><strong>Work it out.</strong> A+ = ABCDE, so A is the only candidate key. B → C has a left side that is not a superkey, so BCNF fails. For 3NF, C is not prime (it is in no key), so B → C breaks 3NF too. The key has one attribute, so there is no partial dependency and 2NF holds.</li>
+      <li><strong>Check.</strong> The chain A → B → C → D → E is a transitive dependency, which is exactly what 3NF forbids.</li>
+    </ol>
+    <p class="cx">Answer: (B) 2NF.</p>
+    <pre class="code" data-lang="python"><code>from itertools import combinations
+attrs='ABCDE'
+fds=[('A','B'),('B','C'),('C','D'),('D','E')]
+def closure(X):
+    res=set(X)
+    changed=True
+    while changed:
+        changed=False
+        for l,r in fds:
+            if set(l).issubset(res) and not set(r).issubset(res):
+                res|=set(r); changed=True
+    return res
+keys=[]
+for k in range(1,len(attrs)+1):
+    for X in combinations(attrs,k):
+        if set(attrs).issubset(closure(X)) and not any(set(K).issubset(X) for K in keys):
+            keys.append(''.join(X))
+prime=set(''.join(keys))
+bcnf=all(set(attrs).issubset(closure(l)) for l,r in fds)
+nf3=all(set(attrs).issubset(closure(l)) or (set(r)-set(l)).issubset(prime) for l,r in fds)
+nf2=True
+for K in keys:
+    for k in range(1,len(K)):
+        for S in combinations(K,k):
+            for a in attrs:
+                if a not in prime and a in closure(S): nf2=False
+hi='BCNF' if bcnf else '3NF' if nf3 else '2NF' if nf2 else '1NF'
+print(keys)
+print(bcnf, nf3, nf2)
+print(hi)</code></pre>
+    <pre class="output">['A']
+False False True
+2NF</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: closure size under functional dependencies (NAT, 2 marks)</h3>
+    <div class="statement"><p>Relation R(A, B, C, D, E, F) has the functional dependencies AB → C, C → D, D → B and E → F. Start from the set {A, B} and repeatedly apply any dependency whose left side is already inside the set, adding its right side. How many attributes are in the closure of {A, B}?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The size of the closure {A, B}+.</li>
+      <li><strong>Which idea applies.</strong> Attribute closure: keep adding the right side of any dependency whose left side is covered, until nothing changes.</li>
+      <li><strong>Work it out.</strong> Start with A and B. AB → C adds C. C → D adds D. D → B adds nothing new, since B is already there. E → F never fires, because E is not in the set.</li>
+      <li><strong>Check.</strong> The closure is {A, B, C, D}, which has 4 attributes. E and F cannot be reached.</li>
+    </ol>
+    <p class="cx">Answer: 4 (A, B, C and D).</p>
+    <pre class="code" data-lang="python"><code>fds=[('AB','C'),('C','D'),('D','B'),('E','F')]
+def closure(X):
+    res=set(X)
+    changed=True
+    while changed:
+        changed=False
+        for l,r in fds:
+            if set(l).issubset(res) and not set(r).issubset(res):
+                res|=set(r); changed=True
+    return res
+c=closure('AB')
+print(sorted(c))
+print(len(c))</code></pre>
+    <pre class="output">['A', 'B', 'C', 'D']
+4</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: lossless-join splits (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Relation R(A, B, C, D) has the functional dependencies A → B and B → C. Each option splits R into two relations. A split is lossless-join when joining the two parts gives back exactly R for every legal instance. Select all that apply.</p>
+      <p>(A) R1(A, B) and R2(A, C, D)</p>
+      <p>(B) R1(A, B, C) and R2(C, D)</p>
+      <p>(C) R1(B, C) and R2(A, D)</p>
+      <p>(D) R1(A, B, D) and R2(C, D)</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which splits are lossless.</li>
+      <li><strong>Which idea applies.</strong> For a split into two parts, the test is Heath's rule: the attributes the two parts share must determine all of one part.</li>
+      <li><strong>Work it out.</strong> (A) shares A, and A+ = ABC contains all of R1 = AB, so it is lossless. (B) shares C, and C+ = C contains neither ABC nor CD, so it is lossy. (C) shares nothing, so nothing determines either part, which makes it lossy. (D) shares D, and D+ = D contains neither part, so it is lossy.</li>
+      <li><strong>Check.</strong> Only option (A) has a shared attribute that determines a whole part.</li>
+    </ol>
+    <p class="cx">Answer: (A) only.</p>
+    <pre class="code" data-lang="python"><code>fds=[('A','B'),('B','C')]
+def closure(X):
+    res=set(X)
+    changed=True
+    while changed:
+        changed=False
+        for l,r in fds:
+            if set(l).issubset(res) and not set(r).issubset(res):
+                res|=set(r); changed=True
+    return res
+options={'A':('AB','ACD'),'B':('ABC','CD'),'C':('BC','AD'),'D':('ABD','CD')}
+for name,(r1,r2) in options.items():
+    common=set(r1).intersection(r2)
+    c=closure(common)
+    lossless=set(r1).issubset(c) or set(r2).issubset(c)
+    print(name, lossless)</code></pre>
+    <pre class="output">A True
+B False
+C False
+D False</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Redundancy</dt><dd>Storing the same fact more than once.</dd></div>
+    <div><dt>Update anomaly</dt><dd>A change must be made in many rows, and one may be missed.</dd></div>
+    <div><dt>Insertion anomaly</dt><dd>A fact cannot be stored without an unrelated value.</dd></div>
+    <div><dt>Deletion anomaly</dt><dd>Removing one fact also removes another, unrelated fact.</dd></div>
+    <div><dt>Functional dependency</dt><dd>X → Y: rows agreeing on X must agree on Y.</dd></div>
+    <div><dt>Armstrong's axioms</dt><dd>Reflexivity, augmentation and transitivity for deriving FDs.</dd></div>
+    <div><dt>Attribute closure</dt><dd>X+, all attributes determined by X.</dd></div>
+    <div><dt>Superkey</dt><dd>A set whose closure is all attributes.</dd></div>
+    <div><dt>Candidate key</dt><dd>A minimal superkey.</dd></div>
+    <div><dt>Prime attribute</dt><dd>Belongs to at least one candidate key.</dd></div>
+    <div><dt>Nonprime attribute</dt><dd>Belongs to no candidate key.</dd></div>
+    <div><dt>1NF</dt><dd>Every cell holds one atomic value.</dd></div>
+    <div><dt>2NF</dt><dd>No nonprime attribute depends on part of a candidate key.</dd></div>
+    <div><dt>3NF</dt><dd>For each X → A, X is a superkey or A is prime.</dd></div>
+    <div><dt>BCNF</dt><dd>For each nontrivial X → A, X is a superkey.</dd></div>
+    <div><dt>Decomposition</dt><dd>Splitting a table into smaller tables.</dd></div>
+    <div><dt>Lossless join</dt><dd>Joining the pieces gives back exactly the original rows.</dd></div>
+    <div><dt>Dependency preservation</dt><dd>Every original FD can be checked inside one piece.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Compute closures to find keys. A set is a key when its closure is all attributes and no smaller subset is.</li>
+    <li>Check normal forms from BCNF downward. The first form that holds is the answer.</li>
+    <li>In BCNF, every left side of an FD must be a superkey, with no exceptions.</li>
+    <li>A split is lossless when the common attributes determine one of the pieces.</li>
+    <li>BCNF can lose dependencies. 3NF always keeps them.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 91?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 91 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-090.html"><small>Previous, topic 90</small>SQL: queries, joins, aggregation</a><a class="next" href="gate-092.html"><small>Next, topic 92</small>File organization &amp; indexing (B/B+ trees)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

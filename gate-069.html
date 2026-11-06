@@ -1,0 +1,467 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 69: Merge Sort & Quick Sort</title><meta name="description" content="Merge sort and quick sort are the two most common fast sorting methods. Both split the problem into smaller parts and solve those parts, but they do the hard work in different places. GATE asks for their complexity, their stability, and the state of an array after some recursive calls."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g69" data-key="g69" data-noun="topic" data-num="69" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Merge Sort &amp; Quick Sort</h1>
+<p class="lede">Merge sort and quick sort are the two most common fast sorting methods. Both split the problem into smaller parts and solve those parts, but they do the hard work in different places. GATE asks for their complexity, their stability, and the state of an array after some recursive calls.</p>
+<div class="station"><b>69</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Divide and conquer</li><li>Merge sort and the merge step</li><li>Quick sort and the partition step</li><li>Pivot choices and the worst case</li><li>Comparing merge sort and quick sort</li><li>Tracing both sorts</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you must sort a pile of 1000 exam papers by score. Sorting all 1000 at once is hard. But you could split the pile into two piles of 500, sort each pile, and then combine the two sorted piles into one. Splitting again would turn 500 into two piles of 250. This strategy is called <strong>divide and conquer</strong>. You divide the problem into smaller copies of itself, you conquer the small copies, and you combine the answers.</p>
+  <p>Both merge sort and quick sort use this strategy. The difference is where the work happens:</p>
+  <ul>
+    <li><strong>Merge sort</strong> splits the array in the middle, sorts each half, and does its real work when it <em>merges</em> two sorted halves. The splitting itself is easy.</li>
+    <li><strong>Quick sort</strong> does its real work first. It picks a <em>pivot</em> value and moves the smaller values to its left and the bigger values to its right. Then it sorts each side. The final combining step is free.</li>
+  </ul>
+  <p>Because of this difference, the two methods behave differently in speed, memory and stability. GATE tests all three.</p>
+  <p><strong>Why this matters for GATE.</strong> Expect questions on the time complexity of each method, on whether each one is stable, and on the array after a given number of partitions or merges. The trace method is the same as in the earlier sorting page: write the array, follow the steps, and record the result.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Divide and conquer</dt><dd>A method that splits a problem into smaller subproblems of the same kind, solves them, and combines the answers.</dd></div>
+    <div><dt>Recursion</dt><dd>A function that calls itself on a smaller input. Both sorts here are recursive.</dd></div>
+    <div><dt>Base case</dt><dd>The smallest input, which is already sorted and needs no work. For merge sort, a list of 0 or 1 items.</dd></div>
+    <div><dt>Merge</dt><dd>Combining two sorted lists into one sorted list by repeatedly taking the smaller front item.</dd></div>
+    <div><dt>Slice</dt><dd>A part of a list, written with a colon. <code>arr[:mid]</code> is the items from position 0 up to, but not including, <code>mid</code>. <code>arr[mid:]</code> is the items from <code>mid</code> to the end.</dd></div>
+    <div><dt>Pivot</dt><dd>The value chosen to split the array in quick sort.</dd></div>
+    <div><dt>Partition</dt><dd>Rearranging a part of the array so that values less than or equal to the pivot come before it, and bigger values come after it. The pivot ends in its final position.</dd></div>
+    <div><dt>Lomuto partition</dt><dd>A common partition method, which uses the last item as the pivot and scans with one index. It is the method used in the code on this page.</dd></div>
+    <div><dt>In place</dt><dd>Sorting by rearranging the items inside the same array, with only a small amount of extra memory.</dd></div>
+    <div><dt>Stable sort</dt><dd>A sort that keeps items with equal keys in their original relative order.</dd></div>
+    <div><dt>O(n log n)</dt><dd>Work that grows a little faster than n, by the factor log n. A common target for fast sorts.</dd></div>
+    <div><dt>Level</dt><dd>One layer of the recursion tree. All the calls in a level work on pieces of the array at the same size.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Merge sort and the merge step">
+  <h2>Merge sort and the merge step</h2>
+  <h3>The method</h3>
+  <p>Merge sort works in three steps:</p>
+  <ol>
+    <li><strong>Divide</strong>: if the list has 0 or 1 items, it is already sorted, so return it. Otherwise, cut it into two halves at the middle.</li>
+    <li><strong>Conquer</strong>: sort the left half and the right half, by calling merge sort on each.</li>
+    <li><strong>Combine</strong>: merge the two sorted halves into one sorted list.</li>
+  </ol>
+
+  <h3>How the merge step works</h3>
+  <p>Think of two queues of people, each already in height order, who must join into one queue in height order. You look at the person at the front of each queue. The shorter one goes into the new queue, and you look again. When one of the queues is empty, the rest of the other queue joins the end in its existing order.</p>
+  <p>Take the lists <code>[2, 5]</code> and <code>[1, 4, 6]</code>. Compare the fronts 2 and 1. The 1 is smaller, so it goes into the result. Now the fronts are 2 and 4. The 2 goes next. Then 5 and 4: the 4 goes next. Then 5 and 6: the 5 goes next. Now the left list is empty, so the 6 from the right list is copied at the end. The result is 1, 2, 4, 5, 6.</p>
+
+  <h3>A runnable example</h3>
+  <p>The code below defines the merge step and the recursive merge sort. The function <code>merge_sort</code> prints each merge, so you can see the halves being combined. The first lines printed are the smallest merges, and the last line is the big merge at the top.</p>
+<pre class="code" data-lang="python"><code>def merge(left, right):
+    result = []
+    i = 0
+    j = 0
+    while i &lt; len(left) and j &lt; len(right):
+        if left[i] &lt;= right[j]:
+            result.append(left[i])
+            i = i + 1
+        else:
+            result.append(right[j])
+            j = j + 1
+    while i &lt; len(left):
+        result.append(left[i])
+        i = i + 1
+    while j &lt; len(right):
+        result.append(right[j])
+        j = j + 1
+    return result
+
+def merge_sort(arr):
+    if len(arr) &lt;= 1:
+        return arr
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+    merged = merge(left, right)
+    print("merge", left, right, "-&gt;", merged)
+    return merged
+
+print(merge_sort([38, 27, 43, 3, 9, 82, 10]))
+print(merge([2, 5], [1, 4, 6]))</code></pre>
+<pre class="output">merge [27] [43] -&gt; [27, 43]
+merge [38] [27, 43] -&gt; [27, 38, 43]
+merge [3] [9] -&gt; [3, 9]
+merge [82] [10] -&gt; [10, 82]
+merge [3, 9] [10, 82] -&gt; [3, 9, 10, 82]
+merge [27, 38, 43] [3, 9, 10, 82] -&gt; [3, 9, 10, 27, 38, 43, 82]
+[3, 9, 10, 27, 38, 43, 82]
+[1, 2, 4, 5, 6]</pre>
+
+  <p>Read the first merge line. The left half <code>[27]</code> and the right half <code>[43]</code> are each one item, so they are already sorted. Merging them gives <code>[27, 43]</code>. The merge of 38 with <code>[27, 43]</code> comes next, and it gives <code>[27, 38, 43]</code>. The last line shows the top merge, which joins two sorted halves of length 3 and 4.</p>
+
+  <h3>Why the merge is fast</h3>
+  <p>Each merge step copies one item into the result, and it never goes back. So merging two lists with a total of m items takes about m comparisons. Merge sort splits the array about log n times before reaching single items, and each level of the recursion tree does about n merging work in total. Multiply the two and you get n times log n. This is the reason for the O(n log n) time.</p>
+
+  <h3>Cost and memory</h3>
+  <ul>
+    <li><strong>Time</strong>: O(n log n) in the best, worst and average cases. The work does not depend on the order of the input.</li>
+    <li><strong>Extra space</strong>: O(n). The merge needs a new result list as large as the input. This is the main weakness of merge sort compared with quick sort.</li>
+    <li><strong>Stable</strong>: yes, when the merge takes from the left list on a tie. The line <code>if left[i] &lt;= right[j]</code> does this. An equal item on the left is taken first, so it stays in front.</li>
+  </ul>
+
+  <div class="note trap"><p><span class="t">Trap</span>If you change the test to <code>&lt;</code>, equal items would be taken from the right first, and merge sort would stop being stable. Expect a GATE question that makes this one small change.</p></div>
+
+  <details class="check"><summary>How many items does the merge step copy in total when merging <code>[1, 3]</code> and <code>[2, 4]</code>?</summary><div class="ans"><p>All 4 items. Each item is copied once into the result, whichever list it comes from.</p></div></details>
+  <details class="check"><summary>What does <code>arr[:mid]</code> give when <code>arr</code> is <code>[10, 20, 30, 40, 50]</code> and <code>mid</code> is 2?</summary><div class="ans"><p>It gives <code>[10, 20]</code>. The slice starts at 0 and stops before position 2.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Quick sort and the partition step">
+  <h2>Quick sort and the partition step</h2>
+  <h3>The method</h3>
+  <p>Quick sort works in three steps:</p>
+  <ol>
+    <li><strong>Pick a pivot</strong>. In this page the pivot is the last item of the range.</li>
+    <li><strong>Partition</strong>. Rearrange the range so that all items less than or equal to the pivot come before it, and all bigger items come after it. The pivot then sits in its final position.</li>
+    <li><strong>Conquer</strong>. Quick sort the part before the pivot, and the part after it. Nothing needs to be combined, because the pivot is already in place and each side is in the right group.</li>
+  </ol>
+
+  <h3>How the partition works</h3>
+  <p>Think of a class lining up by height. The teacher picks one student as the reference. Everyone shorter moves to the left of that student, and everyone taller moves to the right. The reference student is now in the place where they belong among the class. Then the teacher does the same thing to the left group and to the right group.</p>
+  <p>The Lomuto partition in the code uses one index <code>i</code> that marks the boundary of the "small" group. The loop index <code>j</code> scans forward. When <code>a[j]</code> is small enough, <code>i</code> moves right and the item is swapped into the small group. At the end, the pivot is swapped into position <code>i + 1</code>.</p>
+
+  <h3>A runnable example</h3>
+  <p>The next program sorts the list <code>[38, 27, 43, 3, 9, 82, 10]</code>. It also counts the comparisons made in three runs, using a global counter. The global variable is changed inside <code>partition</code>, so the function uses the keyword <code>global</code>.</p>
+<pre class="code" data-lang="python"><code>count = 0
+
+def partition(a, low, high):
+    global count
+    pivot = a[high]
+    i = low - 1
+    for j in range(low, high):
+        count = count + 1
+        if a[j] &lt;= pivot:
+            i = i + 1
+            temp = a[i]
+            a[i] = a[j]
+            a[j] = temp
+    temp = a[i + 1]
+    a[i + 1] = a[high]
+    a[high] = temp
+    return i + 1
+
+def quick_sort(a, low, high):
+    if low &lt; high:
+        p = partition(a, low, high)
+        print("pivot", a[p], "placed at", p, a)
+        quick_sort(a, low, p - 1)
+        quick_sort(a, p + 1, high)
+
+data = [38, 27, 43, 3, 9, 82, 10]
+quick_sort(data, 0, len(data) - 1)
+print("sorted:", data, "comparisons:", count)
+
+count = 0
+s = [1, 2, 3, 4, 5, 6]
+quick_sort(s, 0, len(s) - 1)
+print("sorted input comparisons:", count)
+
+count = 0
+r = [6, 5, 4, 3, 2, 1]
+quick_sort(r, 0, len(r) - 1)
+print("reversed input comparisons:", count)</code></pre>
+<pre class="output">pivot 10 placed at 2 [3, 9, 10, 38, 27, 82, 43]
+pivot 9 placed at 1 [3, 9, 10, 38, 27, 82, 43]
+pivot 43 placed at 5 [3, 9, 10, 38, 27, 43, 82]
+pivot 27 placed at 3 [3, 9, 10, 27, 38, 43, 82]
+sorted: [3, 9, 10, 27, 38, 43, 82] comparisons: 11
+pivot 6 placed at 5 [1, 2, 3, 4, 5, 6]
+pivot 5 placed at 4 [1, 2, 3, 4, 5, 6]
+pivot 4 placed at 3 [1, 2, 3, 4, 5, 6]
+pivot 3 placed at 2 [1, 2, 3, 4, 5, 6]
+pivot 2 placed at 1 [1, 2, 3, 4, 5, 6]
+sorted input comparisons: 15
+pivot 1 placed at 0 [1, 5, 4, 3, 2, 6]
+pivot 6 placed at 5 [1, 5, 4, 3, 2, 6]
+pivot 2 placed at 1 [1, 2, 4, 3, 5, 6]
+pivot 5 placed at 4 [1, 2, 4, 3, 5, 6]
+pivot 3 placed at 2 [1, 2, 3, 4, 5, 6]
+reversed input comparisons: 15</pre>
+
+  <p>Trace the first partition by hand, because it is the most useful exercise on this page. The pivot is the last item, 10. Start with <code>i = -1</code>. Scan j from 0 to 5. Position 0 holds 38, which is not at most 10, so nothing happens. Position 1 holds 27, no. Position 2 holds 43, no. Position 3 holds 3, which is at most 10, so <code>i</code> becomes 0 and 3 is swapped with position 0. The array is 3, 27, 43, 38, 9, 82, 10. Position 4 holds 9, which is small, so <code>i</code> becomes 1 and 9 is swapped with position 1. The array is 3, 9, 43, 38, 27, 82, 10. Position 5 holds 82, no. Now swap the pivot 10 with position <code>i + 1</code>, which is position 2. The array is 3, 9, 10, 38, 27, 82, 43. The pivot 10 is in its final place, and the output line matches.</p>
+
+  <h3>Cost and memory</h3>
+  <ul>
+    <li><strong>Partition cost</strong>: a range of m items needs m - 1 comparisons, one for each item except the pivot.</li>
+    <li><strong>Extra space</strong>: the sort is in place, so it needs no big result list. Its recursion uses stack space, about log n levels on a good split.</li>
+    <li><strong>Stable</strong>: no. The swaps move items past equal items. For example, in the list 2a, 2b, 1 with a last pivot, 2a is swapped to the end, past 2b.</li>
+  </ul>
+
+  <details class="check"><summary>In the first partition above, where did 43 end up, and why?</summary><div class="ans"><p>It ended at index 6, the last position. It is bigger than the pivot 10, so it belongs to the right group. The final swap of the pivot with position 2 moved 43 from position 2 to position 6.</p></div></details>
+  <details class="check"><summary>How many comparisons does one partition of 5 items make?</summary><div class="ans"><p>Four. The loop runs from the first to the second last position, one comparison each, and the pivot is not compared with itself.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Pivot choices and the worst case">
+  <h2>Pivot choices and the worst case</h2>
+  <h3>Why the pivot matters</h3>
+  <p>Quick sort is fast only when each partition splits the range into two roughly equal parts. If the pivot is always the smallest or the largest item, one side is empty and the other side has everything except the pivot. Then each partition removes just one item, and the sort does about n steps for each of n items.</p>
+  <p>Common ways to choose the pivot are:</p>
+  <ul>
+    <li><strong>First item</strong>: simple, but bad on sorted input.</li>
+    <li><strong>Last item</strong>: used in this page. Also bad on sorted input.</li>
+    <li><strong>Middle item</strong>: good on sorted input, because the middle is roughly the median.</li>
+    <li><strong>Random item</strong>: makes the bad case very unlikely for any input.</li>
+    <li><strong>Median of three</strong>: the median of the first, middle and last items. It is a common practical choice.</li>
+  </ul>
+
+  <h3>The worst case, worked out</h3>
+  <p>Take the sorted list 1, 2, 3, 4, 5, 6 with the last item as pivot. The first partition uses 6 as the pivot. It makes 5 comparisons and places 6 at the end. The next partition uses 5 on a range of 5 items. It makes 4 comparisons. Continue: 3, 2, 1 comparisons. The total is 5 + 4 + 3 + 2 + 1 = 15. For n items the total is n(n - 1)/2, which is O(n²). The code run earlier gave 15, which matches.</p>
+
+  <h3>The average case</h3>
+  <p>If the pivot is roughly in the middle on average, each level of the recursion tree does about n comparisons, and there are about log n levels. So the average time is O(n log n). This is why quick sort is fast in practice, even though its worst case is O(n²).</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Merge sort is always O(n log n). Quick sort is usually O(n log n) but can be O(n²). The difference is caused entirely by the choice of pivot.</p></div>
+
+  <details class="check"><summary>What is the worst-case number of comparisons of quick sort on a sorted list of 4 items with the last item as pivot?</summary><div class="ans"><p>3 + 2 + 1 = 6, which is 4 * 3 / 2 = 6.</p></div></details>
+  <details class="check"><summary>Which pivot choice avoids the bad case on a sorted list?</summary><div class="ans"><p>The middle item, or a random item. Both give a split near the middle for a sorted list, and the random choice avoids the bad case for any input with high probability.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Comparing merge sort and quick sort">
+  <h2>Comparing merge sort and quick sort</h2>
+  <h3>The table</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>Merge sort</th><th>Quick sort (last pivot)</th></tr></thead>
+    <tbody>
+      <tr><td>Best case time</td><td>O(n log n)</td><td>O(n log n)</td></tr>
+      <tr><td>Average case time</td><td>O(n log n)</td><td>O(n log n)</td></tr>
+      <tr><td>Worst case time</td><td>O(n log n)</td><td>O(n²), for example on sorted input</td></tr>
+      <tr><td>Extra space</td><td>O(n)</td><td>In place, O(log n) average for recursion</td></tr>
+      <tr><td>Stable?</td><td>Yes, with the left-first tie rule</td><td>No</td></tr>
+      <tr><td>Where the work is</td><td>In the merge, after the recursion</td><td>In the partition, before the recursion</td></tr>
+    </tbody>
+  </table></div>
+  <p>The practical choice depends on the situation. Merge sort is the choice when a stable, predictable sort is needed, or for data that does not fit neatly in memory. Quick sort is the choice when memory is tight and the average speed matters most. A GATE question will usually ask about one specific property from this table, so learn the rows, not the whole story.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Be ready for a question that asks which sort is stable, which sort has O(n²) worst case, and which sort uses extra space. Answer each row of the table separately, because the answers differ.</p></div>
+
+  <details class="check"><summary>Which sort is always O(n log n), merge sort or quick sort with the last item as pivot?</summary><div class="ans"><p>Merge sort. Quick sort with the last item as pivot can take O(n²) on sorted input.</p></div></details>
+  <details class="check"><summary>Which sort needs an extra array as large as the input?</summary><div class="ans"><p>Merge sort. The merge writes its result into a new list, which takes O(n) extra space.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Tracing both sorts">
+  <h2>Tracing both sorts</h2>
+  <h3>Tracing merge sort</h3>
+  <p>To trace merge sort by hand, first draw the recursion tree. Split the list in half at each level, using <code>mid = len // 2</code>, until every piece has one item. Then go back up the tree and merge each pair of sorted pieces. Write each merge on its own line. The number of merges for n items is n - 1, one for each internal node of the tree.</p>
+  <p>Here is a shorter example. Take <code>[5, 2, 4, 6, 1, 3]</code>. The top split gives <code>[5, 2, 4]</code> and <code>[6, 1, 3]</code>. The left part splits into <code>[5]</code> and <code>[2, 4]</code>. The merge of <code>[5]</code> with the sorted <code>[2, 4]</code> is <code>[2, 4, 5]</code>. The right part gives <code>[1, 3, 6]</code>. The final merge of <code>[2, 4, 5]</code> and <code>[1, 3, 6]</code> is <code>[1, 2, 3, 4, 5, 6]</code>.</p>
+
+  <h3>Tracing quick sort</h3>
+  <p>To trace quick sort, redo the partition for each range. Write the array, circle the pivot, and then mark the boundary of the small group. After the partition, the pivot is fixed. Then trace the left range and the right range separately. Remember that the left and right ranges never swap items with each other again.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Write the range as "low to high" beside each step. Many mistakes come from forgetting that the left call is <code>p - 1</code> and the right call is <code>p + 1</code>.</p></div>
+
+  <details class="check"><summary>In merge sort on 6 items, how many merges happen in total?</summary><div class="ans"><p>5. For n items there are n - 1 merges, because each merge joins two groups into one, and the process ends with one group.</p></div></details>
+  <details class="check"><summary>After the first quick sort partition, are items to the left of the pivot always sorted?</summary><div class="ans"><p>No. They are only smaller than or equal to the pivot. They are not yet in order among themselves, and they still need their own quick sort calls.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Merge sort time = O(n log n)</td><td>log n levels, each about n work</td><td>Complexity questions</td></tr>
+      <tr><td>Merge of m items total = about m comparisons</td><td>Each item is compared at most once in a merge</td><td>Counting comparisons in a merge</td></tr>
+      <tr><td>Number of merges for n items = n - 1</td><td>One merge per internal node of the tree</td><td>Counting merge operations</td></tr>
+      <tr><td>Partition of m items = m - 1 comparisons</td><td>Pivot is not compared with itself</td><td>Counting partition work</td></tr>
+      <tr><td>Quick sort worst case = n(n - 1)/2</td><td>Bad pivot each time, for example sorted input with last pivot</td><td>Worst-case counting</td></tr>
+      <tr><td>Quick sort average time = O(n log n)</td><td>Pivot splits the range roughly in half on average</td><td>Average-case questions</td></tr>
+      <tr><td>Slice arr[:mid] and arr[mid:]</td><td>The two halves when mid = len(arr) // 2</td><td>Tracing merge sort splits</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style, and are not taken from any past paper. Trace each one on paper before you read the steps.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Comparisons in a merge</h3>
+    <div class="statement"><p>Merge step with the code on this page is applied to the sorted lists <code>[2, 5]</code> and <code>[1, 4, 6]</code>. Each comparison of two fronts counts as one. How many comparisons are made?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of times two fronts are compared.</li>
+      <li><strong>Which idea applies.</strong> Each comparison takes one item into the result, until one list runs out.</li>
+      <li><strong>Work it out.</strong> Compare 2 with 1: take 1. Compare 2 with 4: take 2. Compare 5 with 4: take 4. Compare 5 with 6: take 5. Now the left list is empty, so no more comparisons. That is 4 comparisons.</li>
+      <li><strong>Check.</strong> The result has 5 items, and the 6 at the end was copied without any comparison, so 4 is 5 minus the one item copied at the end.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about the sorts</h3>
+    <div class="statement"><p>Select all true statements. (A) Merge sort as written on this page is stable. (B) Merge sort takes O(n log n) time in the worst case. (C) Quick sort with the last item as pivot takes O(n²) time on a sorted list. (D) The in-place quick sort on this page needs O(n) extra space.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every true statement.</li>
+      <li><strong>Which idea applies.</strong> Stability, complexity, and memory of each method.</li>
+      <li><strong>Work it out.</strong> (A) is true, because the merge takes from the left on ties. (B) is true, as the table shows. (C) is true, as the worst-case section shows. (D) is false, because the partition works in place and needs only a few variables and recursion stack.</li>
+      <li><strong>Check.</strong> Statement D is the usual trap, since merge sort, not quick sort, needs the O(n) extra space.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Comparisons in a three and three merge</h3>
+    <div class="statement"><p>Merge step is applied to the sorted lists <code>[1, 3, 5]</code> and <code>[2, 4, 6]</code>. Each comparison of two fronts counts as one. How many comparisons are made in total?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of front comparisons.</li>
+      <li><strong>Which idea applies.</strong> The merge stops comparing when one list is empty.</li>
+      <li><strong>Work it out.</strong> Compare 1 with 2: take 1. Compare 3 with 2: take 2. Compare 3 with 4: take 3. Compare 5 with 4: take 4. Compare 5 with 6: take 5. The left list is now empty. That is 5 comparisons, and the 6 is copied with no comparison.</li>
+      <li><strong>Check.</strong> There are 6 items in total and one item is copied at the end, so 6 - 1 = 5 comparisons, which matches.</li>
+    </ol>
+    <p class="cx">Answer: 5</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>One partition step</h3>
+    <div class="statement"><p>The array is 4, 7, 2, 9, 5, with positions 0 to 4. Quick sort partitions the whole array using the last item as the pivot, with the Lomuto method from this page. Give the final index of the pivot, then the array after the partition, using commas.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The pivot position and the array after one partition.</li>
+      <li><strong>Which idea applies.</strong> The pivot is 5, the last item. Items at most 5 are moved to the left group, using the boundary index.</li>
+      <li><strong>Work it out.</strong> Start with i = -1. Position 0 holds 4, which is at most 5, so i = 0 and the swap leaves the array unchanged. Position 1 holds 7, no. Position 2 holds 2, yes, so i = 1 and 2 is swapped with position 1, giving 4, 2, 7, 9, 5. Position 3 holds 9, no. Finally swap the pivot with position i + 1 = 2: the array becomes 4, 2, 5, 9, 7. The pivot 5 is at index 2.</li>
+      <li><strong>Check.</strong> Everything left of index 2 is at most 5, and everything right of it is bigger, which is the property a partition must give.</li>
+    </ol>
+    <p class="cx">Answer: index 2; array 4, 2, 5, 9, 7</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Comparisons on a sorted list</h3>
+    <div class="statement"><p>Quick sort with the last item as pivot is run on the sorted list 1, 2, 3, 4, 5. Count the total number of comparisons over the whole sort.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total count, from the first partition to the last.</li>
+      <li><strong>Which idea applies.</strong> On sorted input with the last item as pivot, every partition puts the pivot at the end, so the left side has all the other items.</li>
+      <li><strong>Work it out.</strong> The partition on 5 items makes 4 comparisons. The partition on the remaining 4 items makes 3. Then 2, then 1. The total is 4 + 3 + 2 + 1 = 10.</li>
+      <li><strong>Check.</strong> The formula n(n - 1)/2 with n = 5 gives 5 * 4 / 2 = 10, which matches.</li>
+    </ol>
+    <p class="cx">Answer: 10</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which methods keep equal items in order?</h3>
+    <div class="statement"><p>Select all sorting methods below that are stable when implemented in the usual way. (A) Merge sort with the left-first tie rule (B) Quick sort with the Lomuto partition on this page (C) Insertion sort (D) Selection sort</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The stable methods.</li>
+      <li><strong>Which idea applies.</strong> Stability fails when a swap or a jump moves an item past an equal item.</li>
+      <li><strong>Work it out.</strong> (A) is stable, because equal left items are taken first. (B) is not stable, since partition swaps can move an item past an equal item. (C) is stable, since the shift test is strictly greater. (D) is not stable, as the earlier selection sort page showed.</li>
+      <li><strong>Check.</strong> The two stable methods are the two that never move an item past an equal item.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which sublist comes first</h3>
+    <div class="statement"><p>Merge sort, with <code>mid = len(arr) // 2</code>, is run on the list 5, 2, 4, 6, 1, 3. Give the list printed by the first merge that produces a list of three items.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first merge result that has exactly three items, in the order the recursion finishes.</li>
+      <li><strong>Which idea applies.</strong> The recursion finishes the left half first, and the left half is 5, 2, 4.</li>
+      <li><strong>Work it out.</strong> The left half 5, 2, 4 has length 3, so mid = 3 // 2 = 1. It splits into 5 and 2, 4. The piece 2, 4 is sorted first by merging 2 and 4, which gives a two-item list. Then the merge of 5 with 2, 4 gives 2, 4, 5. This is the first merge that produces three items.</li>
+      <li><strong>Check.</strong> The merge of 5 with 2 and 4 uses the fronts 5 and 2 first, takes 2, then 5 and 4 take 4, then 5 is copied, which gives 2, 4, 5.</li>
+    </ol>
+    <p class="cx">Answer: 2, 4, 5</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Worst case on eight sorted items</h3>
+    <div class="statement"><p>Quick sort with the last item as pivot is run on a sorted list of 8 distinct numbers. Give the total number of comparisons in the worst-case pattern.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of comparisons for a sorted list of 8 items.</li>
+      <li><strong>Which idea applies.</strong> Sorted input with the last item as pivot gives the worst split every time, so the partition sizes are 8, 7, 6, and so on.</li>
+      <li><strong>Work it out.</strong> The partitions use 7, 6, 5, 4, 3, 2 and 1 comparisons. The total is 7 + 6 + 5 + 4 + 3 + 2 + 1 = 28.</li>
+      <li><strong>Check.</strong> The formula n(n - 1)/2 with n = 8 gives 8 * 7 / 2 = 28, which matches.</li>
+    </ol>
+    <p class="cx">Answer: 28</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Merge sort comparisons (NAT, 2 marks)</h3>
+    <div class="statement"><p>What is the worst-case number of comparisons to merge two sorted lists of sizes 5 and 7?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The worst case for one merge.</li>
+      <li><strong>Which idea applies.</strong> Each comparison outputs one element. In the worst case both lists run out together, so the last element needs no comparison.</li>
+      <li><strong>Work it out.</strong> 5 + 7 − 1 = 11.</li>
+      <li><strong>Check.</strong> The lists [2, 4, 6, 8, 12] and [1, 3, 5, 7, 9, 10, 11] force this: 11 elements are output by comparison before only 12 is left.</li>
+    </ol>
+    <p class="cx">Answer: 11.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Quick sort partition (NAT, 2 marks)</h3>
+    <div class="statement"><p>Lomuto partition with the last element as pivot is applied to [7, 2, 1, 6, 8, 5, 3, 4]. What is the final index (0-based) of the pivot?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Where the pivot lands after one partition.</li>
+      <li><strong>Which idea applies.</strong> The pivot ends at the count of elements smaller than it.</li>
+      <li><strong>Work it out.</strong> Pivot 4. Smaller elements: 2, 1, 3. So index 3.</li>
+      <li><strong>Check.</strong> The code runs Lomuto partition.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>a = [7, 2, 1, 6, 8, 5, 3, 4]
+p = a[-1]; i = -1
+for j in range(len(a) - 1):
+    if a[j] &lt;= p:
+        i += 1; a[i], a[j] = a[j], a[i]
+a[i + 1], a[-1] = a[-1], a[i + 1]
+print(a, "pivot index =", i + 1)
+</code></pre>
+    <pre class="output">[2, 1, 3, 4, 8, 5, 7, 6] pivot index = 3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Recurrences (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Merge sort satisfies T(n) = 2T(n/2) + Θ(n), so T = Θ(n log n). (B) Quick sort worst case is Θ(n²). (C) Quick sort with a split always at least 1:9 is Θ(n log n). (D) Merge sort is in-place on arrays.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Running time facts.</li>
+      <li><strong>Which idea applies.</strong> Any constant-fraction split gives a recursion depth of O(log n).</li>
+      <li><strong>Work it out.</strong> (A) True. (B) Sorted input with a last-element pivot. True. (C) Depth log<sub>10/9</sub> n, still O(log n). True. (D) The standard array merge needs Θ(n) extra space. False.</li>
+      <li><strong>Check.</strong> Only (D) is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Divide and conquer</dt><dd>Split a problem, solve the parts, and combine the answers.</dd></div>
+    <div><dt>Merge sort</dt><dd>Splits at the middle, sorts each half, and merges them. Does its work when merging.</dd></div>
+    <div><dt>Merge step</dt><dd>Joins two sorted lists by repeatedly taking the smaller front item.</dd></div>
+    <div><dt>Quick sort</dt><dd>Chooses a pivot, partitions around it, and sorts each side. Does its work before recursing.</dd></div>
+    <div><dt>Pivot</dt><dd>The value used to split the array in quick sort.</dd></div>
+    <div><dt>Partition</dt><dd>Moves items at most the pivot to the left, and bigger items to the right.</dd></div>
+    <div><dt>Lomuto partition</dt><dd>A partition with the last item as pivot and one scanning index.</dd></div>
+    <div><dt>Slice</dt><dd>A part of a list, such as <code>arr[:mid]</code>.</dd></div>
+    <div><dt>Level</dt><dd>One layer of the recursion tree.</dd></div>
+    <div><dt>O(n log n)</dt><dd>The time of merge sort in every case, and of quick sort on average.</dd></div>
+    <div><dt>O(n²)</dt><dd>The worst case of quick sort with a bad pivot.</dd></div>
+    <div><dt>In place</dt><dd>Rearranging the array itself, with little extra memory.</dd></div>
+    <div><dt>Stable</dt><dd>Keeps equal items in their original order. Merge sort yes, quick sort no.</dd></div>
+    <div><dt>Median of three</dt><dd>A practical pivot choice: the median of the first, middle and last items.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Merge sort is O(n log n) in every case, and it needs O(n) extra space.</li>
+    <li>Quick sort is O(n log n) on average, but O(n²) when the pivot is always the smallest or largest item.</li>
+    <li>A partition of m items makes m - 1 comparisons, and the pivot ends in its final place.</li>
+    <li>Merge sort is stable when the merge takes from the left on a tie. Quick sort is not stable.</li>
+    <li>Merge sort does its work in the merge. Quick sort does its work in the partition.</li>
+    <li>For n sorted items with the last item as pivot, quick sort makes n(n - 1)/2 comparisons.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 69?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 69 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-068.html"><small>Previous, topic 68</small>Selection, Bubble &amp; Insertion Sort</a><a class="next" href="gate-070.html"><small>Next, topic 70</small>Stacks and Queues</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,438 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 98: Ridge regression</title><meta name="description" content="Ridge regression is linear regression with a penalty on large weights. It keeps the model from trusting noise too much, and it stays stable when inputs are close copies of each other. You will learn the loss, the closed-form solution, the effect of lambda, and how ridge differs from ordinary least squares and from lasso."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g98" data-key="g98" data-noun="topic" data-num="98" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Ridge regression</h1>
+<p class="lede">Ridge regression is linear regression with a penalty on large weights. It keeps the model from trusting noise too much, and it stays stable when inputs are close copies of each other. You will learn the loss, the closed-form solution, the effect of lambda, and how ridge differs from ordinary least squares and from lasso.</p>
+<div class="station"><b>98</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Why shrink the weights?</li><li>The ridge loss and its penalty</li><li>Closed-form ridge solution</li><li>Effect of lambda on bias and variance</li><li>Ridge, OLS and lasso compared</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Picture a tailor who makes a suit to fit one measurement very exactly. The suit fits that day, but it pulls and bunches for anyone whose body is a little different. A wiser tailor allows some slack. The suit is a bit less exact on the one measurement but fits many more people well.</p>
+  <p>Ordinary least squares, the method from the previous topic, is the exact tailor. It chooses weights that make the training error as small as possible, whatever their size. When the data is noisy or the inputs are close copies of each other, those weights can become very large and jumpy. They fit the noise in the training data, and they fail on new data. This is called <strong>overfitting</strong>.</p>
+  <p>Ridge regression is the wiser tailor. It adds a rule: large weights cost something. The model must balance two goals, fitting the data and keeping the weights small. The strength of the rule is set by a number called lambda (λ). When λ is 0, ridge is the same as ordinary least squares. As λ grows, the weights are pulled toward zero.</p>
+  <p>For GATE, ridge regression is a standard topic in the Machine Learning part of the Data Science and AI paper (DA). Typical questions ask you to write the loss, to explain why ridge handles multicollinearity, to say what happens as λ changes, and to compute a ridge solution for a small example. The ideas here build directly on multiple linear regression.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Each term is used again later on the page.</p>
+  <dl>
+    <div><dt>Overfitting</dt><dd>When a model fits the training data very closely, noise included, and does badly on new data. Precisely: low training error with high test error.</dd></div>
+    <div><dt>Weight or coefficient</dt><dd>A number β<sub>j</sub> that says how strongly input j moves the prediction.</dd></div>
+    <div><dt>Intercept β<sub>0</sub></dt><dd>The prediction when all inputs are zero. By convention it is not penalised in ridge.</dd></div>
+    <div><dt>Loss function</dt><dd>A single number that measures how bad a set of weights is. Training means finding weights with the smallest loss.</dd></div>
+    <div><dt>Sum of squared errors SSE</dt><dd>Add up the squared gaps between the real and predicted outputs. Precisely: Σ(y<sub>i</sub> minus ŷ<sub>i</sub>)².</dd></div>
+    <div><dt>Penalty term</dt><dd>An extra part of the loss that grows when the weights grow. In ridge it is λΣβ<sub>j</sub>² over the slope weights.</dd></div>
+    <div><dt>Regularisation</dt><dd>Any method that adds a penalty to keep the model simple or the weights small.</dd></div>
+    <div><dt>Lambda λ</dt><dd>The regularisation strength, a number 0 or bigger. Large λ means a strong penalty.</dd></div>
+    <div><dt>L2 penalty</dt><dd>A penalty equal to the sum of squared weights. Ridge uses this.</dd></div>
+    <div><dt>L1 penalty</dt><dd>A penalty equal to the sum of absolute weights. Lasso uses this.</dd></div>
+    <div><dt>Identity matrix I</dt><dd>A square matrix with 1s on the main diagonal and 0s elsewhere. It acts like the number 1 in matrix products.</dd></div>
+    <div><dt>Bias</dt><dd>The systematic error of a method, how far its average answer is from the truth.</dd></div>
+    <div><dt>Variance</dt><dd>How much the answer would change if the training data were a little different.</dd></div>
+    <div><dt>Shrinkage</dt><dd>Pulling estimated weights toward zero.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The ridge loss and its penalty">
+  <h2>The ridge loss and its penalty</h2>
+  <h3>Step 1: the ordinary least squares loss</h3>
+  <p>Recall the least squares loss. It is the sum of squared errors, which is the squared gaps between the real outputs and the predictions.</p>
+  <div class="formula">SSE(β) = Σ (y<sub>i</sub> minus ŷ<sub>i</sub>)²</div>
+  <p>Read the symbols. The sigma Σ means "add over all data points i". Each y<sub>i</sub> is a real output. Each ŷ<sub>i</sub> is the predicted output from the current weights. Squaring stops positive and negative errors from cancelling.</p>
+  <h3>Step 2: add the penalty</h3>
+  <p>Ridge adds a second part to the loss. It is λ times the sum of the squares of the slope weights.</p>
+  <div class="formula">J(β) = Σ (y<sub>i</sub> minus ŷ<sub>i</sub>)² + λ Σ<sub>j=1 to n</sub> β<sub>j</sub>²</div>
+  <p>The second sum runs over the slope weights β<sub>1</sub> to β<sub>n</sub>. It leaves out the intercept β<sub>0</sub>. The reason is simple: the intercept only sets the level of the predictions. Shrinking it would pull all predictions toward zero for no good reason, so the convention is not to penalise it.</p>
+  <p>Now the two goals are visible. The first part wants small errors. The second part wants small weights. The number λ decides which goal matters more.</p>
+  <h3>A tiny numerical example of the loss</h3>
+  <p>Suppose SSE = 10 for some weights, the slope weights are 2 and minus 2, and λ = 0.5. The penalty is λ times (2 squared plus minus 2 squared) = 0.5 times (4 + 4) = 4. The ridge loss is 10 + 4 = 14. A different set of weights with SSE = 12 but slopes of 0.5 and minus 0.5 would have penalty 0.5 times (0.25 + 0.25) = 0.25, giving loss 12.25. That set would be preferred, even though its raw error is larger.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Ridge does not ask only "which weights fit best?" It asks "which weights fit well and stay small?" A large λ gives small weights even at some cost in fit.</p></div>
+  <h3>Why squares, not absolute values</h3>
+  <p>The squared penalty is smooth everywhere. Its slope changes gently as a weight changes, so the minimum can be found with calculus and a neat formula. This is the main reason ridge has a closed-form solution. Lasso uses absolute values, which have a corner at zero, and that changes the story, as we see later.</p>
+  <details class="check"><summary>Question: if λ = 0, what is the ridge loss?</summary><div class="ans"><p>The penalty term vanishes, so the ridge loss equals the ordinary sum of squared errors. Ridge with λ = 0 is ordinary least squares.</p></div></details>
+  <details class="check"><summary>Question: why do we not penalise the intercept?</summary><div class="ans"><p>The intercept sets the overall level of the predictions. Shrinking it toward zero would move all predictions toward zero, which has nothing to do with how the inputs affect the output.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Closed-form ridge solution">
+  <h2>Closed-form ridge solution</h2>
+  <h3>Step 1: find the slope of the loss</h3>
+  <p>To find the lowest point of the loss, set its slope to zero in every direction of β. This is the same idea as the bottom of a bowl. For ordinary least squares this gives the normal equations X<sup>T</sup>Xβ = X<sup>T</sup>y. The penalty adds one more term, whose slope is 2λ times the weight vector (ignoring the intercept).</p>
+  <p>Put the two slopes together and set them to zero. The result is:</p>
+  <div class="formula">(X<sup>T</sup>X + λI) β = X<sup>T</sup>y</div>
+  <p>Here I is the identity matrix. In the intercept position it has a 0 instead of a 1, because the intercept is not penalised. In the simple examples on this page there is no intercept, so the full identity is used.</p>
+  <h3>Step 2: solve for β</h3>
+  <p>If the matrix X<sup>T</sup>X + λI has an inverse, we can solve in one line.</p>
+  <div class="formula">β<sub>ridge</sub> = (X<sup>T</sup>X + λI)<sup>-1</sup> X<sup>T</sup>y</div>
+  <p>Compare this with the ordinary least squares formula, β = (X<sup>T</sup>X)<sup>-1</sup>X<sup>T</sup>y. The only change is that λI is added inside the bracket. That tiny change is powerful, as we will see.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Adding λI shifts every diagonal entry of X<sup>T</sup>X up by λ. A matrix with a shifted diagonal is much less likely to be singular. This is why ridge copes with multicollinearity.</p></div>
+  <h3>Worked example: two identical inputs</h3>
+  <p>Multicollinearity is easiest to see in the extreme case. Take a model with no intercept and two inputs that are exact copies: x<sub>1</sub> = x<sub>2</sub> = (1, 2, 3). The target is y = (1, 2, 3).</p>
+  <ol>
+    <li><strong>Build X<sup>T</sup>X.</strong> The entries are the sums of products. x<sub>1</sub> with itself: 1 + 4 + 9 = 14. x<sub>1</sub> with x<sub>2</sub>: also 14. x<sub>2</sub> with itself: 14. So X<sup>T</sup>X = [[14, 14], [14, 14]].</li>
+    <li><strong>See the problem.</strong> The determinant is 14 times 14 minus 14 times 14 = 0. So X<sup>T</sup>X has no inverse and ordinary least squares fails. The two copies cannot be separated.</li>
+    <li><strong>Build X<sup>T</sup>y.</strong> The entries are x<sub>1</sub> dot y = 1 + 4 + 9 = 14 and x<sub>2</sub> dot y = 14. So X<sup>T</sup>y = (14, 14).</li>
+    <li><strong>Add λI with λ = 1.</strong> The matrix becomes [[15, 14], [14, 15]]. Its determinant is 15 times 15 minus 14 times 14 = 225 minus 196 = 29, which is not zero. So it has an inverse.</li>
+    <li><strong>Solve.</strong> Because the two inputs are identical, the answer must treat them the same. Let both weights be b. Then the first equation is 15b + 14b = 14, so 29b = 14 and b = 14/29. The total effect is 2 times 14/29 = 28/29, about 0.966.</li>
+  </ol>
+  <p>Ridge gives each copy half the credit. It does not crash and it does not invent a huge weight for one copy. The code below checks the solution and also runs the same idea on a single input, so you can see how λ shrinks a weight.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+# Two identical inputs x1 = x2 = (1, 2, 3), target y = (1, 2, 3), lambda = 1
+xtx = [[14, 14], [14, 14]]
+xty = [14, 14]
+lam = 1
+a = xtx[0][0] + lam
+b = xtx[0][1]
+det = a * a - b * b
+print("det of X^T X + lambda I =", det)
+# Solve the 2 by 2 system exactly with Cramer's rule
+w1 = F(xty[0] * a - b * xty[1], det)
+w2 = F(a * xty[1] - b * xty[0], det)
+print("weights =", w1, w2, "sum =", w1 + w2, "=", round(float(w1 + w2), 3))
+
+# One input, shrinkage as lambda grows: beta = sum(x*y) / (sum(x*x) + lambda)
+sxx, sxy = 14, 14
+for lam in [0, 1, 5, 14]:
+    print("lambda =", lam, " ridge weight =", F(sxy, sxx + lam))</code></pre>
+  <pre class="output">det of X^T X + lambda I = 29
+weights = 14/29 14/29 sum = 28/29 = 0.966
+lambda = 0  ridge weight = 1
+lambda = 1  ridge weight = 14/15
+lambda = 5  ridge weight = 14/19
+lambda = 14  ridge weight = 1/2</pre>
+  <details class="check"><summary>Question: why does the ridge answer give the two identical inputs equal weights?</summary><div class="ans"><p>The two inputs are identical, so the loss cannot tell them apart. The penalty is symmetric in the two weights too. The unique lowest point must therefore have equal weights.</p></div></details>
+  <details class="check"><summary>Question: what happens to the ridge weight in the one-input example as λ becomes very large?</summary><div class="ans"><p>The denominator grows without limit, so the weight is pulled toward zero. The prediction then depends less and less on the input.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Effect of lambda on bias and variance">
+  <h2>Effect of lambda on bias and variance</h2>
+  <h3>Two kinds of error</h3>
+  <p>Imagine throwing darts at a board. Bias is how far the centre of your darts is from the bullseye. Variance is how widely the darts are scattered. You want both small. A method can be unbiased but scattered, or tightly grouped but off-centre.</p>
+  <p>In regression, imagine training the model on many different random samples from the same source. Each sample gives slightly different weights. Bias measures how far the average prediction is from the truth. Variance measures how much the predictions move from one sample to the next.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Ordinary least squares is unbiased when its assumptions hold, but when inputs are close copies its variance can be huge. Ridge adds a little bias on purpose to cut the variance a lot. If the trade is good, the total error on new data goes down.</p></div>
+  <h3>What λ does</h3>
+  <ul>
+    <li><strong>λ = 0.</strong> The model is ordinary least squares. Bias is at its lowest, variance may be high.</li>
+    <li><strong>Small λ.</strong> The weights shrink a little. Variance drops, bias rises slightly.</li>
+    <li><strong>Large λ.</strong> The weights shrink a lot. Variance becomes small, but bias can become large because the model is forced toward simplicity.</li>
+    <li><strong>λ very large.</strong> Every slope weight goes to zero. The model predicts only the intercept, a constant.</li>
+  </ul>
+  <p>The one-input example from the previous section shows this clearly. Its formula is β<sub>ridge</sub> = Σxy/(Σx² + λ). The table below uses the values Σxy = 14 and Σx² = 14. The true slope from the data is exactly 1.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>λ</th><th>Ridge weight</th><th>Shrinkage compared with the true value 1</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>1</td><td>No shrinkage (ordinary least squares)</td></tr>
+      <tr><td>1</td><td>14/15, about 0.933</td><td>Small shrinkage</td></tr>
+      <tr><td>5</td><td>14/19, about 0.737</td><td>Stronger shrinkage</td></tr>
+      <tr><td>14</td><td>1/2</td><td>Half the true value</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note trap"><p><span class="t">Trap</span>Never choose λ by looking at the training error. The training error is always smallest at λ = 0, so that choice always picks ordinary least squares and throws away the benefit of ridge.</p></div>
+  <h3>Choosing λ with cross-validation</h3>
+  <p>The usual way is <strong>cross-validation</strong>. Split the data into, say, five folds. Train on four folds with a chosen λ, then measure the error on the fifth fold. Repeat so that each fold is the test fold once. Average the errors. Try many values of λ, for example 0.01, 0.1, 1, 10, and keep the λ with the lowest average validation error.</p>
+  <h3>Scale the inputs first</h3>
+  <p>The penalty treats every weight the same way. But a weight depends on the units of its input. If one input is measured in metres and another in millimetres, the weights differ by a factor of a thousand even when the effects are equal. Before ridge, standardise each input to mean 0 and standard deviation 1, so that the penalty is fair. The intercept is handled separately, as described earlier.</p>
+  <details class="check"><summary>Question: a model has a large variance. Should you increase or decrease λ?</summary><div class="ans"><p>Increase λ. A larger penalty shrinks the weights, which lowers variance. The price is a little more bias, so choose λ by cross-validation.</p></div></details>
+  <details class="check"><summary>Question: why does the training error always favour λ = 0?</summary><div class="ans"><p>Ridge adds a penalty to the loss. Without it, the fit can always be at least as good on the training points. Any positive λ forces the weights smaller, which can only make the training fit worse or equal.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Ridge, OLS and lasso compared">
+  <h2>Ridge, OLS and lasso compared</h2>
+  <h3>Lasso in one paragraph</h3>
+  <p>Lasso is the close cousin of ridge. It uses the sum of absolute weights, λΣ|β<sub>j</sub>|, instead of squares. The absolute value is the L1 penalty, and the square is the L2 penalty. This small change matters a great deal. The corner of the absolute value at zero pushes some weights exactly to zero, so lasso can select inputs. Ridge only makes weights small, and it almost never makes them exactly zero.</p>
+  <h3>The comparison table</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>Ordinary least squares</th><th>Ridge (L2)</th><th>Lasso (L1)</th></tr></thead>
+    <tbody>
+      <tr><td>Penalty</td><td>None</td><td>λΣβ<sub>j</sub>²</td><td>λΣ|β<sub>j</sub>|</td></tr>
+      <tr><td>Closed-form solution</td><td>Yes, if X<sup>T</sup>X is invertible</td><td>Yes, always when λ &gt; 0</td><td>No simple formula in general</td></tr>
+      <tr><td>Handles multicollinearity</td><td>Poorly, or not at all</td><td>Well, spreads weight across copies</td><td>Partly, tends to pick one copy</td></tr>
+      <tr><td>Sets weights exactly to zero</td><td>No</td><td>No</td><td>Yes</td></tr>
+      <tr><td>Main use</td><td>Baseline and inference</td><td>Stable predictions with many correlated inputs</td><td>Choosing a small set of inputs</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect a question asking which penalty gives exact zeros. The answer is L1, the lasso. Ridge, the L2 penalty, shrinks weights smoothly without making them zero.</p></div>
+  <h3>Why ridge has a closed form and lasso does not</h3>
+  <p>The squared penalty is smooth, so setting its slope to zero gives linear equations we can solve with a matrix inverse. The absolute value has a sharp corner at zero, which breaks the simple slope calculation. Lasso is solved with iterative methods, which run step by step until they settle near the answer.</p>
+  <h3>Which one to use</h3>
+  <ul>
+    <li>Use <strong>OLS</strong> when there are few inputs, they are not strongly correlated, and you want plain interpretable estimates.</li>
+    <li>Use <strong>ridge</strong> when many inputs are correlated and you care about stable predictions.</li>
+    <li>Use <strong>lasso</strong> when you suspect that only a few inputs matter and you want the model to drop the rest.</li>
+  </ul>
+  <details class="check"><summary>Question: which method can give a weight of exactly 0?</summary><div class="ans"><p>Lasso, because its L1 penalty has a corner at zero. Ridge shrinks weights but leaves them non-zero in almost all cases.</p></div></details>
+  <details class="check"><summary>Question: what is the main benefit of ridge over ordinary least squares when two inputs are almost identical?</summary><div class="ans"><p>The matrix X<sup>T</sup>X + λI is invertible for any λ &gt; 0, so the solution exists and is stable. Ordinary least squares may have no unique answer or a very unstable one.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close when you solve problems.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>SSE = Σ(y<sub>i</sub> minus ŷ<sub>i</sub>)²</td><td>Sum of squared errors</td><td>Data-fit part of the loss</td></tr>
+      <tr><td>J(β) = SSE + λΣ<sub>j≥1</sub>β<sub>j</sub>²</td><td>Ridge loss with the intercept unpenalised</td><td>Defining the ridge objective</td></tr>
+      <tr><td>(X<sup>T</sup>X + λI)β = X<sup>T</sup>y</td><td>Ridge normal equations</td><td>Deriving or solving the ridge fit</td></tr>
+      <tr><td>β<sub>ridge</sub> = (X<sup>T</sup>X + λI)<sup>-1</sup>X<sup>T</sup>y</td><td>Closed-form ridge estimate</td><td>Computing ridge weights</td></tr>
+      <tr><td>β<sub>ridge</sub> = Σxy/(Σx² + λ)</td><td>One centred input, no intercept</td><td>Quick shrinkage calculations</td></tr>
+      <tr><td>λΣ|β<sub>j</sub>|</td><td>Lasso (L1) penalty</td><td>Recognising lasso and its exact zeros</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems written for this page. They are not real past paper questions. Try each one before you read the answer. MSQ means more than one option can be correct. NAT means you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Ridge loss value (NAT)</h3>
+    <div class="statement"><p>For some weights, the sum of squared errors is 10. The slope weights are 2 and minus 2. The intercept is not penalised. The ridge parameter is λ = 0.5. Find the ridge loss. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total ridge loss, data part plus penalty part.</li>
+      <li><strong>Which idea applies.</strong> J = SSE + λΣβ<sub>j</sub>² over the slope weights only.</li>
+      <li><strong>Work it out.</strong> The slope squares are 4 and 4, adding to 8. Multiply by λ = 0.5 to get 4. Add the SSE: 10 + 4 = 14.</li>
+      <li><strong>Check.</strong> The penalty must be positive, and 14 is bigger than 10, as it should be.</li>
+    </ol>
+    <p class="cx">Answer: 14</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about ridge (MSQ)</h3>
+    <div class="statement"><p>Which statements about ridge regression are true? Select all that apply.</p>
+    <p>(A) Increasing λ increases the bias of the estimate.</p>
+    <p>(B) Ridge regression can set some weights exactly to zero.</p>
+    <p>(C) For λ &gt; 0, the matrix X<sup>T</sup>X + λI is invertible.</p>
+    <p>(D) The intercept is usually included in the penalty.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four statements are correct.</li>
+      <li><strong>Which idea applies.</strong> More shrinkage means more bias and less variance. The L2 penalty never makes weights exactly zero. The intercept is conventionally left out.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is false, that is the lasso property. (C) is true, because X<sup>T</sup>X has no negative eigenvalues, so adding λ > 0 makes all of them positive. (D) is false, by convention the intercept is not penalised.</li>
+      <li><strong>Check.</strong> The two true statements are the bias trade-off and the invertibility fact.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>One-input shrinkage (NAT)</h3>
+    <div class="statement"><p>A model has one centred input and no intercept. The data gives Σx² = 20 and Σxy = 30. Find the ridge weight when λ = 5. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The ridge slope for one input.</li>
+      <li><strong>Which idea applies.</strong> β<sub>ridge</sub> = Σxy/(Σx² + λ).</li>
+      <li><strong>Work it out.</strong> The denominator is 20 + 5 = 25. The weight is 30/25 = 1.2.</li>
+      <li><strong>Check.</strong> Ordinary least squares would give 30/20 = 1.5. Ridge shrinks it to 1.2, which is smaller, as expected.</li>
+    </ol>
+    <p class="cx">Answer: 1.2</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>When is the matrix singular? (MSQ)</h3>
+    <div class="statement"><p>Consider the matrix [[4, 4], [4, 4]] + λI. For which values of λ is this matrix singular, meaning it has no inverse? Select all that apply.</p>
+    <p>(A) λ = 0 (B) λ = minus 8 (C) λ = 1 (D) λ = 8</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The λ values that make the determinant zero.</li>
+      <li><strong>Which idea applies.</strong> A 2 by 2 matrix [[p, q], [r, s]] is singular when ps minus qr = 0.</li>
+      <li><strong>Work it out.</strong> The matrix is [[4 + λ, 4], [4, 4 + λ]]. Its determinant is (4 + λ)² minus 16 = λ² + 8λ = λ(λ + 8). This is zero when λ = 0 or λ = minus 8.</li>
+      <li><strong>Check.</strong> For λ = 1 the determinant is 9. For λ = 8 it is 128. Both are non-zero, so C and D are not singular.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Ridge or lasso? (MSQ)</h3>
+    <div class="statement"><p>Which statements about the penalties are correct? Select all that apply.</p>
+    <p>(A) The lasso penalty can set a weight exactly to zero.</p>
+    <p>(B) The ridge penalty is the sum of squared weights.</p>
+    <p>(C) Ridge regression has a closed-form solution for λ &gt; 0.</p>
+    <p>(D) The lasso penalty is the sum of squared weights.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Recall which penalty is which.</li>
+      <li><strong>Which idea applies.</strong> L2 means squares and closed form. L1 means absolute values and exact zeros.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true. (C) is true, from the formula (X<sup>T</sup>X + λI)<sup>-1</sup>X<sup>T</sup>y. (D) is false, that describes ridge.</li>
+      <li><strong>Check.</strong> Ask which penalty has the corner at zero. The absolute value does, so the L1 penalty is the one that gives exact zeros.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Two identical inputs with a bigger penalty (NAT)</h3>
+    <div class="statement"><p>Use the same model as the worked example: no intercept, two identical inputs x<sub>1</sub> = x<sub>2</sub> = (1, 2, 3), target y = (1, 2, 3). Set λ = 3. Find the sum of the two ridge weights to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total effect of the pair of copies, rounded.</li>
+      <li><strong>Which idea applies.</strong> The inputs are identical, so the two weights are equal, say b each. Use the first row of (X<sup>T</sup>X + λI)β = X<sup>T</sup>y.</li>
+      <li><strong>Work it out.</strong> The first row is (14 + 3)b + 14b = 14. That gives 17b + 14b = 31b = 14, so b = 14/31. The sum is 2b = 28/31, which is about 0.9032, so 0.903.</li>
+      <li><strong>Check.</strong> With λ = 1 the sum was 28/29, about 0.966. A larger λ gives a smaller sum, which matches the shrinkage idea.</li>
+    </ol>
+    <p class="cx">Answer: 0.903</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Finding the penalty for a target weight (NAT)</h3>
+    <div class="statement"><p>A model has one centred input and no intercept. The data gives Σx² = 14 and Σxy = 21. Find the value of λ that makes the ridge weight exactly 1.0. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The λ that gives a specific ridge weight.</li>
+      <li><strong>Which idea applies.</strong> β<sub>ridge</sub> = Σxy/(Σx² + λ).</li>
+      <li><strong>Work it out.</strong> Set 21/(14 + λ) = 1. Multiply both sides by (14 + λ): 21 = 14 + λ. So λ = 7.</li>
+      <li><strong>Check.</strong> Put λ = 7 back: 21/(14 + 7) = 21/21 = 1. It works.</li>
+    </ol>
+    <p class="cx">Answer: 7</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+# Problem 1: ridge loss
+print("P1 loss =", 10 + F(1, 2) * (2 ** 2 + (-2) ** 2))
+
+# Problem 3: one-input shrinkage
+print("P3 weight =", F(30, 20 + 5))
+
+# Problem 6: identical inputs, lambda = 3
+b = F(14, 14 + 3 + 14)
+print("P6 sum of weights =", 2 * b, "=", round(float(2 * b), 3))
+
+# Problem 7: lambda giving weight 1
+print("P7 weight with lambda 7 =", F(21, 14 + 7))</code></pre>
+  <pre class="output">P1 loss = 14
+P3 weight = 6/5
+P6 sum of weights = 28/31 = 0.903
+P7 weight with lambda 7 = 1</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Ridge slope from sums (NAT, 2 marks)</h3>
+    <div class="statement"><p>A simple model has one input and no intercept, because both variables have been centred. The data give S<sub>xx</sub> = sum of x squared = 16 and S<sub>xy</sub> = sum of x times y = 24. A ridge regression adds a penalty lambda times beta squared to the least squares loss, with lambda = 4. The ridge slope has the closed form beta = S<sub>xy</sub> divided by (S<sub>xx</sub> plus lambda). Find the ridge slope. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The ridge slope for one input, not the ordinary least squares slope.</li>
+      <li><strong>Which idea applies.</strong> The penalty adds lambda to the denominator of the usual slope formula, so the slope shrinks toward zero.</li>
+      <li><strong>Work it out.</strong> The ordinary slope would be 24/16 = 3/2. The ridge denominator is 16 plus 4 = 20. So beta = 24/20 = 6/5 = 1.2.</li>
+      <li><strong>Check.</strong> The ridge slope 1.2 is smaller than the ordinary slope 1.5, as shrinkage predicts. The shrink factor is 16/20 = 0.8, and 1.5 times 0.8 = 1.2.</li>
+    </ol>
+    <p class="cx">Answer: 1.2 (6/5)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Which ridge facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A student studies ridge regression with a penalty lambda times the sum of squared coefficients. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) With lambda equal to 0, ridge regression gives the ordinary least squares solution.</p><p>(B) As lambda grows, ridge coefficients shrink toward zero but usually do not become exactly zero.</p><p>(C) Ridge regression sets some coefficients exactly to zero, so it also selects inputs.</p><p>(D) For lambda greater than 0, X<sup>T</sup>X plus lambda I is invertible even when X<sup>T</sup>X is singular.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four claims about ridge regression are true.</li>
+      <li><strong>Which idea applies.</strong> The ridge solution is (X<sup>T</sup>X plus lambda I) inverse times X<sup>T</sup>y. Adding lambda I to a singular matrix can make it invertible.</li>
+      <li><strong>Work it out.</strong> (A) is true, because lambda = 0 removes the penalty. (B) is true, because the penalty pulls coefficients toward zero smoothly. (C) is false, because exact zeros come from the lasso (L1) penalty, not the ridge (L2) penalty. (D) is true, because the determinant of X<sup>T</sup>X plus lambda I is positive for lambda greater than 0 when the matrix is positive semidefinite.</li>
+      <li><strong>Check.</strong> A small example confirms (D). The code below shows a singular matrix that becomes invertible after adding lambda I.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Option (C) is wrong because exact zeros are a feature of lasso, not ridge.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Two-input ridge solve (NAT, 2 marks)</h3>
+    <div class="statement"><p>A ridge regression has two centred inputs with X<sup>T</sup>X = [[5, 1], [1, 5]] and X<sup>T</sup>y = (12, 6). The penalty parameter is lambda = 1. The ridge coefficients solve (X<sup>T</sup>X plus lambda I) beta = X<sup>T</sup>y. Find the first ridge coefficient beta<sub>1</sub> to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first ridge coefficient only.</li>
+      <li><strong>Which idea applies.</strong> Add lambda to each diagonal entry, then solve a two by two system with the inverse formula.</li>
+      <li><strong>Work it out.</strong> The matrix becomes [[6, 1], [1, 6]]. Its determinant is 36 minus 1 = 35. Using the inverse formula, beta<sub>1</sub> = (6 times 12 minus 1 times 6)/35 = (72 minus 6)/35 = 66/35, which is about 1.886.</li>
+      <li><strong>Check.</strong> The second coefficient is (minus 12 plus 36)/35 = 24/35, about 0.686. Put both back into the first equation: 6 times 1.886 plus 0.686 = 12.002, which is 12 after rounding.</li>
+    </ol>
+    <p class="cx">Answer: 1.886 (beta<sub>1</sub> = 66/35)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Choosing lambda from a shrink factor (NAT, 2 marks)</h3>
+    <div class="statement"><p>A one-input model without an intercept has S<sub>xx</sub> = 12 and an ordinary least squares slope of 2.1. A ridge fit with penalty lambda produces a slope equal to exactly 75 percent of the ordinary slope. Find the ridge slope for this lambda, to three decimal places. The shrink factor for one input is S<sub>xx</sub> divided by (S<sub>xx</sub> plus lambda), so you need to find lambda first. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The ridge slope, which depends on a lambda we must find first.</li>
+      <li><strong>Which idea applies.</strong> The shrink factor equals 0.75. Solve for lambda, then multiply the ordinary slope by the factor.</li>
+      <li><strong>Work it out.</strong> 12/(12 plus lambda) = 3/4, so 12 plus lambda = 16 and lambda = 4. The ridge slope is 0.75 times 2.1 = 1.575.</li>
+      <li><strong>Check.</strong> With lambda = 4, the shrink factor is 12/16 = 0.75, so the ridge slope equals 0.75 times the ordinary slope, as required.</li>
+    </ol>
+    <p class="cx">Answer: 1.575 (lambda = 4)</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+# Exam-level 1: one-input ridge slope
+sxx, sxy, lam = F(16), F(24), F(4)
+print("E1 OLS slope =", sxy / sxx, " ridge slope =", sxy / (sxx + lam), " shrink factor =", sxx / (sxx + lam))
+
+# Exam-level 2: ridge facts, determinant check
+M = [[2, 2], [2, 2]]
+for lam2 in (0, 1):
+    a = M[0][0] + lam2
+    d = M[1][1] + lam2
+    print("E2 lambda =", lam2, " det(X^T X + lambda I) =", a * d - M[0][1] * M[1][0])
+
+# Exam-level 3: two-input ridge solve
+A = [[F(6), F(1)], [F(1), F(6)]]
+r = [F(12), F(6)]
+det = A[0][0] * A[1][1] - A[0][1] * A[1][0]
+c1 = (A[1][1] * r[0] - A[0][1] * r[1]) / det
+c2 = (A[0][0] * r[1] - A[1][0] * r[0]) / det
+print("E3 beta1 =", c1, "=", round(float(c1), 3), " beta2 =", c2, "=", round(float(c2), 3))
+
+# Exam-level 4: lambda from a shrink factor
+S = F(12)
+target = F(3, 4)
+lam3 = S / target - S
+ridge4 = F(21, 10) * target
+print("E4 lambda =", lam3, " ridge slope =", ridge4, "=", round(float(ridge4), 3))</code></pre>
+  <pre class="output">E1 OLS slope = 3/2  ridge slope = 6/5  shrink factor = 4/5
+E2 lambda = 0  det(X^T X + lambda I) = 0
+E2 lambda = 1  det(X^T X + lambda I) = 5
+E3 beta1 = 66/35 = 1.886  beta2 = 24/35 = 0.686
+E4 lambda = 4  ridge slope = 63/40 = 1.575</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>Overfitting</dt><dd>Fitting the training noise so closely that new data is predicted badly.</dd></div>
+    <div><dt>Ridge regression</dt><dd>Linear regression with an L2 penalty on the slope weights.</dd></div>
+    <div><dt>Ridge loss</dt><dd>Sum of squared errors plus λ times the sum of squared slope weights.</dd></div>
+    <div><dt>Lambda λ</dt><dd>The regularisation strength. Zero gives ordinary least squares.</dd></div>
+    <div><dt>Closed-form ridge solution</dt><dd>β = (X<sup>T</sup>X + λI)<sup>-1</sup>X<sup>T</sup>y.</dd></div>
+    <div><dt>Identity matrix I</dt><dd>Square matrix with 1s on the diagonal, used to shift X<sup>T</sup>X by λ.</dd></div>
+    <div><dt>Shrinkage</dt><dd>Pulling estimated weights toward zero.</dd></div>
+    <div><dt>Bias</dt><dd>Systematic error, how far the average estimate is from the truth.</dd></div>
+    <div><dt>Variance</dt><dd>How much the estimate changes from one training sample to another.</dd></div>
+    <div><dt>Bias-variance trade-off</dt><dd>Ridge adds some bias to cut variance, which can lower total error.</dd></div>
+    <div><dt>Cross-validation</dt><dd>Choosing λ by testing on held-out folds of the data.</dd></div>
+    <div><dt>Standardisation</dt><dd>Rescaling each input to mean 0 and standard deviation 1 before penalising.</dd></div>
+    <div><dt>L2 penalty</dt><dd>The sum of squared weights. Gives smooth shrinkage.</dd></div>
+    <div><dt>L1 penalty</dt><dd>The sum of absolute weights. Can give exact zeros, as in lasso.</dd></div>
+    <div><dt>Lasso</dt><dd>Linear regression with an L1 penalty, used to select inputs.</dd></div>
+    <div><dt>Intercept convention</dt><dd>The intercept is not penalised in ridge.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>Ridge adds λ times the sum of squared slope weights to the loss.</li>
+    <li>λ = 0 is ordinary least squares. Larger λ means smaller weights.</li>
+    <li>The closed form (X<sup>T</sup>X + λI)<sup>-1</sup>X<sup>T</sup>y works even when X<sup>T</sup>X is singular, for any λ &gt; 0.</li>
+    <li>Ridge trades a little bias for much lower variance.</li>
+    <li>Choose λ by cross-validation, never by training error.</li>
+    <li>Standardise the inputs before penalising them.</li>
+    <li>Lasso uses absolute values and can give exact zeros. Ridge does not.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 98?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 98 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-097.html"><small>Previous, topic 97</small>Multiple linear regression</a><a class="next" href="gate-099.html"><small>Next, topic 99</small>Logistic regression</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

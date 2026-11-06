@@ -1,0 +1,343 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 74: Binary heap (new)</title><meta name="description" content="A binary heap is a complete binary tree that always keeps its smallest (or largest) item at the top. It is stored in a plain array, and it powers priority queues. This quick recap covers the shape, the insert and delete steps, building a heap, and the trace questions GATE likes."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g74" data-key="g74" data-noun="topic" data-num="74" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Binary heap (new)</h1>
+<p class="lede">A binary heap is a complete binary tree that always keeps its smallest (or largest) item at the top. It is stored in a plain array, and it powers priority queues. This quick recap covers the shape, the insert and delete steps, building a heap, and the trace questions GATE likes.</p>
+<div class="station"><b>74</b><span>Unit 6 · Programming and data structures · Paper RA · Quick Recap</span></div>
+<ul class="topics"><li>Complete binary tree and array positions</li><li>Min-heap and max-heap rules</li><li>Insert with bubble-up</li><li>Delete with bubble-down</li><li>Building a heap from an array</li><li>Heap sort and priority queues</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a hospital emergency queue. The sickest patient must be seen first, whatever the order of arrival. A <strong>binary heap</strong> is a data structure built for exactly this job: it always gives you the most urgent item (the smallest value in a min-heap, or the largest in a max-heap) in one quick step. It does not keep everything sorted. It only guarantees that the top item is the winner, and that each parent beats its children.</p>
+  <p>Heaps appear in GATE questions about priority queues, heap sort and tree operations. Usually you must trace the array after a few inserts or deletes, so the goal of this page is to make those steps mechanical.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A heap is a complete binary tree that is stored in an array. Two rules hold: the tree shape is full from left to right, and each parent is better (smaller or larger) than its children.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Complete binary tree</dt><dd>A tree where every level is full except possibly the last, which fills from left to right. Precisely: no gaps are allowed.</dd></div>
+    <div><dt>Min-heap</dt><dd>A complete binary tree where each parent is smaller than or equal to its children. Precisely: the root is the minimum.</dd></div>
+    <div><dt>Max-heap</dt><dd>A complete binary tree where each parent is bigger than or equal to its children. Precisely: the root is the maximum.</dd></div>
+    <div><dt>Bubble-up (sift-up)</dt><dd>Moving a newly added item upward while it beats its parent. Precisely: used after insertion.</dd></div>
+    <div><dt>Bubble-down (sift-down, heapify)</dt><dd>Moving an item downward, swapping with its better child, until the heap rule holds. Precisely: used after deleting the root or building a heap.</dd></div>
+    <div><dt>Heapify</dt><dd>Fixing a whole array into a heap. Precisely: the bottom-up process that calls bubble-down on every non-leaf position, from the last one back to the root.</dd></div>
+    <div><dt>Priority queue</dt><dd>A collection where you always remove the highest-priority item. Precisely: an abstract data type with insert and extract-min (or extract-max) operations.</dd></div>
+    <div><dt>Heap sort</dt><dd>Sorting by building a max-heap and then repeatedly removing the root. Precisely: it runs in O(n log n) time and needs no extra array.</dd></div>
+    <div><dt>1-based index</dt><dd>Numbering array positions from 1 instead of 0. Precisely: this page and most GATE questions put the root at position 1.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Shape and array positions">
+  <h2>The shape and the array positions</h2>
+  <p>A heap has a strict shape. Fill the tree level by level, and within a level fill from left to right. The tree never has a gap. Because of this rule, you never need pointers. The array is the tree.</p>
+  <p>With 1-based positions, the root sits at position 1 and the children of position i are at positions 2i and 2i + 1. The parent of position i is at position floor(i / 2). Use these three formulas constantly.</p>
+  <div class="formula">parent(i) = floor(i / 2)</div>
+  <div class="formula">left child of i = 2i, right child of i = 2i + 1</div>
+  <p>Worked example. Take the array [-, 2, 4, 15, 10, 8] where position 0 is not used. The root is position 1 with value 2. Its children are positions 2 and 3, holding 4 and 15. The children of position 2 are positions 4 and 5, holding 10 and 8. Position 5 has parent floor(5/2) = 2, which holds 4. Check: 8 is in the subtree under 4, as the formula says.</p>
+  <p>The height of a heap with n nodes is floor(log<sub>2</sub> n). With 10 nodes, log<sub>2</sub> 10 is about 3.3, so the height is 3. Insert and delete both walk one path from the bottom to the top or from the top to the bottom, so each costs O(log n).</p>
+  <div class="note trap"><p><span class="t">Trap</span>A heap is not a BST. In a min-heap, the left child may be bigger than the right child, and the inorder walk does not give sorted output. Only the parent-child rule holds.</p></div>
+  <details class="check"><summary>What are the children of position 3 in a heap array?</summary><div class="ans"><p>Positions 6 and 7, because 2 x 3 = 6 and 2 x 3 + 1 = 7.</p></div></details>
+  <details class="check"><summary>Which position is the parent of position 9?</summary><div class="ans"><p>Position 4, because floor(9 / 2) = 4.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Insert and delete">
+  <h2>Insert with bubble-up and delete with bubble-down</h2>
+  <p><strong>Insert.</strong> Put the new value at the next free position at the bottom of the array. This keeps the shape complete. Then compare it with its parent. In a min-heap, if the new value is smaller, swap them and repeat from the parent's position. Stop when the parent is smaller or you reach the root.</p>
+  <p><strong>Delete the root (extract-min).</strong> The root is the answer, so remove it. To keep the shape complete, take the last item in the array and move it to the root. Then bubble it down: compare it with both children, swap it with the smaller child if that child is smaller than it, and repeat at the child's position. Stop when neither child is smaller.</p>
+  <p>Trace an insert sequence into an empty min-heap: insert 10, 4, 15, 2 and 8.</p>
+  <ul>
+    <li>Insert 10: array [10].</li>
+    <li>Insert 4 at position 2. Its parent is position 1 (value 10). 4 is smaller, so swap: [4, 10].</li>
+    <li>Insert 15 at position 3. Its parent is position 1 (value 4). 15 is bigger, so stop: [4, 10, 15].</li>
+    <li>Insert 2 at position 4. Its parent is position 2 (value 10). 2 is smaller, swap: [4, 2, 15, 10]. Now position 2 (value 2) has parent position 1 (value 4). 2 is smaller, swap: [2, 4, 15, 10].</li>
+    <li>Insert 8 at position 5. Its parent is position 2 (value 4). 8 is bigger, stop: [2, 4, 15, 10, 8].</li>
+  </ul>
+  <p>Now delete the root from [2, 4, 15, 10, 8]. The root 2 is returned. Move the last item, 8, to the root: [8, 4, 15, 10]. Compare 8 with its children 4 and 15. The smaller child is 4, and 4 is smaller than 8, so swap: [4, 8, 15, 10]. Position 2 now holds 8, whose child is 10. 8 is smaller than 10, so stop. Result: [4, 8, 15, 10].</p>
+  <p>The Python code below does exactly these steps. It uses 1-based positions, with index 0 unused.</p>
+  <pre class="code" data-lang="python"><code>def insert(heap, value):
+    heap.append(value)
+    i = len(heap) - 1
+    while i &gt; 1 and heap[i] &lt; heap[i // 2]:
+        heap[i], heap[i // 2] = heap[i // 2], heap[i]
+        i = i // 2
+
+def sift_down(heap, i, n):
+    while True:
+        smallest = i
+        left, right = 2 * i, 2 * i + 1
+        if left &lt;= n and heap[left] &lt; heap[smallest]:
+            smallest = left
+        if right &lt;= n and heap[right] &lt; heap[smallest]:
+            smallest = right
+        if smallest == i:
+            return
+        heap[i], heap[smallest] = heap[smallest], heap[i]
+        i = smallest
+
+def extract_min(heap):
+    root = heap[1]
+    last = heap.pop()
+    if len(heap) &gt; 1:
+        heap[1] = last
+        sift_down(heap, 1, len(heap) - 1)
+    return root
+
+h = [None]
+for x in [10, 4, 15, 2, 8]:
+    insert(h, x)
+print("after inserts:", h[1:])
+print("extracted:", extract_min(h))
+print("after extract:", h[1:])</code></pre>
+  <pre class="output">after inserts: [2, 4, 15, 10, 8]
+extracted: 2
+after extract: [4, 8, 15, 10]</pre>
+  <div class="note tip"><p><span class="t">Tip</span>For a max-heap, flip every comparison. Bubble-up swaps while the new item is bigger than its parent, and bubble-down picks the bigger child.</p></div>
+  <details class="check"><summary>In a min-heap, what is the root after inserting 6 into [1, 3, 2]?</summary><div class="ans"><p>The root stays 1. The new value 6 goes to position 4, its parent is 3, and 6 is bigger, so nothing moves.</p></div></details>
+  <details class="check"><summary>Why do we move the last item to the root instead of just removing the root?</summary><div class="ans"><p>Removing the root would leave a gap at the top, which breaks the complete-tree shape. Moving the last item fills the gap and keeps the shape complete.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Building a heap">
+  <h2>Building a heap from an array</h2>
+  <p>You can turn any array into a heap in one pass. Start at the last non-leaf position, which is floor(n / 2). Bubble each position down, moving from that position back to position 1. Leaves are already valid heaps of one item, so you skip them.</p>
+  <p>Example: build a min-heap from [9, 5, 6, 2, 3], so n = 5. Start at position 2 (value 5). Its children are 2 and 3 (positions 4 and 5). The smaller child is 2, so swap: [9, 2, 6, 5, 3]. Next, position 1 (value 9). Its children are 2 and 6. Swap with 2: [2, 9, 6, 5, 3]. The value 9 now sits at position 2 with children 5 and 3. Swap with 3: [2, 3, 6, 5, 9]. The final array is [2, 3, 6, 5, 9]. Every parent is smaller than its children, so it is a min-heap.</p>
+  <p>Building costs O(n) overall, which is faster than inserting the n values one by one (that costs O(n log n)). This difference is a common GATE option.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Building a heap from n items takes O(n) time. Inserting n items one at a time takes O(n log n). Both give a valid heap, but possibly different arrays.</p></div>
+  <details class="check"><summary>Which positions does heapify start from for an array of 7 values?</summary><div class="ans"><p>Position 3 (floor(7 / 2) = 3), then 2, then 1.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Heap sort and priority queues">
+  <h2>Heap sort and priority queues</h2>
+  <p>A priority queue is a line where the most important item leaves first. An operating system uses one to pick the next task, and a robot planner can use one to pick the cheapest next location. A binary heap is the usual way to build one. Insert is the enqueue operation, and extract-min is the dequeue operation.</p>
+  <p>Heap sort works in two phases. First build a max-heap from the array. Then repeatedly swap the root (the largest) with the last unsorted item, shrink the heap by one, and bubble down the new root. The sorted items collect at the end of the array. The whole process costs O(n log n) and needs no extra array.</p>
+  <p>Python has a standard heap in the <code>heapq</code> module. It implements a min-heap on a plain list, with index 0 as the root. The next program traces it with a few pushes and pops.</p>
+  <pre class="code" data-lang="python"><code>import heapq
+
+h = []
+for x in [7, 3, 8, 1]:
+    heapq.heappush(h, x)
+print(h)
+print(heapq.heappop(h))
+print(h)</code></pre>
+  <pre class="output">[1, 3, 8, 7]
+1
+[3, 7, 8]</pre>
+  <div class="note trap"><p><span class="t">Trap</span>heapq uses 0-based indexing, while the hand method on this page uses 1-based indexing. The shapes are the same, but the numbers in the positions differ. Always read the question's indexing.</p></div>
+  <details class="check"><summary>What does extract-min cost in a binary heap with n items?</summary><div class="ans"><p>O(log n), because the item moved to the root may bubble down the full height of the tree.</p></div></details>
+  <details class="check"><summary>What is the cost of finding the minimum in a min-heap?</summary><div class="ans"><p>O(1). The minimum is always at the root, position 1.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or fact</th><th>Meaning</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>parent(i) = floor(i / 2)</td><td>Position of the parent (1-based)</td><td>Tracing bubble-up</td></tr>
+      <tr><td>children of i: 2i and 2i + 1</td><td>Positions of the two children</td><td>Tracing bubble-down</td></tr>
+      <tr><td>height = floor(log<sub>2</sub> n)</td><td>Levels in a heap of n items</td><td>Cost questions</td></tr>
+      <tr><td>last non-leaf = floor(n / 2)</td><td>Start point for heapify</td><td>Building a heap</td></tr>
+      <tr><td>insert: O(log n)</td><td>Bubble-up path length</td><td>Complexity options</td></tr>
+      <tr><td>extract-min: O(log n)</td><td>Bubble-down path length</td><td>Complexity options</td></tr>
+      <tr><td>find-min: O(1)</td><td>Root holds the minimum</td><td>Complexity options</td></tr>
+      <tr><td>build heap: O(n)</td><td>Bottom-up heapify</td><td>Complexity options</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Is this array a min-heap?</h3>
+    <div class="statement"><p>Look at the 1-based array [1, 3, 2, 7, 4, 5, 6]. Is it a valid min-heap?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Whether every parent is smaller than or equal to its children.</li>
+      <li><strong>Which idea applies.</strong> Parent of position i is floor(i / 2). Children are 2i and 2i + 1.</li>
+      <li><strong>Work it out.</strong> Position 1 (1) has children 3 and 2, both bigger. Position 2 (3) has children 7 and 4, both bigger. Position 3 (2) has children 5 and 6, both bigger.</li>
+      <li><strong>Check.</strong> The root holds the smallest value, 1, as a min-heap should.</li>
+    </ol>
+    <p class="cx">Answer: yes, it is a valid min-heap. It is not a max-heap, because the root 1 is not the largest value.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Positions in a heap of ten items</h3>
+    <div class="statement"><p>A 1-based heap holds 10 items. What is the parent of position 9, what are the children of position 3, and what is the height of the heap?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One parent, two children and a height.</li>
+      <li><strong>Which idea applies.</strong> Parent is floor(i / 2). Children are 2i and 2i + 1. Height is floor(log<sub>2</sub> n).</li>
+      <li><strong>Work it out.</strong> Parent of 9 is floor(9 / 2) = 4. Children of 3 are 6 and 7. Height is floor(log<sub>2</sub> 10), which is 3 because 2<sup>3</sup> = 8 is at most 10 and 2<sup>4</sup> = 16 is more than 10.</li>
+      <li><strong>Check.</strong> Position 10 is the last one, and its parent is 5, which is consistent with the formula.</li>
+    </ol>
+    <p class="cx">Answer: parent of 9 is 4, children of 3 are 6 and 7, height is 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which heap statements are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) Inserting into a binary heap of n items takes O(log n) time in the worst case.</li><li>(B) Extract-min in a binary heap takes O(1) time.</li><li>(C) Building a heap from n values with heapify takes O(n) time.</li><li>(D) The root of a max-heap is its smallest element.</li><li>(E) A binary heap is always a binary search tree.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims are true.</li>
+      <li><strong>Which idea applies.</strong> Insert and extract both walk one path, so they cost O(log n). Heapify is O(n). A max-heap root is its largest value.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, extract-min costs O(log n) because of bubble-down. (C) True. (D) False, the root is the largest. (E) False, a heap only keeps the parent-child rule.</li>
+      <li><strong>Check.</strong> Ask whether any counterexample exists. For (E), the array [1, 3, 2] is a min-heap, yet its left child 3 is bigger than its right child 2, which a BST would not allow.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>What does this heapq program print?</h3>
+    <div class="statement"><p>Trace the program. The heapq module keeps a list in heap order after every push and pop.</p>
+<pre class="code" data-lang="python"><code>import heapq
+
+h = []
+for x in [5, 9, 2, 6]:
+    heapq.heappush(h, x)
+print(h)
+print(heapq.heappop(h), heapq.heappop(h))
+print(h)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Three printed lines: the list after pushes, two popped values, and the list at the end.</li>
+      <li><strong>Which idea applies.</strong> A push adds to the end and bubbles up. A pop returns the root and refills it.</li>
+      <li><strong>Work it out.</strong> Push 5: [5]. Push 9: [5, 9]. Push 2: [2, 9, 5]. Push 6 goes to index 3, its parent (index 1) is 9, so swap: [2, 6, 5, 9]. The parent of index 1 is 2, which is smaller, so stop. Pop returns 2, then the remaining heap pops 5. The list left is [6, 9].</li>
+      <li><strong>Check.</strong> The popped values come out in increasing order (2, then 5), which is what a min-heap must do. Check the final list is a heap: 6 is smaller than 9.</li>
+    </ol>
+    <p class="cx">Answer: the lines are [2, 6, 5, 9], then "2 5", then [6, 9].</p>
+    <pre class="code" data-lang="python"><code>import heapq
+
+h = []
+for x in [5, 9, 2, 6]:
+    heapq.heappush(h, x)
+print(h)
+print(heapq.heappop(h), heapq.heappop(h))
+print(h)</code></pre>
+    <pre class="output">[2, 6, 5, 9]
+2 5
+[6, 9]</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Root after two extractions</h3>
+    <div class="statement"><p>Start with an empty min-heap. Insert 12, 5, 9, 3 and 7, in that order. Then extract-min twice. What value is at the root now?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The root after two removals.</li>
+      <li><strong>Which idea applies.</strong> Extract-min removes the root, which is the smallest value still in the heap.</li>
+      <li><strong>Work it out.</strong> The five values in sorted order are 3, 5, 7, 9, 12. The first extract removes 3 and the second removes 5. The next smallest value, 7, is then at the root. You can also trace it: after the inserts the array is [3, 5, 9, 12, 7]. Extracting 3 moves 7 to the root and gives [5, 7, 9, 12]. Extracting 5 moves 12 to the root and sifts it down to give [7, 12, 9].</li>
+      <li><strong>Check.</strong> Run the check below to confirm the root is 7.</li>
+    </ol>
+    <p class="cx">Answer: 7.</p>
+    <pre class="code" data-lang="python"><code>import heapq
+
+h = []
+for x in [12, 5, 9, 3, 7]:
+    heapq.heappush(h, x)
+heapq.heappop(h)
+heapq.heappop(h)
+print(h[0])</code></pre>
+    <pre class="output">7</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Insert into a max-heap</h3>
+    <div class="statement"><p>The 1-based max-heap [20, 15, 18, 9, 10, 4, 6] is given. Insert 25. Show the resulting array and count how many swaps the bubble-up makes.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The new array and the number of swaps.</li>
+      <li><strong>Which idea applies.</strong> Insert at position 8. Compare with the parent floor(8 / 2) = 4 and swap while the new value is bigger.</li>
+      <li><strong>Work it out.</strong> Position 8 has parent 4 (value 9). 25 is bigger, swap (1). Position 4 has parent 2 (value 15). 25 is bigger, swap (2). Position 2 has parent 1 (value 20). 25 is bigger, swap (3). Position 1 is the root, so stop. The array is [25, 20, 18, 15, 10, 4, 6, 9].</li>
+      <li><strong>Check.</strong> Each parent is still bigger than its children: 25 beats 20 and 18, 20 beats 15 and 10, 18 beats 4 and 6, and 15 beats 9.</li>
+    </ol>
+    <p class="cx">Answer: [25, 20, 18, 15, 10, 4, 6, 9] with 3 swaps.</p>
+    <pre class="code" data-lang="python"><code>import heapq
+
+h = [-20, -15, -18, -9, -10, -4, -6]
+heapq.heappush(h, -25)
+print([-x for x in h])</code></pre>
+    <pre class="output">[25, 20, 18, 15, 10, 4, 6, 9]</pre>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Build heap (NAT, 2 marks)</h3>
+    <div class="statement"><p>Bottom-up build-max-heap is applied to [3, 9, 2, 1, 4, 5]. What is the resulting array?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The array after heapify from the last internal node up.</li>
+      <li><strong>Which idea applies.</strong> Sift down nodes at indices 2, 1, 0 in that order.</li>
+      <li><strong>Work it out.</strong> Index 2 (value 2) swaps with child 5: [3, 9, 5, 1, 4, 2]. Index 1 (9) is fine. Index 0 (3) swaps with 9, then with 4: [9, 4, 5, 1, 3, 2].</li>
+      <li><strong>Check.</strong> The code runs it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>a = [3, 9, 2, 1, 4, 5]; n = len(a)
+def down(i):
+    while True:
+        l, r, m = 2 * i + 1, 2 * i + 2, i
+        if l &lt; n and a[l] &gt; a[m]: m = l
+        if r &lt; n and a[r] &gt; a[m]: m = r
+        if m == i: return
+        a[i], a[m] = a[m], a[i]; i = m
+for i in range(n // 2 - 1, -1, -1): down(i)
+print(a)
+</code></pre>
+    <pre class="output">[9, 4, 5, 1, 3, 2]</pre>
+    <p class="cx">Answer: [9, 4, 5, 1, 3, 2].</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Heap positions (MSQ, 2 marks)</h3>
+    <div class="statement"><p>In a max-heap of 15 distinct keys stored as an array, which are TRUE? (A) The maximum is at index 0. (B) The minimum is a leaf. (C) The second largest is a child of the root. (D) The third largest must be a child of the root.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Where large and small keys can sit.</li>
+      <li><strong>Which idea applies.</strong> Each key is larger than everything below it.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) A node with a child is larger than that child. True. (C) Its parent must be larger, and only the root is. True. (D) It may be a child of the second largest. False.</li>
+      <li><strong>Check.</strong> [10, 9, 1, 8, ...] puts 8 under 9.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Heap sort cost (NAT, 1 mark)</h3>
+    <div class="statement"><p>A binary heap has 1023 nodes and is complete. What is its height (edges from root to a deepest leaf)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The height of a full binary tree with 1023 nodes.</li>
+      <li><strong>Which idea applies.</strong> A perfect tree of height h has 2<sup>h+1</sup> − 1 nodes.</li>
+      <li><strong>Work it out.</strong> 2<sup>10</sup> − 1 = 1023, so h = 9.</li>
+      <li><strong>Check.</strong> Each extract-max costs at most 9 levels of sift down.</li>
+    </ol>
+    <p class="cx">Answer: 9.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Complete binary tree</dt><dd>Full at every level except possibly the last, which fills left to right.</dd></div>
+    <div><dt>Min-heap</dt><dd>Each parent is at most its children. The root is the minimum.</dd></div>
+    <div><dt>Max-heap</dt><dd>Each parent is at least its children. The root is the maximum.</dd></div>
+    <div><dt>Parent formula</dt><dd>With 1-based positions, the parent of i is floor(i / 2).</dd></div>
+    <div><dt>Child formula</dt><dd>The children of i are 2i and 2i + 1.</dd></div>
+    <div><dt>Bubble-up</dt><dd>After insert, move the new item up while it beats its parent.</dd></div>
+    <div><dt>Bubble-down</dt><dd>After removing the root, move the last item down, swapping with the better child.</dd></div>
+    <div><dt>Heapify</dt><dd>Turn an array into a heap by bubbling down from floor(n / 2) back to 1.</dd></div>
+    <div><dt>Priority queue</dt><dd>A queue that always gives out the highest-priority item.</dd></div>
+    <div><dt>Heap sort</dt><dd>Build a max-heap, then repeatedly move the root to the end.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A heap is an array that represents a complete binary tree.</li>
+    <li>Insert and extract-min cost O(log n). Find-min costs O(1).</li>
+    <li>Building a heap from n values costs O(n).</li>
+    <li>Always check whether the question uses 1-based or 0-based positions.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 74?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 74 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-073.html"><small>Previous, topic 73</small>Trees &amp; Binary Search Trees</a><a class="next" href="gate-075.html"><small>Next, topic 75</small>Graph theory intro + BFS/DFS traversals</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

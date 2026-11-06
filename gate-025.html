@@ -1,0 +1,477 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 25: Maxima & minima (multivariable)</title><meta name="description" content="Maxima and minima of a function of two variables find the highest points, the lowest points and the tricky saddle points of a surface. This is the two-variable version of finding the top of a curve, and it is used throughout GATE RA and DA for design, learning and control problems."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g25" data-key="g25" data-noun="topic" data-num="25" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Maxima &amp; minima (multivariable)</h1>
+<p class="lede">Maxima and minima of a function of two variables find the highest points, the lowest points and the tricky saddle points of a surface. This is the two-variable version of finding the top of a curve, and it is used throughout GATE RA and DA for design, learning and control problems.</p>
+<div class="station"><b>25</b><span>Unit 2 · Calculus and optimisation · Paper RA · New concept</span></div>
+<ul class="topics"><li>Critical points from partial derivatives</li><li>The second derivative test with the Hessian</li><li>Constrained optimization with Lagrange multipliers</li><li>A step-by-step routine for GATE-style problems</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you are walking over a range of hills in the fog. You want to find the highest point you can reach, or the lowest valley. A function of two variables, written <code>f(x,y)</code>, is like that landscape. The first input <code>x</code> tells you how far east you are, the second input <code>y</code> tells you how far north you are, and the output <code>f(x,y)</code> is the height of the ground at that spot.</p>
+  <p>How do you find the top of a hill? You stop where the ground is flat. At the top of a hill, if you take one small step east or one small step north, the ground does not go up. The slope is zero in both directions. Mathematicians write that idea with partial derivatives: the slope in the east direction is zero, and the slope in the north direction is zero.</p>
+  <p>Flat ground does not always mean a hill top, though. It can also be the bottom of a valley, or a <em>saddle</em>. A horse saddle is flat in the middle, yet it curves up on two sides and down on the other two sides. A point like that is a saddle point. The second derivative test is the tool that tells the three cases apart.</p>
+  <p>Many real problems also have a rule that must be obeyed. For example, a robot arm may have to stay on a fixed track, or a company may have a fixed budget. This is <em>constrained optimization</em>, and the method of Lagrange multipliers solves it.</p>
+  <p>Why does this matter for GATE? Questions in RA and DA often ask you to find critical points, classify them as maximum, minimum or saddle, or find the best value of a function under a constraint. Machine learning training is also a search for the minimum of a loss function that depends on many variables. The same ideas, scaled up, sit under that search.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A critical point is a place where the surface is flat. The second derivative test then tells you whether it is a hill top, a valley bottom, or a saddle.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Function of two variables</dt><dd>A rule that takes two numbers <code>x</code> and <code>y</code> and gives one number <code>f(x,y)</code>. Think of it as the height of a landscape above the point (x, y).</dd></div>
+    <div><dt>Partial derivative</dt><dd>The slope of the function in one direction only. <code>∂f/∂x</code> (also written <code>f<sub>x</sub></code>) differentiates with respect to <code>x</code> and treats <code>y</code> as a fixed number. <code>∂f/∂y</code> (also written <code>f<sub>y</sub></code>) does the same for <code>y</code>.</dd></div>
+    <div><dt>Critical point</dt><dd>A point (x<sub>0</sub>, y<sub>0</sub>) where both partial derivatives are zero. Also called a stationary point. Plain meaning: the ground is flat there.</dd></div>
+    <div><dt>Local maximum</dt><dd>A point where the function is higher than at all nearby points. It is a hill top in its neighbourhood, but not necessarily the highest point overall.</dd></div>
+    <div><dt>Local minimum</dt><dd>A point where the function is lower than at all nearby points. It is a valley bottom in its neighbourhood.</dd></div>
+    <div><dt>Saddle point</dt><dd>A critical point that is a maximum in one direction and a minimum in another direction. It is neither a local maximum nor a local minimum.</dd></div>
+    <div><dt>Second partial derivatives</dt><dd><code>f<sub>xx</sub></code> is the derivative of <code>f<sub>x</sub></code> with respect to <code>x</code>. <code>f<sub>yy</sub></code> is the derivative of <code>f<sub>y</sub></code> with respect to <code>y</code>. <code>f<sub>xy</sub></code> is the derivative of <code>f<sub>x</sub></code> with respect to <code>y</code>.</dd></div>
+    <div><dt>Hessian matrix</dt><dd>A square grid of second partial derivatives. For two variables it is the 2 by 2 matrix with rows (f<sub>xx</sub>, f<sub>xy</sub>) and (f<sub>xy</sub>, f<sub>yy</sub>).</dd></div>
+    <div><dt>Discriminant D</dt><dd>The number <code>D = f<sub>xx</sub> f<sub>yy</sub> - f<sub>xy</sub><sup>2</sup></code>, which is the determinant of the Hessian. Its sign decides the type of critical point.</dd></div>
+    <div><dt>Gradient</dt><dd>The vector of the two first partial derivatives, written <code>∇f = (f<sub>x</sub>, f<sub>y</sub>)</code>. It points in the direction in which the function rises fastest.</dd></div>
+    <div><dt>Constraint</dt><dd>A rule the input must obey, usually written as an equation <code>g(x,y) = c</code>. Plain meaning: you may only walk along a fence, not anywhere on the hill.</dd></div>
+    <div><dt>Objective function</dt><dd>The function you want to make as large or as small as possible, here <code>f(x,y)</code>.</dd></div>
+    <div><dt>Lagrange multiplier</dt><dd>A number, usually written <code>λ</code> (lambda), that links the two gradients at a constrained optimum through <code>∇f = λ∇g</code>.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Critical points">
+  <h2>Step 1: Find the critical points</h2>
+  <h3>Partial derivatives in plain words</h3>
+  <p>A partial derivative is an ordinary derivative with one rule attached. You pretend that all the other variables are fixed numbers, then differentiate as usual. Suppose you walk along a line where <code>y</code> never changes. You only care how the height changes as <code>x</code> changes. That is <code>∂f/∂x</code>.</p>
+  <p>Take the function <code>f(x,y) = x<sup>2</sup>y + 3y</code>. To get <code>f<sub>x</sub></code>, treat <code>y</code> as a constant. The term <code>x<sup>2</sup>y</code> behaves like <code>5x<sup>2</sup></code> if <code>y</code> happened to be 5, so its derivative with respect to <code>x</code> is <code>2xy</code>. The term <code>3y</code> has no <code>x</code> in it, so it is a constant with respect to <code>x</code> and its derivative is 0. So:</p>
+  <div class="formula">f<sub>x</sub> = ∂f/∂x = 2xy + 0 = 2xy</div>
+  <p>To get <code>f<sub>y</sub></code>, treat <code>x</code> as a constant. The term <code>x<sup>2</sup>y</code> is <code>x<sup>2</sup></code> times <code>y</code>, so its derivative with respect to <code>y</code> is <code>x<sup>2</sup></code>. The term <code>3y</code> gives 3. So:</p>
+  <div class="formula">f<sub>y</sub> = ∂f/∂y = x<sup>2</sup> + 3</div>
+
+  <h3>The rule for a critical point</h3>
+  <p>A point is critical when the surface is flat in both directions at once. That means two equations must hold together:</p>
+  <div class="formula">f<sub>x</sub>(x,y) = 0 and f<sub>y</sub>(x,y) = 0</div>
+  <p>Here <code>f<sub>x</sub></code> is the slope in the east-west direction and <code>f<sub>y</sub></code> is the slope in the north-south direction. You must solve both equations at the same time. Each one alone can have solutions that are not critical points of the whole surface.</p>
+
+  <h3>Worked example: every step</h3>
+  <p>Let <code>f(x,y) = x<sup>2</sup> + y<sup>2</sup> - 2x - 4y + 5</code>. Find all critical points and the value of <code>f</code> at each one.</p>
+  <ol>
+    <li><strong>Write the first partial derivative.</strong> Treat <code>y</code> as constant. The term <code>x<sup>2</sup></code> gives <code>2x</code>. The term <code>-2x</code> gives <code>-2</code>. The terms <code>y<sup>2</sup></code>, <code>-4y</code> and <code>5</code> have no <code>x</code>, so they give 0. Therefore <code>f<sub>x</sub> = 2x - 2</code>.</li>
+    <li><strong>Write the second partial derivative.</strong> Treat <code>x</code> as constant. The term <code>y<sup>2</sup></code> gives <code>2y</code>. The term <code>-4y</code> gives <code>-4</code>. Therefore <code>f<sub>y</sub> = 2y - 4</code>.</li>
+    <li><strong>Set the first one to zero.</strong> 2x - 2 = 0, so 2x = 2, so x = 1.</li>
+    <li><strong>Set the second one to zero.</strong> 2y - 4 = 0, so 2y = 4, so y = 2.</li>
+    <li><strong>Read off the critical point.</strong> The only critical point is (1, 2).</li>
+    <li><strong>Find the height there.</strong> f(1, 2) = 1<sup>2</sup> + 2<sup>2</sup> - 2(1) - 4(2) + 5 = 1 + 4 - 2 - 8 + 5 = 0.</li>
+  </ol>
+  <p>Later you will see that (1, 2) is a valley bottom, so the lowest value of this function is 0.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often solve only one equation and stop. Both <code>f<sub>x</sub> = 0</code> and <code>f<sub>y</sub> = 0</code> must hold. Another common slip is to forget to put the solution back into <code>f</code> to get the height, which is often the number the question asks for.</p></div>
+
+  <details class="check"><summary>Question: Why do we set both partial derivatives to zero, and not just one?</summary><div class="ans"><p>A critical point needs the surface to be flat in every direction. The slope east (<code>f<sub>x</sub></code>) and the slope north (<code>f<sub>y</sub></code>) must both vanish. If only one is zero, the surface still tilts in the other direction, so the point is not a peak or a valley.</p></div></details>
+  <details class="check"><summary>Question: For f = x<sup>2</sup> + 3y<sup>2</sup>, what is the critical point?</summary><div class="ans"><p><code>f<sub>x</sub> = 2x</code> and <code>f<sub>y</sub> = 6y</code>. Both are zero only when x = 0 and y = 0. So the critical point is (0, 0), and the height there is 0.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Second derivative test">
+  <h2>Step 2: Classify each critical point with the Hessian</h2>
+  <h3>Why we need a second test</h3>
+  <p>Flat ground can be a peak, a bowl, or a saddle. The first derivatives cannot tell them apart, because they are all zero there. The second derivatives describe how the ground curves. A bowl curves up in every direction. A peak curves down in every direction. A saddle curves up in one direction and down in another.</p>
+
+  <h3>The Hessian and the discriminant</h3>
+  <p>Collect the three second partial derivatives into the Hessian matrix. Then compute the discriminant <code>D</code>, which is the determinant of that matrix:</p>
+  <div class="formula">H = [ f<sub>xx</sub>  f<sub>xy</sub> ]      D = f<sub>xx</sub> · f<sub>yy</sub> - f<sub>xy</sub><sup>2</sup>
+    [ f<sub>xy</sub>  f<sub>yy</sub> ]</div>
+  <p>For the smooth functions used in GATE, <code>f<sub>xy</sub></code> equals <code>f<sub>yx</sub></code>, so you only need to compute one of them. Each second derivative is evaluated at the critical point you are testing.</p>
+
+  <h3>The classification table</h3>
+  <p>Read the sign of <code>D</code> first. If <code>D</code> is positive, then read the sign of <code>f<sub>xx</sub></code> to decide between a maximum and a minimum.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Condition at the critical point</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>D &gt; 0</code> and <code>f<sub>xx</sub> &gt; 0</code></td><td>Local minimum (valley bottom)</td></tr>
+      <tr><td><code>D &gt; 0</code> and <code>f<sub>xx</sub> &lt; 0</code></td><td>Local maximum (hill top)</td></tr>
+      <tr><td><code>D &lt; 0</code></td><td>Saddle point, whatever the signs of the second derivatives</td></tr>
+      <tr><td><code>D = 0</code></td><td>The test is inconclusive. You need a closer look.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Why does this table work? When <code>D &gt; 0</code>, the two directions of curvature have the same sign. Both point up (valley) or both point down (hill). The sign of <code>f<sub>xx</sub></code> tells you which. When <code>D &lt; 0</code>, the curvatures have opposite signs, so the surface goes up in one direction and down in another.</p>
+
+  <h3>Worked example: a valley</h3>
+  <p>Use the function from Step 1, <code>f = x<sup>2</sup> + y<sup>2</sup> - 2x - 4y + 5</code>, with critical point (1, 2).</p>
+  <ol>
+    <li><strong>Second derivatives.</strong> <code>f<sub>xx</sub></code> is the derivative of <code>2x - 2</code> with respect to x, which is 2. <code>f<sub>yy</sub></code> is the derivative of <code>2y - 4</code> with respect to y, which is 2. <code>f<sub>xy</sub></code> is the derivative of <code>2x - 2</code> with respect to y, which is 0.</li>
+    <li><strong>Compute D.</strong> D = (2)(2) - (0)<sup>2</sup> = 4.</li>
+    <li><strong>Read the table.</strong> D is greater than 0, so the point is a maximum or a minimum. f<sub>xx</sub> = 2 is greater than 0, so it is a minimum.</li>
+    <li><strong>Conclusion.</strong> (1, 2) is a local minimum with value 0.</li>
+  </ol>
+
+  <h3>Worked example: a saddle</h3>
+  <p>Let <code>f(x,y) = x<sup>2</sup> - y<sup>2</sup></code>.</p>
+  <ol>
+    <li><strong>First derivatives.</strong> f<sub>x</sub> = 2x and f<sub>y</sub> = -2y. Setting both to zero gives (0, 0).</li>
+    <li><strong>Second derivatives.</strong> f<sub>xx</sub> = 2, f<sub>yy</sub> = -2, f<sub>xy</sub> = 0.</li>
+    <li><strong>Compute D.</strong> D = (2)(-2) - 0<sup>2</sup> = -4.</li>
+    <li><strong>Conclusion.</strong> D is negative, so (0, 0) is a saddle point. Walking along the x-axis the function rises, and walking along the y-axis it falls.</li>
+  </ol>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>A quick way to answer "is this a saddle?" is to compute only D. If D is negative, the answer is yes, and you do not need the sign of f<sub>xx</sub> at all.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>When D = 0 the test says nothing. Do not declare the point a maximum or a minimum. Examine the function directly, for example along a line through the point, or compare its values at nearby points.</p></div>
+
+  <details class="check"><summary>Question: At a critical point f<sub>xx</sub> = 4, f<sub>yy</sub> = 1 and f<sub>xy</sub> = 3. What is it?</summary><div class="ans"><p>D = (4)(1) - 3<sup>2</sup> = 4 - 9 = -5. D is negative, so it is a saddle point.</p></div></details>
+  <details class="check"><summary>Question: At a critical point f<sub>xx</sub> = -2, f<sub>yy</sub> = -2 and f<sub>xy</sub> = 0. What is it?</summary><div class="ans"><p>D = (-2)(-2) - 0 = 4. D is positive and f<sub>xx</sub> = -2 is negative, so it is a local maximum.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Lagrange multipliers">
+  <h2>Step 3: Optimize under a constraint</h2>
+  <h3>Why the usual test does not work here</h3>
+  <p>Suppose a farmer has 10 metres of fence and wants the largest rectangular pen. The area depends on two lengths, <code>x</code> and <code>y</code>, but they are not free. Only pairs with <code>x + y = 10</code> are allowed. You are not looking for the top of the whole hill, only the top of the hill along the fence. Finding critical points of <code>f</code> alone would ignore the fence.</p>
+
+  <h3>The key geometric idea</h3>
+  <p>Picture the fence as a path on the landscape. Imagine the contour lines of <code>f</code>, which are lines of equal height. At the highest point you can reach along the fence, the fence just touches a contour line without crossing it. At a touching point the two curves share the same tangent direction, so their normal directions match. The normal direction of a curve is given by its gradient. So the two gradients point the same way:</p>
+  <div class="formula">∇f = λ ∇g and g(x,y) = c</div>
+  <p>Here <code>g(x,y) = c</code> is the constraint, <code>∇g</code> is the gradient of the constraint function, and <code>λ</code> is the Lagrange multiplier, a single number that scales one gradient into the other. Written in components, the first equation is two equations:</p>
+  <div class="formula">f<sub>x</sub> = λ g<sub>x</sub>    and    f<sub>y</sub> = λ g<sub>y</sub>    together with    g(x,y) = c</div>
+  <p>That is three equations in three unknowns <code>x</code>, <code>y</code> and <code>λ</code>. Solve them and you get the candidate points.</p>
+
+  <h3>Worked example: the fence problem</h3>
+  <p>Maximize <code>f(x,y) = xy</code> (the area of a rectangle with sides x and y) subject to <code>x + y = 10</code>.</p>
+  <ol>
+    <li><strong>Name the pieces.</strong> f = xy, so f<sub>x</sub> = y and f<sub>y</sub> = x. The constraint function is g(x,y) = x + y, so g<sub>x</sub> = 1 and g<sub>y</sub> = 1. The constraint value is c = 10.</li>
+    <li><strong>Write the Lagrange equations.</strong> y = λ(1) and x = λ(1). So y = λ and x = λ.</li>
+    <li><strong>Notice the symmetry.</strong> Since x = λ and y = λ, we get x = y.</li>
+    <li><strong>Use the constraint.</strong> x + y = 10. With y = x, this is x + x = 10, so 2x = 10, so x = 5. Then y = 5 too.</li>
+    <li><strong>Compute the objective.</strong> f(5, 5) = 5 × 5 = 25.</li>
+    <li><strong>Check against other choices.</strong> x = 4 gives y = 6 and area 24. x = 6 gives area 24. So 25 is the largest. The best fence is a square.</li>
+  </ol>
+
+  <h3>Worked example: a minimum with a constraint</h3>
+  <p>Minimize <code>f(x,y) = x<sup>2</sup> + y<sup>2</sup></code> (the squared distance from the origin) subject to <code>x + y = 1</code>.</p>
+  <ol>
+    <li><strong>Gradients.</strong> f<sub>x</sub> = 2x and f<sub>y</sub> = 2y. For the constraint g = x + y, g<sub>x</sub> = 1 and g<sub>y</sub> = 1.</li>
+    <li><strong>Lagrange equations.</strong> 2x = λ and 2y = λ. So x = y.</li>
+    <li><strong>Constraint.</strong> x + y = 1 with x = y gives x = y = 1/2.</li>
+    <li><strong>Value.</strong> f(1/2, 1/2) = 1/4 + 1/4 = 1/2.</li>
+    <li><strong>Check.</strong> f(1, 0) = 1 and f(0, 1) = 1. Both are larger than 1/2, so the constrained minimum is 1/2.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>The multiplier <code>λ</code> is not a maximum value. It tells you roughly how fast the best value would change if the constraint constant <code>c</code> were nudged. You rarely need its meaning for a GATE numerical, but you must solve for it to find the point.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Forgetting the constraint is the most common error. The three Lagrange equations include <code>g(x,y) = c</code>. If you solve only the first two, you get a family of points, not the answer. Always write the constraint as one of your equations.</p></div>
+
+  <details class="check"><summary>Question: Maximize xy subject to x + 2y = 8. Which equations do you get?</summary><div class="ans"><p>f<sub>x</sub> = y and f<sub>y</sub> = x. The constraint has g<sub>x</sub> = 1 and g<sub>y</sub> = 2. So y = λ and x = 2λ, which gives x = 2y. Put it in the constraint: 2y + 2y = 8, so y = 2 and x = 4. The maximum is xy = 8.</p></div></details>
+  <details class="check"><summary>Question: Why must the two gradients be parallel at the optimum?</summary><div class="ans"><p>If they were not parallel, you could move a little along the constraint and still increase f. At the optimum the movement along the constraint cannot change f at all, which forces ∇f to point in the same direction as ∇g.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="A routine for GATE problems">
+  <h2>Step 4: A routine you can follow every time</h2>
+  <p>Most GATE numericals on this topic follow the same five steps. Write them on scrap paper, then apply them in order.</p>
+  <ol>
+    <li><strong>Is there a constraint?</strong> If not, go to step 2. If yes, write the Lagrange equations from Step 3 and solve them together with the constraint.</li>
+    <li><strong>Find the critical points</strong> by setting the partial derivatives to zero, as in Step 1.</li>
+    <li><strong>Compute the second derivatives</strong> and the discriminant D at each critical point (for unconstrained problems).</li>
+    <li><strong>Classify</strong> each point with the table in Step 2.</li>
+    <li><strong>Evaluate f</strong> at each candidate, and compare the values if the question asks for the largest or smallest value.</li>
+  </ol>
+  <p>Let us test the routine on a function with three critical points. Let <code>f(x,y) = x<sup>3</sup> + y<sup>3</sup> - 3xy</code>. The Python check below repeats the hand work and confirms the critical points, which is a good habit when you practise.</p>
+
+  <pre class="code" data-lang="python"><code># f(x,y) = x^3 + y^3 - 3xy   (Python uses ** for powers)
+def f(x, y):
+    return x**3 + y**3 - 3*x*y
+
+# Critical points by hand: f_x = 3x^2 - 3y = 0 and f_y = 3y^2 - 3x = 0
+# gives y = x^2 and x = y^2, so x = x^4, which means x = 0 or x = 1.
+# Candidates: (0, 0) and (1, 1).
+for (x0, y0) in [(0, 0), (1, 1)]:
+    fxx = 6*x0
+    fyy = 6*y0
+    fxy = -3
+    D = fxx*fyy - fxy**2
+    print((x0, y0), "D =", D, "f =", f(x0, y0))
+
+# Check the hand answer: both first derivatives should be zero
+for (x0, y0) in [(0, 0), (1, 1)]:
+    print((x0, y0), "f_x =", 3*x0**2 - 3*y0, "f_y =", 3*y0**2 - 3*x0)</code></pre>
+  <pre class="output">(0, 0) D = -9 f = 0
+(1, 1) D = 27 f = -1
+(0, 0) f_x = 0 f_y = 0
+(1, 1) f_x = 0 f_y = 0</pre>
+
+  <p>The output says that (0, 0) has D = -9, so it is a saddle point. The point (1, 1) has D = 27 and <code>f<sub>xx</sub> = 6</code>, which is positive, so it is a local minimum with value -1. The function has no local maximum.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>When the critical point equations are not simple, substitute one into the other, as we did with <code>y = x<sup>2</sup></code> and <code>x = y<sup>2</sup></code>. Write each substitution as its own line so that you can check it later.</p></div>
+
+  <details class="check"><summary>Question: Why do we sometimes get a point that is neither a maximum nor a minimum even though f<sub>x</sub> = f<sub>y</sub> = 0?</summary><div class="ans"><p>That point is a saddle. The first derivatives are zero, but the surface curves up in one direction and down in another. The second derivative test, with D negative, reveals it.</p></div></details>
+  <details class="check"><summary>Question: Is a local minimum always the smallest value of the function?</summary><div class="ans"><p>No. A local minimum is only the lowest point in its neighbourhood. Another valley elsewhere on the surface can be lower. To find the global answer you must compare all the candidates, including values at boundaries, if the problem has them.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>f<sub>x</sub> = ∂f/∂x</td><td>Slope in the x direction, y held fixed</td><td>First step for any critical point</td></tr>
+      <tr><td>f<sub>x</sub> = 0 and f<sub>y</sub> = 0</td><td>The surface is flat in both directions</td><td>To find critical points</td></tr>
+      <tr><td>f<sub>xx</sub>, f<sub>yy</sub>, f<sub>xy</sub></td><td>Second partial derivatives (curvature)</td><td>To classify a critical point</td></tr>
+      <tr><td>D = f<sub>xx</sub> f<sub>yy</sub> - f<sub>xy</sub><sup>2</sup></td><td>Determinant of the Hessian</td><td>D &gt; 0 gives max or min, D &lt; 0 gives saddle</td></tr>
+      <tr><td>D &gt; 0 and f<sub>xx</sub> &gt; 0</td><td>Local minimum</td><td>Valley bottom</td></tr>
+      <tr><td>D &gt; 0 and f<sub>xx</sub> &lt; 0</td><td>Local maximum</td><td>Hill top</td></tr>
+      <tr><td>D &lt; 0</td><td>Saddle point</td><td>Flat, but not a peak or valley</td></tr>
+      <tr><td>D = 0</td><td>Test inconclusive</td><td>Examine the function directly</td></tr>
+      <tr><td>∇f = λ ∇g and g(x,y) = c</td><td>Constrained optimum (Lagrange)</td><td>Optimize f on a constraint curve</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions. Try each one on paper before reading the steps.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Valley of a quadratic</h3>
+    <div class="statement"><p>Let f(x,y) = x<sup>2</sup> + 3y<sup>2</sup> - 6x + 12y. Find the critical point and state whether it is a local maximum, a local minimum or a saddle point. Give the value of f at that point.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A critical point, its type, and the value of f there.</li>
+      <li><strong>Which idea applies.</strong> Set both partial derivatives to zero, then use the discriminant D.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 2x - 6, so x = 3. f<sub>y</sub> = 6y + 12, so y = -2. The point is (3, -2). The second derivatives are f<sub>xx</sub> = 2, f<sub>yy</sub> = 6 and f<sub>xy</sub> = 0, so D = 2 × 6 - 0 = 12. D is positive and f<sub>xx</sub> is positive. The value is f(3, -2) = 9 + 12 - 18 - 24 = -21.</li>
+      <li><strong>Check.</strong> Put (3, -2) back into both partial derivatives: 2(3) - 6 = 0 and 6(-2) + 12 = 0. Both are zero.</li>
+    </ol>
+    <p class="cx">Answer: (3, -2) is a local minimum with value -21.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Saddle with several true statements</h3>
+    <div class="statement"><p>Let f(x,y) = x<sup>2</sup> - y<sup>2</sup> + 4y. Which of the following statements are true about its critical point? Select all that apply.</p><p>(A) The critical point is a saddle point. (B) The critical point is a local maximum. (C) The critical point is a local minimum. (D) The value of f at the critical point is 4.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Several statements may be true, so test each one.</li>
+      <li><strong>Which idea applies.</strong> Find the critical point, compute D, then the value.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 2x, so x = 0. f<sub>y</sub> = -2y + 4, so y = 2. The point is (0, 2). Second derivatives: f<sub>xx</sub> = 2, f<sub>yy</sub> = -2, f<sub>xy</sub> = 0. So D = 2 × (-2) - 0 = -4, which is negative. That makes it a saddle, so (A) is true and (B) and (C) are false. The value is f(0, 2) = 0 - 4 + 8 = 4, so (D) is true.</li>
+      <li><strong>Check.</strong> A negative D always means a saddle, so the classification matches the table.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Minimum distance on a line</h3>
+    <div class="statement"><p>Minimize f(x,y) = x<sup>2</sup> + y<sup>2</sup> subject to x + 2y = 5. Give the minimum value of f (a number, NAT style).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest value of f on the line x + 2y = 5.</li>
+      <li><strong>Which idea applies.</strong> Lagrange multipliers, because the input is restricted.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 2x and f<sub>y</sub> = 2y. For g = x + 2y, g<sub>x</sub> = 1 and g<sub>y</sub> = 2. So 2x = λ and 2y = 2λ. From the second, y = λ. From the first, x = λ/2. Substitute into the constraint: λ/2 + 2λ = 5, so 5λ/2 = 5, so λ = 2. Then x = 1 and y = 2. The value is f(1, 2) = 1 + 4 = 5.</li>
+      <li><strong>Check.</strong> The point (1, 2) satisfies 1 + 2(2) = 5. Other points on the line give larger values: f(5, 0) = 25 and f(0, 2.5) = 6.25.</li>
+    </ol>
+    <p class="cx">Answer: 5 (attained at (1, 2)).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Trust the critical point, then read the height</h3>
+    <div class="statement"><p>Let f(x,y) = 2x<sup>2</sup> + 2y<sup>2</sup> - 8x + 4y + 1. Find the value of f at its critical point (a number, NAT style).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One number: f at the critical point.</li>
+      <li><strong>Which idea applies.</strong> Solve f<sub>x</sub> = 0 and f<sub>y</sub> = 0.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 4x - 8, so x = 2. f<sub>y</sub> = 4y + 4, so y = -1. Then f(2, -1) = 2(4) + 2(1) - 16 - 4 + 1 = 8 + 2 - 16 - 4 + 1 = -9.</li>
+      <li><strong>Check.</strong> The second derivatives are 4, 4 and 0, so D = 16 is positive with f<sub>xx</sub> positive. The point is a minimum, which agrees with the value -9 being lower than f(0, 0) = 1.</li>
+    </ol>
+    <p class="cx">Answer: -9.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>A surface that is flat along a whole line</h3>
+    <div class="statement"><p>Let f(x,y) = (x + y)<sup>2</sup>. Which of the following statements are true? Select all that apply.</p><p>(A) Every point on the line x + y = 0 is a critical point. (B) At each critical point D = 0. (C) The second derivative test is inconclusive at each critical point. (D) Each critical point is a local maximum.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test each statement separately.</li>
+      <li><strong>Which idea applies.</strong> Partial derivatives, the Hessian, and the rule that D = 0 is inconclusive.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 2(x + y) and f<sub>y</sub> = 2(x + y). Both are zero exactly when x + y = 0, so (A) is true. The second derivatives are f<sub>xx</sub> = 2, f<sub>yy</sub> = 2 and f<sub>xy</sub> = 2. So D = 2 × 2 - 2<sup>2</sup> = 0 everywhere. So (B) and (C) are true. Since f is never negative and equals 0 on the line, every critical point is a minimum, not a maximum, so (D) is false.</li>
+      <li><strong>Check.</strong> Take two points on the line, (1, -1) and (3, -3). Both give f = 0, which is the lowest possible value, so they are minima.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Largest product on a circle</h3>
+    <div class="statement"><p>Maximize f(x,y) = xy subject to x<sup>2</sup> + y<sup>2</sup> = 8. Give the largest value of f (a number, NAT style).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The biggest possible product xy on the circle of radius √8.</li>
+      <li><strong>Which idea applies.</strong> Lagrange multipliers with g = x<sup>2</sup> + y<sup>2</sup>.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = y and f<sub>y</sub> = x. g<sub>x</sub> = 2x and g<sub>y</sub> = 2y. So y = 2λx and x = 2λy. From x = 2λy and y = 2λx we get x = 4λ<sup>2</sup>x. If x is not zero, then λ<sup>2</sup> = 1/4, so λ = 1/2 or λ = -1/2. If λ = 1/2, then y = x, and 2x<sup>2</sup> = 8 gives x = ±2, so xy = 4. If λ = -1/2, then y = -x, and xy = -x<sup>2</sup> = -4. If x = 0, the constraint forces y = 0 or y = ±√8, and then y = 0 contradicts the equations. The largest value is 4, at (2, 2) and (-2, -2).</li>
+      <li><strong>Check.</strong> Parametrize the circle as x = √8 cos t and y = √8 sin t. Then xy = 8 sin t cos t, and the largest value of this is 4. The Python check below confirms it numerically.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+best = max(8*math.sin(t)*math.cos(t) for t in [k*math.pi/1800 for k in range(3600)])
+print("largest xy on the circle, rounded:", round(best, 4))</code></pre>
+    <pre class="output">largest xy on the circle, rounded: 4.0</pre>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Closest point of a plane to the origin</h3>
+    <div class="statement"><p>Minimize f(x,y,z) = x<sup>2</sup> + y<sup>2</sup> + z<sup>2</sup> subject to x + y + z = 3. Give the minimum value (a number, NAT style).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest squared distance from the origin to the plane x + y + z = 3.</li>
+      <li><strong>Which idea applies.</strong> Lagrange multipliers with three variables. The idea is the same: ∇f = λ∇g.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 2x, f<sub>y</sub> = 2y, f<sub>z</sub> = 2z. For g = x + y + z, each partial derivative is 1. So 2x = λ, 2y = λ and 2z = λ. Therefore x = y = z. The constraint gives 3x = 3, so x = 1. Then f(1, 1, 1) = 1 + 1 + 1 = 3.</li>
+      <li><strong>Check.</strong> Try (3, 0, 0): it satisfies the constraint and gives f = 9, which is larger. Try (1.5, 1.5, 0): f = 2.25 + 2.25 = 4.5, also larger.</li>
+    </ol>
+    <p class="cx">Answer: 3 (attained at (1, 1, 1)).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Counting the valleys</h3>
+    <div class="statement"><p>Let f(x,y) = x<sup>4</sup> + y<sup>4</sup> - 4xy. How many local minimum points does f have? (A number, NAT style.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of local minima, not their values.</li>
+      <li><strong>Which idea applies.</strong> Find critical points, then classify each one with D.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 4x<sup>3</sup> - 4y and f<sub>y</sub> = 4y<sup>3</sup> - 4x. Setting them to zero gives y = x<sup>3</sup> and x = y<sup>3</sup>. Substituting gives x = x<sup>9</sup>, so x = 0 or x = 1 or x = -1. The critical points are (0, 0), (1, 1) and (-1, -1). Second derivatives: f<sub>xx</sub> = 12x<sup>2</sup>, f<sub>yy</sub> = 12y<sup>2</sup>, f<sub>xy</sub> = -4. At (0, 0), D = 0 - 16 = -16, a saddle. At (1, 1), f<sub>xx</sub> = 12 and D = 144 - 16 = 128, so a minimum. At (-1, -1), f<sub>xx</sub> = 12 and D = 128, so a minimum.</li>
+      <li><strong>Check.</strong> The Python check below evaluates f at the three points. The two minima should have equal values, as the symmetry of the function suggests.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def f(x, y):
+    return x**4 + y**4 - 4*x*y
+
+for p in [(0, 0), (1, 1), (-1, -1)]:
+    print(p, "f =", f(*p))</code></pre>
+    <pre class="output">(0, 0) f = 0
+(1, 1) f = -2
+(-1, -1) f = -2
+</pre>
+    <p class="cx">Answer: 2 (the minima are (1, 1) and (-1, -1)).</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: profit surface and the Hessian test (NAT, 2 marks)</h3>
+    <div class="statement"><p>A small workshop makes two products in quantities x and y (in thousands of units per month). Its monthly profit, in thousands of pounds, is P(x,y) = 10x + 12y - x<sup>2</sup> - xy - 2y<sup>2</sup>. Find the production levels that give a stationary point of the profit, classify that point with the second derivative test, and give the maximum profit in thousands of pounds.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The stationary point of P, its type, and the profit at that point.</li>
+      <li><strong>Which idea applies.</strong> Set both partial derivatives to zero, then use the Hessian discriminant D = P<sub>xx</sub>P<sub>yy</sub> - P<sub>xy</sub><sup>2</sup>.</li>
+      <li><strong>Work it out.</strong> P<sub>x</sub> = 10 - 2x - y and P<sub>y</sub> = 12 - x - 4y. Setting both to zero gives 2x + y = 10 and x + 4y = 12. From the first, y = 10 - 2x. Substituting into the second: x + 4(10 - 2x) = 12, so -7x = -28, so x = 4 and y = 2. The second derivatives are P<sub>xx</sub> = -2, P<sub>yy</sub> = -4 and P<sub>xy</sub> = -1. So D = (-2)(-4) - (-1)<sup>2</sup> = 7. D is positive and P<sub>xx</sub> is negative, so the point is a maximum. The profit is 40 + 24 - 16 - 8 - 8 = 32.</li>
+      <li><strong>Check.</strong> Put (4, 2) into both derivatives: 10 - 8 - 2 = 0 and 12 - 4 - 8 = 0. The Python check below repeats the solve.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def P(x, y):
+    return 10*x + 12*y - x**2 - x*y - 2*y**2
+
+# Solve 2x + y = 10 and x + 4y = 12 by Cramer's rule
+det = 2*4 - 1*1
+x = (10*4 - 1*12) / det
+y = (2*12 - 1*10) / det
+print("critical point:", x, y)
+print("profit:", P(x, y))
+print("discriminant D:", (-2)*(-4) - (-1)**2)</code></pre>
+    <pre class="output">critical point: 4.0 2.0
+profit: 32.0
+discriminant D: 7
+</pre>
+    <p class="cx">Answer: 32 (thousand pounds), reached at x = 4 and y = 2, which is a local maximum.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: which critical points are true (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A sensor calibration curve is modelled by f(x,y) = x<sup>3</sup> + y<sup>3</sup> - 3xy. Its critical points come from setting both partial derivatives to zero, and each one is then classified with the Hessian. Which of the following statements about these critical points are true? Select all that apply.</p><p>(A) The point (0, 0) is a saddle point. (B) The point (1, 1) is a local minimum. (C) The value of f at (1, 1) is -1, and this is a local minimum value. (D) The point (0, 0) is a local maximum.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are true. Test each one.</li>
+      <li><strong>Which idea applies.</strong> Solve f<sub>x</sub> = 0 and f<sub>y</sub> = 0, then use the Hessian test on each solution.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 3x<sup>2</sup> - 3y and f<sub>y</sub> = 3y<sup>2</sup> - 3x. So y = x<sup>2</sup> and x = y<sup>2</sup>. Substituting the first into the second gives x = x<sup>4</sup>, so x(x<sup>3</sup> - 1) = 0. The real solutions are x = 0 and x = 1, so the critical points are (0, 0) and (1, 1). The second derivatives are f<sub>xx</sub> = 6x, f<sub>yy</sub> = 6y and f<sub>xy</sub> = -3. At (0, 0), D = 0 - 9 = -9, so it is a saddle. At (1, 1), D = 36 - 9 = 27 and f<sub>xx</sub> = 6 is positive, so it is a local minimum. The value there is f(1, 1) = 1 + 1 - 3 = -1.</li>
+      <li><strong>Check.</strong> A negative D always means a saddle point. The Python check below evaluates D and f at both points.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def f(x, y):
+    return x**3 + y**3 - 3*x*y
+
+for x, y in [(0, 0), (1, 1)]:
+    D = (6*x)*(6*y) - (-3)**2
+    print((x, y), "D =", D, "f =", f(x, y))</code></pre>
+    <pre class="output">(0, 0) D = -9 f = 0
+(1, 1) D = 27 f = -1
+</pre>
+    <p class="cx">Answer: (A), (B) and (C) are true. (D) is false, because D = -9 at (0, 0) means a saddle point, not a maximum.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: constrained cost with Lagrange multipliers (NAT, 2 marks)</h3>
+    <div class="statement"><p>Two depots, one at x and one at y (in units of stock), must together receive exactly 3 units of stock, so x + y = 3, with x and y non-negative. The shipping cost, in hundreds of pounds, is C(x,y) = x<sup>2</sup> + 2y<sup>2</sup>. Find the smallest possible shipping cost using Lagrange multipliers, and confirm that your point is a minimum. Give the cost as a number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimum of C on the line x + y = 3, and its value.</li>
+      <li><strong>Which idea applies.</strong> Lagrange multipliers: the gradient of C must be parallel to the gradient of the constraint g = x + y - 3.</li>
+      <li><strong>Work it out.</strong> The gradient of C is (2x, 4y), and the gradient of g is (1, 1). Parallel means 2x = λ and 4y = λ, so 2x = 4y and x = 2y. Put this into the constraint: 2y + y = 3, so y = 1 and x = 2. The cost is 2<sup>2</sup> + 2(1)<sup>2</sup> = 4 + 2 = 6. To confirm the minimum, substitute y = 3 - x to get C = 3x<sup>2</sup> - 12x + 18. Its second derivative is 6, which is positive, so x = 2 is a minimum.</li>
+      <li><strong>Check.</strong> The gradient (4, 4) at (2, 1) is 4 times the gradient (1, 1) of the constraint, so the parallel condition holds with λ = 4.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>x, y = 2, 1
+print("constraint:", x + y)
+print("gradient of C:", (2*x, 4*y))
+print("cost:", x**2 + 2*y**2)</code></pre>
+    <pre class="output">constraint: 3
+gradient of C: (4, 4)
+cost: 6
+</pre>
+    <p class="cx">Answer: 6 (hundreds of pounds), at x = 2 and y = 1.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: fence against a wall (NAT, 2 marks)</h3>
+    <div class="statement"><p>A farmer builds a rectangular pen against a straight barn wall, so the wall side needs no fence. The other three sides use 12 metres of fencing in total: one side of length x, opposite the wall, and two sides of length y, each at right angles to the wall. So x + 2y = 12. The farmer wants the largest possible enclosed area A = xy. Find the dimensions that give this maximum, and give the maximum area in square metres.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The side lengths x and y that maximise A = xy, and the area.</li>
+      <li><strong>Which idea applies.</strong> Use the fence equation to remove x, turn A into a function of y, then find its maximum with the derivative (or Lagrange multipliers, which give the same answer).</li>
+      <li><strong>Work it out.</strong> From x + 2y = 12, x = 12 - 2y. So A(y) = (12 - 2y)y = 12y - 2y<sup>2</sup>. The derivative is A'(y) = 12 - 4y, which is zero when y = 3. Then x = 12 - 6 = 6. The second derivative is -4, which is negative, so this is a maximum. The area is 6 x 3 = 18 square metres.</li>
+      <li><strong>Check.</strong> The Python check below tries many values of y and picks the best one.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def area(y):
+    x = 12 - 2*y
+    return x * y
+
+best_y = max((k / 10 for k in range(0, 61)), key=area)
+print("best y:", best_y)
+print("best x:", 12 - 2*best_y)
+print("area:", area(best_y))</code></pre>
+    <pre class="output">best y: 3.0
+best x: 6.0
+area: 18.0
+</pre>
+    <p class="cx">Answer: 18 square metres, with x = 6 m and y = 3 m.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Critical point</dt><dd>A point where both partial derivatives are zero. Plain meaning: the ground is flat there.</dd></div>
+    <div><dt>Partial derivative</dt><dd>The slope in one direction, with the other variables held fixed.</dd></div>
+    <div><dt>Gradient</dt><dd>The vector (f<sub>x</sub>, f<sub>y</sub>) of first partial derivatives. It points uphill.</dd></div>
+    <div><dt>Hessian</dt><dd>The 2 by 2 matrix of second partial derivatives, describing the curvature at a point.</dd></div>
+    <div><dt>Discriminant D</dt><dd>D = f<sub>xx</sub> f<sub>yy</sub> - f<sub>xy</sub><sup>2</sup>, the determinant of the Hessian.</dd></div>
+    <div><dt>Local minimum</dt><dd>A valley bottom: D &gt; 0 and f<sub>xx</sub> &gt; 0 at a critical point.</dd></div>
+    <div><dt>Local maximum</dt><dd>A hill top: D &gt; 0 and f<sub>xx</sub> &lt; 0 at a critical point.</dd></div>
+    <div><dt>Saddle point</dt><dd>A critical point with D &lt; 0. Up in one direction, down in another.</dd></div>
+    <div><dt>Inconclusive test</dt><dd>When D = 0 the second derivative test gives no answer.</dd></div>
+    <div><dt>Constraint</dt><dd>A rule g(x,y) = c that the input must obey.</dd></div>
+    <div><dt>Objective function</dt><dd>The function f that is maximized or minimized.</dd></div>
+    <div><dt>Lagrange multiplier</dt><dd>The number λ in ∇f = λ∇g, which links the gradients at a constrained optimum.</dd></div>
+    <div><dt>Constrained optimum</dt><dd>The best value of f among the points that satisfy the constraint.</dd></div>
+    <div><dt>Global versus local</dt><dd>A local extreme is best only nearby. A global extreme is best over the whole region.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>Solve f<sub>x</sub> = 0 and f<sub>y</sub> = 0 together. One equation alone is not enough.</li>
+    <li>Compute D before anything else. If D is negative, the point is a saddle.</li>
+    <li>If D is positive, the sign of f<sub>xx</sub> tells you maximum or minimum.</li>
+    <li>If D is zero, the test is inconclusive. Look at the function directly.</li>
+    <li>With a constraint, solve ∇f = λ∇g together with g(x,y) = c.</li>
+    <li>Always put the critical point back into f to get the value the question asks for.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 25?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 25 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-024.html"><small>Previous, topic 24</small>Taylor series in two variables</a><a class="next" href="gate-026.html"><small>Next, topic 26</small>Double and triple integrals</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

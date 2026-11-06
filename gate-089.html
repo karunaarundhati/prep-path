@@ -1,0 +1,578 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 89: Tuple calculus</title><meta name="description" content="Relational calculus lets you say WHAT rows you want from a database, not HOW to fetch them. Tuple calculus is the row-by-row version of this idea, and GATE uses it to test whether you can read and write precise database queries."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g89" data-key="g89" data-noun="topic" data-num="89" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Tuple calculus</h1>
+<p class="lede">Relational calculus lets you say WHAT rows you want from a database, not HOW to fetch them. Tuple calculus is the row-by-row version of this idea, and GATE uses it to test whether you can read and write precise database queries.</p>
+<div class="station"><b>89</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Tuple relational calculus (TRC)</li><li>Quantifiers: there exists and for all</li><li>Domain relational calculus (DRC)</li><li>Safe expressions</li><li>Declarative versus procedural queries</li><li>Converting between TRC, relational algebra and SQL</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you ask a librarian, "Please give me the titles of all books written by Asha." You described the <em>result</em> you want. You did not say which shelf to walk to first or how to check each spine. The librarian decides the steps.</p>
+  <p>A database works the same way. A <strong>query</strong> is a question you ask the database. There are two styles:</p>
+  <ul>
+    <li><strong>Procedural style:</strong> you give a sequence of operations, such as "filter this table, then join it with that table". This is <strong>relational algebra</strong>. It is a recipe.</li>
+    <li><strong>Declarative style:</strong> you describe the properties each answer row must have, and leave the recipe to the database. This is <strong>relational calculus</strong>. It is a rule.</li>
+  </ul>
+  <p>Relational calculus comes in two flavours. <strong>Tuple relational calculus (TRC)</strong> talks about whole rows. <strong>Domain relational calculus (DRC)</strong> talks about single values inside rows. Both use ideas from logic, so you will see words such as "and", "or", "not", "there exists" and "for all". Each symbol is defined before it is used.</p>
+  <p>GATE Data Science and AI (paper DA) and Robotics and Automation (paper RA) ask questions of this kind. You may be asked to read a calculus expression and state its output, to write one for a plain request, to decide whether it is <em>safe</em>, or to match it with an equivalent algebra or SQL query.</p>
+  <p>Here is a small database that we will use on this whole page. A table is a grid where each row is one record and each column is one property.</p>
+  <div class="tablewrap"><table>
+    <caption>Student (sid, name, dept, cgpa)</caption>
+    <thead><tr><th>sid</th><th>name</th><th>dept</th><th>cgpa</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>Asha</td><td>CS</td><td>9.1</td></tr>
+      <tr><td>102</td><td>Ravi</td><td>EE</td><td>7.8</td></tr>
+      <tr><td>103</td><td>Meena</td><td>CS</td><td>8.7</td></tr>
+      <tr><td>104</td><td>Dev</td><td>ME</td><td>6.9</td></tr>
+      <tr><td>105</td><td>Kiran</td><td>CS</td><td>8.2</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <caption>Course (cid, title, credits)</caption>
+    <thead><tr><th>cid</th><th>title</th><th>credits</th></tr></thead>
+    <tbody>
+      <tr><td>CS101</td><td>Programming</td><td>4</td></tr>
+      <tr><td>EE201</td><td>Circuits</td><td>3</td></tr>
+      <tr><td>CS301</td><td>Databases</td><td>4</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <caption>Enrol (sid, cid, grade)</caption>
+    <thead><tr><th>sid</th><th>cid</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>CS101</td><td>9</td></tr>
+      <tr><td>101</td><td>CS301</td><td>8</td></tr>
+      <tr><td>102</td><td>EE201</td><td>7</td></tr>
+      <tr><td>103</td><td>CS101</td><td>10</td></tr>
+      <tr><td>103</td><td>CS301</td><td>9</td></tr>
+      <tr><td>105</td><td>CS301</td><td>6</td></tr>
+    </tbody>
+  </table></div>
+  <p>The <code>sid</code> column links a student to enrolment rows, and <code>cid</code> links a course to them. These linking columns are used to join tables.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Relational calculus describes the answer. It never says how to find it. The database may use any method that gives the right answer.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read the plain meaning first. The precise definition comes after it.</p>
+  <dl>
+    <div><dt>Relation</dt><dd>A table. Plain meaning: a grid of rows and columns. Precise definition: a finite set of tuples that share the same attributes.</dd></div>
+    <div><dt>Attribute</dt><dd>A column name, such as <code>cgpa</code>. Precise definition: a named position in a relation, with a domain of allowed values.</dd></div>
+    <div><dt>Tuple</dt><dd>One row of a table. Plain meaning: one record. Precise definition: an ordered list of values, one for each attribute.</dd></div>
+    <div><dt>Domain</dt><dd>The allowed values of an attribute, such as numbers from 0 to 10. Precise definition: the set from which an attribute's values are drawn.</dd></div>
+    <div><dt>Tuple variable</dt><dd>A name that stands for any row of a table. Precise definition: a TRC variable whose range is the tuples of a relation.</dd></div>
+    <div><dt>Domain variable</dt><dd>A name that stands for any value in a column. Precise definition: a DRC variable whose range is the domain of an attribute.</dd></div>
+    <div><dt>Predicate</dt><dd>A yes or no statement about values, such as "is the cgpa at least 8.5?". Precise definition: a function that returns true or false.</dd></div>
+    <div><dt>Quantifier</dt><dd>A word that says how many rows you mean. Plain meaning: "at least one" or "every one". Precise definition: the existential quantifier ∃ ("there exists") and the universal quantifier ∀ ("for all").</dd></div>
+    <div><dt>Free variable</dt><dd>A variable not yet tied to a quantifier. Plain meaning: a name the answer is built from. Precise definition: a variable that occurs without being bound by ∃ or ∀.</dd></div>
+    <div><dt>Bound variable</dt><dd>A variable controlled by a quantifier. Plain meaning: a name that lives only inside its bracket. Precise definition: a variable in the scope of ∃ or ∀.</dd></div>
+    <div><dt>Active domain</dt><dd>All values that actually appear in the database, plus constants written in the query.</dd></div>
+    <div><dt>Safe expression</dt><dd>A calculus expression whose answer depends only on stored data. Plain meaning: it cannot produce endless answers. Precise definition: its result contains only values from the active domain.</dd></div>
+    <div><dt>Declarative</dt><dd>Describes what you want. Plain meaning: "give me the rows that satisfy this rule".</dd></div>
+    <div><dt>Procedural</dt><dd>Describes how to get the answer. Plain meaning: "do step 1, then step 2".</dd></div>
+    <div><dt>Relational algebra (RA)</dt><dd>A procedural language with operators σ (select), π (project), ⋈ (join), ∪, − and ×. Precise definition: operations that map relations to relations.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Tuple relational calculus">
+  <h2>Concept 1: Tuple relational calculus (TRC)</h2>
+  <h3>The basic shape</h3>
+  <p>In TRC, you describe a set of rows with one rule:</p>
+  <div class="formula">{ t | P(t) }</div>
+  <p>Read it as "the set of all tuples t such that P(t) is true". Each symbol means:</p>
+  <ul>
+    <li><code>{ ... }</code> is "the set of", and the answer is a set of rows.</li>
+    <li><code>t</code> is a tuple variable. It stands for one row at a time.</li>
+    <li><code>|</code> means "such that".</li>
+    <li><code>P(t)</code> is the rule each answer row must satisfy.</li>
+  </ul>
+  <p>The atom <code>Student(t)</code> means "t is a row of the Student table". The expression <code>t.cgpa</code> means "the cgpa value of row t". Here is a query for names of students with cgpa at least 8.5:</p>
+  <div class="formula">{ t.name | Student(t) ∧ t.cgpa ≥ 8.5 }</div>
+  <p>The database reads it row by row:</p>
+  <ol>
+    <li>Take each row t of Student.</li>
+    <li>Check <code>Student(t)</code>. It is true for every row of Student.</li>
+    <li>Check <code>t.cgpa ≥ 8.5</code>. Asha (9.1) passes. Ravi (7.8) fails. Meena (8.7) passes. Dev (6.9) fails. Kiran (8.2) fails.</li>
+    <li>Keep the rows where both checks pass, and show their names.</li>
+  </ol>
+  <p>The answer is Asha and Meena. The symbol ∧ means "and", so both parts must be true.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Read a TRC expression from the inside out. First understand the condition after the bar, row by row. Then look at the target list on the left.</p></div>
+  <h3>A query that needs two tables</h3>
+  <p>Now: "names of students enrolled in CS101". The name is in Student, but the course is in Enrol. We link them with <code>sid</code>, using a second tuple variable <code>e</code> that ranges over Enrol:</p>
+  <div class="formula">{ s.name | Student(s) ∧ ∃e (Enrol(e) ∧ e.sid = s.sid ∧ e.cid = 'CS101') }</div>
+  <p>For now, read <code>∃e (...)</code> as "there is some enrolment row e that makes the bracket true". The next concept explains ∃ fully.</p>
+  <p>Work it out for each student:</p>
+  <ul>
+    <li>Asha (101): CS101 is one of her rows, so she qualifies.</li>
+    <li>Ravi (102): his only row is EE201. He does not qualify.</li>
+    <li>Meena (103): she has CS101 with grade 10. She qualifies.</li>
+    <li>Dev (104): no enrolment rows at all. He does not qualify.</li>
+    <li>Kiran (105): only CS301. He does not qualify.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>The equals sign in <code>e.sid = s.sid</code> is the join. If you forget it, every enrolment matches every student, and you get wrong names. Always write the link between tables.</p></div>
+  <p>The Python program below runs both queries on the sample tables. Each tuple is (sid, name, dept, cgpa).</p>
+  <pre class="code" data-lang="python"><code>students = [
+    (101, "Asha", "CS", 9.1),
+    (102, "Ravi", "EE", 7.8),
+    (103, "Meena", "CS", 8.7),
+    (104, "Dev", "ME", 6.9),
+    (105, "Kiran", "CS", 8.2),
+]
+enrol = [
+    (101, "CS101", 9), (101, "CS301", 8), (102, "EE201", 7),
+    (103, "CS101", 10), (103, "CS301", 9), (105, "CS301", 6),
+]
+
+# TRC 1: { t.name | Student(t) and t.cgpa >= 8.5 }
+q1 = [t[1] for t in students if t[3] >= 8.5]
+print("Q1 names with cgpa >= 8.5:", q1)
+
+# TRC 2: { s.name | Student(s) and exists e (Enrol(e) and e.sid = s.sid and e.cid = 'CS101') }
+q2 = [s[1] for s in students
+      if any(e[0] == s[0] and e[1] == "CS101" for e in enrol)]
+print("Q2 names enrolled in CS101:", q2)
+</code></pre>
+  <pre class="output">Q1 names with cgpa >= 8.5: ['Asha', 'Meena']
+Q2 names enrolled in CS101: ['Asha', 'Meena']</pre>
+  <details class="check"><summary>Question: Why is Kiran missing from Q1, even though Kiran is in CS?</summary><div class="ans"><p>Q1 only tests cgpa. Kiran has 8.2, which is less than 8.5. The department is not part of this query.</p></div></details>
+  <details class="check"><summary>Question: What does ∧ mean in a TRC expression?</summary><div class="ans"><p>It means "and". Both the left part and the right part must be true for a row to be in the answer.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Quantifiers">
+  <h2>Concept 2: The quantifiers, there exists and for all</h2>
+  <h3>The everyday meaning</h3>
+  <p>Quantifiers talk about "how many" without counting:</p>
+  <ul>
+    <li><strong>There exists (∃):</strong> at least one row makes this true. Like searching a shelf until you find one matching book.</li>
+    <li><strong>For all (∀):</strong> every row makes this true. Like checking every book on a shelf.</li>
+  </ul>
+  <div class="formula">∃t ∈ R (P(t))   means   at least one tuple t of relation R makes P(t) true</div>
+  <div class="formula">∀t ∈ R (P(t))   means   every tuple t of relation R makes P(t) true</div>
+  <h3>A worked ∀ example, step by step</h3>
+  <p>Question: "Which students have every enrolled course with grade at least 8?"</p>
+  <div class="formula">{ s.name | Student(s) ∧ ∀e (Enrol(e) ∧ e.sid = s.sid → e.grade ≥ 8) }</div>
+  <p>The arrow → means "if ... then". The statement <code>A → B</code> is false only when A is true and B is false.</p>
+  <ol>
+    <li><strong>Asha (101).</strong> Her rows have grades 9 and 8. For each row, "this row is hers" leads to "grade is at least 8". Both pass, so Asha qualifies.</li>
+    <li><strong>Ravi (102).</strong> His only row has grade 7. The row is his, and 7 is not at least 8, so the arrow is false. Ravi does not qualify.</li>
+    <li><strong>Meena (103).</strong> Grades 10 and 9. Both pass. Meena qualifies.</li>
+    <li><strong>Dev (104).</strong> No rows at all. There is nothing to check, so the ∀ statement is true. Dev qualifies.</li>
+    <li><strong>Kiran (105).</strong> One row with grade 6. Kiran does not qualify.</li>
+  </ol>
+  <p>The answer is Asha, Meena and Dev.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Dev is included even though Dev has no grades. A "for all" statement with no rows to check is <em>true</em>. Mathematicians call this "vacuously true". Many students expect Dev to be left out. Always check the empty case.</p></div>
+  <h3>Converting ∀ into ∃ with ¬</h3>
+  <p>Any ∀ can be rewritten with ∃ and ¬:</p>
+  <div class="formula">∀t (P(t)) is the same as ¬∃t (¬P(t))</div>
+  <p>"Every row satisfies P" means "there is no row that fails P". Here is the same query in that form:</p>
+  <div class="formula">{ s.name | Student(s) ∧ ¬∃e (Enrol(e) ∧ e.sid = s.sid ∧ e.grade &lt; 8) }</div>
+  <p>For Dev, there is no row that fails, so the "not exists" is true. Dev qualifies again. The two versions agree.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Any ∀ can be written with ∃ and ¬, and any ∃ with ∀ and ¬. Choose the form that reads more easily, and check both with the empty case.</p></div>
+  <details class="check"><summary>Question: Why is Dev in the ∀ query but not in the ∃ query for CS101?</summary><div class="ans"><p>The ∃ query needs at least one row, and Dev has none, so it fails. The ∀ query checks every row, and with no rows the check passes vacuously.</p></div></details>
+  <details class="check"><summary>Question: Write "every enrolment of student s has grade at least 9" using ¬ and ∃.</summary><div class="ans"><p><code>{ s.name | Student(s) ∧ ¬∃e (Enrol(e) ∧ e.sid = s.sid ∧ e.grade &lt; 9) }</code>. The idea: no enrolment row with grade below 9 exists.</p></div></details>
+  <pre class="code" data-lang="python"><code>students = [
+    (101, "Asha", "CS", 9.1),
+    (102, "Ravi", "EE", 7.8),
+    (103, "Meena", "CS", 8.7),
+    (104, "Dev", "ME", 6.9),
+    (105, "Kiran", "CS", 8.2),
+]
+enrol = [
+    (101, "CS101", 9), (101, "CS301", 8), (102, "EE201", 7),
+    (103, "CS101", 10), (103, "CS301", 9), (105, "CS301", 6),
+]
+
+# forall form: an implication A -> B is the same as (not A) or B
+q3 = [s[1] for s in students
+      if all((not (e[0] == s[0])) or e[2] >= 8 for e in enrol)]
+print("Q3 every grade at least 8:", q3)
+
+# not-exists form
+q4 = [s[1] for s in students
+      if not any(e[0] == s[0] and e[2] < 8 for e in enrol)]
+print("Q4 same answer with not-exists:", q4)
+print("Same result:", q3 == q4)
+</code></pre>
+  <pre class="output">Q3 every grade at least 8: ['Asha', 'Meena', 'Dev']
+Q4 same answer with not-exists: ['Asha', 'Meena', 'Dev']
+Same result: True</pre>
+</section>
+
+<section class="unit" id="c3" data-title="Domain relational calculus">
+  <h2>Concept 3: Domain relational calculus (DRC)</h2>
+  <h3>From rows to single values</h3>
+  <p>In DRC, each variable stands for one value from one column. We write the Student atom with four positions:</p>
+  <div class="formula">Student(s, n, d, c)   means   there is a row with sid = s, name = n, dept = d and cgpa = c</div>
+  <p>The answer lists the variables you want to see, inside angle brackets:</p>
+  <div class="formula">{ &lt;n&gt; | ∃s ∃d ∃c (Student(s, n, d, c) ∧ c ≥ 8.5) }</div>
+  <ol>
+    <li>The target list is <code>&lt;n&gt;</code>, so the answer contains only names.</li>
+    <li>The quantifiers ∃s, ∃d and ∃c say that sid, dept and cgpa are needed only for the check, not for the answer.</li>
+    <li>The condition <code>c ≥ 8.5</code> keeps rows with cgpa at least 8.5.</li>
+    <li>On the sample table, the names are Asha and Meena.</li>
+  </ol>
+  <div class="note tip"><p><span class="t">Tip</span>In DRC, every column not in the target list must be tied to an ∃ or ∀. A free variable outside the target list is a mistake.</p></div>
+  <details class="check"><summary>Question: What is the difference between a target list variable and a quantified variable?</summary><div class="ans"><p>A target list variable (inside the angle brackets) appears in the answer. A quantified variable (after ∃ or ∀) is used only inside the condition.</p></div></details>
+  <details class="check"><summary>Question: Write a DRC expression for the sids of CS students.</summary><div class="ans"><p><code>{ &lt;s&gt; | ∃n ∃c (Student(s, n, 'CS', c)) }</code>. The answer is 101, 103 and 105.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Safe expressions">
+  <h2>Concept 4: Safe and unsafe expressions</h2>
+  <h3>The problem with endless answers</h3>
+  <p>Suppose someone asks for "all tuples t that are <em>not</em> in Student". There are endlessly many such tuples, because nothing limits what a tuple can contain. A query that can give an unlimited answer is <strong>unsafe</strong>. Database systems reject unsafe queries.</p>
+  <p>A query is <strong>safe</strong> when every value in its answer comes from the <strong>active domain</strong>, which is the set of values really stored in the database, plus constants written in the query.</p>
+  <ul>
+    <li><code>{ t | ¬Student(t) }</code> is <strong>unsafe</strong>. Nothing forces t to be a stored row.</li>
+    <li><code>{ t | Student(t) ∧ t.cgpa ≥ 8 }</code> is <strong>safe</strong>. Every answer row must be a Student row.</li>
+    <li><code>{ t | Enrol(t) ∧ t.grade = 10 }</code> is <strong>safe</strong>. Every answer row must be an Enrol row.</li>
+    <li><code>{ t | ∃s ∈ Student (s.sid = t.sid) }</code> is <strong>unsafe</strong>. The variable t is not tied to any relation, so its other values are free.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>A relation name appearing somewhere is not enough. The variable itself must be restricted to a relation, usually by an atom joined with ∧, as in <code>Student(t) ∧ ...</code>.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>Safe means finite and based on stored data. Unsafe means the answer could be endless or could use values the database never stored.</p></div>
+  <details class="check"><summary>Question: Is { t | Student(t) ∨ Course(t) } safe?</summary><div class="ans"><p>Yes. Each answer row must be a row of Student or a row of Course, so every answer is stored data.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Declarative and procedural, with conversions">
+  <h2>Concept 5: Declarative versus procedural, and conversion</h2>
+  <h3>One question in three languages</h3>
+  <p>The question is "names of CS students with cgpa at least 8.5".</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Language</th><th>Query</th><th>Style</th></tr></thead>
+    <tbody>
+      <tr><td>Tuple calculus</td><td><code>{ t.name | Student(t) ∧ t.dept = 'CS' ∧ t.cgpa ≥ 8.5 }</code></td><td>Declarative</td></tr>
+      <tr><td>Relational algebra</td><td><code>π<sub>name</sub> ( σ<sub>dept='CS' ∧ cgpa≥8.5</sub> (Student) )</code></td><td>Procedural</td></tr>
+      <tr><td>SQL</td><td><code>SELECT name FROM Student WHERE dept = 'CS' AND cgpa &gt;= 8.5;</code></td><td>Declarative</td></tr>
+    </tbody>
+  </table></div>
+  <p>SQL is declarative too. Its WHERE clause states the rule, and the database chooses the steps. Relational algebra is procedural, because each symbol is an operation applied in order.</p>
+  <ul>
+    <li><strong>σ (select):</strong> keeps rows that satisfy a condition, like a filter.</li>
+    <li><strong>π (project):</strong> keeps chosen columns and removes duplicate rows.</li>
+    <li><strong>⋈ (natural join):</strong> joins two tables on their common column.</li>
+  </ul>
+  <h3>Converting TRC to algebra, step by step</h3>
+  <ol>
+    <li>Each relation atom such as <code>Student(s)</code> becomes the table name.</li>
+    <li>Each condition on one table, such as <code>s.dept = 'CS'</code>, becomes a σ.</li>
+    <li>Each equality between tables, such as <code>e.sid = s.sid</code>, becomes a ⋈ on that column.</li>
+    <li>The target list becomes a π.</li>
+  </ol>
+  <p>Take "names of students enrolled in CS101". Following the pattern gives:</p>
+  <div class="formula">π<sub>name</sub> ( Student ⋈ σ<sub>cid='CS101'</sub>(Enrol) )</div>
+  <p>First select the CS101 rows (sids 101 and 103). Then join with Student on sid (Asha and Meena). Then project the name column. The result matches Concept 1.</p>
+  <h3>Converting a ∀ query to SQL</h3>
+  <p>Plain SQL has no ∀. We use the duality rule from Concept 2: "every enrolment has grade at least 8" becomes "no enrolment has grade below 8", written with NOT EXISTS:</p>
+  <pre class="code" data-lang="text"><code>SELECT s.name
+FROM Student s
+WHERE NOT EXISTS (
+    SELECT *
+    FROM Enrol e
+    WHERE e.sid = s.sid AND e.grade &lt; 8
+);</code></pre>
+  <p>This returns Asha, Meena and Dev, the same answer as the TRC query.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Questions ask which algebra or SQL expression is equivalent to a calculus expression. Check the target list, then the conditions on each table, then the joins. Equivalent means the same rows on <em>every</em> database.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>An expression that gives the right answer on one sample table is not necessarily equivalent. <code>σ<sub>name='Ravi'</sub>(Student)</code> returns Ravi here, but it never checks enrolment, so it is not equivalent to a query about EE201 students.</p></div>
+  <pre class="code" data-lang="python"><code>students = [
+    (101, "Asha", "CS", 9.1),
+    (102, "Ravi", "EE", 7.8),
+    (103, "Meena", "CS", 8.7),
+    (104, "Dev", "ME", 6.9),
+    (105, "Kiran", "CS", 8.2),
+]
+enrol = [
+    (101, "CS101", 9), (101, "CS301", 8), (102, "EE201", 7),
+    (103, "CS101", 10), (103, "CS301", 9), (105, "CS301", 6),
+]
+
+# Relational algebra: pi_name( sigma_cid='CS101' (Enrol) join Student on sid )
+sel = [e for e in enrol if e[1] == "CS101"]
+joined = [(s, e) for s in students for e in sel if s[0] == e[0]]
+ra = sorted({s[1] for s, e in joined})
+print("RA result:", ra)
+
+# Tuple calculus form of the same question
+trc = sorted({s[1] for s in students if any(e[0] == s[0] and e[1] == "CS101" for e in enrol)})
+print("TRC result:", trc)
+print("Same answer:", ra == trc)
+</code></pre>
+  <pre class="output">RA result: ['Asha', 'Meena']
+TRC result: ['Asha', 'Meena']
+Same answer: True</pre>
+  <details class="check"><summary>Question: Which operator removes duplicate rows?</summary><div class="ans"><p>The projection π. Relational algebra works on sets, so duplicates disappear when you project.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or pattern</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td><code>{ t | P(t) }</code></td><td>The set of tuples t that satisfy P</td><td>Writing a TRC query</td></tr>
+      <tr><td><code>{ t.A | R(t) ∧ P(t) }</code></td><td>Column A of rows of R that satisfy P</td><td>Single table query with a target column</td></tr>
+      <tr><td><code>∃t ∈ R (P(t))</code></td><td>At least one row of R makes P true</td><td>"Is there a matching row?"</td></tr>
+      <tr><td><code>∀t ∈ R (P(t))</code></td><td>Every row of R makes P true</td><td>"Do all rows match?"</td></tr>
+      <tr><td><code>∀t (P) ≡ ¬∃t (¬P)</code></td><td>Duality of the quantifiers</td><td>Converting ∀ to ∃ or to SQL NOT EXISTS</td></tr>
+      <tr><td><code>A → B ≡ ¬A ∨ B</code></td><td>Implication</td><td>Reading "if ... then" inside a ∀</td></tr>
+      <tr><td><code>{ &lt;x, y&gt; | R(x, y, ...) }</code></td><td>DRC: the set of value tuples</td><td>Writing or reading DRC</td></tr>
+      <tr><td><code>σ<sub>cond</sub>(R)</code></td><td>Keep rows of R that satisfy cond</td><td>Filtering</td></tr>
+      <tr><td><code>π<sub>A</sub>(R)</code></td><td>Keep column A and remove duplicates</td><td>Choosing output columns</td></tr>
+      <tr><td><code>R ⋈ S</code></td><td>Join rows that agree on common columns</td><td>Combining two tables</td></tr>
+      <tr><td><code>SELECT ... WHERE NOT EXISTS</code></td><td>SQL form of a ∀ query</td><td>Converting a ∀ query to SQL</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in GATE style. They are not past exam questions. Use the sample tables from the top of this page.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Names of CS students</h3>
+    <div class="statement"><p>Which tuples does <code>{ t.name | Student(t) ∧ t.dept = 'CS' }</code> return on the Student table?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The names of students whose dept is CS.</li>
+      <li><strong>Which idea applies.</strong> A single table filter with a target column.</li>
+      <li><strong>Work it out.</strong> Asha (CS), Ravi (EE, no), Meena (CS), Dev (ME, no), Kiran (CS).</li>
+      <li><strong>Check.</strong> Three CS rows in the table, and three names in the answer.</li>
+    </ol>
+    <p class="cx">Answer: Asha, Meena, Kiran.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Counting high cgpa students</h3>
+    <div class="statement"><p>How many tuples does <code>{ t | Student(t) ∧ t.cgpa &gt; 8 }</code> return on the Student table? Give a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count of rows, not names.</li>
+      <li><strong>Which idea applies.</strong> A filter with a strict comparison.</li>
+      <li><strong>Work it out.</strong> The cgpa values are 9.1, 7.8, 8.7, 6.9 and 8.2. Values above 8 are 9.1, 8.7 and 8.2.</li>
+      <li><strong>Check.</strong> Ravi (7.8) and Dev (6.9) are below 8. Three rows remain.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which expressions are safe</h3>
+    <div class="statement"><p>Select all that apply. Which of these TRC expressions are safe?</p>
+      <p>(A) <code>{ t | ¬Student(t) }</code></p>
+      <p>(B) <code>{ t | Student(t) ∧ t.cgpa ≥ 8 }</code></p>
+      <p>(C) <code>{ t | Enrol(t) ∧ t.grade = 10 }</code></p>
+      <p>(D) <code>{ t | ∃s ∈ Student (s.sid = t.sid) }</code></p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which expressions keep the answer inside stored data.</li>
+      <li><strong>Which idea applies.</strong> A table atom joined with ∧ forces each answer row to be stored.</li>
+      <li><strong>Work it out.</strong> (A) says only "not a Student row", so it is unsafe. (B) requires Student(t), so it is safe. (C) requires Enrol(t), so it is safe. (D) does not force t to be a row of any table, so it is unsafe.</li>
+      <li><strong>Check.</strong> The safe ones are the two with a table atom joined by ∧.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Calculus for course ids</h3>
+    <div class="statement"><p>Write the TRC expression for <code>π<sub>cid</sub>(σ<sub>grade≥9</sub>(Enrol))</code>, then give the set of course ids it returns on the Enrol table.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A TRC expression and its result.</li>
+      <li><strong>Which idea applies.</strong> Select becomes a condition, project becomes the target list.</li>
+      <li><strong>Work it out.</strong> The TRC form is <code>{ e.cid | Enrol(e) ∧ e.grade ≥ 9 }</code>. The rows with grade at least 9 are (101, CS101, 9), (103, CS101, 10) and (103, CS301, 9). Their cids are CS101, CS101 and CS301. Removing the duplicate gives CS101 and CS301.</li>
+      <li><strong>Check.</strong> The grades 8, 7 and 6 are excluded.</li>
+    </ol>
+    <p class="cx">Answer: <code>{ e.cid | Enrol(e) ∧ e.grade ≥ 9 }</code>, returning CS101 and CS301.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting students in CS301</h3>
+    <div class="statement"><p>How many distinct students have an enrolment in CS301? Write the TRC expression first, then give the number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count of students, not enrolment rows.</li>
+      <li><strong>Which idea applies.</strong> An existential query over Enrol.</li>
+      <li><strong>Work it out.</strong> TRC: <code>{ s.sid | Student(s) ∧ ∃e (Enrol(e) ∧ e.sid = s.sid ∧ e.cid = 'CS301') }</code>. The CS301 rows have sids 101, 103 and 105.</li>
+      <li><strong>Check.</strong> Three CS301 rows, each with a different sid, so three students.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Every enrolment is at least 8</h3>
+    <div class="statement"><p>Consider <code>{ s.name | Student(s) ∧ ∀e (Enrol(e) ∧ e.sid = s.sid → e.grade ≥ 8) }</code>. Select all that apply.</p>
+      <p>(A) Asha is in the answer.</p>
+      <p>(B) Ravi is in the answer.</p>
+      <p>(C) Dev is in the answer.</p>
+      <p>(D) The answer becomes empty if Dev is removed from the Student table.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the answer are true.</li>
+      <li><strong>Which idea applies.</strong> A ∀ with an implication, checked row by row. A student with no rows passes vacuously.</li>
+      <li><strong>Work it out.</strong> (A) Asha has grades 9 and 8. True. (B) Ravi has grade 7, so the implication fails. False. (C) Dev has no rows, so the ∀ is vacuously true. True. (D) Asha and Meena remain, so the answer is not empty. False.</li>
+      <li><strong>Check.</strong> The answer is Asha, Meena and Dev.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Write the DRC for EE students</h3>
+    <div class="statement"><p>Write a DRC expression for the names of students in the EE department. Then state how many rows it returns on the Student table.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A DRC expression and a count.</li>
+      <li><strong>Which idea applies.</strong> DRC uses positional variables. Columns not in the target list must be quantified.</li>
+      <li><strong>Work it out.</strong> The Student atom has four positions: sid, name, dept, cgpa. So the expression is <code>{ &lt;n&gt; | ∃s ∃c (Student(s, n, 'EE', c)) }</code>. Only Ravi has dept EE.</li>
+      <li><strong>Check.</strong> The dept column reads CS, EE, CS, ME, CS. Exactly one EE.</li>
+    </ol>
+    <p class="cx">Answer: <code>{ &lt;n&gt; | ∃s ∃c (Student(s, n, 'EE', c)) }</code>, with 1 row (Ravi).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which algebra is equivalent</h3>
+    <div class="statement"><p>Select all that apply. Which relational algebra expressions are equivalent to <code>{ t.name | Student(t) ∧ ∃e (Enrol(e) ∧ e.sid = t.sid ∧ e.cid = 'EE201') }</code> on every database?</p>
+      <p>(A) <code>π<sub>name</sub>( Student ⋈ σ<sub>cid='EE201'</sub>(Enrol) )</code></p>
+      <p>(B) <code>π<sub>name</sub>( Student ⋈ σ<sub>cid='CS101'</sub>(Enrol) )</code></p>
+      <p>(C) <code>σ<sub>name='Ravi'</sub>(Student)</code></p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Equivalence on every database, not on one table.</li>
+      <li><strong>Which idea applies.</strong> Select the EE201 rows, join on sid, project the name.</li>
+      <li><strong>Work it out.</strong> (A) follows the pattern exactly. Equivalent. (B) uses CS101, so it asks a different question. Not equivalent. (C) never checks enrolment. On a database where Ravi has no EE201 row, (C) still returns Ravi. Not equivalent.</li>
+      <li><strong>Check.</strong> Test a database where Ravi is not enrolled in EE201. Only (A) gives an empty answer.</li>
+    </ol>
+    <p class="cx">Answer: (A) only.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: nested exists with a budget test (NAT, 2 marks)</h3>
+    <div class="statement"><p>A database has two tables. Emp(eid, dept, salary) has six rows: (1, CS, 50), (2, CS, 35), (3, EE, 42), (4, ME, 60), (5, EE, 28) and (6, CS, 44). Dept(dept, budget) has three rows: (CS, 900), (EE, 400) and (ME, 700). The query is <code>{ e.eid | Emp(e) ∧ e.salary ≥ 40 ∧ ∃d ∈ Dept (d.dept = e.dept ∧ d.budget &gt; 500) }</code>. Tuple calculus returns a set of answers, so each eid counts once. How many tuples does the query return?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of distinct eid values in the answer.</li>
+      <li><strong>Which idea applies.</strong> The tuple variable e ranges over Emp. The ∃ part is a join: it needs a Dept row with the same dept and a budget above 500.</li>
+      <li><strong>Work it out.</strong> Salary 40 or more keeps eids 1, 3, 4 and 6. The budget test passes for CS (900) and ME (700) but fails for EE (400). So eid 3 drops out, and eids 1, 4 and 6 remain.</li>
+      <li><strong>Check.</strong> The ∃ clause only asks whether a matching department exists, so it never adds duplicates. Three eids remain, which gives a count of 3.</li>
+    </ol>
+    <p class="cx">Answer: 3 (the eids are 1, 4 and 6).</p>
+    <pre class="code" data-lang="python"><code>emp=[(1,'CS',50),(2,'CS',35),(3,'EE',42),(4,'ME',60),(5,'EE',28),(6,'CS',44)]
+dept=[('CS',900),('EE',400),('ME',700)]
+ans=[e[0] for e in emp if e[2]&gt;=40 and any(d[0]==e[1] and d[1]&gt;500 for d in dept)]
+print(len(ans))
+print(ans)</code></pre>
+    <pre class="output">3
+[1, 4, 6]</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 2: which algebra matches the query (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Relations R(A, B) and S(A, B) hold R = {(1, x), (2, y), (3, z)} and S = {(1, q), (2, y)}. The TRC query is <code>{ t.A | R(t) ∧ ¬∃s ∈ S (s.A = t.A) }</code>. Select all that apply. Which relational algebra expressions give the same answer as this query on this data?</p>
+      <p>(A) π<sub>A</sub>(R) − π<sub>A</sub>(S)</p>
+      <p>(B) π<sub>A</sub>(R − S)</p>
+      <p>(C) π<sub>A</sub>(R) − π<sub>A</sub>(R ∩ S)</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which algebra expressions return the same set of A values as the TRC query.</li>
+      <li><strong>Which idea applies.</strong> The query keeps the A values of R that have no matching A value in S. That is a set difference on the A column.</li>
+      <li><strong>Work it out.</strong> The query returns {3}. (A) gives {1, 2, 3} − {1, 2} = {3}, so it matches. (B) removes only the identical tuple (2, y), so R − S = {(1, x), (3, z)} and the projection gives {1, 3}. (C) subtracts the intersection {2}, which leaves {1, 3}.</li>
+      <li><strong>Check.</strong> Both wrong options keep the value 1, but S has an A value 1, so the query must exclude it.</li>
+    </ol>
+    <p class="cx">Answer: (A) only. Why the others fail: (B) keeps 1 because the tuple (1, x) is not in S, even though S has an A value of 1; (C) removes only A values that appear in both relations with the same tuple, which leaves 1 and 3.</p>
+    <pre class="code" data-lang="python"><code>R={(1,'x'),(2,'y'),(3,'z')}
+S={(1,'q'),(2,'y')}
+q={t[0] for t in R if not any(s[0]==t[0] for s in S)}
+A={a for a,b in R}-{a for a,b in S}
+B={a for a,b in R-S}
+C={a for a,b in R}-{a for a,b in R.intersection(S)}
+print(sorted(q))
+print(sorted(A)==sorted(q), sorted(B)==sorted(q), sorted(C)==sorted(q))</code></pre>
+    <pre class="output">[3]
+True False False</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: strong CS2 grades and distinct names (NAT, 2 marks)</h3>
+    <div class="statement"><p>Student(sid, name, cgpa) has five rows: (1, Asha, 9.1), (2, Ravi, 7.8), (3, Meena, 8.7), (4, Dev, 6.9) and (5, Kiran, 8.2). Enrol(sid, cid, grade) has eight rows: (1, CS2, 10), (1, CS2, 9), (2, CS2, 10), (3, EE1, 10), (3, CS2, 8), (4, CS2, 9), (5, CS2, 9) and (5, MA1, 10). The query is <code>{ s.name | Student(s) ∧ ∃e ∈ Enrol (e.sid = s.sid ∧ e.cid = 'CS2' ∧ e.grade ≥ 9) }</code>. How many distinct names does the answer contain?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of distinct names in the answer.</li>
+      <li><strong>Which idea applies.</strong> The ∃ clause becomes a join condition on sid. Set semantics removes duplicate names.</li>
+      <li><strong>Work it out.</strong> CS2 rows with grade 9 or more belong to sids 1 (grades 10 and 9), 2 (10), 4 (9) and 5 (9). Meena's CS2 grade is 8, so she is out, and her EE1 grade of 10 does not count. Sid 1 has two qualifying rows but only one name.</li>
+      <li><strong>Check.</strong> Sids 1, 2, 4 and 5 give four names: Asha, Ravi, Dev and Kiran.</li>
+    </ol>
+    <p class="cx">Answer: 4 (Asha, Dev, Kiran and Ravi).</p>
+    <pre class="code" data-lang="python"><code>students=[(1,'Asha',9.1),(2,'Ravi',7.8),(3,'Meena',8.7),(4,'Dev',6.9),(5,'Kiran',8.2)]
+enrol=[(1,'CS2',10),(1,'CS2',9),(2,'CS2',10),(3,'EE1',10),(3,'CS2',8),(4,'CS2',9),(5,'CS2',9),(5,'MA1',10)]
+ans={s[1] for s in students if any(e[0]==s[0] and e[2]&gt;=9 and e[1]=='CS2' for e in enrol)}
+print(len(ans))
+print(sorted(ans))</code></pre>
+    <pre class="output">4
+['Asha', 'Dev', 'Kiran', 'Ravi']</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: students who took every course (NAT, 2 marks)</h3>
+    <div class="statement"><p>Course has three rows: CS2, MA1 and EE1. Enrol(sid, cid) has ten rows: (1, CS2), (1, MA1), (1, EE1), (2, CS2), (2, MA1), (3, EE1), (4, CS2), (4, MA1), (4, EE1) and (4, CS2). The query finds every student who is enrolled in every course listed in Course. In tuple calculus, this uses a ∀ over Course with an ∃ inside it. How many students does the answer contain? Count each student once.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> How many students take all three courses.</li>
+      <li><strong>Which idea applies.</strong> A ∀ over Course is a relational division. Each course must have an enrolment row for the same student.</li>
+      <li><strong>Work it out.</strong> Student 1 has CS2, MA1 and EE1. Student 2 has no EE1, so is out. Student 3 has only EE1. Student 4 has all three courses, and the repeated CS2 row changes nothing.</li>
+      <li><strong>Check.</strong> Students 1 and 4 remain, so the count is 2.</li>
+    </ol>
+    <p class="cx">Answer: 2 (students 1 and 4).</p>
+    <pre class="code" data-lang="python"><code>courses={'CS2','MA1','EE1'}
+enrol=[(1,'CS2'),(1,'MA1'),(1,'EE1'),(2,'CS2'),(2,'MA1'),(3,'EE1'),(4,'CS2'),(4,'MA1'),(4,'EE1'),(4,'CS2')]
+sids=sorted({e[0] for e in enrol})
+ans=[s for s in sids if all((s,c) in enrol for c in courses)]
+print(len(ans))
+print(ans)</code></pre>
+    <pre class="output">2
+[1, 4]</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Relational calculus</dt><dd>A declarative way to describe the rows you want, based on logic.</dd></div>
+    <div><dt>Tuple relational calculus (TRC)</dt><dd>Queries of the form { t | P(t) } where t is a whole row.</dd></div>
+    <div><dt>Domain relational calculus (DRC)</dt><dd>Queries of the form { &lt;x, y&gt; | P(x, y) } where each variable is one value.</dd></div>
+    <div><dt>Existential quantifier ∃</dt><dd>"There is at least one" such row or value.</dd></div>
+    <div><dt>Universal quantifier ∀</dt><dd>"Every" row or value satisfies the statement.</dd></div>
+    <div><dt>Duality rule</dt><dd>∀t P(t) is the same as ¬∃t ¬P(t).</dd></div>
+    <div><dt>Vacuous truth</dt><dd>A ∀ statement is true when there are no rows to check.</dd></div>
+    <div><dt>Free variable</dt><dd>A variable not bound by a quantifier, usually in the target list.</dd></div>
+    <div><dt>Active domain</dt><dd>All values stored in the database, plus constants in the query.</dd></div>
+    <div><dt>Safe expression</dt><dd>A query whose answer is always drawn from stored data.</dd></div>
+    <div><dt>Unsafe expression</dt><dd>A query that could return endless or non-stored answers, such as { t | ¬Student(t) }.</dd></div>
+    <div><dt>Declarative</dt><dd>Stating the properties of the answer, not the steps.</dd></div>
+    <div><dt>Procedural</dt><dd>Giving an ordered list of operations to produce the answer.</dd></div>
+    <div><dt>Relational algebra</dt><dd>The procedural language with σ, π, ⋈, ∪, − and ×.</dd></div>
+    <div><dt>NOT EXISTS</dt><dd>The SQL form used to express a ∀ query.</dd></div>
+    <div><dt>Equivalent queries</dt><dd>Queries that return the same rows on every database.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Calculus says WHAT you want. Algebra says HOW to get it.</li>
+    <li>A TRC query has the form { target | condition }.</li>
+    <li>Every column not in the DRC target list must be quantified.</li>
+    <li>∀ is true when there are no rows. This is vacuous truth.</li>
+    <li>∀t P(t) is the same as ¬∃t ¬P(t). Use it to convert to SQL NOT EXISTS.</li>
+    <li>A safe expression forces each answer row to come from a stored relation.</li>
+    <li>Equivalence means the same answer on every database, so test with an empty or unusual case.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 89?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 89 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-088.html"><small>Previous, topic 88</small>Integrity constraints</a><a class="next" href="gate-090.html"><small>Next, topic 90</small>SQL: queries, joins, aggregation</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,464 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 99: Logistic regression</title><meta name="description" content="Logistic regression is a classifier. It turns a weighted sum of inputs into a probability between 0 and 1, then picks a class. You will learn the sigmoid curve, the idea of log-odds, how the weights are fitted by maximum likelihood, how the decision boundary works, and how the method extends to several classes."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g99" data-key="g99" data-noun="topic" data-num="99" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Logistic regression</h1>
+<p class="lede">Logistic regression is a classifier. It turns a weighted sum of inputs into a probability between 0 and 1, then picks a class. You will learn the sigmoid curve, the idea of log-odds, how the weights are fitted by maximum likelihood, how the decision boundary works, and how the method extends to several classes.</p>
+<div class="station"><b>99</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>From a score to a probability</li><li>Log-odds and what the coefficients mean</li><li>Maximum likelihood fitting</li><li>Decision boundary and threshold</li><li>Multiclass with softmax</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you want to predict whether an email is spam. The answer is yes or no. You could draw a straight line through the data and call anything above 0.5 "spam", but a straight line can predict values like 1.7 or minus 0.4. Those numbers do not mean anything as probabilities. What we want is a number between 0 and 1 that says how likely the email is to be spam.</p>
+  <p>Think of a weather forecaster. The forecaster does not say "rain" or "no rain" with certainty. The forecaster says "a 70 percent chance of rain". Logistic regression works the same way. It combines the inputs into one score, then squeezes that score into a probability. A high score means a high chance of the yes class. A low score means a low chance.</p>
+  <p>Despite its name, logistic regression is a <strong>classification</strong> method. Its output is a probability, and the final yes or no comes from a threshold. It is a central model in the Machine Learning part of the Data Science and AI paper (DA). It also appears in questions about the sigmoid function, the decision boundary, maximum likelihood and softmax. You need only school algebra and the idea of a logarithm to follow this page. Logarithms are explained when they first appear.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Each term returns later on the page.</p>
+  <dl>
+    <div><dt>Classification</dt><dd>Predicting which class an item belongs to, such as spam or not spam.</dd></div>
+    <div><dt>Class label y</dt><dd>The true answer for one data point. For a yes or no problem we write y = 1 for yes and y = 0 for no.</dd></div>
+    <div><dt>Score z</dt><dd>The weighted sum of the inputs, z = β<sub>0</sub> + β<sub>1</sub>x<sub>1</sub> + ... + β<sub>n</sub>x<sub>n</sub>. It can be any real number.</dd></div>
+    <div><dt>Sigmoid function σ(z)</dt><dd>A curve that turns any score into a number between 0 and 1. Precisely: σ(z) = 1/(1 + e<sup>-z</sup>).</dd></div>
+    <div><dt>Euler's number e</dt><dd>A fixed number about 2.718, the base of natural growth. e<sup>z</sup> is the exponential of z, and on a calculator it is the e^x key.</dd></div>
+    <div><dt>Natural logarithm ln</dt><dd>The inverse of e<sup>z</sup>. ln(e<sup>z</sup>) = z. Calculators call it ln.</dd></div>
+    <div><dt>Odds</dt><dd>The ratio of the chance of yes to the chance of no. Precisely: odds = p/(1 minus p).</dd></div>
+    <div><dt>Log-odds or logit</dt><dd>The natural logarithm of the odds. Precisely: logit(p) = ln(p/(1 minus p)).</dd></div>
+    <div><dt>Likelihood</dt><dd>How probable the observed labels are under a set of weights. Higher means a better fit.</dd></div>
+    <div><dt>Maximum likelihood estimation MLE</dt><dd>Choosing the weights that make the observed labels as probable as possible.</dd></div>
+    <div><dt>Decision boundary</dt><dd>The set of inputs where the model is exactly undecided. For logistic regression it is where z = 0.</dd></div>
+    <div><dt>Threshold</dt><dd>The probability above which we predict class 1. The usual value is 0.5.</dd></div>
+    <div><dt>Softmax</dt><dd>A rule that turns several scores into several probabilities that add to 1. It is the multiclass version of the sigmoid.</dd></div>
+    <div><dt>Confusion matrix</dt><dd>A table counting correct and wrong predictions for each class.</dd></div>
+    <div><dt>Precision</dt><dd>Of the items predicted yes, the share that really are yes.</dd></div>
+    <div><dt>Recall</dt><dd>Of the items that really are yes, the share that we found.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="From a score to a probability">
+  <h2>From a score to a probability</h2>
+  <h3>Step 1: build a score</h3>
+  <p>Start with a score, exactly as in multiple linear regression. Each input gets a weight, and the weighted sum is a number z that can be anything from minus a lot to plus a lot.</p>
+  <div class="formula">z = β<sub>0</sub> + β<sub>1</sub>x<sub>1</sub> + β<sub>2</sub>x<sub>2</sub> + ... + β<sub>n</sub>x<sub>n</sub></div>
+  <p>Read it symbol by symbol. β<sub>0</sub> is the intercept, the starting score. β<sub>1</sub> to β<sub>n</sub> are the weights. x<sub>1</sub> to x<sub>n</sub> are the inputs for one data point. The result z is the raw score.</p>
+  <h3>Step 2: squeeze the score into a probability</h3>
+  <p>Now pass z through the sigmoid function. The sigmoid is an S-shaped curve. It is very close to 0 for very negative z, it is exactly 0.5 at z = 0, and it is very close to 1 for very positive z.</p>
+  <div class="formula">p = σ(z) = 1 / (1 + e<sup>-z</sup>)</div>
+  <p>Read the symbols. p is the predicted probability that y = 1. The letter e is about 2.718. The minus sign in e<sup>-z</sup> means we take the reciprocal of e to the power z, so large positive z makes the bottom of the fraction huge and p tiny. Check the two extremes. If z is large and positive, e<sup>-z</sup> is tiny, so the bottom is about 1, and p is close to 1. If z is large and negative, e<sup>-z</sup> is huge, so p is close to 0.</p>
+  <h3>Worked example: three values of the sigmoid</h3>
+  <ol>
+    <li><strong>z = 0.</strong> e<sup>0</sup> = 1. So p = 1/(1 + 1) = 0.5. An undecided score gives a probability of one half.</li>
+    <li><strong>z = 2.</strong> e<sup>-2</sup> is about 0.1353. So p = 1/(1 + 0.1353) = 1/1.1353, which is about 0.8808.</li>
+    <li><strong>z = minus 2.</strong> e<sup>2</sup> is about 7.389. So p = 1/(1 + 7.389) = 1/8.389, which is about 0.1192. This is 1 minus 0.8808, a nice symmetry: σ(minus z) = 1 minus σ(z).</li>
+  </ol>
+  <p>The sigmoid never reaches exactly 0 or 1, so every prediction is a valid probability.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Logistic regression is a linear model on the score z, and the sigmoid is only the final step that turns the score into a probability. The boundary between the classes is still a straight line or flat surface in the inputs.</p></div>
+  <h3>Why not use a straight line?</h3>
+  <p>A straight line of the form ŷ = β<sub>0</sub> + β<sub>1</sub>x can go below 0 or above 1. Such values break the meaning of a probability. The sigmoid fixes this by bending the output into the range from 0 to 1 without any sharp corner. It also makes the calculus of fitting smooth.</p>
+  <details class="check"><summary>Question: what is σ(0)?</summary><div class="ans"><p>0.5. Because e<sup>0</sup> = 1, the formula gives 1/(1 + 1) = 0.5.</p></div></details>
+  <details class="check"><summary>Question: can logistic regression output 1.3?</summary><div class="ans"><p>No. The sigmoid always gives a value strictly between 0 and 1. A probability of 1.3 is impossible, which is why a straight line is the wrong final step for a yes or no problem.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Log-odds and what the coefficients mean">
+  <h2>Log-odds and what the coefficients mean</h2>
+  <h3>Odds: a friendlier way to talk about chance</h3>
+  <p>Probabilities are awkward to multiply. Odds are often easier. The odds of an event are the chance it happens divided by the chance it does not.</p>
+  <div class="formula">odds = p / (1 minus p)</div>
+  <p>Example: if the probability of rain is 0.8, the chance of no rain is 0.2. The odds of rain are 0.8/0.2 = 4. We say "four to one in favour". If p = 0.5, the odds are 0.5/0.5 = 1, an even chance.</p>
+  <h3>Log-odds: the score in disguise</h3>
+  <p>Take the natural logarithm of the odds. This is the log-odds, also called the logit. The logarithm turns multiplication into addition, which is convenient here. The surprising and important fact is this:</p>
+  <div class="formula">ln( p / (1 minus p) ) = z = β<sub>0</sub> + β<sub>1</sub>x<sub>1</sub> + ... + β<sub>n</sub>x<sub>n</sub></div>
+  <p>In words: the log-odds of the yes class is a straight-line function of the inputs. This is why logistic regression is called a linear model. The sigmoid and the log-odds are two views of the same relationship.</p>
+  <p>Check the rain example. The odds are 4, and ln 4 is about 1.386. So the score z for that email would be 1.386. Put this into the sigmoid: σ(1.386) = 1/(1 + e<sup>-1.386</sup>) = 1/(1 + 0.25) = 0.8. That returns the original probability.</p>
+  <h3>What a coefficient means</h3>
+  <p>Look at the log-odds formula again. If x<sub>1</sub> goes up by 1 and everything else stays the same, the log-odds go up by β<sub>1</sub>. Since the odds are e raised to the log-odds, the odds get multiplied by e<sup>β<sub>1</sub></sup>.</p>
+  <div class="formula">odds ratio = e<sup>β<sub>1</sub></sup></div>
+  <p>So the coefficient is not a change in probability. It is a change in log-odds, and the odds change by a multiplicative factor. If β<sub>1</sub> = 0.693, which is about ln 2, the odds double for each unit rise in x<sub>1</sub>. If β<sub>1</sub> is negative, the odds shrink.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A coefficient of 0.5 does not mean the probability goes up by 0.5. It means the log-odds go up by 0.5, so the odds multiply by e<sup>0.5</sup>, about 1.65. The change in probability depends on where you start on the curve.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect questions that give β and ask about the odds ratio. The answer is e raised to β. Do not confuse it with β itself.</p></div>
+  <details class="check"><summary>Question: a coefficient is 0 and the odds ratio is e<sup>0</sup>. What is the odds ratio?</summary><div class="ans"><p>1. A coefficient of 0 means the input does not change the odds at all.</p></div></details>
+  <details class="check"><summary>Question: the probability is 0.25. What are the odds and the log-odds?</summary><div class="ans"><p>The odds are 0.25/0.75 = 1/3. The log-odds are ln(1/3), which is about minus 1.099.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Maximum likelihood fitting">
+  <h2>Maximum likelihood fitting</h2>
+  <h3>The question we ask</h3>
+  <p>In linear regression we fitted the weights by making the squared errors small. Logistic regression uses a different and very natural idea: choose the weights that make the observed labels as probable as possible. This is <strong>maximum likelihood estimation</strong>.</p>
+  <p>Think of a game. You have a bag of coins. Some are biased. You flip a coin and see heads. Which bias makes heads the most likely result? The bias that best explains the observations is the answer. Likelihood is the probability of the observed data, viewed as a function of the unknown weights.</p>
+  <h3>The likelihood for one data point</h3>
+  <p>For one data point, the model says the probability of class 1 is p, and the probability of class 0 is 1 minus p. If the true label is y = 1, the probability of what we saw is p. If the true label is y = 0, it is 1 minus p. We can write both in one expression:</p>
+  <div class="formula">P(y | x) = p<sup>y</sup> (1 minus p)<sup>1 minus y</sup></div>
+  <p>Check it. If y = 1, the expression is p to the power 1 times (1 minus p) to the power 0, which is p. If y = 0, it is p to the power 0 times (1 minus p) to the power 1, which is 1 minus p. The formula picks the right case automatically.</p>
+  <h3>The likelihood for all points</h3>
+  <p>Assume the data points are independent, so the probability of all the labels together is the product of the individual probabilities. Products of many small numbers are hard to handle, so we take the logarithm. The result is the log-likelihood.</p>
+  <div class="formula">ℓ(β) = Σ [ y<sub>i</sub> ln(p<sub>i</sub>) + (1 minus y<sub>i</sub>) ln(1 minus p<sub>i</sub>) ]</div>
+  <p>Maximising the log-likelihood gives the same weights as maximising the likelihood, because the logarithm is an increasing function. Many textbooks minimise the negative of this, called the cross-entropy loss. It is the same problem written upside down.</p>
+  <h3>Finding the best weights</h3>
+  <p>Unlike least squares, there is no neat closed-form formula. Instead we climb the hill of the log-likelihood step by step. At the current weights, compute the gradient, which points uphill. Then take a small step in that direction. The step size is the learning rate.</p>
+  <div class="formula">gradient = X<sup>T</sup>(y minus p)</div>
+  <p>Here p is the vector of predicted probabilities and y is the vector of labels. The gradient is large when the predictions are far from the labels and zero when they match. Let us do one step by hand. Use four points with one input, x = 0, 1, 2, 3, and labels y = 0, 0, 1, 1. Start with β = (0, 0), so every predicted probability is σ(0) = 0.5.</p>
+  <ol>
+    <li><strong>Residuals.</strong> y minus p is minus 0.5, minus 0.5, plus 0.5, plus 0.5.</li>
+    <li><strong>Gradient for the intercept.</strong> Add the residuals: minus 0.5 minus 0.5 plus 0.5 plus 0.5 = 0.</li>
+    <li><strong>Gradient for β<sub>1</sub>.</strong> Multiply each residual by its x: 0 times minus 0.5 is 0, 1 times minus 0.5 is minus 0.5, 2 times 0.5 is 1, 3 times 0.5 is 1.5. Add: 0 minus 0.5 plus 1 plus 1.5 = 2.</li>
+    <li><strong>Take a step.</strong> With learning rate 0.1, the new β<sub>1</sub> is 0 plus 0.1 times 2 = 0.2. The intercept stays at 0.</li>
+  </ol>
+  <p>The weight for x moved up, which fits the data: larger x tends to go with label 1. Repeating this many times gives the fitted weights. The code below repeats the step three times and prints the weights after each step.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def sigmoid(z):
+    return 1 / (1 + math.exp(-z))
+
+# rows are (1, x) so the first column is for the intercept
+X = [(1, 0), (1, 1), (1, 2), (1, 3)]
+y = [0, 0, 1, 1]
+beta = [0.0, 0.0]
+rate = 0.1
+
+for step in range(3):
+    p = [sigmoid(beta[0] * a + beta[1] * b) for a, b in X]
+    grad = [sum((yi - pi) * row[j] for row, yi, pi in zip(X, y, p)) for j in range(2)]
+    beta = [beta[j] + rate * grad[j] for j in range(2)]
+    print("after step", step + 1, "beta =", [round(v, 4) for v in beta])</code></pre>
+  <pre class="output">after step 1 beta = [0.0, 0.2]
+after step 2 beta = [-0.0294, 0.3316]
+after step 3 beta = [-0.0739, 0.4262]</pre>
+  <div class="note tip"><p><span class="t">Tip</span>In the printout the intercept becomes slightly negative while the slope grows. Both change together because each step looks at all the points at once. Do not expect each weight to move in a straight line.</p></div>
+  <details class="check"><summary>Question: why does the gradient become zero at a good fit?</summary><div class="ans"><p>At a good fit the residuals y minus p balance out against the inputs, so X<sup>T</sup>(y minus p) is zero. There is no uphill direction left, which is the top of the hill.</p></div></details>
+  <details class="check"><summary>Question: why take the logarithm of the likelihood?</summary><div class="ans"><p>A product of many probabilities gets very small and is hard to work with. The logarithm turns the product into a sum, which is easier to differentiate, and it does not change where the maximum is.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Decision boundary and threshold">
+  <h2>Decision boundary and threshold</h2>
+  <h3>From probability to a class</h3>
+  <p>A probability is not yet a decision. We must choose a threshold. The usual rule is: predict class 1 when p is at least 0.5, and class 0 otherwise. Because the sigmoid is 0.5 exactly when z = 0, this is the same as saying: predict class 1 when the score z is at least 0.</p>
+  <div class="formula">predict 1 if z ≥ 0, predict 0 if z &lt; 0</div>
+  <h3>The decision boundary</h3>
+  <p>The set of inputs where z = 0 is the <strong>decision boundary</strong>. On one side the model says class 1, on the other side class 0. With two inputs, z = β<sub>0</sub> + β<sub>1</sub>x<sub>1</sub> + β<sub>2</sub>x<sub>2</sub> = 0 is a straight line in the plane. With many inputs it is a flat plane in higher dimensions. So the boundary of logistic regression is linear, even though the probabilities curve.</p>
+  <p>Worked example. Suppose z = minus 1 + 0.5 x<sub>1</sub> + 0.5 x<sub>2</sub>. Where is the boundary? Set z = 0: 0.5 x<sub>1</sub> + 0.5 x<sub>2</sub> = 1, so x<sub>1</sub> + x<sub>2</sub> = 2. A point (1, 1) lies on the line, since 1 + 1 = 2, and has probability 0.5. A point (3, 3) has z = minus 1 + 1.5 + 1.5 = 2, so p = σ(2) = 0.8808, and it is class 1.</p>
+  <h3>Changing the threshold</h3>
+  <p>A threshold of 0.5 is only a default. A medical screening test may use a lower threshold, so that fewer sick patients are missed. A spam filter may use a higher threshold, so that fewer good emails are wrongly sent to the spam folder. Changing the threshold moves the boundary, which trades one kind of mistake for another.</p>
+  <h3>Measuring a classifier with a confusion matrix</h3>
+  <p>Count the four outcomes. True positives (TP) are yes predicted and yes true. False positives (FP) are yes predicted but no true. False negatives (FN) are no predicted but yes true. True negatives (TN) are no predicted and no true.</p>
+  <ul>
+    <li><strong>Accuracy</strong> = (TP + TN) / total. The share of all predictions that are right.</li>
+    <li><strong>Precision</strong> = TP / (TP + FP). When the model says yes, how often is it right?</li>
+    <li><strong>Recall</strong> = TP / (TP + FN). Of the real yes cases, how many did it find?</li>
+  </ul>
+  <p>Example: TP = 40, FP = 10, FN = 20, TN = 30. The total is 100. Accuracy = (40 + 30)/100 = 0.70. Precision = 40/50 = 0.80. Recall = 40/60, about 0.667.</p>
+  <div class="note trap"><p><span class="t">Trap</span>High accuracy can hide a bad model. If only 2 percent of emails are spam, a model that always says "not spam" has 98 percent accuracy and zero recall.</p></div>
+  <details class="check"><summary>Question: which measure would you watch closely for a rare disease test?</summary><div class="ans"><p>Recall, because missing a sick patient is costly. Accuracy alone can look high even when most sick people are missed.</p></div></details>
+  <details class="check"><summary>Question: in the example above, what is the number of predicted yes cases?</summary><div class="ans"><p>TP + FP = 40 + 10 = 50.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Multiclass with softmax">
+  <h2>Multiclass with softmax</h2>
+  <h3>When there are more than two classes</h3>
+  <p>Suppose the task is to label a photo as cat, dog or bird. We now need one probability per class, and the three probabilities must add to 1. For each class we compute its own score z<sub>k</sub>, using its own set of weights. Then we turn the scores into probabilities with the softmax function.</p>
+  <div class="formula">P(class k) = e<sup>z<sub>k</sub></sup> / (e<sup>z<sub>1</sub></sup> + e<sup>z<sub>2</sub></sup> + ... + e<sup>z<sub>K</sub></sup>)</div>
+  <p>Read it. The top is the exponential of this class's score. The bottom adds the exponentials of all the scores, so the probabilities sum to 1. Larger scores get larger probabilities, but the exponential makes the winner stand out more.</p>
+  <h3>Worked example</h3>
+  <p>Three classes have scores z = (1, 2, 0).</p>
+  <ol>
+    <li><strong>Exponentiate.</strong> e<sup>1</sup> is about 2.718, e<sup>2</sup> is about 7.389, e<sup>0</sup> = 1.</li>
+    <li><strong>Add.</strong> 2.718 + 7.389 + 1 = 11.107.</li>
+    <li><strong>Divide.</strong> The probabilities are 2.718/11.107 = 0.2447, 7.389/11.107 = 0.6652, and 1/11.107 = 0.0900.</li>
+    <li><strong>Check.</strong> 0.2447 + 0.6652 + 0.0900 = 0.9999, which is 1 up to rounding. The second class has the highest probability.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>With only two classes, softmax reduces exactly to the sigmoid. The probability of class 1 is σ(z<sub>1</sub> minus z<sub>2</sub>). So the binary model is just the special case of two scores.</p></div>
+  <h3>Another option: one versus rest</h3>
+  <p>An alternative is to train one binary classifier per class, each asking "is it this class or not?" It is simpler, but the separate probabilities need not add to 1 without an extra step. Softmax handles all classes in one model.</p>
+  <h3>Logistic regression and linear regression</h3>
+  <p>Both are linear models in the inputs. Linear regression predicts the mean of a number directly. Logistic regression predicts the log-odds of a class, and the sigmoid converts that to a probability. The function that connects the linear part to the predicted mean is called the link function. For linear regression it is the identity. For logistic regression it is the logit.</p>
+  <details class="check"><summary>Question: the scores are (0, 0, 0). What are the three probabilities?</summary><div class="ans"><p>Each class gets e<sup>0</sup> = 1, the total is 3, so each probability is 1/3.</p></div></details>
+  <details class="check"><summary>Question: does adding the same number to every score change the softmax probabilities?</summary><div class="ans"><p>No. Adding a constant c multiplies every exponential by e<sup>c</sup>, which cancels in the division. Only the differences between scores matter.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table open when you solve problems.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>z = β<sub>0</sub> + Σβ<sub>j</sub>x<sub>j</sub></td><td>Linear score</td><td>First step for any input</td></tr>
+      <tr><td>σ(z) = 1/(1 + e<sup>-z</sup>)</td><td>Sigmoid, score to probability</td><td>Predicting P(y = 1)</td></tr>
+      <tr><td>odds = p/(1 minus p)</td><td>Ratio of yes to no</td><td>Converting between odds and probability</td></tr>
+      <tr><td>ln(p/(1 minus p)) = z</td><td>Log-odds equals the linear score</td><td>Interpreting coefficients</td></tr>
+      <tr><td>odds ratio = e<sup>β<sub>j</sub></sup></td><td>Factor by which odds change per unit of x<sub>j</sub></td><td>Reading a coefficient</td></tr>
+      <tr><td>ℓ(β) = Σ[y ln p + (1 minus y) ln(1 minus p)]</td><td>Log-likelihood</td><td>Maximum likelihood fitting</td></tr>
+      <tr><td>gradient = X<sup>T</sup>(y minus p)</td><td>Direction of steepest ascent</td><td>Gradient steps when fitting</td></tr>
+      <tr><td>predict 1 if z ≥ 0</td><td>Decision rule at threshold 0.5</td><td>Turning probabilities into classes</td></tr>
+      <tr><td>P(class k) = e<sup>z<sub>k</sub></sup>/Σe<sup>z<sub>j</sub></sup></td><td>Softmax</td><td>More than two classes</td></tr>
+      <tr><td>Precision = TP/(TP + FP), Recall = TP/(TP + FN)</td><td>Quality measures</td><td>Evaluating a classifier</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems written for this page. They are not real past paper questions. Try each one before you read the answer. MSQ means more than one option can be correct. NAT means you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Predicted probability (NAT)</h3>
+    <div class="statement"><p>A model has β<sub>0</sub> = minus 1 and β<sub>1</sub> = 0.5. For an input x<sub>1</sub> = 4, find the predicted probability that y = 1. Give your answer to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A probability, rounded to three decimals.</li>
+      <li><strong>Which idea applies.</strong> First the score z, then the sigmoid.</li>
+      <li><strong>Work it out.</strong> z = minus 1 + 0.5 times 4 = minus 1 + 2 = 1. Then p = 1/(1 + e<sup>-1</sup>). e<sup>-1</sup> is about 0.3679, so p = 1/1.3679, which is about 0.731.</li>
+      <li><strong>Check.</strong> A score of 1 is positive, so the probability must be above 0.5. It is, at 0.731.</li>
+    </ol>
+    <p class="cx">Answer: 0.731</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about the sigmoid and odds (MSQ)</h3>
+    <div class="statement"><p>Which statements are true? Select all that apply.</p>
+    <p>(A) The sigmoid output always lies strictly between 0 and 1.</p>
+    <p>(B) σ(0) = 0.</p>
+    <p>(C) A coefficient β<sub>j</sub> multiplies the odds by e<sup>β<sub>j</sub></sup> for each unit increase in x<sub>j</sub>.</p>
+    <p>(D) The output of logistic regression can be any real number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about the sigmoid and the odds are correct.</li>
+      <li><strong>Which idea applies.</strong> The sigmoid lies in (0, 1). Its midpoint is 0.5. Odds ratios come from the exponential of the coefficient.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is false, σ(0) = 0.5. (C) is true, it is the odds ratio. (D) is false, the output is a probability.</li>
+      <li><strong>Check.</strong> The false statements mention the wrong value or the wrong range.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Odds ratio from a coefficient (NAT)</h3>
+    <div class="statement"><p>A fitted logistic regression has a coefficient of 0.693 for input x<sub>1</sub>. This is approximately ln 2. By what factor do the odds of class 1 change when x<sub>1</sub> goes up by 1? Give your answer to two decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The multiplicative change in odds.</li>
+      <li><strong>Which idea applies.</strong> The odds ratio is e raised to the coefficient.</li>
+      <li><strong>Work it out.</strong> The odds ratio is e<sup>0.693</sup>. Since e<sup>ln 2</sup> = 2, this is about 2. More precisely, e<sup>0.693</sup> is about 1.9997, which rounds to 2.00.</li>
+      <li><strong>Check.</strong> A positive coefficient must give a factor above 1. It does.</li>
+    </ol>
+    <p class="cx">Answer: 2.00</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Softmax probability (NAT)</h3>
+    <div class="statement"><p>Three classes have scores z = (1, 2, 0). Find the softmax probability of the second class. Give your answer to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One probability from a softmax.</li>
+      <li><strong>Which idea applies.</strong> Exponentiate every score, then divide by the total.</li>
+      <li><strong>Work it out.</strong> The exponentials are e<sup>1</sup> = 2.718, e<sup>2</sup> = 7.389 and e<sup>0</sup> = 1. The total is 11.107. The second class gets 7.389/11.107 = 0.6652, which rounds to 0.665.</li>
+      <li><strong>Check.</strong> It is the largest of the three probabilities, which matches the largest score.</li>
+    </ol>
+    <p class="cx">Answer: 0.665</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Reading a confusion matrix (MSQ)</h3>
+    <div class="statement"><p>A classifier gives TP = 40, FP = 10, FN = 20 and TN = 30. Select all true statements.</p>
+    <p>(A) The accuracy is 0.70.</p>
+    <p>(B) The precision is 0.80.</p>
+    <p>(C) The recall is 0.60.</p>
+    <p>(D) The recall is 0.67, to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four measures are correct.</li>
+      <li><strong>Which idea applies.</strong> Use the definitions of accuracy, precision and recall. Recall divides by all real yes cases, TP + FN.</li>
+      <li><strong>Work it out.</strong> Accuracy = (40 + 30)/100 = 0.70, so (A) is true. Precision = 40/(40 + 10) = 0.80, so (B) is true. Recall = 40/(40 + 20) = 40/60 = 0.6667. That is 0.67 to two decimals, so (D) is true and (C) is false.</li>
+      <li><strong>Check.</strong> The recall of 0.60 is wrong because the true yes total is 60, not 50.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>One gradient step (NAT)</h3>
+    <div class="statement"><p>Use the data x = 0, 1, 2, 3 with labels y = 0, 0, 1, 1 and the model with no intercept, z = β<sub>1</sub>x. Start with β<sub>1</sub> = 0, so every probability is 0.5. Take one gradient ascent step on the log-likelihood with learning rate 0.1. Find the new β<sub>1</sub>. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The slope after one step.</li>
+      <li><strong>Which idea applies.</strong> Gradient for β<sub>1</sub> is the sum of x<sub>i</sub> times (y<sub>i</sub> minus p<sub>i</sub>). Then add learning rate times gradient.</li>
+      <li><strong>Work it out.</strong> The residuals y minus p are minus 0.5, minus 0.5, plus 0.5, plus 0.5. The products with x are 0, minus 0.5, plus 1, plus 1.5. Their sum is 2. The new β<sub>1</sub> is 0 + 0.1 times 2 = 0.2.</li>
+      <li><strong>Check.</strong> The slope moved up, as the data suggests, since larger x goes with label 1.</li>
+    </ol>
+    <p class="cx">Answer: 0.2</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Where is the boundary? (MSQ)</h3>
+    <div class="statement"><p>A logistic regression has score z = minus 2 + x<sub>1</sub> + x<sub>2</sub>. Select all true statements.</p>
+    <p>(A) The decision boundary is the straight line x<sub>1</sub> + x<sub>2</sub> = 2.</p>
+    <p>(B) The point (0, 0) is predicted as class 1.</p>
+    <p>(C) The logistic regression fit of such a model has a simple closed-form formula, like ordinary least squares.</p>
+    <p>(D) For two classes, softmax with scores z<sub>1</sub> and z<sub>2</sub> gives the same probability as the sigmoid of z<sub>1</sub> minus z<sub>2</sub>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Recognise the boundary, the prediction, the fitting method and the link between softmax and sigmoid.</li>
+      <li><strong>Which idea applies.</strong> The boundary is z = 0. A point is class 1 when z ≥ 0. Fitting uses maximum likelihood with iterative steps. Softmax with two classes reduces to a sigmoid.</li>
+      <li><strong>Work it out.</strong> (A) is true, because z = 0 gives x<sub>1</sub> + x<sub>2</sub> = 2. (B) is false: at (0, 0) the score is minus 2, which is below 0, so the rule predicts class 0. (C) is false, there is no closed form. (D) is true, since e<sup>z1</sup>/(e<sup>z1</sup> + e<sup>z2</sup>) = 1/(1 + e<sup>-(z1 minus z2)</sup>).</li>
+      <li><strong>Check.</strong> The point (1, 1) gives z = 0, which is exactly on the boundary, so its probability is 0.5. The most likely mistake is (C), since maximum likelihood needs iteration for logistic regression.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D)</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def sigmoid(z):
+    return 1 / (1 + math.exp(-z))
+
+print("P1 probability =", round(sigmoid(-1 + 0.5 * 4), 3))
+print("P3 odds ratio =", round(math.exp(0.693), 2))
+scores = [1, 2, 0]
+total = sum(math.exp(s) for s in scores)
+print("P4 softmax class 2 =", round(math.exp(scores[1]) / total, 3))
+tp, fp, fn, tn = 40, 10, 20, 30
+print("P5 accuracy =", (tp + tn) / (tp + fp + fn + tn))
+print("P5 precision =", tp / (tp + fp))
+print("P5 recall =", round(tp / (tp + fn), 2))</code></pre>
+  <pre class="output">P1 probability = 0.731
+P3 odds ratio = 2.0
+P4 softmax class 2 = 0.665
+P5 accuracy = 0.7
+P5 precision = 0.8
+P5 recall = 0.67</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Probability from log-odds (NAT, 2 marks)</h3>
+    <div class="statement"><p>A logistic regression model for loan default has log-odds z = minus 1 plus 0.5 times x, where x is the number of late payments in the last year. A customer has x = 4 late payments. Convert the log-odds to a predicted probability of default using the sigmoid function, which is 1 divided by (1 plus e to the power of minus z). Give the probability to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A probability between 0 and 1 for one customer.</li>
+      <li><strong>Which idea applies.</strong> First compute the log-odds z from the linear formula. Then apply the sigmoid.</li>
+      <li><strong>Work it out.</strong> z = minus 1 plus 0.5 times 4 = minus 1 plus 2 = 1. The probability is 1 divided by (1 plus e to the power of minus 1). Since e to the power of minus 1 is about 0.3679, the probability is 1/1.3679, which is about 0.731.</li>
+      <li><strong>Check.</strong> A positive log-odds must give a probability above 0.5, and 0.731 is above 0.5. Also, z = 0 would give exactly 0.5, so this is a sensible value.</li>
+    </ol>
+    <p class="cx">Answer: 0.731</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Count the predicted class 1 customers (NAT, 2 marks)</h3>
+    <div class="statement"><p>A classifier has the linear score z = 2 times x<sub>1</sub> minus 3 times x<sub>2</sub> plus 1. It predicts class 1 when the predicted probability is at least 0.5. Four customers have inputs (2, 0), (0, 1), (1, 1) and (3, 2). Compute the score and probability for each customer. How many of the four customers are predicted to be class 1? (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count of customers, from four inputs.</li>
+      <li><strong>Which idea applies.</strong> The probability is at least 0.5 exactly when the score z is at least 0, because the sigmoid crosses 0.5 at z = 0.</li>
+      <li><strong>Work it out.</strong> (2, 0) gives z = 4 plus 1 = 5, which is positive. (0, 1) gives z = minus 3 plus 1 = minus 2, which is negative. (1, 1) gives z = 2 minus 3 plus 1 = 0, so the probability is exactly 0.5 and counts as class 1. (3, 2) gives z = 6 minus 6 plus 1 = 1, which is positive. So three customers are class 1.</li>
+      <li><strong>Check.</strong> The only negative score is for (0, 1), so exactly one of four is class 0. That leaves three in class 1, which matches the count.</li>
+    </ol>
+    <p class="cx">Answer: 3</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Which logistic regression facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A student reviews logistic regression fitted by maximum likelihood. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) The log-likelihood of logistic regression is concave, so gradient ascent cannot get stuck at a spurious local maximum.</p><p>(B) The sigmoid output is always strictly between 0 and 1 for any finite score.</p><p>(C) The decision boundary of logistic regression is curved when the score is linear in the inputs.</p><p>(D) The factor e to the power of beta<sub>j</sub> multiplies the odds of class 1 for each one unit increase in x<sub>j</sub>, holding the other inputs fixed.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four statements about logistic regression are true.</li>
+      <li><strong>Which idea applies.</strong> Maximum likelihood gives a concave log-likelihood. The sigmoid is a smooth squashing function. The boundary is where the score equals 0. The odds change multiplicatively.</li>
+      <li><strong>Work it out.</strong> (A) is true, which is why the fitting procedure is reliable. (B) is true, because 1 divided by (1 plus e to the power of minus z) is never exactly 0 or 1 for a finite z. (C) is false, because the boundary is the set where the linear score is 0, which is a straight line or flat plane. (D) is true, because the log-odds are linear, so adding one unit to x<sub>j</sub> multiplies the odds by e to the power of beta<sub>j</sub>.</li>
+      <li><strong>Check.</strong> The code below computes the odds multiplier for beta = 0.5, which is about 1.649, to show that effect (D) is a multiplication.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Option (C) is wrong because the boundary is linear when the score is linear in the inputs.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Two gradient descent steps (NAT, 2 marks)</h3>
+    <div class="statement"><p>A one-input logistic model has probability p = sigmoid(w times x), with no intercept. One training example has x = 2 and label y = 1. Start with w = 0 and use learning rate 0.5. For one example, the gradient of the log loss with respect to w is (p minus y) times x. Perform two gradient descent steps, where each step is w = w minus learning rate times gradient. Find w after two steps, to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of w after two updates.</li>
+      <li><strong>Which idea applies.</strong> Compute p, then the gradient, then update w. Repeat with the new w.</li>
+      <li><strong>Work it out.</strong> Step 1: with w = 0, p = 0.5. The gradient is (0.5 minus 1) times 2 = minus 1. The new w is 0 minus 0.5 times (minus 1) = 0.5. Step 2: p = sigmoid(0.5 times 2) = sigmoid(1), which is about 0.7311. The gradient is (0.7311 minus 1) times 2, about minus 0.5378. The new w is 0.5 plus 0.5 times 0.5378, which is about 0.7689.</li>
+      <li><strong>Check.</strong> The weight moved toward a positive value, which is correct because the label is 1 and x is positive. Each step moved w by less than the one before, as the probability rose toward 1.</li>
+    </ol>
+    <p class="cx">Answer: 0.769</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+# Exam-level 1: probability from log-odds
+z = -1 + 0.5 * 4
+p = 1 / (1 + math.exp(-z))
+print("E1 log-odds =", z, " probability =", round(p, 3))
+
+# Exam-level 2: count predicted class 1 from a linear score
+count = 0
+for x1, x2 in [(2, 0), (0, 1), (1, 1), (3, 2)]:
+    zz = 2 * x1 - 3 * x2 + 1
+    pp = 1 / (1 + math.exp(-zz))
+    print("E2 point", (x1, x2), " score =", zz, " probability =", round(pp, 3))
+    if pp &gt;= 0.5:
+        count += 1
+print("E2 predicted class 1 count =", count)
+
+# Exam-level 3: odds multiplier and sigmoid value
+beta = 0.5
+print("E3 odds multiplier =", round(math.exp(beta), 3))
+print("E3 sigmoid(2) =", round(1 / (1 + math.exp(-2)), 3))
+
+# Exam-level 4: two gradient descent steps
+x, y, eta = 2, 1, 0.5
+w = 0.0
+for step in (1, 2):
+    p2 = 1 / (1 + math.exp(-w * x))
+    grad = (p2 - y) * x
+    w = w - eta * grad
+    print("E4 step", step, " probability =", round(p2, 4), " gradient =", round(grad, 4), " new w =", round(w, 4))</code></pre>
+  <pre class="output">E1 log-odds = 1.0  probability = 0.731
+E2 point (2, 0)  score = 5  probability = 0.993
+E2 point (0, 1)  score = -2  probability = 0.119
+E2 point (1, 1)  score = 0  probability = 0.5
+E2 point (3, 2)  score = 1  probability = 0.731
+E2 predicted class 1 count = 3
+E3 odds multiplier = 1.649
+E3 sigmoid(2) = 0.881
+E4 step 1  probability = 0.5  gradient = -1.0  new w = 0.5
+E4 step 2  probability = 0.7311  gradient = -0.5379  new w = 0.7689</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>Classification</dt><dd>Predicting which class an item belongs to.</dd></div>
+    <div><dt>Score z</dt><dd>The weighted sum of the inputs, which can be any real number.</dd></div>
+    <div><dt>Sigmoid σ(z)</dt><dd>1/(1 + e<sup>-z</sup>), which turns a score into a probability between 0 and 1.</dd></div>
+    <div><dt>Odds</dt><dd>p/(1 minus p), the chance of yes divided by the chance of no.</dd></div>
+    <div><dt>Log-odds</dt><dd>The natural log of the odds, which equals the linear score in logistic regression.</dd></div>
+    <div><dt>Odds ratio</dt><dd>e raised to a coefficient, the multiplicative change in odds per unit of an input.</dd></div>
+    <div><dt>Likelihood</dt><dd>The probability of the observed labels under given weights.</dd></div>
+    <div><dt>Maximum likelihood</dt><dd>Choosing weights that make the observed labels most probable.</dd></div>
+    <div><dt>Gradient</dt><dd>X<sup>T</sup>(y minus p), the direction of steepest increase of the log-likelihood.</dd></div>
+    <div><dt>Decision boundary</dt><dd>The set where z = 0, a straight line or flat plane in the inputs.</dd></div>
+    <div><dt>Threshold</dt><dd>The probability cut-off for predicting class 1, usually 0.5.</dd></div>
+    <div><dt>Softmax</dt><dd>Turns several scores into probabilities that add to 1.</dd></div>
+    <div><dt>Confusion matrix</dt><dd>A table of true and false positives and negatives.</dd></div>
+    <div><dt>Precision</dt><dd>TP/(TP + FP), how many predicted yes cases are really yes.</dd></div>
+    <div><dt>Recall</dt><dd>TP/(TP + FN), how many real yes cases were found.</dd></div>
+    <div><dt>Link function</dt><dd>The function that connects the linear score to the predicted mean. For logistic regression it is the logit.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>The sigmoid maps any score into the range from 0 to 1.</li>
+    <li>The log-odds of class 1 is a straight-line function of the inputs.</li>
+    <li>A coefficient changes the log-odds by its value, and the odds by the factor e raised to that value.</li>
+    <li>Logistic regression is fitted by maximum likelihood, with iterative gradient steps.</li>
+    <li>The decision boundary is where the score is zero, which gives a linear boundary.</li>
+    <li>Accuracy alone can mislead. Look at precision and recall too.</li>
+    <li>Softmax extends the sigmoid to several classes, and with two classes it is the same thing.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 99?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 99 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-098.html"><small>Previous, topic 98</small>Ridge regression</a><a class="next" href="gate-100.html"><small>Next, topic 100</small>K-Nearest Neighbour</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

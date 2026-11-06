@@ -1,0 +1,381 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 12: Partition matrix and its properties</title><meta name="description" content="A partition matrix cuts a big matrix into smaller blocks, so that large problems can be handled one piece at a time. Block rules for products, determinants and inverses, including the Schur complement, appear in GATE questions and in real computing."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g12" data-key="g12" data-noun="topic" data-num="12" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Partition matrix and its properties</h1>
+<p class="lede">A partition matrix cuts a big matrix into smaller blocks, so that large problems can be handled one piece at a time. Block rules for products, determinants and inverses, including the Schur complement, appear in GATE questions and in real computing.</p>
+<div class="station"><b>12</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>What a partition (block) matrix is</li><li>Block addition and multiplication</li><li>Block triangular and block diagonal matrices</li><li>Determinant and inverse of block matrices</li><li>The Schur complement</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a huge spreadsheet with 1000 rows and 1000 columns. Nobody wants to read every cell at once. Instead, you draw lines across it and split it into four rectangles: top left, top right, bottom left and bottom right. Each rectangle is a <strong>block</strong>. You can then talk about the whole sheet using four smaller names. The sheet is now a small table of blocks.</p>
+  <p>This is what a <strong>partition</strong> (or block) matrix is. You draw dividing lines through a matrix, and each piece is treated as a single entry of a smaller matrix. The trick works as long as the cuts line up so that the blocks can be added and multiplied correctly.</p>
+  <p>Why does GATE care? Many large matrices in data science and robotics have a special shape: they are block diagonal, block triangular, or they have a block that is easy to invert. Recognising the shape lets you compute a determinant or an inverse in a few easy steps. The Schur complement is the tool that makes this possible, and it is a favourite in GATE DA and RA questions.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Partition (block) matrix</dt><dd>A matrix cut into rectangular pieces by horizontal and vertical lines. Plain meaning: a matrix of smaller matrices. Precise: M = [[A, B], [C, D]], where each letter is a block.</dd></div>
+    <div><dt>Block</dt><dd>One of the pieces of a partition matrix. It is itself a matrix.</dd></div>
+    <div><dt>Conformable</dt><dd>Two block matrices are conformable when their blocks have sizes that allow addition or multiplication. Precise: the column blocks of the left factor must match the row blocks of the right factor.</dd></div>
+    <div><dt>Block diagonal matrix</dt><dd>A block matrix whose off-diagonal blocks are all zero. Precise: diag(A, D) = [[A, 0], [0, D]].</dd></div>
+    <div><dt>Block triangular matrix</dt><dd>A block matrix with zero blocks below (or above) the diagonal blocks. Precise: [[A, B], [0, D]] is block upper triangular.</dd></div>
+    <div><dt>Determinant</dt><dd>One number from a square matrix. Zero exactly when the matrix is singular (not invertible).</dd></div>
+    <div><dt>Inverse</dt><dd>The matrix M⁻¹ with M⁻¹M = I.</dd></div>
+    <div><dt>Schur complement</dt><dd>The matrix D − CA⁻¹B, built from the blocks of M, where A is invertible. It captures what is left of the D block after removing the influence of A.</dd></div>
+    <div><dt>Singular</dt><dd>A square matrix with determinant zero. It has no inverse.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="What a partition matrix is">
+  <h2>Step 1: What a partition matrix is</h2>
+  <p>Start with a plain 4 × 4 matrix. Draw a vertical line after column 2 and a horizontal line after row 2. You get four blocks, each a 2 × 2 matrix.</p>
+  <pre class="code" data-lang="text"><code>M = [ 1  2 | 5  6 ]       A = [ 1  2 ]    B = [ 5  6 ]
+    [ 3  4 | 7  8 ]           [ 3  4 ]        [ 7  8 ]
+    [-----+-----]
+    [ 0  1 | 2  0 ]           C = [ 0  1 ]    D = [ 2  0 ]
+    [ 1  0 | 0  2 ]               [ 1  0 ]        [ 0  2 ]</code></pre>
+  <p>So M = [[A, B], [C, D]]. The whole matrix is written as a 2 × 2 table, but each entry of that table is a 2 × 2 block. We write the blocks in a list of rows, just as we would for ordinary entries.</p>
+  <p>The partition is only a way of looking at the same numbers. Nothing changes in the matrix itself. But the block view makes some calculations much simpler, as the next steps show.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A block is a matrix, so a block matrix is a matrix of matrices. Treat each block as a single entry, but remember that multiplication order matters, because blocks are not numbers.</p></div>
+  <details class="check"><summary>Question: in the matrix above, what is the size of block B?</summary><div class="ans"><p>2 × 2. B has the 2 rows of the top half and the 2 columns of the right half.</p></div></details>
+  <details class="check"><summary>Question: can we cut a 3 × 3 matrix into a top block of 1 row and a bottom block of 2 rows?</summary><div class="ans"><p>Yes. The lines can go anywhere, as long as they are used consistently for rows and columns. The top blocks then have 1 row and the bottom blocks have 2 rows.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Block addition and multiplication">
+  <h2>Step 2: Block addition and multiplication</h2>
+  <p>Block addition is the easy part. If two matrices are cut in the same places and the blocks have the same sizes, add the blocks one by one:</p>
+  <div class="formula">[[A, B], [C, D]] + [[E, F], [G, H]] = [[A + E, B + F], [C + G, D + H]]</div>
+  <p>Block multiplication is the important part. It looks like ordinary multiplication of 2 × 2 matrices, with blocks in place of numbers:</p>
+  <div class="formula">[[A, B], [C, D]] · [[E, F], [G, H]] = [[AE + BG, AF + BH], [CE + DG, CF + DH]]</div>
+  <p>Read the rule carefully. The order of each product matters, so AE is not the same as EA. And every product must be possible: the number of columns in A must equal the number of rows in E, and so on. This is what "conformable" means.</p>
+  <p><strong>Worked example.</strong> Let X = [[A, B], [0, D]] and Y = [[E, F], [0, G]], with A = [[1, 2], [0, 1]], B = [[3], [4]], D = [[2]], E = [[1, 0], [1, 1]], F = [[1], [0]], G = [[5]]. Find the top-left block of XY.</p>
+  <ol>
+    <li>The top-left block is AE + B·0 = AE. (The zero block removes the BG term.)</li>
+    <li>Compute AE. Row 1 of A is (1, 2). Column 1 of E is (1, 1). Their product is 1·1 + 2·1 = 3. Row 1 with column 2, which is (0, 1): 1·0 + 2·1 = 2.</li>
+    <li>Row 2 of A is (0, 1). With column 1 of E: 0·1 + 1·1 = 1. With column 2: 0·0 + 1·1 = 1.</li>
+    <li>So AE = [[3, 2], [1, 1]].</li>
+    <li>Check with the full product (the code below does this). The top-left 2 × 2 block of XY is [[3, 2], [1, 1]], which agrees.</li>
+  </ol>
+  <p>The code below multiplies the full 3 × 3 matrices, so you can see the block result appear in the answer.</p>
+  <pre class="code" data-lang="python"><code>def matmul(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+
+X = [[1, 2, 3], [0, 1, 4], [0, 0, 2]]
+Y = [[1, 0, 1], [1, 1, 0], [0, 0, 5]]
+P = matmul(X, Y)
+for row in P:
+    print(row)</code></pre>
+  <pre class="output">[3, 2, 16]
+[1, 1, 20]
+[0, 0, 10]</pre>
+  <p>Look at the output. The top-left 2 × 2 block is [[3, 2], [1, 1]], which is AE. The top-right column is AF + BG = (16, 20), and the bottom-right entry is DG = 10. The block formula gave exactly these numbers.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Blocks do not commute in general. AE and EA can differ, so always keep the order from the formula. Also, you can only multiply blocks when their sizes are conformable.</p></div>
+  <details class="check"><summary>Question: if A is 2 × 3 and E is 2 × 2, is the product AE defined?</summary><div class="ans"><p>No. A has 3 columns but E has 2 rows, so the product is not conformable. For AE to be defined, the number of columns of A must equal the number of rows of E.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Block triangular and block diagonal matrices">
+  <h2>Step 3: Block triangular and block diagonal matrices</h2>
+  <p>Some block matrices have a zero block, and this makes life easy. Here are the two most important shapes:</p>
+  <ul>
+    <li><strong>Block diagonal:</strong> [[A, 0], [0, D]]. The off-diagonal blocks are zero, so the two parts do not talk to each other.</li>
+    <li><strong>Block upper triangular:</strong> [[A, B], [0, D]]. Only the bottom-left block is zero, so information flows one way.</li>
+  </ul>
+  <p>Look at the picture. It shows the 2 × 2 matrix [[1, 2], [0, 1]], which is upper triangular, and it is a sideways shear. The first column is (1, 0), so the horizontal axis does not move. Points above the axis slide to the right. Try to find the one direction that stays unchanged, and notice that it is the axis itself.</p>
+  <div class="viz" data-viz="transform" data-m="1,2,0,1"></div>
+  <p>Block triangular matrices have a very useful determinant rule. For [[A, B], [0, D]] with A and D square:</p>
+  <div class="formula">det [[A, B], [0, D]] = det(A) · det(D)</div>
+  <p>The same rule works for block diagonal matrices, which are a special case. The block B does not affect the determinant at all. This is one of the most useful facts in the topic.</p>
+  <p><strong>Worked example.</strong> Let M = [[1, 2, 3], [0, 1, 4], [0, 0, 2]] with A = [[1, 2], [0, 1]], B = [[3], [4]], D = [[2]].</p>
+  <ol>
+    <li>M is block upper triangular with this partition.</li>
+    <li>det A = 1·1 − 2·0 = 1.</li>
+    <li>det D = 2.</li>
+    <li>So det M = 1 × 2 = 2.</li>
+    <li>Check: M is upper triangular with diagonal entries 1, 1, 2. Its determinant is the product of the diagonal, 1·1·2 = 2. Same answer.</li>
+  </ol>
+  <p>The inverse also has a block formula. For [[A, B], [0, D]], with A and D invertible:</p>
+  <div class="formula">[[A, B], [0, D]]⁻¹ = [[A⁻¹, −A⁻¹BD⁻¹], [0, D⁻¹]]</div>
+  <p>Apply it to M above. A⁻¹ = [[1, −2], [0, 1]] and D⁻¹ = 1/2. The top-right block is −A⁻¹BD⁻¹ = −[[1, −2], [0, 1]] · [[3], [4]] · (1/2). First, [[1, −2], [0, 1]] · (3, 4) = (3 − 8, 4) = (−5, 4). Then multiply by −1/2: (5/2, −2). So</p>
+  <pre class="code" data-lang="text"><code>M⁻¹ = [ 1  -2   5/2 ]
+      [ 0   1    -2 ]
+      [ 0   0   1/2 ]</code></pre>
+  <p>Check one entry: row 1 of M times column 3 of M⁻¹ is 1·(5/2) + 2·(−2) + 3·(1/2) = 5/2 − 4 + 3/2 = 0, as it should be for the off-diagonal entry of the identity.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a block triangular matrix, you never need to expand a big determinant. Multiply the determinants of the diagonal blocks. The off-diagonal block is irrelevant.</p></div>
+  <details class="check"><summary>Question: what is det [[2, 7], [0, 3]] with blocks of size 1?</summary><div class="ans"><p>det = 2 · 3 = 6. The block 7 does not matter, which is the same as the rule for ordinary upper triangular matrices.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Determinant and inverse of block matrices">
+  <h2>Step 4: Determinant and inverse of general block matrices</h2>
+  <p>The rules above need a zero block. What about a general block matrix M = [[A, B], [C, D]], where C is not zero? There is still a useful rule, if A is invertible. We use the Schur complement, introduced in the next step, which is the key quantity:</p>
+  <div class="formula">det [[A, B], [C, D]] = det(A) · det(D − CA⁻¹B)</div>
+  <p>The first factor is det A. The second factor is the determinant of the small matrix D − CA⁻¹B, which is smaller than M. This can be much easier to compute than det M itself.</p>
+  <p>A similar rule holds if D is invertible: det M = det(D) · det(A − BD⁻¹C).</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not write det M = det A · det D unless the matrix is triangular or block diagonal (B or C zero). In general, the formula is det A · det(D − CA⁻¹B), and the second factor is not det D.</p></div>
+  <p>The inverse of a general block matrix is also written with the Schur complement S = D − CA⁻¹B. If S is invertible, the top-left block of M⁻¹ is A⁻¹ + A⁻¹BS⁻¹CA⁻¹. You do not need to memorise this for GATE, but you should recognise the shape, and the Schur complement is the key ingredient.</p>
+  <details class="check"><summary>Question: if A = I and C = 0, what does det [[I, B], [0, D]] equal?</summary><div class="ans"><p>det I · det D = 1 · det D = det D. The block B has no effect.</p></div></details>
+  <details class="check"><summary>Question: why is the block formula useful for big matrices?</summary><div class="ans"><p>It reduces a big determinant to a product of smaller determinants. Working with a 2 × 2 or 3 × 3 block is much less work than expanding a 10 × 10 matrix.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="The Schur complement">
+  <h2>Step 5: The Schur complement</h2>
+  <p>The Schur complement is a small matrix that summarises a big block matrix. For M = [[A, B], [C, D]] with A invertible, it is:</p>
+  <div class="formula">S = D − C A⁻¹ B</div>
+  <p>Read it in words. Start with the block D. Then subtract the effect of the blocks C and B, which are connected through A. Here A⁻¹ is the "correction" that undoes A. So S is what remains of D once the interaction with A is removed.</p>
+  <p>Everyday analogy: think of a team with two groups, A and D. Group A is a manager and group D is a set of workers. The workers' true output is measured after you subtract what the manager already directs them to do. That leftover is the Schur complement.</p>
+  <p><strong>Worked example.</strong> Let M = [[2, 1, 1], [1, 3, 0], [0, 1, 4]], with A = [[2, 1], [1, 3]], B = [[1], [0]], C = [[0, 1]] and D = [[4]].</p>
+  <ol>
+    <li>det A = 2·3 − 1·1 = 5. So A is invertible.</li>
+    <li>A⁻¹ = (1/5) [[3, −1], [−1, 2]]. (For a 2 × 2 matrix [[a, b], [c, d]], the inverse is (1/det)[[d, −b], [−c, a]].)</li>
+    <li>A⁻¹B = (1/5)(3·1 + (−1)·0, −1·1 + 2·0) = (3/5, −1/5) as a column.</li>
+    <li>C A⁻¹B = (0, 1) · (3/5, −1/5) = 0·3/5 + 1·(−1/5) = −1/5.</li>
+    <li>S = D − CA⁻¹B = 4 − (−1/5) = 21/5.</li>
+    <li>Then det M = det A · S = 5 · 21/5 = 21.</li>
+    <li>Check by direct expansion of the 3 × 3 matrix: 2(3·4 − 0·1) − 1(1·4 − 0·0) + 1(1·1 − 3·0) = 24 − 4 + 1 = 21. Same answer.</li>
+  </ol>
+  <p>The code below repeats these steps with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def det2(m):
+    return m[0][0] * m[1][1] - m[0][1] * m[1][0]
+
+def det3(m):
+    a, b, c = m[0]
+    d, e, f = m[1]
+    g, h, i = m[2]
+    return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+
+A = [[2, 1], [1, 3]]
+B = [[1], [0]]
+C = [[0, 1]]
+D = [[4]]
+M = [[2, 1, 1], [1, 3, 0], [0, 1, 4]]
+
+detA = det2(A)
+Ainv = [[F(A[1][1], detA), F(-A[0][1], detA)], [F(-A[1][0], detA), F(A[0][0], detA)]]
+CAB = sum(C[0][i] * Ainv[i][j] * B[j][0] for i in range(2) for j in range(2))
+S = D[0][0] - CAB
+print("det M =", det3(M))
+print("det A =", detA)
+print("Schur complement S =", S)
+print("det A * S =", detA * S)</code></pre>
+  <pre class="output">det M = 21
+det A = 5
+Schur complement S = 21/5
+det A * S = 21</pre>
+  <div class="note key"><p><span class="t">Key idea</span>When A is invertible, det M = det A · det S. Pick the block that is easiest to invert as A, and the Schur complement becomes a small matrix you can handle by hand.</p></div>
+  <details class="check"><summary>Question: a block matrix has A = [2], B = [1], C = [1], D = [1]. What is its Schur complement, and what is det M?</summary><div class="ans"><p>S = D − CA⁻¹B = 1 − (1)(1/2)(1) = 1/2. Then det M = det A · S = 2 · (1/2) = 1. Check: the full matrix [[2, 1], [1, 1]] has det 2 − 1 = 1.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>[[A, B], [C, D]] · [[E, F], [G, H]]</td><td>Block product. Top-left is AE + BG.</td><td>Multiplying partitioned matrices.</td></tr>
+      <tr><td>det [[A, B], [0, D]] = det A · det D</td><td>Block triangular determinant.</td><td>A zero block below the diagonal.</td></tr>
+      <tr><td>det diag(A, D) = det A · det D</td><td>Block diagonal determinant.</td><td>Off-diagonal blocks are zero.</td></tr>
+      <tr><td>[[A, B], [0, D]]⁻¹ = [[A⁻¹, −A⁻¹BD⁻¹], [0, D⁻¹]]</td><td>Inverse of block upper triangular matrix.</td><td>Zero block below the diagonal.</td></tr>
+      <tr><td>S = D − CA⁻¹B</td><td>Schur complement of A.</td><td>A is invertible and you need a smaller matrix.</td></tr>
+      <tr><td>det [[A, B], [C, D]] = det A · det(D − CA⁻¹B)</td><td>Determinant via Schur complement.</td><td>A is invertible.</td></tr>
+      <tr><td>rank diag(A, D) = rank A + rank D</td><td>Rank of a block diagonal matrix.</td><td>Rank questions with block structure.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Try each problem before reading the answer. Every problem here is a GATE-style practice problem.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Determinant of a block diagonal matrix</h3>
+    <div class="statement"><p>Let M = [[1, 2, 0], [3, 4, 0], [0, 0, 5]]. Find det M by treating M as a block diagonal matrix.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The determinant of M.</li>
+      <li><strong>Which idea applies.</strong> M is block diagonal with blocks A = [[1, 2], [3, 4]] and D = [5]. The determinant is det A · det D.</li>
+      <li><strong>Work it out.</strong> det A = 1·4 − 2·3 = −2. det D = 5. So det M = −2 · 5 = −10.</li>
+      <li><strong>Check.</strong> Expand along the last column: the only non-zero entry is 5 in position (3, 3), with cofactor det [[1, 2], [3, 4]] = −2. So det M = 5 · (−2) = −10.</li>
+    </ol>
+    <p class="cx">Answer: −10.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Block triangular determinant</h3>
+    <div class="statement"><p>Let M = [[A, B], [0, D]] with A = [[2, 0], [1, 3]], B = [[7], [4]] and D = [[1]]. Find det M.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The determinant of a block upper triangular matrix.</li>
+      <li><strong>Which idea applies.</strong> det [[A, B], [0, D]] = det A · det D. The block B is irrelevant.</li>
+      <li><strong>Work it out.</strong> det A = 2·3 − 0·1 = 6. det D = 1. So det M = 6 · 1 = 6.</li>
+      <li><strong>Check.</strong> Write M in full: [[2, 0, 7], [1, 3, 4], [0, 0, 1]]. Its determinant by the bottom row is 1 times det [[2, 0], [1, 3]] = 6. Same answer.</li>
+    </ol>
+    <p class="cx">Answer: 6.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which block rules are true? (MSQ)</h3>
+    <div class="statement"><p>Let M = [[A, B], [0, D]] with A and D square and invertible. Select all that apply.</p><p>(A) det M = det A · det D &nbsp; (B) M⁻¹ = [[A⁻¹, −A⁻¹BD⁻¹], [0, D⁻¹]] &nbsp; (C) det M = det A + det D &nbsp; (D) M⁻¹ = [[A⁻¹, A⁻¹BD⁻¹], [0, D⁻¹]]</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which block formulas are correct.</li>
+      <li><strong>Which idea applies.</strong> Block triangular determinant and inverse rules.</li>
+      <li><strong>Work it out.</strong> (A) is true, the product rule for triangular blocks. (B) is true: multiply M by the claimed inverse, and the top-right block is A·(−A⁻¹BD⁻¹) + B·D⁻¹ = −BD⁻¹ + BD⁻¹ = 0. (C) is false, determinants of blocks multiply, not add. (D) has the wrong sign: the top-right block should be negative.</li>
+      <li><strong>Check.</strong> Test (D) on the 2 × 2 example M = [[2, 1], [0, 1]] with A = [2], B = [1], D = [1]. The true inverse is [[1/2, −1/2], [0, 1]]. Option (D) would give +1/2, which is wrong.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>An entry of a block product (NAT)</h3>
+    <div class="statement"><p>Let X = [[1, 2, 3], [0, 1, 4], [0, 0, 2]] and Y = [[1, 0, 1], [1, 1, 0], [0, 0, 5]]. What is the entry in row 1, column 3 of the product XY?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One entry of XY.</li>
+      <li><strong>Which idea applies.</strong> Row 1 of X times column 3 of Y, one product at a time.</li>
+      <li><strong>Work it out.</strong> Row 1 of X is (1, 2, 3). Column 3 of Y is (1, 0, 5). The product is 1·1 + 2·0 + 3·5 = 1 + 0 + 15 = 16.</li>
+      <li><strong>Check.</strong> The code in Step 2 printed the first row of XY as [3, 2, 16]. The third entry is 16, which agrees.</li>
+    </ol>
+    <p class="cx">Answer: 16.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Determinant with a Schur complement (NAT)</h3>
+    <div class="statement"><p>Let M = [[1, 2, 0], [2, 5, 1], [0, 1, 4]]. Partition M with A = [1] (the top-left entry), so B = (2, 0), C = (2, 0) as a column, and D = [[5, 1], [1, 4]]. Use the Schur complement to find det M.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The determinant of M, found through a Schur complement.</li>
+      <li><strong>Which idea applies.</strong> det M = det A · det(D − CA⁻¹B).</li>
+      <li><strong>Work it out.</strong> det A = 1, and A⁻¹ = 1. C A⁻¹ B is the outer product of the column (2, 0) and the row (2, 0): [[4, 0], [0, 0]]. So S = [[5, 1], [1, 4]] − [[4, 0], [0, 0]] = [[1, 1], [1, 4]]. det S = 1·4 − 1·1 = 3. So det M = 1 · 3 = 3.</li>
+      <li><strong>Check.</strong> Expand M directly: 1(5·4 − 1·1) − 2(2·4 − 1·0) + 0 = 19 − 16 = 3. Same answer.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Block diagonal properties (MSQ)</h3>
+    <div class="statement"><p>Let M = diag(A, B) be a block diagonal matrix with A and B square and invertible. Select all that apply.</p><p>(A) det M = det A · det B &nbsp; (B) rank M = rank A + rank B &nbsp; (C) M⁻¹ = diag(A⁻¹, B⁻¹) &nbsp; (D) M is always symmetric</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which properties of a block diagonal matrix are always true.</li>
+      <li><strong>Which idea applies.</strong> Block diagonal matrices are a special case of block triangular matrices.</li>
+      <li><strong>Work it out.</strong> (A) is true, by the block triangular determinant rule. (B) is true: the rank of a block diagonal matrix is the sum of the ranks of its blocks, since no column of one block depends on the other. (C) is true: [[A, 0], [0, B]] · [[A⁻¹, 0], [0, B⁻¹]] = [[I, 0], [0, I]]. (D) is false: symmetry needs A and B to be symmetric, which is not given.</li>
+      <li><strong>Check.</strong> A = [[1, 2], [3, 4]] and B = [[1]] give M = [[1, 2, 0], [3, 4, 0], [0, 0, 1]], which is not symmetric. So (D) fails.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Determinant of a block pattern (NAT)</h3>
+    <div class="statement"><p>Let A = diag(1, 2) and B = diag(2, 3). Consider the 4 × 4 matrix M = [[A, B], [B, A]]. Find det M. Give the answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The determinant of a 4 × 4 block matrix with diagonal blocks.</li>
+      <li><strong>Which idea applies.</strong> Reorder rows and columns so that the matrix splits into 2 × 2 blocks. Reordering the rows and columns in the same way does not change the determinant.</li>
+      <li><strong>Work it out.</strong> Index 1 is linked only to index 3 (through B and A), and index 2 only to index 4. Reorder the basis as (1, 3, 2, 4). Then M splits into two 2 × 2 blocks: for index 1, [[1, 2], [2, 1]]; for index 2, [[2, 3], [3, 2]]. The determinants are 1 − 4 = −3 and 4 − 9 = −5. Their product is (−3)(−5) = 15.</li>
+      <li><strong>Check.</strong> Using the Schur complement with A invertible: det M = det A · det(D − CA⁻¹B) = det A · det(A − B A⁻¹ B). Here det A = 2, A⁻¹ = diag(1, 1/2), and B A⁻¹ B = diag(2·1·2, 3·(1/2)·3) = diag(4, 9/2). So S = A − BA⁻¹B = diag(1 − 4, 2 − 9/2) = diag(−3, −5/2). Its determinant is (−3)(−5/2) = 15/2, and det A · 15/2 = 2 · 15/2 = 15. Same answer.</li>
+    </ol>
+    <p class="cx">Answer: 15.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Inverse of a block matrix (MSQ)</h3>
+    <div class="statement"><p>Let M = [[2, 1, 1], [1, 3, 0], [0, 1, 4]], partitioned with A = [[2, 1], [1, 3]], B = [[1], [0]], C = [[0, 1]] and D = [[4]]. A is invertible. Select all that apply.</p><p>(A) det M = 21 &nbsp; (B) The Schur complement is S = 21/5 &nbsp; (C) The top-left 2 × 2 block of M⁻¹ is [[4/7, −1/7], [−4/21, 8/21]] &nbsp; (D) det M = det A + det S</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about this partitioned matrix are true.</li>
+      <li><strong>Which idea applies.</strong> The Schur complement, the determinant rule, and the block inverse formula with S.</li>
+      <li><strong>Work it out.</strong> The worked example in Step 5 gives det M = 21 and S = 21/5, so (A) and (B) are true. For (C), the top-left block of M⁻¹ is A⁻¹ + A⁻¹BS⁻¹CA⁻¹, which works out to [[4/7, −1/7], [−4/21, 8/21]]. A direct cofactor calculation of M⁻¹ gives the top-left block (1/21)[[12, −3], [−4, 8]], which is the same matrix, so (C) is true. For (D), the determinant rule is a product, not a sum, so (D) is false (5 + 21/5 is not 21).</li>
+      <li><strong>Check.</strong> Multiply M by the full inverse (1/21)[[12, −3, −3], [−4, 8, 1], [1, −2, 5]]. The first row of M times the first column gives 24 − 4 + 1 = 21, so the product is the identity, as the cofactor method guarantees.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Determinant of a block matrix (NAT, 2 marks)</h3>
+    <div class="statement"><p>Let M = [[A, B], [0, D]] where A = [[2, 1], [1, 1]], D = [[3, 0], [4, 2]] and B is any 2 × 2 matrix. Find det(M).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The determinant of a block upper triangular matrix.</li>
+      <li><strong>Which idea applies.</strong> det [[A, B], [0, D]] = det(A) det(D) for square diagonal blocks.</li>
+      <li><strong>Work it out.</strong> det(A) = 2 − 1 = 1 and det(D) = 6. So det(M) = 6, whatever B is.</li>
+      <li><strong>Check.</strong> The code uses a random B and computes the 4 × 4 determinant.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def det(M):
+    if len(M) == 1:
+        return M[0][0]
+    return sum((-1) ** j * M[0][j] * det([r[:j] + r[j + 1:] for r in M[1:]]) for j in range(len(M)))
+M = [[2, 1, 7, -3], [1, 1, 5, 9], [0, 0, 3, 0], [0, 0, 4, 2]]
+print(det(M))
+</code></pre>
+    <pre class="output">6</pre>
+    <p class="cx">Answer: 6.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Schur complement (NAT, 2 marks)</h3>
+    <div class="statement"><p>Let M = [[A, B], [C, D]] with A = [[2]], B = [[1, 1]], C = [[1], [1]] and D = [[3, 1], [1, 3]]. Using det(M) = det(A) det(D − CA<sup>−1</sup>B), find det(M).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The determinant of a 3 × 3 matrix via the Schur complement.</li>
+      <li><strong>Which idea applies.</strong> The Schur complement of A is S = D − CA<sup>−1</sup>B.</li>
+      <li><strong>Work it out.</strong> CA<sup>−1</sup>B = (1/2)[[1, 1], [1, 1]]. S = [[2.5, 0.5], [0.5, 2.5]], det(S) = 6.25 − 0.25 = 6. det(M) = 2 · 6 = 12.</li>
+      <li><strong>Check.</strong> Direct expansion of [[2, 1, 1], [1, 3, 1], [1, 1, 3]]: 2(8) − 1(2) + 1(−2) = 12.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>M = [[2, 1, 1], [1, 3, 1], [1, 1, 3]]
+a, b, c = M
+print(a[0]*(b[1]*c[2]-b[2]*c[1]) - a[1]*(b[0]*c[2]-b[2]*c[0]) + a[2]*(b[0]*c[1]-b[1]*c[0]))
+</code></pre>
+    <pre class="output">12</pre>
+    <p class="cx">Answer: 12.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Block diagonal facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Let M = diag(A, D), a block diagonal matrix with A being 2 × 2 and D being 3 × 3. Which are TRUE? (A) rank(M) = rank(A) + rank(D). (B) The eigenvalues of M are those of A together with those of D. (C) M<sup>−1</sup> = diag(A<sup>−1</sup>, D<sup>−1</sup>) when both inverses exist. (D) tr(M) = tr(A)tr(D).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which properties split over diagonal blocks.</li>
+      <li><strong>Which idea applies.</strong> Block diagonal matrices act on the two coordinate groups separately.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) det(M − λI) = det(A − λI)det(D − λI). True. (C) Multiply blockwise to get I. True. (D) The trace adds: tr(M) = tr(A) + tr(D). False.</li>
+      <li><strong>Check.</strong> With A = I<sub>2</sub> and D = I<sub>3</sub>, tr(M) = 5 while the product would be 6.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Partition matrix</dt><dd>A matrix cut into blocks, each block being a smaller matrix.</dd></div>
+    <div><dt>Block</dt><dd>One rectangular piece of a partition matrix.</dd></div>
+    <div><dt>Conformable</dt><dd>Block sizes match, so that addition or multiplication is possible.</dd></div>
+    <div><dt>Block product</dt><dd>[[A, B], [C, D]] · [[E, F], [G, H]] has top-left block AE + BG.</dd></div>
+    <div><dt>Block diagonal</dt><dd>All off-diagonal blocks are zero.</dd></div>
+    <div><dt>Block triangular</dt><dd>All blocks below (or above) the diagonal blocks are zero.</dd></div>
+    <div><dt>Triangular determinant</dt><dd>det [[A, B], [0, D]] = det A · det D.</dd></div>
+    <div><dt>Triangular inverse</dt><dd>The top-right block of the inverse is −A⁻¹BD⁻¹.</dd></div>
+    <div><dt>Schur complement</dt><dd>S = D − CA⁻¹B, when A is invertible.</dd></div>
+    <div><dt>Determinant via Schur</dt><dd>det M = det A · det(S).</dd></div>
+    <div><dt>Singular matrix</dt><dd>A square matrix with determinant zero.</dd></div>
+    <div><dt>Rank of block diagonal</dt><dd>The sum of the ranks of the diagonal blocks.</dd></div>
+    <div><dt>Reordering</dt><dd>Permuting rows and columns in the same way does not change the determinant.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A partition matrix is the same matrix, viewed through blocks.</li>
+    <li>Block products keep the order of the factors: AE is not EA.</li>
+    <li>With a zero block below the diagonal, the determinant is the product of the diagonal block determinants.</li>
+    <li>The top-right block of a block triangular inverse is −A⁻¹BD⁻¹.</li>
+    <li>For general blocks with A invertible, det M = det A · det(D − CA⁻¹B).</li>
+    <li>Always check a block result by expanding a small example.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 12?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 12 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-011.html"><small>Previous, topic 11</small>Orthogonal matrix &amp; idempotent matrix</a><a class="next" href="gate-013.html"><small>Next, topic 13</small>Eigenvalues and eigenvectors</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,497 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 71: Linked Lists</title><meta name="description" content="A linked list is a chain of small boxes, where each box holds one value and a pointer to the next box. It is the main alternative to an array, and GATE questions often ask you to follow the pointer changes needed to insert, delete or reverse a node."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g71" data-key="g71" data-noun="topic" data-num="71" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Linked Lists</h1>
+<p class="lede">A linked list is a chain of small boxes, where each box holds one value and a pointer to the next box. It is the main alternative to an array, and GATE questions often ask you to follow the pointer changes needed to insert, delete or reverse a node.</p>
+<div class="station"><b>71</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Nodes and the singly linked list</li><li>Insertion and deletion at head, tail and middle</li><li>Reversing a linked list</li><li>Doubly and circular linked lists</li><li>Linked list versus array</li><li>Pointer tracing questions</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a treasure hunt. Each clue is written on a card, and each card tells you where the next card is hidden. You do not know where the 50th card is until you have found the first 49. To reach the end, you must follow the chain one card at a time. A <strong>linked list</strong> works the same way. Each <strong>node</strong> holds a value and a <strong>pointer</strong>, which is a reference that says where the next node is. The last node points to nothing.</p>
+  <p>An array, by contrast, is like a row of numbered lockers. You can open locker number 50 directly, without opening lockers 1 to 49. But if you want to put a new item between two lockers, the whole row must shift. A linked list is the opposite: adding or removing a node in the middle is easy, because you only change a few pointers, but finding the 50th node means following 49 pointers.</p>
+  <p>Knowing this trade-off is the heart of the topic. Each GATE question on linked lists asks you, in some form, to count pointer changes or to follow pointers in the right order.</p>
+  <p><strong>Why this matters for GATE.</strong> Questions include the time complexity of insertion and deletion, the number of nodes after a sequence of operations, the correct order of pointer updates, and the final state of a list after reversal. Draw the nodes as boxes with arrows, and update the arrows one line at a time.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Linked list</dt><dd>A chain of nodes, where each node points to the next. Plain meaning: a treasure hunt of cards. Precise definition: a linear data structure whose elements are nodes connected by pointers.</dd></div>
+    <div><dt>Node</dt><dd>One element of a linked list. It holds data and one or more pointers.</dd></div>
+    <div><dt>Data</dt><dd>The value stored in a node.</dd></div>
+    <div><dt>Pointer (or reference)</dt><dd>A stored address that says which node comes next. In Python, a variable that holds a node object acts as a pointer to it.</dd></div>
+    <div><dt>Head</dt><dd>The variable or first node that starts the list. It is the entry point to the whole chain.</dd></div>
+    <div><dt>Tail</dt><dd>The last node of the list. Its next pointer is empty.</dd></div>
+    <div><dt>None</dt><dd>The empty pointer. It means "no next node". Python uses <code>None</code> for this.</dd></div>
+    <div><dt>Singly linked list</dt><dd>A list in which each node has one pointer, to the next node.</dd></div>
+    <div><dt>Doubly linked list</dt><dd>A list in which each node has two pointers, one to the next node and one to the previous node.</dd></div>
+    <div><dt>Circular linked list</dt><dd>A list in which the last node points back to the first node, so there is no empty pointer.</dd></div>
+    <div><dt>Traversal</dt><dd>Visiting every node in order, by following the pointers from the head.</dd></div>
+    <div><dt>Insertion</dt><dd>Adding a new node at a chosen place, by changing pointers.</dd></div>
+    <div><dt>Deletion</dt><dd>Removing a node from the list, by changing the pointer that reaches it.</dd></div>
+    <div><dt>Reversal</dt><dd>Changing the list so that its nodes point in the opposite direction, so the old tail becomes the new head.</dd></div>
+    <div><dt>Class</dt><dd>A blueprint for an object that holds named values. A Node class groups data and next together.</dd></div>
+    <div><dt>is None</dt><dd>A test that checks whether a variable holds the empty pointer. It is written with the word <code>is</code>, not with <code>==</code>.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Nodes and the singly linked list">
+  <h2>Nodes and the singly linked list</h2>
+  <h3>What a node looks like</h3>
+  <p>A node has two parts: the value and the pointer to the next node. In Python we describe a node with a <strong>class</strong>. A class is a blueprint. Calling <code>Node(5)</code> builds one node that holds 5, with its next pointer set to <code>None</code>. The word <code>self</code> refers to the node being built, so <code>self.data</code> is the data of that node.</p>
+  <p>A list is then just a chain of these nodes, and we keep a variable called <code>head</code> that points to the first node.</p>
+
+<pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+a = Node(10)
+b = Node(20)
+a.next = b
+print(a.data, a.next.data)
+print(b.next)</code></pre>
+<pre class="output">10 20
+None</pre>
+
+  <p>The first print shows the data of <code>a</code>, which is 10, and the data of the node that <code>a</code> points to, which is 20. The second print shows that <code>b</code> points to nothing, so its next pointer is <code>None</code>. The line <code>a.next = b</code> is a pointer change: it links two nodes together.</p>
+
+  <h3>Traversal</h3>
+  <p>To visit every node, start at the head and follow next until the pointer is <code>None</code>. This is called traversal. The variable that moves along the list is often called <code>cur</code>, for current.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Never lose the head. If you move the head variable while you traverse, you lose the start of the list. Always move a second variable, like <code>cur</code>, and keep <code>head</code> where it is.</p></div>
+
+  <details class="check"><summary>If the list is 10 to 20 to 30, what is <code>head.next.next.data</code>?</summary><div class="ans"><p>30. <code>head.next</code> is the node 20, and its next is the node 30.</p></div></details>
+  <details class="check"><summary>What does traversal do when the head is <code>None</code>?</summary><div class="ans"><p>It visits nothing. The loop condition <code>cur is not None</code> is False from the start, so the list is empty.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Insertion and deletion at head, tail and middle">
+  <h2>Insertion and deletion at head, tail and middle</h2>
+  <h3>Inserting at the head</h3>
+  <p>Inserting at the head is the cheapest operation. Create the new node, point its next to the old head, and make the new node the head. Only two pointers change, so the time is O(1), whatever the list length.</p>
+
+  <h3>Inserting at the tail</h3>
+  <p>To insert at the tail, you must first reach the last node. Without a tail pointer, this means traversing the whole list, which takes O(n) time. Once you reach the last node, set its next to the new node. If you keep a separate tail pointer, the insertion is O(1).</p>
+
+  <h3>Inserting in the middle</h3>
+  <p>To insert a new node after a given node <code>P</code>, do two pointer changes, in the right order:</p>
+  <ol>
+    <li>Set the new node's next to <code>P.next</code>. Now the new node points to the old successor.</li>
+    <li>Set <code>P.next</code> to the new node.</li>
+  </ol>
+  <p>If you reverse these two steps, the old successor is lost. The first change must happen first, because it saves the link before the second change overwrites it. The time is O(1) once you hold a pointer to <code>P</code>. Finding <code>P</code> in the first place takes O(n) by traversal.</p>
+
+  <h3>Deleting a node</h3>
+  <p>To delete a node after a given node <code>P</code>, set <code>P.next</code> to <code>P.next.next</code>. The node in between is no longer reachable from the list, so it is dropped. The following code deletes the first node with a given value. It has three cases: an empty list, a match at the head, and a match further along.</p>
+
+<pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+def insert_head(head, value):
+    node = Node(value)
+    node.next = head
+    return node
+
+def insert_tail(head, value):
+    node = Node(value)
+    if head is None:
+        return node
+    cur = head
+    while cur.next is not None:
+        cur = cur.next
+    cur.next = node
+    return head
+
+def delete_value(head, target):
+    if head is None:
+        return None
+    if head.data == target:
+        return head.next
+    cur = head
+    while cur.next is not None and cur.next.data != target:
+        cur = cur.next
+    if cur.next is not None:
+        cur.next = cur.next.next
+    return head
+
+def to_list(head):
+    items = []
+    cur = head
+    while cur is not None:
+        items.append(cur.data)
+        cur = cur.next
+    return items
+
+head = None
+head = insert_tail(head, 10)
+head = insert_tail(head, 20)
+head = insert_tail(head, 30)
+head = insert_head(head, 5)
+print(to_list(head))
+head = delete_value(head, 20)
+print(to_list(head))
+head = delete_value(head, 99)
+print(to_list(head))</code></pre>
+<pre class="output">[5, 10, 20, 30]
+[5, 10, 30]
+[5, 10, 30]</pre>
+
+  <p>The list is built as 10, 20, 30 with tail insertions, then 5 is added at the head. The deletion of 20 changes only the pointer of 10, which now points to 30. Deleting 99 finds nothing, so the loop stops at the last node and the list is unchanged.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>In the code, <code>head = insert_head(head, 5)</code> is needed because the new node becomes the new head. A question that forgets to update the head variable will print the old list. Always update head when the first node changes.</p></div>
+
+  <details class="check"><summary>What is the time to insert at the head of a singly linked list of 1000 nodes?</summary><div class="ans"><p>O(1). Only two pointers change, and no traversal is needed.</p></div></details>
+  <details class="check"><summary>To insert X after node P, why must <code>X.next = P.next</code> come before <code>P.next = X</code>?</summary><div class="ans"><p>Because the first line saves the link to the old successor. If <code>P.next</code> is changed first, the old successor cannot be reached any more.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Reversing a linked list">
+  <h2>Reversing a linked list</h2>
+  <h3>The idea</h3>
+  <p>Reversing a list turns every arrow around. The old tail becomes the new head. The standard method walks down the list, one node at a time, and turns each arrow to point at the node behind it. Three variables are used:</p>
+  <ul>
+    <li><code>prev</code>: the node that has already been reversed, which starts as <code>None</code>.</li>
+    <li><code>cur</code>: the node being processed now, which starts at the head.</li>
+    <li><code>nxt</code>: the next node, saved before the arrow is changed.</li>
+  </ul>
+  <p>Each step does four things, in this order: save the next node, turn the arrow of <code>cur</code> to point at <code>prev</code>, move <code>prev</code> forward to <code>cur</code>, and move <code>cur</code> forward to the saved next node.</p>
+
+<pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+def reverse(head):
+    prev = None
+    cur = head
+    while cur is not None:
+        nxt = cur.next
+        cur.next = prev
+        prev = cur
+        cur = nxt
+    return prev
+
+def to_list(head):
+    items = []
+    cur = head
+    while cur is not None:
+        items.append(cur.data)
+        cur = cur.next
+    return items
+
+head = None
+for v in [1, 2, 3, 4]:
+    node = Node(v)
+    node.next = head
+    head = node
+print(to_list(head))
+head = reverse(head)
+print(to_list(head))</code></pre>
+<pre class="output">[4, 3, 2, 1]
+[1, 2, 3, 4]</pre>
+
+  <p>The list is built by inserting each value at the head, so the first print shows 4, 3, 2, 1. The reverse function then turns every arrow, and the second print shows 1, 2, 3, 4.</p>
+
+  <h3>A trace table for reversal</h3>
+  <p>Take the list 1 to 2 to 3, with <code>prev</code> starting as <code>None</code>. Write one row per loop pass.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Pass</th><th>cur</th><th>nxt = cur.next</th><th>cur.next = prev</th><th>prev = cur</th><th>cur = nxt</th></tr></thead>
+    <tbody>
+      <tr><td>Start</td><td>1</td><td>-</td><td>-</td><td>None</td><td>-</td></tr>
+      <tr><td>1</td><td>1</td><td>2</td><td>1 points to None</td><td>1</td><td>2</td></tr>
+      <tr><td>2</td><td>2</td><td>3</td><td>2 points to 1</td><td>2</td><td>3</td></tr>
+      <tr><td>3</td><td>3</td><td>None</td><td>3 points to 2</td><td>3</td><td>None</td></tr>
+    </tbody>
+  </table></div>
+  <p>The loop stops because <code>cur</code> is <code>None</code>. The last value of <code>prev</code> is node 3, which is the new head. Following the arrows gives 3 to 2 to 1 to None.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The saved pointer <code>nxt</code> is what makes reversal possible. Without it, changing <code>cur.next</code> would lose the rest of the list.</p></div>
+
+  <details class="check"><summary>How many loop passes does reverse make on a list with 5 nodes?</summary><div class="ans"><p>5. There is one pass for each node, and the loop stops when <code>cur</code> becomes <code>None</code>.</p></div></details>
+  <details class="check"><summary>What is the time complexity of reversing a singly linked list?</summary><div class="ans"><p>O(n). Each node is visited exactly once, and the pointer changes are constant work per node.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Doubly and circular linked lists">
+  <h2>Doubly and circular linked lists</h2>
+  <h3>Doubly linked lists</h3>
+  <p>A doubly linked list node has two pointers: <code>next</code> to the following node and <code>prev</code> to the node before it. This costs extra memory, but it allows backward traversal and makes deletion easier, because you can reach the previous node directly.</p>
+  <p>To delete a node <code>X</code> that is in the middle, two pointers change:</p>
+  <ol>
+    <li><code>X.prev.next = X.next</code>, so the node before X skips over it.</li>
+    <li><code>X.next.prev = X.prev</code>, so the node after X skips back over it.</li>
+  </ol>
+  <p>Given the node X itself, deletion takes O(1) time. In a singly linked list, you would need to find the node before X first, which takes O(n).</p>
+
+  <h3>Circular linked lists</h3>
+  <p>In a circular list, the last node points back to the first node instead of to <code>None</code>. There is no empty pointer, so a traversal must stop after a fixed count or when it returns to the start. The code below builds a circle of three nodes and walks around it five times.</p>
+
+<pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+a = Node("A")
+b = Node("B")
+c = Node("C")
+a.next = b
+b.next = c
+c.next = a
+cur = a
+visited = []
+for k in range(5):
+    visited.append(cur.data)
+    cur = cur.next
+print(visited)</code></pre>
+<pre class="output">['A', 'B', 'C', 'A', 'B']</pre>
+
+  <p>After C, the pointer goes back to A, so the walk wraps around. A common use of circular lists is round-robin scheduling, where each process gets a turn and then the turn returns to the first process.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A loop written as "while cur is not None" never ends on a circular list, because no pointer is ever <code>None</code>. Always use a counter or compare with the starting node.</p></div>
+
+  <details class="check"><summary>In a circular list of 4 nodes starting at A, which node is reached after 4 steps?</summary><div class="ans"><p>A again. After 4 steps around a cycle of 4 nodes, the walk returns to the start.</p></div></details>
+  <details class="check"><summary>Which list type allows deleting a given node in O(1) time without a traversal?</summary><div class="ans"><p>The doubly linked list, because each node knows its previous node.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Linked list versus array">
+  <h2>Linked list versus array</h2>
+  <h3>The comparison</h3>
+  <p>Arrays and linked lists are the two main ways to store a sequence. Their costs differ, and GATE asks you to choose or compare them.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Operation</th><th>Array</th><th>Singly linked list</th></tr></thead>
+    <tbody>
+      <tr><td>Access the k-th item</td><td>O(1), direct index</td><td>O(k), follow k pointers</td></tr>
+      <tr><td>Search for a value</td><td>O(n)</td><td>O(n)</td></tr>
+      <tr><td>Insert at the head</td><td>O(n), shift everything</td><td>O(1)</td></tr>
+      <tr><td>Insert after a known node</td><td>O(n), shift the rest</td><td>O(1)</td></tr>
+      <tr><td>Delete after a known node</td><td>O(n), shift the rest</td><td>O(1)</td></tr>
+      <tr><td>Extra memory per item</td><td>None beyond the value</td><td>One pointer per node</td></tr>
+      <tr><td>Size</td><td>Fixed, or costly to resize</td><td>Grows one node at a time</td></tr>
+    </tbody>
+  </table></div>
+  <p>The rule of thumb is simple. Use an array when you need fast access by position and the size is known. Use a linked list when you insert and delete often at known places, and you do not need quick access by position. The memory cost of pointers is the price of that flexibility.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>A common question asks for the best data structure for a given set of operations. Count the operations: frequent random access points to an array, and frequent insertion at a known node points to a linked list.</p></div>
+
+  <details class="check"><summary>Which is faster to find the 500th item, an array or a singly linked list?</summary><div class="ans"><p>The array, which is O(1). The linked list needs about 500 pointer follows, which is O(k) with k = 500.</p></div></details>
+  <details class="check"><summary>Does a linked list need the items to be next to each other in memory?</summary><div class="ans"><p>No. Each node can be stored anywhere, because the pointer says where the next node is.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Pointer tracing questions">
+  <h2>Pointer tracing questions</h2>
+  <h3>A method for pointer questions</h3>
+  <p>Pointer questions look hard because the arrows are easy to lose. Use this method:</p>
+  <ol>
+    <li><strong>Draw the nodes</strong> as boxes with their values, and draw an arrow for each next pointer. Mark <code>None</code> where a pointer is empty.</li>
+    <li><strong>Write the variables</strong> such as head, cur and prev, and point each one at its box.</li>
+    <li><strong>Apply one line at a time</strong>. Redraw the arrows after each assignment that changes a pointer.</li>
+    <li><strong>Check the final picture</strong> by following the arrows from the head.</li>
+  </ol>
+
+  <h3>Worked trace</h3>
+  <p>Start with the list 3 to 7 to 9. Run <code>q = head.next</code> and then <code>head.next = q.next</code>. After the first line, q points to node 7. After the second line, the node 3 points to 9. The node 7 is no longer reachable from head. The list is now 3 to 9, and node 7 is dropped. This is the middle deletion pattern from the earlier section, written as two lines.</p>
+
+  <div class="note tip"><p><span class="t">Tip</span>When a question changes a pointer, ask two questions: which node is being changed, and what did its pointer point to before. If the old target is not saved in a variable, it may be lost forever.</p></div>
+
+  <h3>Counting pointer changes</h3>
+  <p>Many questions ask for the number of pointer changes. In the reversal method, each node has its <code>next</code> changed exactly once, so reversing n nodes changes n pointers. In a middle insertion, two pointers change. In a doubly linked middle deletion, two pointers change.</p>
+
+  <details class="check"><summary>In the worked trace above, is node 7 still in the list after the two lines?</summary><div class="ans"><p>No. Nothing points to node 7 any more, so it is unreachable from head.</p></div></details>
+  <details class="check"><summary>How many pointer assignments does inserting at the head of a singly linked list make?</summary><div class="ans"><p>Two: <code>node.next = head</code> and then <code>head = node</code>. The second line changes the head variable, which is the entry point to the list.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Insert after P: X.next = P.next, then P.next = X</td><td>Save the link before overwriting it</td><td>Middle insertion</td></tr>
+      <tr><td>Delete after P: P.next = P.next.next</td><td>Skip the node in between</td><td>Singly linked deletion</td></tr>
+      <tr><td>Doubly delete X: X.prev.next = X.next, X.next.prev = X.prev</td><td>Two links bypass X</td><td>Doubly linked deletion</td></tr>
+      <tr><td>Reverse: save nxt, set cur.next = prev, move prev and cur</td><td>One pointer change per node</td><td>Reversal questions</td></tr>
+      <tr><td>Access k-th node in singly linked list = k pointer follows</td><td>Walk from the head</td><td>Access cost</td></tr>
+      <tr><td>Circular list: last.next = first</td><td>No None pointer at the end</td><td>Circular list questions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>GATE questions, solved</h2>
+  <p>This set practises tracing pointer changes, counting operations and reasoning about cost in linked lists, using problems in the style of GATE.</p>
+
+  <h3>Real past GATE questions</h3>
+  <div class="note key"><p><span class="t">Real questions</span>No past GATE question on this exact topic could be verified, so the exam-level set below is longer.</p></div>
+
+  <h3>Exam-level practice</h3>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: delete, append, reverse (NAT, 2 marks)</h3>
+    <div class="statement"><p>A singly linked list holds the values 5, 8, 2, 9, 4, 7 in this order from head to tail. An algorithm makes one pass from head to tail and deletes every node whose value is greater than 6. It then adds a new node with value 10 at the tail. Finally it reverses the whole list in place, so that the old tail becomes the head. After these steps the list is read from head to tail. Let a be the value at the second position and b the value at the third position. Find a + b. Give the answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sum of the values at positions 2 and 3, after the deletion, the append and the reversal.</li>
+      <li><strong>Which idea applies.</strong> Deleting nodes while walking the list, adding at the tail, and reversing by flipping pointers. Each step changes the list, so track the values after each one.</li>
+      <li><strong>Work it out.</strong> Deleting values above 6 removes 8, 9 and 7, leaving 5, 2, 4. Appending 10 gives 5, 2, 4, 10. Reversing gives 10, 4, 2, 5. The second value is 4 and the third is 2, so a + b = 4 + 2 = 6.</li>
+      <li><strong>Check.</strong> The list has 4 values after the deletion and append, which matches 6 nodes minus 3 deletions plus 1 addition. The Python block below repeats the same steps.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>vals = [5, 8, 2, 9, 4, 7]
+vals = [v for v in vals if v &lt;= 6]
+vals.append(10)
+vals = vals[::-1]
+print(vals)
+print(vals[1] + vals[2])</code></pre>
+    <pre class="output">[10, 4, 2, 5]
+6</pre>
+    <p class="cx">Answer: 6</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: operations on a list with head and tail pointers (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A queue is built with a singly linked list. The structure keeps a head pointer and a tail pointer, but no previous pointers, so each node points only forward. Consider the following operations on a list with n nodes. (A) Adding a new node after the tail takes O(1) time. (B) Deleting the last node takes O(1) time. (C) Reversing the whole list in place takes O(n) time and O(1) extra space. (D) Finding the middle node takes O(1) time. Select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every option that is true for this structure.</li>
+      <li><strong>Which idea applies.</strong> In a singly linked list you can only move forward, so reaching the node before a given node needs a walk from the head.</li>
+      <li><strong>Work it out.</strong> (A) New node: set tail.next to the new node, then move tail to it. Two changes, no walk, so O(1). True. (B) Deleting the last node needs the node before the tail, and only a walk from the head finds it, which is O(n). False. (C) Reversal uses three pointers (previous, current, next) and visits each node once. O(n) time, O(1) extra space. True. (D) Finding the middle needs about n/2 forward steps, so O(n). False.</li>
+      <li><strong>Check.</strong> Options B and D look constant time because the tail pointer and the length are sometimes known. Neither gives a way back, so both need a walk.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C). Option (B) is wrong because the node before the tail is not reachable in O(1) without previous pointers. Option (D) is wrong because the middle needs a walk of about n/2 steps.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: circle elimination (NAT, 2 marks)</h3>
+    <div class="statement"><p>Forty-one people stand in a circle, numbered 1 to 41 in clockwise order. The circle is stored as a circular singly linked list in which each node points to the next person clockwise. Counting starts at person 1. The rule is: skip the next surviving person, then remove the person after that one. Counting then continues from the next surviving person after the removed one, and the process repeats until only one person remains. Give the number of the last survivor as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of the single person left at the end.</li>
+      <li><strong>Which idea applies.</strong> This is the Josephus elimination for step 2. For n people, write n = 2<sup>m</sup> + L with L smaller than 2<sup>m</sup>, remove the first L people (the even numbers 2, 4, ..., 2L), then the survivor is person 2L + 1.</li>
+      <li><strong>Work it out.</strong> 41 = 32 + 9, so m = 5 and L = 9. Removing the 9 people 2, 4, 6, ..., 18 leaves 32 people, and counting restarts at person 19. With 32 people, a power of two, the person who starts the count survives. So the survivor is 19, which is 2 x 9 + 1.</li>
+      <li><strong>Check.</strong> The Python block simulates the removals one by one and gives the same answer, 19.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def survivor(n):
+    people = list(range(1, n + 1))
+    i = 0
+    while len(people) &gt; 1:
+        i = (i + 1) % len(people)
+        people.pop(i)
+        i = i % len(people)
+    return people[0]
+print(survivor(41))</code></pre>
+    <pre class="output">19</pre>
+    <p class="cx">Answer: 19</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: memory of a sensor log (NAT, 2 marks)</h3>
+    <div class="statement"><p>A sensor logger stores 1000 readings. Each reading is a 4-byte value. The logger can keep the readings either in a singly linked list, where each node holds the value and one 8-byte pointer to the next node, or in a doubly linked list, where each node holds the value and two 8-byte pointers, one to the next node and one to the previous node. Ignore any memory for the head pointer and any other overhead. Find the ratio of the total memory used by the doubly linked list to the total memory used by the singly linked list. Give the answer correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A ratio of two totals, rounded to 2 decimal places.</li>
+      <li><strong>Which idea applies.</strong> Memory per node is the value size plus the pointer sizes. The number of nodes is the same in both lists.</li>
+      <li><strong>Work it out.</strong> Singly node: 4 + 8 = 12 bytes, so 1000 nodes use 12000 bytes. Doubly node: 4 + 8 + 8 = 20 bytes, so 1000 nodes use 20000 bytes. Ratio: 20000 / 12000 = 1.6667, which is 1.67 to 2 decimal places.</li>
+      <li><strong>Check.</strong> The ratio is above 1, as expected, because the doubly list has extra pointers. The Python block computes the same values.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>value_bytes = 4
+pointer_bytes = 8
+n = 1000
+singly = n * (value_bytes + pointer_bytes)
+doubly = n * (value_bytes + 2 * pointer_bytes)
+print(singly, doubly)
+print(round(doubly / singly, 2))</code></pre>
+    <pre class="output">12000 20000
+1.67</pre>
+    <p class="cx">Answer: 1.67</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 5: slow and fast pointers (NAT, 2 marks)</h3>
+    <div class="statement"><p>A singly linked list has 11 nodes, numbered 1 to 11 from head to tail. Two pointers start together at node 1. In each step, the slow pointer moves forward one node and the fast pointer moves forward two nodes. The steps continue until the fast pointer reaches node 11, the last node. At that moment, which node number does the slow pointer point to? Give the answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The node number of the slow pointer when the fast pointer is at node 11.</li>
+      <li><strong>Which idea applies.</strong> After t steps, the slow pointer is at node 1 + t and the fast pointer is at node 1 + 2t.</li>
+      <li><strong>Work it out.</strong> The fast pointer reaches node 11 when 1 + 2t = 11, so 2t = 10 and t = 5. After 5 steps the slow pointer is at node 1 + 5 = 6.</li>
+      <li><strong>Check.</strong> In 5 steps the fast pointer covered 10 links and the slow pointer covered 5 links. Node 11 is 10 links after node 1, so the numbers agree. The Python block simulates it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>nodes = list(range(1, 12))
+slow = 0
+fast = 0
+while True:
+    if fast + 1 &gt;= len(nodes):
+        break
+    fast = fast + 2
+    slow = slow + 1
+    if fast &gt;= len(nodes) - 1:
+        break
+print(nodes[slow], nodes[fast])</code></pre>
+    <pre class="output">6 11</pre>
+    <p class="cx">Answer: 6</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 6: where a cycle is detected (NAT, 2 marks)</h3>
+    <div class="statement"><p>Ten nodes numbered 1 to 10 form a singly linked list in which node i points to node i + 1 for i from 1 to 9. The last node, node 10, is then changed to point back to node 4, so the list now contains a cycle. Two pointers both start at node 1. In each step the slow pointer moves forward one node and the fast pointer moves forward two nodes. The procedure stops at the first step in which both pointers point to the same node. Give the number of that node as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The node where the two pointers first meet.</li>
+      <li><strong>Which idea applies.</strong> The fast pointer goes around the cycle and catches the slow pointer. Count where each pointer is after each step.</li>
+      <li><strong>Work it out.</strong> The path 1 to 10 has 9 links. Node 10 points to node 4, so the cycle is 4, 5, 6, 7, 8, 9, 10, with length 7. After t steps the slow pointer is at node t + 1 while t is at most 9. After h fast hops the fast pointer is at node h + 1 for h up to 9, and at node h - 6 for h from 10 on. At step 7 the slow pointer is at node 8. The fast pointer has made 14 hops, and 14 - 6 = 8, so it is also at node 8. No earlier step matches, so they first meet at node 8.</li>
+      <li><strong>Check.</strong> The Python block repeats the simulation and reports step 7 and node 8.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>nxt = {i: i + 1 for i in range(1, 10)}
+nxt[10] = 4
+slow = 1
+fast = 1
+step = 0
+while True:
+    step += 1
+    slow = nxt[slow]
+    fast = nxt[nxt[fast]]
+    if slow == fast:
+        break
+print(step, slow)</code></pre>
+    <pre class="output">7 8</pre>
+    <p class="cx">Answer: 8</p>
+  </article>
+</section>
+
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Linked list</dt><dd>A chain of nodes where each node points to the next.</dd></div>
+    <div><dt>Node</dt><dd>A value plus one or more pointers.</dd></div>
+    <div><dt>Head</dt><dd>The variable that starts the list. Never lose it.</dd></div>
+    <div><dt>Tail</dt><dd>The last node, whose next pointer is None.</dd></div>
+    <div><dt>None</dt><dd>The empty pointer, tested with <code>is None</code>.</dd></div>
+    <div><dt>Singly linked list</dt><dd>Each node has one pointer, forward.</dd></div>
+    <div><dt>Doubly linked list</dt><dd>Each node has next and prev pointers.</dd></div>
+    <div><dt>Circular linked list</dt><dd>The last node points back to the first.</dd></div>
+    <div><dt>Traversal</dt><dd>Visiting nodes in order by following next.</dd></div>
+    <div><dt>Insertion after P</dt><dd>Save P.next in the new node first, then set P.next.</dd></div>
+    <div><dt>Deletion after P</dt><dd>Set P.next to P.next.next.</dd></div>
+    <div><dt>Reversal</dt><dd>Turns every arrow around, using prev, cur and nxt.</dd></div>
+    <div><dt>Access by position</dt><dd>O(1) in an array, O(k) in a linked list.</dd></div>
+    <div><dt>Pointer trace</dt><dd>Draw boxes and arrows, and update one line at a time.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Insertion at the head of a singly linked list is O(1).</li>
+    <li>Save the old link before you overwrite a pointer.</li>
+    <li>Reversal changes one next pointer per node, so n nodes mean n changes.</li>
+    <li>A doubly linked list can delete a given node in O(1), but needs more memory.</li>
+    <li>A circular list never reaches None, so use a counter in loops.</li>
+    <li>Arrays give fast access by position. Linked lists give cheap insertion at known places.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 71?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 71 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-070.html"><small>Previous, topic 70</small>Stacks and Queues</a><a class="next" href="gate-072.html"><small>Next, topic 72</small>Hash Tables</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,427 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 63: Numerical integration: Trapezoidal & Simpson's rules</title><meta name="description" content="Some integrals have no neat answer, and some are known only as a table of measured values. Numerical integration estimates the area under a curve by adding up simple shapes. This page explains the trapezoidal rule and Simpson&#x27;s 1/3 rule, their composite versions, their error terms, and how to choose between them in GATE-style questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g63" data-key="g63" data-noun="topic" data-num="63" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Numerical integration: <em>Trapezoidal &amp; Simpson&#x27;s rules</em></h1>
+<p class="lede">Some integrals have no neat answer, and some are known only as a table of measured values. Numerical integration estimates the area under a curve by adding up simple shapes. This page explains the trapezoidal rule and Simpson&#x27;s 1/3 rule, their composite versions, their error terms, and how to choose between them in GATE-style questions.</p>
+<div class="station"><b>63</b><span>Unit 5 · Numerical methods · Paper RA · New concept</span></div>
+<ul class="topics"><li>The area under a curve and the trapezoidal rule</li><li>Composite trapezoidal rule and its error</li><li>Simpson&#x27;s 1/3 rule and its error</li><li>Composite Simpson&#x27;s rule</li><li>Using tabulated values</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>An integral is the area under a curve between two points. If the curve is a straight line, the area is easy: it is a trapezium, and its area is the average of the two heights times the width. If the curve is curved, you can still get a good estimate by cutting the area into thin pieces and treating each piece as a simple shape.</p>
+  <p>Think of measuring the area of a field with an irregular boundary. You lay a row of straight posts along the boundary, join them with straight lines, and add up the trapezium-shaped strips. The more posts you use, the closer the strips follow the boundary, and the better the estimate.</p>
+  <p>Simpson's rule uses a smarter shape. Instead of straight lines, it fits a parabola through three neighbouring points. A parabola bends, so it follows a curve more closely. For the same number of points, Simpson's rule is usually far more accurate.</p>
+  <p>Two questions always matter. How accurate is the estimate? And how does the error change when you use more points? The answers come from the error formulas in this topic.</p>
+  <p><strong>Why this matters for GATE.</strong> In the Robotics and Automation paper, numerical integration is used to find distances, energies and average values from sensor data. Questions often give a table of function values and ask for the Trapezoidal or Simpson estimate, or ask which rule is more accurate for a given function.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now. Return to it when a word feels unfamiliar.</p>
+  <dl>
+    <div><dt>Definite integral</dt><dd>The area under y = f(x) between two limits a and b, written ∫<sub>a</sub><sup>b</sup> f(x) dx.</dd></div>
+    <div><dt>Numerical integration</dt><dd>Estimating a definite integral from function values, rather than from an antiderivative.</dd></div>
+    <div><dt>Interval</dt><dd>The stretch of the x-axis from a to b. It is split into n equal parts.</dd></div>
+    <div><dt>Step size h</dt><dd>The width of each part, h = (b - a)/n.</dd></div>
+    <div><dt>Ordinate</dt><dd>A function value y<sub>i</sub> = f(x<sub>i</sub>) at one of the points. These are the heights used by the rules.</dd></div>
+    <div><dt>Trapezium</dt><dd>A four-sided shape with two parallel sides. Here, a strip under a straight line with two parallel vertical sides.</dd></div>
+    <div><dt>Trapezoidal rule</dt><dd>Estimates the integral by adding trapezium areas under straight lines joining the points.</dd></div>
+    <div><dt>Simpson's 1/3 rule</dt><dd>Estimates the integral by fitting parabolas through groups of three neighbouring points. It needs an even number of intervals.</dd></div>
+    <div><dt>Composite rule</dt><dd>The rule applied to many small pieces, and the results are added up.</dd></div>
+    <div><dt>Error</dt><dd>The difference between the exact integral I and the estimate. The error formulas show how it depends on h.</dd></div>
+    <div><dt>Degree of exactness</dt><dd>The highest power of x for which a rule gives the exact answer. Simpson's 1/3 rule has degree 3.</dd></div>
+    <div><dt>Factorial</dt><dd>n! is the product 1 × 2 × ... × n. For example, 4! = 24.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The trapezoidal rule">
+  <h2>Step 1: The area under a curve and the trapezoidal rule</h2>
+  <h3>One trapezium</h3>
+  <p>Start with the simplest case: one trapezium from x = a to x = b. Its two vertical sides have heights f(a) and f(b), and its width is b - a. The area of a trapezium is the average of the two parallel sides times the width:</p>
+  <div class="formula">∫<sub>a</sub><sup>b</sup> f(x) dx ≈ (b - a)/2 × (f(a) + f(b))</div>
+  <p>Read this in words: "the width times the average height". The average of the two heights is (f(a) + f(b))/2, so the formula is a simple product.</p>
+
+  <h3>Many trapezia: the composite rule</h3>
+  <p>Split [a, b] into n equal parts of width h = (b - a)/n. The points are x<sub>0</sub> = a, x<sub>1</sub>, ..., x<sub>n</sub> = b, with heights y<sub>0</sub>, y<sub>1</sub>, ..., y<sub>n</sub>. Each interior point appears in two trapezia, so it is counted twice. The end points are counted once:</p>
+  <div class="formula">T<sub>n</sub> = (h/2) [y<sub>0</sub> + 2y<sub>1</sub> + 2y<sub>2</sub> + ... + 2y<sub>n-1</sub> + y<sub>n</sub>]</div>
+  <p>This is the composite trapezoidal rule. The rule is exact for straight lines, because a trapezium under a straight line is exactly the true area.</p>
+
+  <h3>Worked example 1: the area under x squared</h3>
+  <p>Estimate ∫<sub>0</sub><sup>2</sup> x<sup>2</sup> dx. The exact answer is [x<sup>3</sup>/3] from 0 to 2, which is 8/3, about 2.6667.</p>
+  <ol>
+    <li><strong>With n = 2.</strong> h = (2 - 0)/2 = 1. The heights are y<sub>0</sub> = 0, y<sub>1</sub> = 1, y<sub>2</sub> = 4.</li>
+    <li><strong>Apply the rule.</strong> T<sub>2</sub> = (1/2)[0 + 2(1) + 4] = (1/2)(6) = 3.</li>
+    <li><strong>With n = 4.</strong> h = 0.5. The heights are 0, 0.25, 1, 2.25, 4. Then T<sub>4</sub> = (0.5/2)[0 + 2(0.25) + 2(1) + 2(2.25) + 4] = 0.25 × 11 = 2.75.</li>
+    <li><strong>Compare.</strong> The error falls from 3 - 2.6667 = 0.3333 to 2.75 - 2.6667 = 0.0833. Doubling n cut the error by about four, which is the h<sup>2</sup> pattern.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>def trapezoid(f, a, b, n):
+    h = (b - a) / n
+    total = f(a) + f(b)
+    for i in range(1, n):
+        total += 2 * f(a + i * h)
+    return h / 2 * total
+
+f = lambda x: x * x
+print("trapezoid n=2:", round(trapezoid(f, 0, 2, 2), 4))
+print("trapezoid n=4:", round(trapezoid(f, 0, 2, 4), 4))
+print("exact:", round(8 / 3, 4))</code></pre>
+  <pre class="output">trapezoid n=2: 3.0
+trapezoid n=4: 2.75
+exact: 2.6667</pre>
+
+  <h3>The error of the trapezoidal rule</h3>
+  <p>The error formula explains the pattern. For the composite rule, the exact value is related to the estimate by:</p>
+  <div class="formula">I - T<sub>n</sub> = -(b - a)h<sup>2</sup>/12 × f''(ξ)</div>
+  <p>Here ξ (xi) is some point between a and b, and f''(ξ) is the second derivative there. For x<sup>2</sup>, f'' = 2 everywhere. With n = 2, h = 1 and b - a = 2: I - T = -(2)(1)/12 × 2 = -1/3. So I = 3 - 1/3 = 8/3, which matches.</p>
+  <p>The key point is the factor h<sup>2</sup>. Halving h divides the error by four. This is called second-order accuracy.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The trapezoidal error is proportional to h<sup>2</sup> times the second derivative. It is exactly zero for straight lines, where the second derivative is zero.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The end points are counted once, and all interior points are counted twice. Students often multiply every height by 2, which doubles the end contributions and gives the wrong answer.</p></div>
+
+  <details class="check"><summary>Question: How many trapezia are used in the composite rule with n = 5 intervals?</summary><div class="ans"><p>Five. There are n = 5 intervals, and each interval has one trapezium, so there are 5 trapezia and 6 points.</p></div></details>
+  <details class="check"><summary>Question: If the trapezoidal error is proportional to h<sup>2</sup>, how much smaller is the error when n is doubled?</summary><div class="ans"><p>Four times smaller. Doubling n halves h, and (1/2)<sup>2</sup> = 1/4.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Simpson's 1/3 rule">
+  <h2>Step 2: Simpson's 1/3 rule</h2>
+  <h3>Why parabolas are better</h3>
+  <p>A straight line can only follow a curve roughly. A parabola can bend, so it follows a curve more closely. Simpson's rule takes three neighbouring points, (x<sub>0</sub>, y<sub>0</sub>), (x<sub>1</sub>, y<sub>1</sub>) and (x<sub>2</sub>, y<sub>2</sub>), with equal spacing h. It fits a parabola through them and integrates that parabola exactly. The result is:</p>
+  <div class="formula">∫<sub>x0</sub><sup>x2</sup> f(x) dx ≈ (h/3)[y<sub>0</sub> + 4y<sub>1</sub> + y<sub>2</sub>]</div>
+  <p>Here the middle point has weight 4, and the two ends have weight 1. The factor h/3 is the scaling that makes the rule exact for parabolas. Simpson's rule covers two intervals at a time, so it needs an even number of intervals in total.</p>
+
+  <h3>Worked example 2: Simpson on x squared</h3>
+  <p>Estimate ∫<sub>0</sub><sup>2</sup> x<sup>2</sup> dx using one Simpson panel with h = 1.</p>
+  <ol>
+    <li><strong>Heights.</strong> y<sub>0</sub> = 0, y<sub>1</sub> = 1, y<sub>2</sub> = 4.</li>
+    <li><strong>Apply the rule.</strong> S = (1/3)[0 + 4(1) + 4] = (1/3)(8) = 8/3.</li>
+    <li><strong>Compare.</strong> The estimate 8/3 is exact. This is no accident: x<sup>2</sup> is a parabola, and Simpson's rule integrates parabolas exactly.</li>
+  </ol>
+
+  <h3>The error of Simpson's rule</h3>
+  <p>For the composite Simpson rule, the error is:</p>
+  <div class="formula">I - S<sub>n</sub> = -(b - a)h<sup>4</sup>/180 × f<sup>(4)</sup>(ξ)</div>
+  <p>Here f<sup>(4)</sup> is the fourth derivative, and ξ is a point between a and b. Two facts follow at once. First, the error is proportional to h<sup>4</sup>, so halving h divides the error by sixteen. Second, the error is zero for any cubic, because a cubic has zero fourth derivative. This is the degree of exactness: Simpson's 1/3 rule is exact up to cubic polynomials.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Simpson's 1/3 rule is exact for cubics, even though it is built from parabolas. Questions often test this with a cubic integrand, where the answer should match the exact value.</p></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Remember the pattern 1, 4, 1 for one panel. For a composite rule, the weights are 1, 4, 2, 4, 2, ..., 4, 1: the interior points alternate between 4 and 2.</p></div>
+
+  <details class="check"><summary>Question: Which polynomial degree does Simpson's 1/3 rule integrate exactly?</summary><div class="ans"><p>Degree 3. The error formula has the fourth derivative, which is zero for every cubic.</p></div></details>
+  <details class="check"><summary>Question: Why must the composite Simpson rule have an even number of intervals?</summary><div class="ans"><p>Because each panel covers two intervals and uses three points. The points must pair up, so n must be even.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Composite Simpson's rule">
+  <h2>Step 3: The composite Simpson rule and a comparison</h2>
+  <h3>Many panels</h3>
+  <p>For a long interval, split [a, b] into n equal intervals, where n is even. Group the points into panels of two intervals each. The composite Simpson rule is:</p>
+  <div class="formula">S<sub>n</sub> = (h/3)[y<sub>0</sub> + 4y<sub>1</sub> + 2y<sub>2</sub> + 4y<sub>3</sub> + ... + 4y<sub>n-1</sub> + y<sub>n</sub>]</div>
+  <p>The odd-numbered interior points get weight 4, the even-numbered interior points get weight 2, and the two end points get weight 1. Notice how this matches the trapezoidal rule's structure, but with a different pattern of weights.</p>
+
+  <h3>Worked example 3: the area under sin x</h3>
+  <p>Estimate ∫<sub>0</sub><sup>π</sup> sin x dx, whose exact value is 2. Use n = 4, so h = π/4.</p>
+  <ol>
+    <li><strong>Heights.</strong> The points are 0, π/4, π/2, 3π/4, π. Their sine values are 0, √2/2 ≈ 0.7071, 1, √2/2 ≈ 0.7071, 0.</li>
+    <li><strong>Simpson.</strong> S<sub>4</sub> = (π/12)[0 + 4(0.7071) + 2(1) + 4(0.7071) + 0] = (π/12)(4√2 + 2) ≈ 2.0046.</li>
+    <li><strong>Trapezoid.</strong> T<sub>4</sub> = (π/8)[0 + 2(0.7071 + 1 + 0.7071) + 0] ≈ 1.8961.</li>
+    <li><strong>Compare.</strong> The Simpson error is about 0.005, while the trapezoidal error is about 0.104. With the same four intervals, Simpson is about twenty times more accurate.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>import math
+
+def trapezoid(f, a, b, n):
+    h = (b - a) / n
+    total = f(a) + f(b)
+    for i in range(1, n):
+        total += 2 * f(a + i * h)
+    return h / 2 * total
+
+def simpson(f, a, b, n):
+    h = (b - a) / n
+    total = f(a) + f(b)
+    for i in range(1, n):
+        total += (4 if i % 2 == 1 else 2) * f(a + i * h)
+    return h / 3 * total
+
+print("trapezoid n=4:", round(trapezoid(math.sin, 0, math.pi, 4), 4))
+print("Simpson n=4:", round(simpson(math.sin, 0, math.pi, 4), 4))
+print("exact:", 2.0)</code></pre>
+  <pre class="output">trapezoid n=4: 1.8961
+Simpson n=4: 2.0046
+exact: 2.0</pre>
+
+  <h3>Comparing the two rules</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>Points per panel</th><th>Error size</th><th>Exact for</th><th>Needs</th></tr></thead>
+    <tbody>
+      <tr><td>Trapezoidal</td><td>2 (a straight line)</td><td>Proportional to h<sup>2</sup></td><td>Straight lines</td><td>Any n</td></tr>
+      <tr><td>Simpson's 1/3</td><td>3 (a parabola)</td><td>Proportional to h<sup>4</sup></td><td>Cubic polynomials</td><td>Even n</td></tr>
+    </tbody>
+  </table></div>
+  <p>Simpson's rule costs a little more to set up, but it is much more accurate for smooth functions. When both rules are possible, GATE answers usually favour Simpson.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>When the number of intervals is odd, Simpson's 1/3 rule cannot be applied to the whole interval. Use the trapezoidal rule, or apply Simpson to an even number of intervals and treat the leftover interval separately.</p></div>
+
+  <details class="check"><summary>Question: With n = 6 intervals on [0, 6], what are the weights of the interior points?</summary><div class="ans"><p>The interior points x<sub>1</sub> to x<sub>5</sub> have weights 4, 2, 4, 2, 4. The end points have weight 1.</p></div></details>
+  <details class="check"><summary>Question: Why is Simpson's error smaller than the trapezoidal error for the same n?</summary><div class="ans"><p>Its error is proportional to h<sup>4</sup> instead of h<sup>2</sup>. For a small h, h<sup>4</sup> is much smaller than h<sup>2</sup>, so the error drops faster as n grows.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Using tabulated values">
+  <h2>Step 4: Using tabulated values</h2>
+  <h3>The situation</h3>
+  <p>Sometimes there is no formula for f. Instead, a sensor gives values at equally spaced times, and you must estimate the total. The method is the same: read off the heights y<sub>0</sub>, ..., y<sub>n</sub>, choose the rule, and apply the weights. Work in the following order:</p>
+  <ol>
+    <li>Check that the x-values are equally spaced, and find h.</li>
+    <li>Count the intervals n. If you want Simpson, check that n is even.</li>
+    <li>Write the weights under the heights before you multiply.</li>
+    <li>Multiply by h/2 or h/3, and add.</li>
+  </ol>
+
+  <h3>Worked example 4: a table of values</h3>
+  <p>The table gives x = 0, 1, 2, 3, 4 and y = 1, 2, 5, 10, 17. Estimate ∫<sub>0</sub><sup>4</sup> y dx with h = 1.</p>
+  <ol>
+    <li><strong>Trapezoid.</strong> The weights are 1, 2, 2, 2, 1. So T = (1/2)[1 + 2(2) + 2(5) + 2(10) + 17] = (1/2)(52) = 26.</li>
+    <li><strong>Simpson.</strong> The weights are 1, 4, 2, 4, 1. So S = (1/3)[1 + 4(2) + 2(5) + 4(10) + 17] = (1/3)(76) = 76/3, which is about 25.3333.</li>
+    <li><strong>Exact check.</strong> The table comes from y = x<sup>2</sup> + 1. Its integral from 0 to 4 is [x<sup>3</sup>/3 + x] = 64/3 + 4 = 76/3. So Simpson is exact, which is expected for a quadratic.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>ys = [1, 2, 5, 10, 17]
+h = 1.0
+
+trap = h / 2 * (ys[0] + 2 * sum(ys[1:-1]) + ys[-1])
+simp = h / 3 * (ys[0] + 4 * (ys[1] + ys[3]) + 2 * ys[2] + ys[4])
+print("trapezoid:", round(trap, 4))
+print("Simpson:", round(simp, 4))
+print("exact:", round(76 / 3, 4))</code></pre>
+  <pre class="output">trapezoid: 26.0
+Simpson: 25.3333
+exact: 25.3333</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>In a table, the weights do the work. Write them down first. Most wrong answers come from using the wrong weight on one height.</p></div>
+
+  <details class="check"><summary>Question: A table has 5 equally spaced points with h = 2. What is the Simpson weight of the third point?</summary><div class="ans"><p>The points are numbered 0 to 4, so the third point is y<sub>2</sub>. It is an even-numbered interior point, so its weight is 2.</p></div></details>
+  <details class="check"><summary>Question: Why is the trapezoidal answer 26 larger than the Simpson answer in Worked example 4?</summary><div class="ans"><p>The trapezoid draws straight lines between the points, and the curve bends upward between them. Straight lines lie above a convex curve, so the trapezoid overestimates the area.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>h = (b - a)/n</td><td>Step size</td><td>Before any rule</td></tr>
+      <tr><td>∫ f dx ≈ (b - a)/2 × (f(a) + f(b))</td><td>Single trapezium</td><td>Quick estimate with one strip</td></tr>
+      <tr><td>T<sub>n</sub> = (h/2)[y<sub>0</sub> + 2y<sub>1</sub> + ... + 2y<sub>n-1</sub> + y<sub>n</sub>]</td><td>Composite trapezoidal rule</td><td>Any number of intervals</td></tr>
+      <tr><td>∫ f dx ≈ (h/3)[y<sub>0</sub> + 4y<sub>1</sub> + y<sub>2</sub>]</td><td>Single Simpson panel</td><td>Three equally spaced points</td></tr>
+      <tr><td>S<sub>n</sub> = (h/3)[y<sub>0</sub> + 4y<sub>1</sub> + 2y<sub>2</sub> + ... + 4y<sub>n-1</sub> + y<sub>n</sub>]</td><td>Composite Simpson's 1/3 rule</td><td>Even n only</td></tr>
+      <tr><td>I - T<sub>n</sub> = -(b - a)h<sup>2</sup>/12 × f''(ξ)</td><td>Trapezoidal error</td><td>Bounding or explaining the error</td></tr>
+      <tr><td>I - S<sub>n</sub> = -(b - a)h<sup>4</sup>/180 × f<sup>(4)</sup>(ξ)</td><td>Simpson error</td><td>Exact for cubics</td></tr>
+      <tr><td>n! = 1 × 2 × ... × n</td><td>Factorial</td><td>Used in some series and error terms</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one on paper before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>One trapezium</h3>
+    <div class="statement"><p>Use a single trapezium to estimate ∫<sub>0</sub><sup>2</sup> x dx. (Answer type: NAT, a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The trapezoidal estimate with one strip.</li>
+      <li><strong>Which idea applies.</strong> (b - a)/2 × (f(a) + f(b)).</li>
+      <li><strong>Work it out.</strong> f(0) = 0 and f(2) = 2. So the estimate is (2 - 0)/2 × (0 + 2) = 1 × 2 = 2.</li>
+      <li><strong>Check.</strong> The exact integral is [x<sup>2</sup>/2] from 0 to 2, which is 2. A straight line is integrated exactly by the trapezoidal rule.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Properties of the two rules</h3>
+    <div class="statement"><p>Select all the statements that are true.</p>
+    <p>(A) The trapezoidal rule is exact for straight lines.<br>
+    (B) Simpson's 1/3 rule needs an even number of intervals.<br>
+    (C) The trapezoidal error is proportional to h<sup>4</sup>.<br>
+    (D) Simpson's 1/3 rule is exact for cubic polynomials.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about the two rules are correct.</li>
+      <li><strong>Which idea applies.</strong> The degree of exactness and the error orders of each rule.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True, since panels use two intervals. (C) False, the trapezoidal error is proportional to h<sup>2</sup>. (D) True, the fourth derivative of a cubic is zero.</li>
+      <li><strong>Check.</strong> Statement (C) confuses the two error orders. Remember: trapezoid h<sup>2</sup>, Simpson h<sup>4</sup>.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Two trapezia for x squared</h3>
+    <div class="statement"><p>Use the composite trapezoidal rule with n = 2 to estimate ∫<sub>0</sub><sup>2</sup> x<sup>2</sup> dx. (Answer type: NAT, a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The trapezoidal estimate with two intervals.</li>
+      <li><strong>Which idea applies.</strong> T<sub>2</sub> = (h/2)[y<sub>0</sub> + 2y<sub>1</sub> + y<sub>2</sub>] with h = 1.</li>
+      <li><strong>Work it out.</strong> y<sub>0</sub> = 0, y<sub>1</sub> = 1, y<sub>2</sub> = 4. So T<sub>2</sub> = (1/2)(0 + 2 + 4) = 3.</li>
+      <li><strong>Check.</strong> The exact answer is 8/3, so the error is 1/3, which the error formula predicts.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print(0.5 * (0 + 2 * 1 + 4))</code></pre>
+    <pre class="output">3.0</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Simpson on an exponential</h3>
+    <div class="statement"><p>Use one Simpson panel (n = 2) to estimate ∫<sub>0</sub><sup>2</sup> e<sup>x</sup> dx, rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Simpson estimate with three points: x = 0, 1, 2.</li>
+      <li><strong>Which idea applies.</strong> S = (h/3)[y<sub>0</sub> + 4y<sub>1</sub> + y<sub>2</sub>] with h = 1.</li>
+      <li><strong>Work it out.</strong> The heights are 1, e, and e<sup>2</sup>. So S = (1/3)(1 + 4e + e<sup>2</sup>), which is about 6.4207.</li>
+      <li><strong>Check.</strong> The exact value is e<sup>2</sup> - 1, about 6.3891. The estimate is close, and its error is about 0.03.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round((1 + 4 * math.e + math.e ** 2) / 3, 4))</code></pre>
+    <pre class="output">6.4207</pre>
+    <p class="cx">Answer: 6.4207.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Simpson on a square root</h3>
+    <div class="statement"><p>Use one Simpson panel (n = 2) to estimate ∫<sub>0</sub><sup>1</sup> √x dx, rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Simpson estimate with points x = 0, 0.5, 1.</li>
+      <li><strong>Which idea applies.</strong> S = (h/3)[y<sub>0</sub> + 4y<sub>1</sub> + y<sub>2</sub>] with h = 0.5.</li>
+      <li><strong>Work it out.</strong> The heights are 0, √0.5 ≈ 0.7071, and 1. So S = (0.5/3)(0 + 4 × 0.7071 + 1) ≈ 0.6381.</li>
+      <li><strong>Check.</strong> The exact value is 2/3, about 0.6667. The error is about 0.029. The square root has an infinite second derivative at 0, so the error is larger than for a smooth function.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round((0.5 / 3) * (0 + 4 * math.sqrt(0.5) + 1), 4))</code></pre>
+    <pre class="output">0.6381</pre>
+    <p class="cx">Answer: 0.6381.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Error of a composite Simpson estimate</h3>
+    <div class="statement"><p>Use the composite Simpson rule with n = 4 to estimate ∫<sub>0</sub><sup>π</sup> sin x dx. Give the absolute error, rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The size of the difference between the Simpson estimate and the exact value.</li>
+      <li><strong>Which idea applies.</strong> Composite Simpson with h = π/4, and the exact value 2.</li>
+      <li><strong>Work it out.</strong> S<sub>4</sub> = (π/12)(4√2 + 2) ≈ 2.0046. The absolute error is |2.0046 - 2| = 0.0046.</li>
+      <li><strong>Check.</strong> The program computes the same error directly.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+def simpson(f, a, b, n):
+    h = (b - a) / n
+    total = f(a) + f(b)
+    for i in range(1, n):
+        total += (4 if i % 2 == 1 else 2) * f(a + i * h)
+    return h / 3 * total
+
+print(round(abs(simpson(math.sin, 0, math.pi, 4) - 2), 4))</code></pre>
+    <pre class="output">0.0046</pre>
+    <p class="cx">Answer: 0.0046.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Trapezoidal error for a cubic</h3>
+    <div class="statement"><p>The composite trapezoidal rule with n = 2 is used for ∫<sub>0</sub><sup>2</sup> x<sup>3</sup> dx. Find T<sub>2</sub> minus the exact integral. (Answer type: NAT, a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The error T<sub>2</sub> - I, which is a signed difference.</li>
+      <li><strong>Which idea applies.</strong> Evaluate T<sub>2</sub>, then find the exact integral.</li>
+      <li><strong>Work it out.</strong> With h = 1, the heights are 0, 1, and 8. So T<sub>2</sub> = (1/2)(0 + 2 × 1 + 8) = 5. The exact integral is [x<sup>4</sup>/4] from 0 to 2, which is 4. So T<sub>2</sub> - I = 5 - 4 = 1.</li>
+      <li><strong>Check.</strong> The error formula gives I - T = -(b - a)h<sup>2</sup>/12 × f''(ξ) = -(2)(1)/12 × 6ξ, which equals -1 when ξ = 1. This is consistent, because f'' = 6x equals 6 at x = 1.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>T2 = 0.5 * (0 + 2 * 1 + 8)
+I = 2 ** 4 / 4
+print(T2 - I)</code></pre>
+    <pre class="output">1.0</pre>
+    <p class="cx">Answer: 1.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Simpson's rule (NAT, 2 marks)</h3>
+    <div class="statement"><p>Estimate ∫<sub>0</sub><sup>1</sup> 1/(1 + x²) dx with Simpson's 1/3 rule using 4 subintervals, correct to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Simpson estimate, which approximates π/4.</li>
+      <li><strong>Which idea applies.</strong> (h/3)[f<sub>0</sub> + 4f<sub>1</sub> + 2f<sub>2</sub> + 4f<sub>3</sub> + f<sub>4</sub>] with h = 0.25.</li>
+      <li><strong>Work it out.</strong> The values are 1, 0.941176, 0.8, 0.64, 0.5. Sum with weights: 1 + 3.764706 + 1.6 + 2.56 + 0.5 = 9.424706. Times 0.25/3: 0.7854.</li>
+      <li><strong>Check.</strong> π/4 = 0.785398.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>f = lambda x: 1 / (1 + x * x)
+h = 0.25
+print("%.4f" % (h / 3 * (f(0) + 4 * f(0.25) + 2 * f(0.5) + 4 * f(0.75) + f(1))))
+</code></pre>
+    <pre class="output">0.7854</pre>
+    <p class="cx">Answer: 0.7854.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Trapezoid error (NAT, 2 marks)</h3>
+    <div class="statement"><p>The trapezoidal rule with n equal subintervals on [0, 2] is used for f(x) = x³. The error bound is (b − a)h² max|f″|/12. Find the smallest n that makes the bound at most 0.01.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of subintervals for a target error.</li>
+      <li><strong>Which idea applies.</strong> f″ = 6x, so max|f″| = 12 on [0, 2]. h = 2/n.</li>
+      <li><strong>Work it out.</strong> Bound = 2 · (4/n²) · 12/12 = 8/n² ≤ 0.01, so n² ≥ 800 and n ≥ 28.3. Smallest n = 29.</li>
+      <li><strong>Check.</strong> The code finds n.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print(next(n for n in range(1, 100) if 8 / n ** 2 &lt;= 0.01))
+</code></pre>
+    <pre class="output">29</pre>
+    <p class="cx">Answer: 29.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Exactness (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) The trapezoidal rule is exact for linear functions. (B) Simpson's 1/3 rule is exact for cubics. (C) Simpson's 1/3 rule needs an even number of subintervals. (D) The trapezoidal rule is exact for quadratics.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The degree of precision of each rule.</li>
+      <li><strong>Which idea applies.</strong> Trapezoid has precision 1, Simpson has precision 3.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True. (D) For x² on [0, 1] with one interval, trapezoid gives 0.5 but the integral is 1/3. False.</li>
+      <li><strong>Check.</strong> Simpson's extra degree comes from symmetry.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Definite integral</dt><dd>The area under a curve between two limits.</dd></div>
+    <div><dt>Step size h</dt><dd>The width of each interval, h = (b - a)/n.</dd></div>
+    <div><dt>Ordinate</dt><dd>A function value at one of the points used by a rule.</dd></div>
+    <div><dt>Trapezoidal rule</dt><dd>Adds trapezia under straight lines through the points. Weights are 1, 2, 2, ..., 2, 1 times h/2.</dd></div>
+    <div><dt>Simpson's 1/3 rule</dt><dd>Fits parabolas through three points. Weights are 1, 4, 1 times h/3 for one panel.</dd></div>
+    <div><dt>Composite rule</dt><dd>The rule applied to many panels, with the results added.</dd></div>
+    <div><dt>Trapezoidal error</dt><dd>Proportional to h<sup>2</sup> and to the second derivative.</dd></div>
+    <div><dt>Simpson error</dt><dd>Proportional to h<sup>4</sup> and to the fourth derivative.</dd></div>
+    <div><dt>Degree of exactness</dt><dd>Simpson's 1/3 rule is exact for cubic polynomials. The trapezoidal rule is exact for straight lines.</dd></div>
+    <div><dt>Even number of intervals</dt><dd>Required for the composite Simpson rule.</dd></div>
+    <div><dt>Tabulated values</dt><dd>Data at equally spaced points, used when there is no formula for f.</dd></div>
+    <div><dt>Absolute error</dt><dd>The size of the difference between an estimate and the exact value, written without a sign.</dd></div>
+    <div><dt>Factorial</dt><dd>n! is the product of the whole numbers from 1 to n.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Trapezoid weights are 1, 2, 2, ..., 2, 1 with factor h/2. Simpson weights are 1, 4, 2, 4, ..., 4, 1 with factor h/3.</li>
+    <li>Simpson's 1/3 rule needs an even number of intervals.</li>
+    <li>Trapezoidal error is O(h<sup>2</sup>). Simpson error is O(h<sup>4</sup>).</li>
+    <li>Simpson's 1/3 rule is exact for cubics, so check it on a cubic before you trust it.</li>
+    <li>In a table, write the weights before you multiply.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 63?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 63 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-062.html"><small>Previous, topic 62</small>Finite differences</a><a class="next" href="gate-064.html"><small>Next, topic 64</small>Explicit single &amp; multi-step methods for ODEs</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

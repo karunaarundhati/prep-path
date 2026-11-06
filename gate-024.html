@@ -1,0 +1,487 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 24: Taylor series in two variables</title><meta name="description" content="Near any point, a smooth surface looks almost flat, and a little more detail makes it look like a bowl or a saddle. The two-variable Taylor expansion turns this into a formula with partial derivatives. It gives fast local estimates and tells you whether a critical point is a valley, a peak or a saddle, which is central to GATE RA and DA."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g24" data-key="g24" data-noun="topic" data-num="24" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Taylor series in two variables</h1>
+<p class="lede">Near any point, a smooth surface looks almost flat, and a little more detail makes it look like a bowl or a saddle. The two-variable Taylor expansion turns this into a formula with partial derivatives. It gives fast local estimates and tells you whether a critical point is a valley, a peak or a saddle, which is central to GATE RA and DA.</p>
+<div class="station"><b>24</b><span>Unit 2 · Calculus and optimisation · Paper RA · New concept</span></div>
+<ul class="topics"><li>Single-variable Taylor review</li><li>Linear approximation of a surface</li><li>Quadratic approximation and the second-order terms</li><li>The Hessian and classifying critical points</li><li>Expanding simple functions around a point</li><li>Problems that use the expansion</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Stand on a large, smooth hill and look at the ground under your feet. Over a small area, the ground looks almost flat. Zoom in further and you notice it tilts, and that the tilt changes. A tilted flat piece is a <strong>linear approximation</strong>. Adding the curve, which is the bend, gives a <strong>quadratic approximation</strong>, a better match that can look like a bowl or a saddle.</p>
+
+  <p>The two-variable Taylor expansion says exactly this. It starts from the value of the function at a point, adds the slope in each direction, then adds the bend. The more terms you keep, the closer the match near that point.</p>
+
+  <p>Why does this matter for GATE? Taylor expansions in two variables give quick estimates in numerical questions, and they explain why a critical point is a minimum, a maximum or a saddle. Robotics and machine learning both use this idea when they check whether they are at a valley of a loss function.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+
+  <p>Each term has a plain meaning first, then a precise definition.</p>
+
+  <dl>
+    <div><dt>Expansion point</dt><dd>Plain meaning: the spot where we match the function. Precise definition: the point (a, b) at which all derivatives are evaluated.</dd></div>
+    <div><dt>Increments h and k</dt><dd>Plain meaning: how far we move in x and in y from the expansion point. Precise definition: h = x minus a and k = y minus b.</dd></div>
+    <div><dt>Linear approximation</dt><dd>Plain meaning: a flat plane that touches the surface at the point. Precise definition: f(a, b) + f_x(a, b) h + f_y(a, b) k.</dd></div>
+    <div><dt>Quadratic approximation</dt><dd>Plain meaning: the plane plus the bend terms. Precise definition: the linear approximation plus one half of the second-order terms with the second partials.</dd></div>
+    <div><dt>Hessian matrix</dt><dd>Plain meaning: a table of the second partial derivatives. Precise definition: the 2 by 2 matrix with entries f_xx, f_xy in the first row and f_yx, f_yy in the second row.</dd></div>
+    <div><dt>Determinant of the Hessian</dt><dd>Plain meaning: a single number that summarises the bend. Precise definition: D = f_xx times f_yy minus (f_xy) squared.</dd></div>
+    <div><dt>Saddle point</dt><dd>Plain meaning: a point that is a valley in one direction and a peak in another. Precise definition: a critical point where D is less than 0.</dd></div>
+  </dl>
+
+  <div class="note tip"><p><span class="t">Tip</span>In the formulas, the displacements h and k are small numbers. The approximation is good only when they are small, so always check how far you have moved.</p></div>
+</section>
+
+<section class="unit" id="c1" data-title="Single-variable Taylor review">
+  <h2>Single-variable Taylor review</h2>
+
+  <p>Before the two-variable version, recall the one-variable pattern. Near a point a, a smooth function f is approximated by a polynomial:</p>
+
+  <div class="formula">f(a + h) is about f(a) + f'(a) h + f''(a) h squared / 2</div>
+
+  <p>Each symbol means:</p>
+  <ul>
+    <li><strong>f(a)</strong> is the height at the point.</li>
+    <li><strong>f'(a) h</strong> is the change from the slope, over a distance h.</li>
+    <li><strong>f''(a) h squared / 2</strong> is the change from the bend, which grows with the square of the distance.</li>
+  </ul>
+
+  <p><strong>Worked example.</strong> Estimate f(x) = e to the power x at x = 0.1, using a = 0. Here f(0) = 1, f'(0) = 1, and f''(0) = 1. So f(0.1) is about 1 + 0.1 + 0.01/2 = 1.105. The exact value is about 1.10517, so the estimate is very close.</p>
+
+  <details class="check"><summary>Quick check: for f(x) = sin(x) at a = 0, what is the first-order approximation of sin(0.1)?</summary><div class="ans"><p>f(0) = 0 and f'(0) = cos(0) = 1, so the approximation is 0 + 1 times 0.1 = 0.1.</p></div></details>
+
+  <details class="check"><summary>Quick check: why does the second term have a factor of one half?</summary><div class="ans"><p>Because repeated differentiation of h squared gives 2, and the one half cancels it, so the second derivative contributes exactly the right bend.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Linear approximation of a surface">
+  <h2>Linear approximation of a surface</h2>
+
+  <p>For a function of two variables, the first-order approximation uses both partial derivatives. Move from (a, b) by h in x and by k in y. The height changes by the x-slope times h plus the y-slope times k.</p>
+
+  <div class="formula">f(a + h, b + k) is about f(a, b) + f_x(a, b) h + f_y(a, b) k</div>
+
+  <p>This is the tangent plane at (a, b). It is the flat sheet that just touches the surface at that point and has the same slopes in both directions.</p>
+
+  <p><strong>Worked example.</strong> Let f(x, y) = x squared y. Approximate f(1.01, 1.98) using the point (1, 2).</p>
+  <ol>
+    <li><strong>Step 1, the base value.</strong> f(1, 2) = 1 times 2 = 2.</li>
+    <li><strong>Step 2, partials.</strong> f_x = 2xy = 4 and f_y = x squared = 1 at (1, 2).</li>
+    <li><strong>Step 3, increments.</strong> h = 1.01 minus 1 = 0.01 and k = 1.98 minus 2 = minus 0.02.</li>
+    <li><strong>Step 4, combine.</strong> The approximation is 2 + 4 times 0.01 + 1 times (minus 0.02) = 2 + 0.04 minus 0.02 = 2.02.</li>
+  </ol>
+
+  <p>The exact value is about 2.0198, so the linear estimate is close but not exact. The next section shows how to improve it.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The linear approximation uses only the slopes. It is accurate when the increments are tiny, and its error is of the order of the square of the increments.</p></div>
+
+  <details class="check"><summary>Quick check: for f(x, y) = x plus 2y at (0, 0), what is the linear approximation at (0.1, 0.1)?</summary><div class="ans"><p>f(0, 0) = 0, f_x = 1 and f_y = 2. So the approximation is 0 + 1 times 0.1 + 2 times 0.1 = 0.3. Since f is itself linear, this is exact.</p></div></details>
+
+  <details class="check"><summary>Quick check: why is the tangent plane a good local model?</summary><div class="ans"><p>Near the point, the surface and the plane have the same height and the same slopes in both directions, so they agree closely.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Quadratic approximation and the second-order terms">
+  <h2>Quadratic approximation and the second-order terms</h2>
+
+  <p>The quadratic approximation adds the bend. In two variables, the bend has three parts: how the x-slope changes in x, how it changes in y, and how the y-slope changes in y.</p>
+
+  <div class="formula">f(a + h, b + k) is about f(a, b) + f_x h + f_y k + (1/2)(f_xx h squared + 2 f_xy h k + f_yy k squared)</div>
+
+  <p>Each new piece means:</p>
+  <ul>
+    <li><strong>f_xx h squared</strong> measures the bend in the x direction.</li>
+    <li><strong>2 f_xy h k</strong> measures how the bend mixes the two directions.</li>
+    <li><strong>f_yy k squared</strong> measures the bend in the y direction.</li>
+    <li><strong>The one half</strong> comes from the same reason as in the one-variable case.</li>
+  </ul>
+
+  <p><strong>Worked example, continued.</strong> For f(x, y) = x squared y at (1, 2), we found f_x = 4, f_y = 1 above. Now compute the second partials.</p>
+  <ol>
+    <li><strong>Step 1, pure second partials.</strong> f_xx = 2y = 4. f_yy = 0, because f has no y squared term.</li>
+    <li><strong>Step 2, mixed partial.</strong> f_xy = 2x = 2.</li>
+    <li><strong>Step 3, quadratic term.</strong> (1/2)(4 times 0.01 squared + 2 times 2 times 0.01 times (minus 0.02) + 0) = (1/2)(0.0004 minus 0.0008) = minus 0.0002.</li>
+    <li><strong>Step 4, total.</strong> 2.02 minus 0.0002 = 2.0198.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>def f(x, y):
+    return x * x * y
+
+h, k = 0.01, -0.02
+exact = f(1 + h, 2 + k)
+lin = 2 + 4 * h + 1 * k
+quad = lin + 0.5 * (4 * h * h + 2 * 2 * h * k + 0 * k * k)
+print("linear approximation =", f"{lin:.4f}")
+print("quadratic approximation =", f"{quad:.4f}")
+print("exact =", f"{exact:.4f}")
+print("error linear =", f"{abs(exact - lin):.6f}", "error quadratic =", f"{abs(exact - quad):.6f}")</code></pre>
+  <pre class="output">linear approximation = 2.0200
+quadratic approximation = 2.0198
+exact = 2.0198
+error linear = 0.000202 error quadratic = 0.000002</pre>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>The error of the linear approximation is about 0.0002, and the quadratic one is about 0.000002. Adding the second-order terms reduces the error by a factor of about 100 for these small steps.</p></div>
+
+  <details class="check"><summary>Quick check: what is the quadratic term for f(x, y) = x squared + y squared at (0, 0)?</summary><div class="ans"><p>f_xx = 2, f_yy = 2 and f_xy = 0. The quadratic term is (1/2)(2h squared + 2k squared) = h squared + k squared, which is exact for this function.</p></div></details>
+
+  <details class="check"><summary>Quick check: which second partial appears twice in the quadratic term?</summary><div class="ans"><p>The mixed partial f_xy, because the term 2 f_xy h k contains it with a factor of 2 from the two orders.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="The Hessian and classifying critical points">
+  <h2>The Hessian and classifying critical points</h2>
+
+  <p>The second partials can be arranged in a table called the Hessian matrix. Its determinant tells you the shape of the bend at a critical point, where both first partials are zero.</p>
+
+  <pre class="code" data-lang="text"><code>H = [ f_xx  f_xy ]
+    [ f_yx  f_yy ]</code></pre>
+
+  <div class="formula">D = f_xx times f_yy minus (f_xy) squared</div>
+
+  <p>Use the following test at a point where f_x = 0 and f_y = 0:</p>
+  <ul>
+    <li>If D is greater than 0 and f_xx is greater than 0, the point is a <strong>local minimum</strong>: a bowl.</li>
+    <li>If D is greater than 0 and f_xx is less than 0, the point is a <strong>local maximum</strong>: a dome.</li>
+    <li>If D is less than 0, the point is a <strong>saddle point</strong>: up in one direction, down in another.</li>
+    <li>If D equals 0, the test is inconclusive.</li>
+  </ul>
+
+  <p><strong>Worked example.</strong> Let f(x, y) = x squared plus x y plus y squared minus 3y. Find and classify the critical point.</p>
+  <ol>
+    <li><strong>Step 1, first partials.</strong> f_x = 2x + y and f_y = x + 2y minus 3.</li>
+    <li><strong>Step 2, solve.</strong> From the first equation, y = minus 2x. Substituting into the second: x + 2(minus 2x) minus 3 = 0, so minus 3x = 3, so x = minus 1 and y = 2.</li>
+    <li><strong>Step 3, second partials.</strong> f_xx = 2, f_xy = 1, f_yy = 2.</li>
+    <li><strong>Step 4, determinant.</strong> D = 2 times 2 minus 1 squared = 4 minus 1 = 3, which is greater than 0.</li>
+    <li><strong>Step 5, classify.</strong> f_xx = 2 is positive, so (minus 1, 2) is a local minimum.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>def g(x, y):
+    return x * x + x * y + y * y - 3 * y
+
+for (x, y) in [(-1, 2), (-0.9, 2), (-1, 2.1), (-1.1, 1.9)]:
+    print("point", (x, y), "g =", f"{g(x, y):.2f}")</code></pre>
+  <pre class="output">point (-1, 2) g = -3.00
+point (-0.9, 2) g = -2.99
+point (-1, 2.1) g = -2.99
+point (-1.1, 1.9) g = -2.97</pre>
+
+  <p>The value at the critical point is minus 3, and nearby points are higher, which confirms the minimum.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>The Hessian test only works at a critical point. Check first that both f_x and f_y are zero. Applying the test elsewhere gives meaningless results.</p></div>
+
+  <details class="check"><summary>Quick check: classify the critical point (0, 0) of f(x, y) = x squared minus y squared.</summary><div class="ans"><p>f_xx = 2, f_yy = minus 2 and f_xy = 0. D = 2 times (minus 2) minus 0 = minus 4, which is less than 0. So (0, 0) is a saddle point.</p></div></details>
+
+  <details class="check"><summary>Quick check: what does D equal 0 tell you?</summary><div class="ans"><p>The second-order test cannot decide. The point could be a minimum, a maximum or a saddle, and higher-order terms are needed.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Expanding simple functions around a point">
+  <h2>Expanding simple functions around a point</h2>
+
+  <p>GATE often asks for a second-order expansion of a product of simple functions. The cleanest method is to expand each factor with its one-variable series, multiply, and keep only terms of total degree at most 2. This is faster than computing all the partial derivatives.</p>
+
+  <p><strong>Worked example.</strong> Find the quadratic approximation of f(x, y) = e to the power x times sin(y) near (0, 0).</p>
+  <ol>
+    <li><strong>Step 1, series for each factor.</strong> e to the power x is about 1 + x + x squared/2. sin(y) is about y, with the next term y cubed/6 being of degree 3, so we drop it.</li>
+    <li><strong>Step 2, multiply.</strong> (1 + x + x squared/2)(y) = y + xy + x squared y/2.</li>
+    <li><strong>Step 3, keep degree at most 2.</strong> The term x squared y has degree 3, so drop it. What remains is y + xy.</li>
+    <li><strong>Answer.</strong> f(x, y) is about y + xy near (0, 0).</li>
+  </ol>
+
+  <p>Compare with the derivative method. f_x = e to the power x sin(y) = 0 at (0, 0), f_y = e to the power x cos(y) = 1, and f_xy = e to the power x cos(y) = 1. The quadratic term is (1/2)(2 times 1 times xy) = xy, and the linear term is y, which agrees.</p>
+
+  <pre class="code" data-lang="python"><code>import math
+
+x, y = 0.1, 0.2
+print("exact e^x sin y =", f"{math.exp(x) * math.sin(y):.4f}")
+print("quadratic y + xy =", f"{y + x * y:.4f}")</code></pre>
+  <pre class="output">exact e^x sin y = 0.2196
+quadratic y + xy = 0.2200</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>To expand a product near a point, expand each factor, multiply, and discard terms of degree 3 and higher. Check the degree of each term carefully.</p></div>
+
+  <details class="check"><summary>Quick check: what is the quadratic approximation of f(x, y) = cos(x) times y near (0, 0)?</summary><div class="ans"><p>cos(x) is about 1 minus x squared/2, so the product is y minus x squared y/2. The term x squared y has degree 3, so the approximation is just y.</p></div></details>
+
+  <details class="check"><summary>Quick check: why can the term sin(y) be replaced by y?</summary><div class="ans"><p>Because the next term, y cubed/6, has degree 3, and for the quadratic approximation we keep only degree 0, 1 and 2 terms.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Problems that use the expansion">
+  <h2>Problems that use the expansion</h2>
+
+  <p>Many GATE questions combine these steps. Find the base point, compute the first and second partials if needed, then build the approximation or classify the point. Keep track of the increments h and k, and always write the sign.</p>
+
+  <p><strong>Worked example.</strong> Approximate f(x, y) = x y at (2.1, 2.9) using the linear approximation at (2, 3).</p>
+  <ol>
+    <li><strong>Step 1, base.</strong> f(2, 3) = 6.</li>
+    <li><strong>Step 2, partials.</strong> f_x = y = 3 and f_y = x = 2.</li>
+    <li><strong>Step 3, increments.</strong> h = 0.1 and k = minus 0.1.</li>
+    <li><strong>Step 4, combine.</strong> 6 + 3(0.1) + 2(minus 0.1) = 6 + 0.3 minus 0.2 = 6.1. The exact value is 6.09, so the estimate is close.</li>
+  </ol>
+
+  <details class="check"><summary>Quick check: is the linear approximation of x y at (2, 3) exact for the point (2, 3)?</summary><div class="ans"><p>Yes. At h = 0 and k = 0, every correction term vanishes, and the approximation equals f(2, 3) = 6.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>f(a + h, b + k) is about f(a, b) + f_x h + f_y k</td><td>Linear approximation, tangent plane</td><td>Quick local estimates</td></tr>
+      <tr><td>Adds (1/2)(f_xx h squared + 2 f_xy h k + f_yy k squared)</td><td>Quadratic approximation</td><td>More accurate local estimates</td></tr>
+      <tr><td>H = [f_xx f_xy; f_yx f_yy]</td><td>Hessian matrix</td><td>Classifying critical points</td></tr>
+      <tr><td>D = f_xx f_yy minus (f_xy) squared</td><td>Determinant of the Hessian</td><td>Second derivative test in two variables</td></tr>
+      <tr><td>D greater than 0 and f_xx greater than 0 gives a minimum</td><td>Local minimum</td><td>Classification</td></tr>
+      <tr><td>D less than 0 gives a saddle</td><td>Saddle point</td><td>Classification</td></tr>
+      <tr><td>e to the power x is about 1 + x + x squared/2</td><td>One-variable series used in product expansions</td><td>Expanding products near 0</td></tr>
+      <tr><td>sin(y) is about y, and cos(x) is about 1 minus x squared/2</td><td>Series used for quadratic approximations</td><td>Expanding products near 0</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>For a quick second-order expansion, expand each factor, multiply, and discard any term of degree 3 or higher. This is usually the fastest route in GATE.</p></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+
+  <p>These problems are original, written in the style of GATE. They are not past exam questions. Try each one on paper before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Linear estimate</h3>
+    <div class="statement"><p>Let f(x, y) = x squared plus y. Use the linear approximation at (1, 2) to estimate f(1.1, 2.0). Give your answer as a decimal number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A linear estimate at a nearby point.</li>
+      <li><strong>Which idea applies.</strong> f(a, b) + f_x h + f_y k.</li>
+      <li><strong>Work it out.</strong> f(1, 2) = 3. f_x = 2x = 2 and f_y = 1. h = 0.1 and k = 0. The estimate is 3 + 2(0.1) + 0 = 3.2.</li>
+      <li><strong>Check.</strong> The exact value is 1.21 + 2 = 3.21, which is close to 3.2.</li>
+    </ol>
+    <p class="cx">Answer: 3.2</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>A mixed partial</h3>
+    <div class="statement"><p>Let f(x, y) = x squared y squared. Find the mixed partial f_xy at the point (1, 1). Give your answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The second partial with respect to x and then y, evaluated at (1, 1).</li>
+      <li><strong>Which idea applies.</strong> Differentiate in x, then in y.</li>
+      <li><strong>Work it out.</strong> f_x = 2x y squared. f_xy = 4xy. At (1, 1): 4 times 1 times 1 = 4.</li>
+      <li><strong>Check.</strong> f_y = 2x squared y, and differentiating it with respect to x gives f_yx = 4xy, the same, as Clairaut's theorem predicts.</li>
+    </ol>
+    <p class="cx">Answer: 4</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Critical points of a saddle, select all that apply</h3>
+    <div class="statement"><p>Let f(x, y) = x squared minus y squared. Select all that apply: (A) (0, 0) is a critical point; (B) the determinant D of the Hessian at (0, 0) is minus 4; (C) (0, 0) is a saddle point; (D) (0, 0) is a local minimum.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the point (0, 0) are true.</li>
+      <li><strong>Which idea applies.</strong> Compute f_x, f_y, the Hessian, and then D.</li>
+      <li><strong>Work it out.</strong> f_x = 2x and f_y = minus 2y, both zero at (0, 0), so (A) is true. The Hessian is [2 0; 0 minus 2], so D = 2 times (minus 2) minus 0 = minus 4, and (B) is true. Since D is less than 0, (0, 0) is a saddle, so (C) is true. It is not a minimum, so (D) is false.</li>
+      <li><strong>Check.</strong> Along the x axis the function rises, and along the y axis it falls, which is what a saddle looks like.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Coefficient of xy in an expansion</h3>
+    <div class="statement"><p>Let f(x, y) = e to the power x times y. Find the coefficient of xy in the quadratic Taylor polynomial of f at (0, 0). Give your answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The coefficient of xy in the quadratic approximation.</li>
+      <li><strong>Which idea applies.</strong> The mixed partial term is f_xy(0, 0) times xy.</li>
+      <li><strong>Work it out.</strong> f_x = e to the power x times y, and f_xy = e to the power x = 1 at (0, 0). The quadratic term has (1/2)(2 f_xy xy) = f_xy xy, so the coefficient is 1.</li>
+      <li><strong>Check.</strong> The product expansion e to the power x times y is about (1 + x) times y = y + xy, which has xy coefficient 1.</li>
+    </ol>
+    <p class="cx">Answer: 1</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Estimating a product</h3>
+    <div class="statement"><p>Let f(x, y) = x y. Use the linear approximation at (2, 3) to estimate f(2.1, 2.9). Give your answer as a decimal number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A linear estimate of a product.</li>
+      <li><strong>Which idea applies.</strong> The tangent plane at (2, 3).</li>
+      <li><strong>Work it out.</strong> f(2, 3) = 6, f_x = 3, f_y = 2, h = 0.1, k = minus 0.1. The estimate is 6 + 0.3 minus 0.2 = 6.1.</li>
+      <li><strong>Check.</strong> The exact value is 2.1 times 2.9 = 6.09, so 6.1 is close.</li>
+    </ol>
+    <p class="cx">Answer: 6.1</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Classifying critical points</h3>
+    <div class="statement"><p>Let f(x, y) = x cubed minus 3x plus y squared. How many saddle points does f have? Give your answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of saddle points.</li>
+      <li><strong>Which idea applies.</strong> Find the critical points, then the Hessian determinant at each.</li>
+      <li><strong>Work it out.</strong> f_x = 3x squared minus 3 and f_y = 2y. Setting both to zero gives y = 0 and x = 1 or x = minus 1. The second partials are f_xx = 6x, f_yy = 2 and f_xy = 0. At (1, 0), D = 6 times 2 = 12 is positive, and f_xx = 6 is positive, so it is a minimum. At (minus 1, 0), D = minus 6 times 2 = minus 12 is negative, so it is a saddle.</li>
+      <li><strong>Check.</strong> The one saddle point is at (minus 1, 0), and the other critical point is a minimum, so the count is 1.</li>
+    </ol>
+    <p class="cx">Answer: 1</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Quadratic estimate of an exponential-sine product</h3>
+    <div class="statement"><p>Using the quadratic Taylor polynomial of f(x, y) = e to the power x times sin(y) at (0, 0), estimate f(0.1, 0.2). Give your answer as a decimal correct to four places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A quadratic estimate at the point (0.1, 0.2).</li>
+      <li><strong>Which idea applies.</strong> The product expansion, keeping degree at most 2.</li>
+      <li><strong>Work it out.</strong> From the worked example, the quadratic polynomial is y + xy. At (0.1, 0.2): 0.2 + 0.1 times 0.2 = 0.2 + 0.02 = 0.22.</li>
+      <li><strong>Check.</strong> The exact value is about 0.2196, so the estimate 0.2200 is close. The Python run in the earlier section confirms this.</li>
+    </ol>
+    <p class="cx">Answer: 0.2200</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: the second-order part of an approximation (NAT, 2 marks)</h3>
+    <div class="statement"><p>The function f(x, y) = e<sup>x</sup> cos y is approximated near (0, 0). Let L(x, y) be its linear approximation at (0, 0), and let Q(x, y) be its second-order Taylor polynomial at (0, 0). The angle y is in radians. Find Q(0.1, 0.2) - L(0.1, 0.2), correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The difference Q - L at (0.1, 0.2). This difference isolates the second-order part of the approximation.</li>
+      <li><strong>Which idea applies.</strong> The linear part uses f and its first partial derivatives at (0, 0). The quadratic part adds (1/2)(f<sub>xx</sub>x<sup>2</sup> + 2f<sub>xy</sub>xy + f<sub>yy</sub>y<sup>2</sup>).</li>
+      <li><strong>Work it out.</strong> f(0, 0) = 1. f<sub>x</sub> = e<sup>x</sup> cos y, which is 1 at the origin, and f<sub>y</sub> = -e<sup>x</sup> sin y, which is 0. So L = 1 + x. The second partials are f<sub>xx</sub> = e<sup>x</sup> cos y = 1, f<sub>xy</sub> = -e<sup>x</sup> sin y = 0, and f<sub>yy</sub> = -e<sup>x</sup> cos y = -1. So Q = 1 + x + (x<sup>2</sup> - y<sup>2</sup>)/2. The difference is Q - L = (x<sup>2</sup> - y<sup>2</sup>)/2 = (0.01 - 0.04)/2 = -0.015.</li>
+      <li><strong>Check.</strong> The Python block computes L and Q at (0.1, 0.2), giving 1.1 and 1.085, and their difference -0.015. It also prints the true value, 1.083141, to show that Q is much closer than L.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>import math
+x, y = 0.1, 0.2
+f0 = 1.0
+fx, fy = 1.0, 0.0
+fxx, fxy, fyy = 1.0, 0.0, -1.0
+L = f0 + fx*x + fy*y
+Q = L + 0.5*(fxx*x*x + 2*fxy*x*y + fyy*y*y)
+print("L =", round(L, 4))
+print("Q =", round(Q, 4))
+print("Q - L =", round(Q - L, 3))
+print("true value =", round(math.exp(x)*math.cos(y), 6))</code></pre>
+    <pre class="output">L = 1.1
+Q = 1.085
+Q - L = -0.015
+true value = 1.083141</pre>
+
+    <p class="cx">Answer: -0.015</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: classifying critical points with the Hessian (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Let f(x, y) = x<sup>3</sup> - 3xy + y<sup>3</sup>. Its critical points are the points where both first partial derivatives are zero. Select all that apply. (A) (0, 0) is a saddle point. (B) (1, 1) is a local minimum. (C) (0, 0) is a local maximum. (D) (1, 1) is a saddle point.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the critical points of f are true.</li>
+      <li><strong>Which idea applies.</strong> Solve f<sub>x</sub> = f<sub>y</sub> = 0 for the critical points. Then use the Hessian determinant D = f<sub>xx</sub> f<sub>yy</sub> - f<sub>xy</sub><sup>2</sup>. If D is negative, the point is a saddle. If D is positive, the sign of f<sub>xx</sub> decides between a local minimum and a local maximum.</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 3x<sup>2</sup> - 3y = 0 gives y = x<sup>2</sup>. f<sub>y</sub> = -3x + 3y<sup>2</sup> = 0 gives x = y<sup>2</sup>. Substituting, x = x<sup>4</sup>, so x = 0 or x = 1, which gives the points (0, 0) and (1, 1). The second partials are f<sub>xx</sub> = 6x, f<sub>xy</sub> = -3 and f<sub>yy</sub> = 6y. At (0, 0), D = 0 - 9 = -9, which is negative, so it is a saddle. Thus (A) is true and (C) is false. At (1, 1), D = 36 - 9 = 27 is positive and f<sub>xx</sub> = 6 is positive, so it is a local minimum. Thus (B) is true and (D) is false.</li>
+      <li><strong>Check.</strong> The Python block confirms that the gradient is zero at both points, then prints the Hessian values, the determinant and the classification. It reports a saddle at (0, 0) and a local minimum at (1, 1).</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>def fx(x, y):
+    return 3*x*x - 3*y
+def fy(x, y):
+    return -3*x + 3*y*y
+def hess(x, y):
+    fxx, fxy, fyy = 6*x, -3, 6*y
+    return fxx, fxy, fyy, fxx*fyy - fxy*fxy
+for (x, y) in [(0, 0), (1, 1)]:
+    print("point", (x, y), "gradient", (fx(x, y), fy(x, y)))
+    fxx, fxy, fyy, D = hess(x, y)
+    kind = "saddle" if D &lt; 0 else ("local min" if fxx &gt; 0 else "local max")
+    print("  f_xx =", fxx, " f_xy =", fxy, " f_yy =", fyy, " det =", D, " -&gt;", kind)</code></pre>
+    <pre class="output">point (0, 0) gradient (0, 0)
+  f_xx = 0  f_xy = -3  f_yy = 0  det = -9  -&gt; saddle
+point (1, 1) gradient (0, 0)
+  f_xx = 6  f_xy = -3  f_yy = 6  det = 27  -&gt; local min</pre>
+
+    <p class="cx">Answer: (A) and (B) are true. (C) and (D) are false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: the mixed term in a Taylor polynomial (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A model uses f(x, y) = x<sup>2</sup>y + xy<sup>3</sup>. Its second-order Taylor polynomial at the point (1, 2) contains a term c(x - 1)(y - 2). This cross term shows how the two inputs interact near that point. What is the value of c? (A) 7. (B) 12. (C) 14. (D) 28.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The coefficient c of the cross term (x - 1)(y - 2) in the second-order Taylor polynomial at (1, 2).</li>
+      <li><strong>Which idea applies.</strong> With h = x - 1 and k = y - 2, the second-order Taylor polynomial is f + f<sub>x</sub>h + f<sub>y</sub>k + (1/2)(f<sub>xx</sub>h<sup>2</sup> + 2f<sub>xy</sub>hk + f<sub>yy</sub>k<sup>2</sup>). The coefficient of hk is therefore f<sub>xy</sub>, evaluated at (1, 2).</li>
+      <li><strong>Work it out.</strong> f<sub>x</sub> = 2xy + y<sup>3</sup>. Differentiate with respect to y to get f<sub>xy</sub> = 2x + 3y<sup>2</sup>. At (1, 2) this is 2(1) + 3(4) = 2 + 12 = 14. So c = 14, which is option (C). Option (A), 7, comes from forgetting the factor 2 in the term 2f<sub>xy</sub>hk, which the 1/2 in front does not cancel.</li>
+      <li><strong>Check.</strong> The Python block estimates f<sub>xy</sub> at (1, 2) with a four-point finite difference. It gives 14.0, which agrees with the formula 2x + 3y<sup>2</sup> = 14.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>def f(x, y):
+    return x*x*y + x*y**3
+h = 1e-3
+x0, y0 = 1.0, 2.0
+mixed = (f(x0+h, y0+h) - f(x0+h, y0-h) - f(x0-h, y0+h) + f(x0-h, y0-h)) / (4*h*h)
+print("numeric f_xy(1,2) =", round(mixed, 2))
+print("formula 2x + 3y^2 =", 2*x0 + 3*y0*y0)</code></pre>
+    <pre class="output">numeric f_xy(1,2) = 14.0
+formula 2x + 3y^2 = 14.0</pre>
+
+    <p class="cx">Answer: (C) 14</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: error of a quadratic estimate of a product (NAT, 2 marks)</h3>
+    <div class="statement"><p>A chemical yield is modelled as f(x, y) = e<sup>x</sup> ln(1 + y), where x and y are small dimensionless doses. Use the second-order Taylor polynomial of f at (0, 0) to estimate f(0.2, 0.1). Call this estimate Q. Find the absolute error |f(0.2, 0.1) - Q(0.2, 0.1)| in units of 10<sup>-3</sup>, correct to 1 decimal place. Logarithms are natural logarithms.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The size of the error of the second-order estimate, in units of 10<sup>-3</sup>, to 1 decimal place.</li>
+      <li><strong>Which idea applies.</strong> Expand each factor as a one-variable series, multiply them, and keep only the terms of total degree 2 or less. Then compare the estimate with the exact value.</li>
+      <li><strong>Work it out.</strong> e<sup>x</sup> = 1 + x + ..., and ln(1 + y) = y - y<sup>2</sup>/2 + .... The product up to degree 2 is (1 + x)(y - y<sup>2</sup>/2) = y + xy - y<sup>2</sup>/2, plus terms of degree 3 or more. So Q(x, y) = y + xy - y<sup>2</sup>/2. At (0.2, 0.1), Q = 0.1 + 0.02 - 0.005 = 0.115. The exact value is e<sup>0.2</sup> ln 1.1, which is about 0.116412. The error is 0.001412, which is 1.4 in units of 10<sup>-3</sup>.</li>
+      <li><strong>Check.</strong> The Python block evaluates Q and f at (0.2, 0.1), then prints the absolute error in units of 10<sup>-3</sup>. It prints 1.4.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>import math
+def f(x, y):
+    return math.exp(x) * math.log(1 + y)
+def Q(x, y):
+    return y + x*y - y*y/2
+x, y = 0.2, 0.1
+print("Q(0.2, 0.1) =", round(Q(x, y), 4))
+print("f(0.2, 0.1) =", round(f(x, y), 6))
+err = abs(f(x, y) - Q(x, y))
+print("absolute error in units of 10^-3, to 1 dp =", round(err * 1000, 1))</code></pre>
+    <pre class="output">Q(0.2, 0.1) = 0.115
+f(0.2, 0.1) = 0.116412
+absolute error in units of 10^-3, to 1 dp = 1.4</pre>
+
+    <p class="cx">Answer: 1.4</p>
+  </article>
+
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+
+  <dl>
+    <div><dt>Expansion point</dt><dd>Plain meaning: where the approximation matches the function. Precise definition: the point (a, b).</dd></div>
+    <div><dt>Increments h and k</dt><dd>Plain meaning: small moves in x and y. Precise definition: h = x minus a and k = y minus b.</dd></div>
+    <div><dt>Linear approximation</dt><dd>Plain meaning: a tangent plane. Precise definition: f(a, b) + f_x h + f_y k.</dd></div>
+    <div><dt>Quadratic approximation</dt><dd>Plain meaning: the plane plus the bend. Precise definition: the linear part plus (1/2)(f_xx h squared + 2 f_xy h k + f_yy k squared).</dd></div>
+    <div><dt>Hessian matrix</dt><dd>Plain meaning: the table of second partials. Precise definition: H = [f_xx f_xy; f_yx f_yy].</dd></div>
+    <div><dt>Determinant D</dt><dd>Plain meaning: one number that summarises the bend. Precise definition: D = f_xx f_yy minus (f_xy) squared.</dd></div>
+    <div><dt>Local minimum</dt><dd>Plain meaning: a bowl. Precise definition: a critical point with D greater than 0 and f_xx greater than 0.</dd></div>
+    <div><dt>Saddle point</dt><dd>Plain meaning: up in one direction, down in another. Precise definition: a critical point with D less than 0.</dd></div>
+    <div><dt>Product expansion</dt><dd>Plain meaning: expand each factor, multiply, and keep low degrees. Precise definition: the Taylor polynomial of degree at most 2 of a product.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>The linear approximation uses the first partials, and the quadratic one adds the second partials.</li>
+    <li>The Hessian determinant D classifies a critical point only when both first partials are zero.</li>
+    <li>D greater than 0 with f_xx greater than 0 is a minimum, and D less than 0 is a saddle.</li>
+    <li>For a quick expansion of a product, multiply the one-variable series and drop terms of degree 3 or higher.</li>
+    <li>The error of a quadratic approximation is much smaller than that of a linear one for small steps.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 24?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 24 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-023.html"><small>Previous, topic 23</small>Partial derivatives &amp; total derivative</a><a class="next" href="gate-025.html"><small>Next, topic 25</small>Maxima &amp; minima (multivariable)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

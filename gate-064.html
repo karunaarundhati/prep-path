@@ -1,0 +1,475 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 64: Explicit single & multi-step methods for ODEs</title><meta name="description" content="Many differential equations cannot be solved with a formula, but we can still move the solution forward one small step at a time. This page explains the explicit methods that do this: Euler&#x27;s method, the improved Euler (Heun) method, the fourth-order Runge-Kutta method and the basic multi-step idea, with the errors and traps that GATE questions test."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g64" data-key="g64" data-noun="topic" data-num="64" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Explicit single &amp; multi-step methods for ODEs</h1>
+<p class="lede">Many differential equations cannot be solved with a formula, but we can still move the solution forward one small step at a time. This page explains the explicit methods that do this: Euler&#x27;s method, the improved Euler (Heun) method, the fourth-order Runge-Kutta method and the basic multi-step idea, with the errors and traps that GATE questions test.</p>
+<div class="station"><b>64</b><span>Unit 5 · Numerical methods · Paper RA · New concept</span></div>
+<ul class="topics"><li>Stepping forward with a slope</li><li>Euler&#x27;s method and its errors</li><li>Improved Euler (Heun) method</li><li>Runge-Kutta 4th order</li><li>Multi-step methods and stability</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>A differential equation tells you the slope of a solution at every point. If you know where you start, the slope tells you which way to go. Imagine using a compass while walking. At each moment the compass points along the direction of travel. If you walk in a straight line for a short distance, then check the compass again, you follow the path step by step.</p>
+  <p>That is the whole idea behind <strong>numerical methods for ODEs</strong>. We know the starting value y<sub>0</sub> at x<sub>0</sub>. We compute the slope there, take a small step h in that direction, and land at a new point. Then we repeat. The result is a list of values that approximates the true curve.</p>
+  <p>Methods differ in how they choose the slope for each step. A crude choice (the slope at the start only) is simple but inaccurate. A cleverer choice (several slopes averaged) is more work per step but much more accurate. This topic follows that path from the simplest method to the most popular one used in engineering software.</p>
+  <p><strong>Why this matters for GATE.</strong> In the Robotics and Automation paper, you may be asked to take one or two steps of Euler's method or RK4 by hand, to state the order of a method, or to spot a stability problem. Each of these is a short calculation once the formulas are clear.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now. Return to it when a word is unfamiliar.</p>
+  <dl>
+    <div><dt>Ordinary differential equation (ODE)</dt><dd>An equation linking a function y(x) to its derivative, such as y' = y.</dd></div>
+    <div><dt>Initial value problem</dt><dd>An ODE together with a starting value, such as y' = y with y(0) = 1.</dd></div>
+    <div><dt>Step size h</dt><dd>The distance between neighbouring x-values in the calculation, x<sub>n+1</sub> = x<sub>n</sub> + h.</dd></div>
+    <div><dt>Explicit method</dt><dd>A method where y<sub>n+1</sub> is computed directly from values already known, with no equation to solve.</dd></div>
+    <div><dt>Single-step method</dt><dd>A method that uses only the latest value to compute the next one.</dd></div>
+    <div><dt>Multi-step method</dt><dd>A method that uses several past values to compute the next one.</dd></div>
+    <div><dt>Slope</dt><dd>The value of f(x, y) = y', the rate of change at a point.</dd></div>
+    <div><dt>Local truncation error</dt><dd>The error made in one step, assuming the starting value was exact.</dd></div>
+    <div><dt>Global error</dt><dd>The total error after many steps, which is the accumulation of the local errors.</dd></div>
+    <div><dt>Order of a method</dt><dd>The power p such that the global error is proportional to h<sup>p</sup>. Euler has order 1, Heun order 2, RK4 order 4.</dd></div>
+    <div><dt>Predictor and corrector</dt><dd>A rough estimate of the next value (the predictor), then an improved value using a better slope (the corrector).</dd></div>
+    <div><dt>Runge-Kutta method</dt><dd>A family of single-step methods that average several slopes within one step.</dd></div>
+    <div><dt>Stability</dt><dd>Whether small errors die out or grow as the steps go on. A method with a step that is too large can become unstable.</dd></div>
+    <div><dt>Starting values</dt><dd>The first few values that a multi-step method needs before it can start, usually found with a single-step method.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Euler's method">
+  <h2>Step 1: Euler's method and its errors</h2>
+  <h3>The rule</h3>
+  <p>Suppose we know y<sub>n</sub> at x<sub>n</sub>. The ODE says the slope there is f(x<sub>n</sub>, y<sub>n</sub>). Euler's method follows that slope for one step of width h:</p>
+  <div class="formula">y<sub>n+1</sub> = y<sub>n</sub> + h · f(x<sub>n</sub>, y<sub>n</sub>), with x<sub>n+1</sub> = x<sub>n</sub> + h</div>
+  <p>Read each symbol: y<sub>n</sub> is the current value, f(x<sub>n</sub>, y<sub>n</sub>) is the slope there, and h is the step size. The product h · f is the change in y over one step. This is simply "rise equals slope times run". It is the tangent line followed for a short distance.</p>
+
+  <h3>Worked example 1: y' = y by Euler</h3>
+  <p>Solve y' = y with y(0) = 1, using h = 0.5, from x = 0 to x = 1. The exact solution is e<sup>x</sup>, so y(1) = e, about 2.71828.</p>
+  <ol>
+    <li><strong>Step 1, from x = 0 to 0.5.</strong> The slope at (0, 1) is f = y = 1. So y<sub>1</sub> = 1 + 0.5 × 1 = 1.5.</li>
+    <li><strong>Step 2, from x = 0.5 to 1.</strong> The slope at (0.5, 1.5) is f = 1.5. So y<sub>2</sub> = 1.5 + 0.5 × 1.5 = 2.25.</li>
+    <li><strong>Compare.</strong> The estimate 2.25 is below the exact value 2.71828. The error is about 0.468, which is large. A bigger step gives a bigger error.</li>
+  </ol>
+
+  <h3>How the error depends on h</h3>
+  <p>The local truncation error of Euler's method is proportional to h<sup>2</sup>. Over the whole interval there are about 1/h steps, and the local errors add up to roughly h times a constant. So the global error is proportional to h. Halving the step halves the global error. The program below shows this for y' = y on [0, 1].</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def euler_final(h):
+    x, y = 0.0, 1.0
+    n = round(1 / h)
+    for _ in range(n):
+        y = y + h * y
+        x += h
+    return y
+
+exact = math.e
+for h in [0.1, 0.05]:
+    err = exact - euler_final(h)
+    print("h =", h, "error =", round(err, 4))</code></pre>
+  <pre class="output">h = 0.1 error = 0.1245
+h = 0.05 error = 0.065</pre>
+
+  <div class="note key"><p><span class="t">Key idea</span>Euler is first order: halving h halves the global error. Getting ten times more accuracy by Euler needs about ten times more steps, which is slow. Higher-order methods are the answer.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Euler uses the slope at the start of the step only. If that slope is zero, the step does not move, even if the curve is steep further along. Question writers use this to catch students who assume the slope is constant over the step.</p></div>
+
+  <details class="check"><summary>Question: Euler's method with h = 0.2 is applied to y' = 2x with y(0) = 0. What is y<sub>1</sub>?</summary><div class="ans"><p>The slope at (0, 0) is f = 2 × 0 = 0. So y<sub>1</sub> = 0 + 0.2 × 0 = 0. The exact value at x = 0.2 is 0.04, so Euler misses the curve in the first step.</p></div></details>
+  <details class="check"><summary>Question: What is the order of Euler's method, and what does that mean for the global error?</summary><div class="ans"><p>The order is 1. The global error is proportional to h, so halving h halves the error.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Improved Euler (Heun) method">
+  <h2>Step 2: The improved Euler (Heun) method</h2>
+  <h3>The idea: check the road ahead</h3>
+  <p>Euler uses only the slope at the start of the step. If the curve bends, that slope is misleading by the end of the step. Heun's method improves on this with a two-part plan. First, it takes a rough Euler step to find a predicted end value. Second, it computes the slope at that predicted end, and averages it with the starting slope.</p>
+  <div class="formula">Predictor: y* = y<sub>n</sub> + h f(x<sub>n</sub>, y<sub>n</sub>)<br>
+  Corrector: y<sub>n+1</sub> = y<sub>n</sub> + (h/2)[f(x<sub>n</sub>, y<sub>n</sub>) + f(x<sub>n+1</sub>, y*)]</div>
+  <p>The predictor is the Euler step, and the corrector is the averaged step. Averaging two slopes, one at each end of the step, is a good idea because the true average slope over a step is usually between them. This is like a driver who checks the road ahead before deciding how far to turn.</p>
+
+  <h3>Worked example 2: one Heun step for y' = y</h3>
+  <p>Start at (0, 1) with h = 0.5, and solve y' = y. The exact value at x = 0.5 is e<sup>0.5</sup>, about 1.64872.</p>
+  <ol>
+    <li><strong>Predictor.</strong> The slope at the start is f(0, 1) = 1. So y* = 1 + 0.5 × 1 = 1.5.</li>
+    <li><strong>Slope at the predicted end.</strong> f(0.5, 1.5) = 1.5, because f depends on y only.</li>
+    <li><strong>Average the slopes.</strong> (1 + 1.5)/2 = 1.25.</li>
+    <li><strong>Corrector.</strong> y<sub>1</sub> = 1 + 0.5 × 1.25 = 1.625.</li>
+    <li><strong>Compare.</strong> Euler gave 1.5, with error about 0.149. Heun gives 1.625, with error about 0.024. One extra slope evaluation cut the error by a factor of six.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+def f(x, y):
+    return y
+
+x, y, h = Fraction(0), Fraction(1), Fraction(1, 2)
+euler = y + h * f(x, y)
+heun = y + h / 2 * (f(x, y) + f(x + h, euler))
+print("Euler:", euler, float(euler))
+print("Heun:", heun, float(heun))</code></pre>
+  <pre class="output">Euler: 3/2 1.5
+Heun: 13/8 1.625</pre>
+
+  <h3>Order and cost</h3>
+  <p>Heun's method is second order. Its local error is proportional to h<sup>3</sup>, and its global error to h<sup>2</sup>. Halving h therefore divides the global error by four. Each step needs two slope evaluations instead of one. Another second-order method is the midpoint method, which evaluates the slope halfway through the step.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>The corrector uses the slope at the predicted point y*, not at the final y<sub>n+1</sub>. The final value is not known until the corrector has been computed.</p></div>
+
+  <details class="check"><summary>Question: In Heun's method, at which point is the second slope evaluated?</summary><div class="ans"><p>At (x<sub>n+1</sub>, y*), where x<sub>n+1</sub> = x<sub>n</sub> + h and y* is the Euler predictor.</p></div></details>
+  <details class="check"><summary>Question: If the global error of a second-order method is 0.04 at h = 0.2, roughly what is it at h = 0.1?</summary><div class="ans"><p>About 0.01. Halving h divides a second-order global error by four, so 0.04/4 = 0.01.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Runge-Kutta fourth order">
+  <h2>Step 3: Runge-Kutta, fourth order</h2>
+  <h3>Four slopes, one weighted average</h3>
+  <p>The fourth-order Runge-Kutta method, usually written RK4, takes four slopes within one step and combines them with weights. It is the most widely used method in this family. The four slopes are:</p>
+  <div class="formula">k<sub>1</sub> = f(x<sub>n</sub>, y<sub>n</sub>)<br>
+  k<sub>2</sub> = f(x<sub>n</sub> + h/2, y<sub>n</sub> + (h/2)k<sub>1</sub>)<br>
+  k<sub>3</sub> = f(x<sub>n</sub> + h/2, y<sub>n</sub> + (h/2)k<sub>2</sub>)<br>
+  k<sub>4</sub> = f(x<sub>n</sub> + h, y<sub>n</sub> + hk<sub>3</sub>)<br>
+  y<sub>n+1</sub> = y<sub>n</sub> + (h/6)(k<sub>1</sub> + 2k<sub>2</sub> + 2k<sub>3</sub> + k<sub>4</sub>)</div>
+  <p>Here k<sub>1</sub> is the slope at the start, k<sub>2</sub> and k<sub>3</sub> are slopes at the midpoint, each using a better guess for y, and k<sub>4</sub> is the slope at the end. The weights 1, 2, 2, 1 divided by 6 form a weighted average of the four slopes. The midpoint slopes count twice, because they are the most representative of the whole step.</p>
+
+  <h3>Worked example 3: one RK4 step for y' = y</h3>
+  <p>Start at (0, 1) with h = 0.5.</p>
+  <ol>
+    <li><strong>k<sub>1</sub>.</strong> f(0, 1) = 1.</li>
+    <li><strong>k<sub>2</sub>.</strong> y + (h/2)k<sub>1</sub> = 1 + 0.25 = 1.25, so k<sub>2</sub> = 1.25.</li>
+    <li><strong>k<sub>3</sub>.</strong> y + (h/2)k<sub>2</sub> = 1 + 0.25 × 1.25 = 1.3125, so k<sub>3</sub> = 1.3125.</li>
+    <li><strong>k<sub>4</sub>.</strong> y + hk<sub>3</sub> = 1 + 0.5 × 1.3125 = 1.65625, so k<sub>4</sub> = 1.65625.</li>
+    <li><strong>Combine.</strong> y<sub>1</sub> = 1 + (0.5/6)(1 + 2 × 1.25 + 2 × 1.3125 + 1.65625) = 1 + (1/12)(7.78125) = 1.6484375.</li>
+    <li><strong>Compare.</strong> The exact value is 1.6487213, so the error is about 0.0003. Compare this with the Heun error of 0.024 from Worked example 2.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+def f(x, y):
+    return y
+
+def rk4_step(x, y, h):
+    k1 = f(x, y)
+    k2 = f(x + h / 2, y + h / 2 * k1)
+    k3 = f(x + h / 2, y + h / 2 * k2)
+    k4 = f(x + h, y + h * k3)
+    return y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+y1 = rk4_step(Fraction(0), Fraction(1), Fraction(1, 2))
+print(y1, float(y1))</code></pre>
+  <pre class="output">211/128 1.6484375</pre>
+
+  <h3>Comparing the three single-step methods</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Order</th><th>Slopes per step</th><th>Global error at halved h</th></tr></thead>
+    <tbody>
+      <tr><td>Euler</td><td>1</td><td>1</td><td>Halved</td></tr>
+      <tr><td>Heun</td><td>2</td><td>2</td><td>Quartered</td></tr>
+      <tr><td>RK4</td><td>4</td><td>4</td><td>Divided by 16</td></tr>
+    </tbody>
+  </table></div>
+  <p>RK4 uses four times as many slope evaluations as Euler per step, but it usually needs far fewer steps for the same accuracy.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>RK4 is exact for polynomial solutions up to degree 4. The weights 1, 2, 2, 1 are chosen to make this true, which is why its order is 4.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The weights are 1, 2, 2, 1 and the divisor is 6, not 4. Students often divide by 4, which gives a wrong step. Check that the weights add to 6 before you divide.</p></div>
+
+  <details class="check"><summary>Question: How many slopes does RK4 evaluate in one step?</summary><div class="ans"><p>Four: k<sub>1</sub>, k<sub>2</sub>, k<sub>3</sub> and k<sub>4</sub>. Each one needs one evaluation of f.</p></div></details>
+  <details class="check"><summary>Question: For RK4 with h = 0.5 on y' = y, what does the weighted average of the slopes equal?</summary><div class="ans"><p>(1 + 2(1.25) + 2(1.3125) + 1.65625)/6 = 7.78125/6 = 1.296875. Multiplied by h = 0.5, this gives 0.6484375, which is added to y = 1 to give 1.6484375.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Multi-step methods and stability">
+  <h2>Step 4: Multi-step methods and stability</h2>
+  <h3>Reusing past slopes</h3>
+  <p>A multi-step method stores slopes from earlier steps and reuses them. The two-step Adams-Bashforth method is the simplest example:</p>
+  <div class="formula">y<sub>n+1</sub> = y<sub>n</sub> + (h/2)(3f<sub>n</sub> - f<sub>n-1</sub>)</div>
+  <p>Here f<sub>n</sub> = f(x<sub>n</sub>, y<sub>n</sub>) and f<sub>n-1</sub> = f(x<sub>n-1</sub>, y<sub>n-1</sub>). The method uses the slope from the latest step with weight 3, and the one before with weight -1. Because the slopes are reused, each step needs only one new evaluation of f, which is cheaper than RK4.</p>
+  <p>The catch is the start. To begin, you need two values, y<sub>0</sub> and y<sub>1</sub>. The standard approach is to compute y<sub>1</sub> with a single-step method such as RK4, and then switch to the multi-step rule.</p>
+
+  <h3>Worked example 4: one Adams-Bashforth step</h3>
+  <p>For y' = y, take y<sub>0</sub> = 1 and y<sub>1</sub> = 211/128 from the RK4 step above, with h = 0.5. Find y<sub>2</sub>.</p>
+  <ol>
+    <li><strong>Slopes.</strong> For y' = y, f = y. So f<sub>1</sub> = 211/128 and f<sub>0</sub> = 1.</li>
+    <li><strong>Apply the rule.</strong> y<sub>2</sub> = 211/128 + (0.5/2)(3 × 211/128 - 1) = 211/128 + (1/4)(505/128).</li>
+    <li><strong>Simplify.</strong> y<sub>2</sub> = 211/128 + 505/512 = 844/512 + 505/512 = 1349/512, which is about 2.634766.</li>
+    <li><strong>Compare.</strong> The exact value at x = 1 is e, about 2.718282. The error is about 0.084 after two steps, which is reasonable for h = 0.5.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+y0 = Fraction(1)
+y1 = Fraction(211, 128)
+h = Fraction(1, 2)
+f0 = y0
+f1 = y1
+y2 = y1 + h / 2 * (3 * f1 - f0)
+print(y2, float(y2))</code></pre>
+  <pre class="output">1349/512 2.634765625</pre>
+
+  <h3>Stability: when a large step blows up</h3>
+  <p>Accuracy is not the only concern. Consider y' = -10y, whose exact solution y = e<sup>-10x</sup> decays quickly to zero. For a method, the question is whether its numerical values also decay. For Euler's method, each step multiplies y by the factor 1 + hλ, where λ = -10 in this equation.</p>
+  <ul>
+    <li>With h = 0.5, the factor is 1 + 0.5 × (-10) = -4. Each step multiplies y by -4, so the values grow and alternate in sign. The method is unstable.</li>
+    <li>With h = 0.1, the factor is 1 + 0.1 × (-10) = 0. The values drop to zero at the next step, which is stable.</li>
+  </ul>
+  <p>The program below shows the blow-up for h = 0.5.</p>
+  <pre class="code" data-lang="python"><code>print(1 + 0.5 * -10, 1 + 0.1 * -10)
+
+y = 1.0
+values = [y]
+for _ in range(3):
+    y = y * (1 + 0.5 * -10)
+    values.append(y)
+print(values)</code></pre>
+  <pre class="output">-4.0 0.0
+[1.0, -4.0, 16.0, -64.0]
+</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Accuracy for small h does not guarantee a good answer for large h. Always check the stability condition for the equation and the method before choosing a step size. For Euler on y' = λy, the factor 1 + hλ must lie between -1 and 1.</p></div>
+
+  <details class="check"><summary>Question: How many starting values does the two-step Adams-Bashforth method need?</summary><div class="ans"><p>Two: y<sub>0</sub> and y<sub>1</sub>. The first step needs f<sub>0</sub> and f<sub>1</sub>, so a single-step method such as RK4 usually provides y<sub>1</sub>.</p></div></details>
+  <details class="check"><summary>Question: For Euler's method on y' = -10y, for which h is the factor 1 + hλ between -1 and 1?</summary><div class="ans"><p>1 - 10h must lie between -1 and 1. So 0 &lt; h &lt; 0.2. Steps of 0.2 or more make the Euler values grow or oscillate.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>y<sub>n+1</sub> = y<sub>n</sub> + h f(x<sub>n</sub>, y<sub>n</sub>)</td><td>Euler, order 1</td><td>Quick estimates and one-step checks</td></tr>
+      <tr><td>y* = y<sub>n</sub> + h f(x<sub>n</sub>, y<sub>n</sub>)</td><td>Heun predictor</td><td>First part of Heun's method</td></tr>
+      <tr><td>y<sub>n+1</sub> = y<sub>n</sub> + (h/2)[f<sub>n</sub> + f(x<sub>n+1</sub>, y*)]</td><td>Heun corrector, order 2</td><td>Second part of Heun's method</td></tr>
+      <tr><td>k<sub>1</sub> = f(x<sub>n</sub>, y<sub>n</sub>), k<sub>2</sub> = f(x<sub>n</sub> + h/2, y<sub>n</sub> + (h/2)k<sub>1</sub>)</td><td>First two RK4 slopes</td><td>Start of an RK4 step</td></tr>
+      <tr><td>k<sub>3</sub> = f(x<sub>n</sub> + h/2, y<sub>n</sub> + (h/2)k<sub>2</sub>), k<sub>4</sub> = f(x<sub>n</sub> + h, y<sub>n</sub> + hk<sub>3</sub>)</td><td>Last two RK4 slopes</td><td>End of an RK4 step</td></tr>
+      <tr><td>y<sub>n+1</sub> = y<sub>n</sub> + (h/6)(k<sub>1</sub> + 2k<sub>2</sub> + 2k<sub>3</sub> + k<sub>4</sub>)</td><td>RK4 combination, order 4</td><td>Accurate single-step solutions</td></tr>
+      <tr><td>y<sub>n+1</sub> = y<sub>n</sub> + (h/2)(3f<sub>n</sub> - f<sub>n-1</sub>)</td><td>Two-step Adams-Bashforth</td><td>After two starting values are known</td></tr>
+      <tr><td>Euler stability factor: 1 + hλ</td><td>Growth factor per step for y' = λy</td><td>Checking whether a step size is safe</td></tr>
+      <tr><td>Global error ∝ h<sup>p</sup></td><td>Order p of a method</td><td>Predicting the effect of halving h</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one on paper before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>One Euler step</h3>
+    <div class="statement"><p>Solve y' = 2y with y(0) = 1 by one step of Euler's method with h = 0.1. Find y(0.1). (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value after one step of size 0.1.</li>
+      <li><strong>Which idea applies.</strong> y<sub>1</sub> = y<sub>0</sub> + h f(x<sub>0</sub>, y<sub>0</sub>).</li>
+      <li><strong>Work it out.</strong> f(0, 1) = 2 × 1 = 2. So y<sub>1</sub> = 1 + 0.1 × 2 = 1.2.</li>
+      <li><strong>Check.</strong> The exact value e<sup>0.2</sup> is about 1.2214, so the Euler answer is a little low, as expected for a convex solution.</li>
+    </ol>
+    <p class="cx">Answer: 1.2.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Properties of the methods</h3>
+    <div class="statement"><p>Select all the statements that are true.</p>
+    <p>(A) Euler's method is explicit.<br>
+    (B) The global error of Euler's method is proportional to h.<br>
+    (C) The classical RK4 method evaluates f four times per step.<br>
+    (D) Heun's method is a multi-step method.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about the methods are correct.</li>
+      <li><strong>Which idea applies.</strong> Explicit methods, the order of each method, and the number of slopes per step.</li>
+      <li><strong>Work it out.</strong> (A) True, the next value is computed directly. (B) True, Euler has order 1. (C) True, k<sub>1</sub> to k<sub>4</sub>. (D) False, Heun uses only the latest value, so it is single-step.</li>
+      <li><strong>Check.</strong> Statement (D) confuses Heun, a single-step method, with the Adams-Bashforth method.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>One Heun step</h3>
+    <div class="statement"><p>Solve y' = y with y(0) = 1 by one step of Heun's method with h = 0.5. Find y(0.5). (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One Heun step from (0, 1).</li>
+      <li><strong>Which idea applies.</strong> Predictor y* = y + h f, then corrector y + (h/2)(f<sub>0</sub> + f(x<sub>1</sub>, y*)).</li>
+      <li><strong>Work it out.</strong> Predictor y* = 1 + 0.5 × 1 = 1.5. Then f(0.5, 1.5) = 1.5. The corrector gives 1 + 0.25 × (1 + 1.5) = 1.625.</li>
+      <li><strong>Check.</strong> The exact value e<sup>0.5</sup> is about 1.6487. The Heun value 1.625 is closer than Euler's 1.5.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>y = 1.0
+y_star = y + 0.5 * y
+y1 = y + 0.5 * (y + y_star) / 2
+print(y1)</code></pre>
+    <pre class="output">1.625</pre>
+    <p class="cx">Answer: 1.625.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Two Euler steps for a non-autonomous equation</h3>
+    <div class="statement"><p>Solve y' = x + y with y(0) = 1 by Euler's method with h = 0.5. Find y after two steps, that is y(1) approximately. Give the exact fraction. (Answer type: NAT, a fraction.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Euler value at x = 1 after two steps.</li>
+      <li><strong>Which idea applies.</strong> Each step uses f(x, y) = x + y at the current point.</li>
+      <li><strong>Work it out.</strong> Step 1 at (0, 1): f = 1, so y = 1 + 0.5 × 1 = 1.5. Step 2 at (0.5, 1.5): f = 2, so y = 1.5 + 0.5 × 2 = 2.5.</li>
+      <li><strong>Check.</strong> The exact solution is 2e<sup>x</sup> - x - 1, which gives 2e - 2, about 3.44 at x = 1. Euler is clearly low with this big step, which is a sign that h = 0.5 is coarse.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+x, y, h = Fraction(0), Fraction(1), Fraction(1, 2)
+for _ in range(2):
+    y = y + h * (x + y)
+    x = x + h
+print(y)</code></pre>
+    <pre class="output">5/2</pre>
+    <p class="cx">Answer: 5/2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>One RK4 step on a decaying equation</h3>
+    <div class="statement"><p>Solve y' = -2y with y(0) = 1 by one RK4 step with h = 0.1. Find y(0.1), rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One RK4 step on y' = -2y.</li>
+      <li><strong>Which idea applies.</strong> The four slopes k<sub>1</sub> to k<sub>4</sub>, then the weighted average.</li>
+      <li><strong>Work it out.</strong> For a linear equation y' = λy, one RK4 step multiplies y by 1 + z + z<sup>2</sup>/2 + z<sup>3</sup>/6 + z<sup>4</sup>/24, where z = hλ = -0.2. This gives 1 - 0.2 + 0.02 - 0.00133 + 0.0000667, about 0.81873.</li>
+      <li><strong>Check.</strong> The exact value e<sup>-0.2</sup> is about 0.81873. The program runs the four slopes directly.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def f(x, y):
+    return -2 * y
+
+def rk4_step(x, y, h):
+    k1 = f(x, y)
+    k2 = f(x + h / 2, y + h / 2 * k1)
+    k3 = f(x + h / 2, y + h / 2 * k2)
+    k4 = f(x + h, y + h * k3)
+    return y + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+print(round(rk4_step(0.0, 1.0, 0.1), 4))</code></pre>
+    <pre class="output">0.8187</pre>
+    <p class="cx">Answer: 0.8187.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Two-step Adams-Bashforth on a decay</h3>
+    <div class="statement"><p>Solve y' = -y with starting values y(0) = 1 and y(0.5) = 0.5. Use the two-step Adams-Bashforth method with h = 0.5 to find y(1). Give the exact fraction. (Answer type: NAT, a fraction.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One Adams-Bashforth step from the two given values.</li>
+      <li><strong>Which idea applies.</strong> y<sub>n+1</sub> = y<sub>n</sub> + (h/2)(3f<sub>n</sub> - f<sub>n-1</sub>), with f = -y.</li>
+      <li><strong>Work it out.</strong> f<sub>1</sub> = -0.5 and f<sub>0</sub> = -1. Then y<sub>2</sub> = 0.5 + 0.25 × (3(-0.5) - (-1)) = 0.5 + 0.25 × (-0.5) = 0.375, which is 3/8.</li>
+      <li><strong>Check.</strong> The exact value e<sup>-1</sup> is about 0.3679. The two-step method gives 0.375, which is close.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+h = Fraction(1, 2)
+y0, y1 = Fraction(1), Fraction(1, 2)
+f0, f1 = -y0, -y1
+y2 = y1 + h / 2 * (3 * f1 - f0)
+print(y2)</code></pre>
+    <pre class="output">3/8</pre>
+    <p class="cx">Answer: 3/8.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Stability of explicit Euler</h3>
+    <div class="statement"><p>Explicit Euler is applied to y' = -10y with step h = 0.5, or with step h = 0.1. Select all that apply.</p>
+    <p>(A) With h = 0.5, one Euler step gives y<sub>1</sub> = -4y<sub>0</sub>.<br>
+    (B) With h = 0.5, the Euler values decay to zero.<br>
+    (C) With h = 0.1, one Euler step gives y<sub>1</sub> = 0 when y<sub>0</sub> = 1.<br>
+    (D) Because the exact solution decays, the step h = 0.5 gives an accurate answer.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about the two step sizes are true.</li>
+      <li><strong>Which idea applies.</strong> The Euler factor 1 + hλ, with λ = -10.</li>
+      <li><strong>Work it out.</strong> With h = 0.5, the factor is 1 + 0.5 × (-10) = -4, so y<sub>1</sub> = -4y<sub>0</sub>. (A) is true. The factor -4 has size greater than 1, so the values grow and alternate, which makes (B) false. With h = 0.1 the factor is 0, so y<sub>1</sub> = 0. (C) is true. (D) is false, because the step is too large for the decay.</li>
+      <li><strong>Check.</strong> The program prints the two factors.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print(1 + 0.5 * -10, 1 + 0.1 * -10)</code></pre>
+    <pre class="output">-4.0 0.0</pre>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Euler's method (NAT, 2 marks)</h3>
+    <div class="statement"><p>Use Euler's method with h = 0.1 for y′ = x + y, y(0) = 1. Find y(0.2), correct to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value after two Euler steps.</li>
+      <li><strong>Which idea applies.</strong> y<sub>n+1</sub> = y<sub>n</sub> + h f(x<sub>n</sub>, y<sub>n</sub>).</li>
+      <li><strong>Work it out.</strong> y<sub>1</sub> = 1 + 0.1(0 + 1) = 1.1. y<sub>2</sub> = 1.1 + 0.1(0.1 + 1.1) = 1.22.</li>
+      <li><strong>Check.</strong> The exact value 2e<sup>0.2</sup> − 1.2 = 1.2428 is higher, as Euler underestimates a convex solution.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+x, y = 0.0, 1.0
+for _ in range(2):
+    y += 0.1 * (x + y); x += 0.1
+print("%.4f exact %.4f" % (y, 2 * math.exp(0.2) - 1.2))
+</code></pre>
+    <pre class="output">1.2200 exact 1.2428</pre>
+    <p class="cx">Answer: 1.22.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: RK4 single step (NAT, 2 marks)</h3>
+    <div class="statement"><p>One step of classical RK4 with h = 0.2 for y′ = −2y, y(0) = 1. Find y(0.2), correct to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The RK4 estimate.</li>
+      <li><strong>Which idea applies.</strong> For y′ = λy, RK4 multiplies y by 1 + z + z²/2 + z³/6 + z⁴/24 with z = λh.</li>
+      <li><strong>Work it out.</strong> z = −0.4: 1 − 0.4 + 0.08 − 0.010667 + 0.001067 = 0.6704.</li>
+      <li><strong>Check.</strong> e<sup>−0.4</sup> = 0.6703.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>f = lambda y: -2 * y
+y, h = 1.0, 0.2
+k1 = f(y); k2 = f(y + h * k1 / 2); k3 = f(y + h * k2 / 2); k4 = f(y + h * k3)
+print("%.4f" % (y + h * (k1 + 2 * k2 + 2 * k3 + k4) / 6))
+</code></pre>
+    <pre class="output">0.6704</pre>
+    <p class="cx">Answer: 0.6704.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Stability of explicit Euler (NAT, 2 marks)</h3>
+    <div class="statement"><p>For y′ = −50y, find the largest step size h for which explicit Euler does not grow, that is |1 + λh| ≤ 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The stability limit.</li>
+      <li><strong>Which idea applies.</strong> Euler gives y<sub>n+1</sub> = (1 + λh)y<sub>n</sub>, with λ = −50.</li>
+      <li><strong>Work it out.</strong> |1 − 50h| ≤ 1 gives 0 ≤ h ≤ 2/50 = 0.04.</li>
+      <li><strong>Check.</strong> At h = 0.04 the factor is −1, so the solution flips sign without growing.</li>
+    </ol>
+    <p class="cx">Answer: 0.04.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Initial value problem</dt><dd>An ODE with a known starting value, used to step the solution forward.</dd></div>
+    <div><dt>Step size h</dt><dd>The distance moved in x at each step.</dd></div>
+    <div><dt>Explicit method</dt><dd>A method that computes the next value directly, with no equation to solve.</dd></div>
+    <div><dt>Euler's method</dt><dd>y<sub>n+1</sub> = y<sub>n</sub> + h f(x<sub>n</sub>, y<sub>n</sub>). First order.</dd></div>
+    <div><dt>Heun's method</dt><dd>Predict with Euler, then average the two end slopes. Second order.</dd></div>
+    <div><dt>Runge-Kutta 4 (RK4)</dt><dd>Four slopes per step, combined with weights 1, 2, 2, 1 over 6. Fourth order.</dd></div>
+    <div><dt>Adams-Bashforth (two-step)</dt><dd>Reuses the previous slope with weights 3 and -1, divided by 2. Needs two starting values.</dd></div>
+    <div><dt>Single-step method</dt><dd>Uses only the latest value to compute the next one.</dd></div>
+    <div><dt>Multi-step method</dt><dd>Uses several past values, and needs starting values.</dd></div>
+    <div><dt>Local truncation error</dt><dd>The error in one step, assuming the start was exact.</dd></div>
+    <div><dt>Global error</dt><dd>The total error after many steps, proportional to h<sup>p</sup> for a method of order p.</dd></div>
+    <div><dt>Order</dt><dd>The power p in the global error. Euler is 1, Heun is 2, RK4 is 4.</dd></div>
+    <div><dt>Stability</dt><dd>Whether errors die out or grow as the steps go on.</dd></div>
+    <div><dt>Stability factor</dt><dd>For Euler on y' = λy, each step multiplies y by 1 + hλ.</dd></div>
+    <div><dt>Predictor and corrector</dt><dd>A rough estimate followed by an improved value using a better slope.</dd></div>
+    <div><dt>Slope evaluation</dt><dd>One calculation of f(x, y), the cost unit for comparing methods.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Euler uses the slope at the start of the step. It is first order, so the global error halves when h halves.</li>
+    <li>Heun averages the slopes at the two ends of the step, using an Euler predictor. It is second order.</li>
+    <li>RK4 uses four slopes with weights 1, 2, 2, 1 and divides by 6. It is fourth order.</li>
+    <li>Multi-step methods reuse past slopes, but they need starting values.</li>
+    <li>For y' = λy, explicit Euler is stable only when |1 + hλ| is at most 1.</li>
+    <li>Check the weights and the divisor before you calculate a step.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 64?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 64 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-063.html"><small>Previous, topic 63</small>Numerical integration: Trapezoidal &amp; Simpson&#x27;s rules</a><a class="next" href="gate-065.html"><small>Next, topic 65</small>Python basics: syntax, data types, control flow</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

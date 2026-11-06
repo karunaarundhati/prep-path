@@ -1,0 +1,468 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 100: K-Nearest Neighbour</title><meta name="description" content="K-nearest neighbour, or KNN, predicts a new point from the points closest to it. It needs no fitted formula, only a distance and a choice of k. You will learn distance measures, how to classify and predict with neighbours, how to choose k, and why high dimensions cause trouble."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g100" data-key="g100" data-noun="topic" data-num="100" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>K-Nearest Neighbour</h1>
+<p class="lede">K-nearest neighbour, or KNN, predicts a new point from the points closest to it. It needs no fitted formula, only a distance and a choice of k. You will learn distance measures, how to classify and predict with neighbours, how to choose k, and why high dimensions cause trouble.</p>
+<div class="station"><b>100</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>Judging by the neighbours</li><li>Distance measures</li><li>Classifying and predicting</li><li>Choosing k and the bias-variance trade-off</li><li>Curse of dimensionality and lazy learning</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you start at a new school and want to guess which sport a new classmate likes. You look at the three students who sit closest to them and see what they play. If two play football and one plays cricket, you guess football. You did not build a theory of why people like sports. You simply trusted the people nearest to the new student.</p>
+  <p>That is the whole idea of <strong>K-nearest neighbour</strong>, usually written KNN. To predict for a new point:</p>
+  <ol>
+    <li>Measure how far the new point is from every training point.</li>
+    <li>Pick the k closest training points. These are the neighbours.</li>
+    <li>For classification, let the neighbours vote and pick the most common label. For regression, take the average of their values.</li>
+  </ol>
+  <p>KNN is different from the earlier methods in one important way. Linear regression and logistic regression learn a set of weights, and then they throw the training data away. KNN keeps all the training data and does its work when a new point arrives. This is why it is called a <strong>lazy learner</strong>.</p>
+  <p>For GATE, KNN appears in the Machine Learning part of the Data Science and AI paper (DA). Typical questions give a small table of points, ask you to compute distances, and ask for the class or value with a given k. Questions also test the effect of k, the curse of dimensionality and the meaning of lazy learning. You need only basic arithmetic and square roots to work through this page.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Each one is used again on the page.</p>
+  <dl>
+    <div><dt>Training point</dt><dd>A data point whose correct label or value is known and which the model stores.</dd></div>
+    <div><dt>Query point</dt><dd>The new point we want to predict for.</dd></div>
+    <div><dt>Feature</dt><dd>One measured number describing a point, such as height or weight. Points with several features are vectors.</dd></div>
+    <div><dt>Distance</dt><dd>A number that says how far apart two points are. Smaller means more alike.</dd></div>
+    <div><dt>Euclidean distance</dt><dd>The straight-line distance. Precisely: the square root of the sum of squared differences of the features.</dd></div>
+    <div><dt>Manhattan distance</dt><dd>The distance along a city grid, moving only sideways and up or down. Precisely: the sum of absolute differences of the features.</dd></div>
+    <div><dt>Hyperparameter k</dt><dd>The number of neighbours used. It is chosen by us, not learned from the data.</dd></div>
+    <div><dt>Majority vote</dt><dd>Picking the label that appears most often among the neighbours.</dd></div>
+    <div><dt>Lazy learner</dt><dd>A method that stores the training data and does its work only at prediction time.</dd></div>
+    <div><dt>Curse of dimensionality</dt><dd>The set of problems that appear when the number of features is large. Distances become less informative and data becomes sparse.</dd></div>
+    <div><dt>Overfitting</dt><dd>Following noise so closely that new predictions are poor. Small k can overfit.</dd></div>
+    <div><dt>Underfitting</dt><dd>Using a model too simple to capture the pattern. Very large k can underfit.</dd></div>
+    <div><dt>Feature scaling</dt><dd>Rescaling features so that they are comparable in size before measuring distances.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Distance measures">
+  <h2>Distance measures</h2>
+  <h3>Why we need a distance</h3>
+  <p>KNN depends entirely on the word "near". Near in what sense? A distance gives us a number for every pair of points. We then sort the training points from nearest to farthest. The choice of distance can change which points are nearest, so it matters.</p>
+  <h3>Euclidean distance</h3>
+  <p>Take two points, a and b, each with two features. Point a is (a<sub>1</sub>, a<sub>2</sub>) and point b is (b<sub>1</sub>, b<sub>2</sub>). The Euclidean distance is the length of the straight line between them. Pythagoras gives the formula.</p>
+  <div class="formula">d<sub>E</sub>(a, b) = √( (a<sub>1</sub> minus b<sub>1</sub>)² + (a<sub>2</sub> minus b<sub>2</sub>)² )</div>
+  <p>Read it. Each difference is how far apart the two points are along one feature. Squaring removes signs. Adding and taking the square root gives the straight-line length. With more features, add one more squared difference inside the root for each feature.</p>
+  <h3>Worked example: Euclidean</h3>
+  <p>Find the distance between a = (1, 2) and b = (4, 6).</p>
+  <ol>
+    <li><strong>Differences.</strong> 1 minus 4 = minus 3. 2 minus 6 = minus 4.</li>
+    <li><strong>Square them.</strong> (minus 3)² = 9. (minus 4)² = 16.</li>
+    <li><strong>Add.</strong> 9 + 16 = 25.</li>
+    <li><strong>Take the square root.</strong> √25 = 5.</li>
+  </ol>
+  <p>The straight-line distance is 5 units.</p>
+  <h3>Manhattan distance</h3>
+  <p>Now picture a taxi driving through a city laid out on a grid. It cannot cut through buildings. It must travel along the streets, first east or west, then north or south. The Manhattan distance measures this trip. It adds the absolute differences.</p>
+  <div class="formula">d<sub>M</sub>(a, b) = |a<sub>1</sub> minus b<sub>1</sub>| + |a<sub>2</sub> minus b<sub>2</sub>|</div>
+  <p>The bars | | mean absolute value, which removes the minus sign. For the same points, the Manhattan distance is 3 + 4 = 7. It is always at least as large as the Euclidean distance.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Euclidean distance is the default. Manhattan is useful when moving along each feature separately makes sense, such as blocks in a city, or when you want a measure less influenced by one large difference.</p></div>
+  <h3>Feature scaling matters</h3>
+  <p>Suppose one feature is height in centimetres (values around 170) and another is shoe size (values around 8). The height difference of 10 centimetres dominates the distance, while a shoe size difference of 2 barely counts. The distance then ignores shoe size almost completely, even if shoe size is informative. Rescale each feature first, for example by subtracting its mean and dividing by its standard deviation, so that each feature has a similar range.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Never compute KNN distances on raw features with very different units without scaling. The result depends on the units, not on the meaning of the data.</p></div>
+  <details class="check"><summary>Question: what is the Euclidean distance between (0, 0) and (3, 4)?</summary><div class="ans"><p>√(9 + 16) = √25 = 5.</p></div></details>
+  <details class="check"><summary>Question: which distance is always larger, Manhattan or Euclidean?</summary><div class="ans"><p>Manhattan is never smaller than Euclidean and is usually larger. The two are equal only when the points differ along a single feature.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Classifying and predicting">
+  <h2>Classifying and predicting</h2>
+  <h3>Step 1: measure every distance</h3>
+  <p>Suppose we have six training points, each with two features and a colour label. The query point is q = (2, 1). We want the label of q using k = 3.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Point</th><th>Feature 1</th><th>Feature 2</th><th>Label</th></tr></thead>
+    <tbody>
+      <tr><td>A</td><td>1</td><td>1</td><td>red</td></tr>
+      <tr><td>B</td><td>3</td><td>2</td><td>blue</td></tr>
+      <tr><td>C</td><td>5</td><td>5</td><td>blue</td></tr>
+      <tr><td>D</td><td>1</td><td>3</td><td>red</td></tr>
+      <tr><td>E</td><td>6</td><td>1</td><td>red</td></tr>
+      <tr><td>F</td><td>4</td><td>6</td><td>blue</td></tr>
+    </tbody>
+  </table></div>
+  <p>The Euclidean distances from q = (2, 1) are:</p>
+  <ul>
+    <li>A: differences 1 and 0, distance √(1 + 0) = 1.</li>
+    <li>B: differences 1 and 1, distance √(1 + 1) = √2, about 1.414.</li>
+    <li>C: differences 3 and 4, distance √(9 + 16) = 5.</li>
+    <li>D: differences 1 and 2, distance √(1 + 4) = √5, about 2.236.</li>
+    <li>E: differences 4 and 0, distance √(16 + 0) = 4.</li>
+    <li>F: differences 2 and 5, distance √(4 + 25) = √29, about 5.385.</li>
+  </ul>
+  <h3>Step 2: pick the k nearest</h3>
+  <p>Sort by distance: A (1), B (1.414), D (2.236), E (4), C (5), F (5.385). The three nearest are A, B and D.</p>
+  <h3>Step 3: vote</h3>
+  <p>A is red, B is blue, D is red. Two votes for red and one for blue, so the prediction is red. The majority wins.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The label is decided by the local neighbourhood of the query, not by a global formula. Move the query a little and the neighbours can change, and so can the answer.</p></div>
+  <h3>KNN for regression</h3>
+  <p>For a numerical output, we take the average of the k neighbours' values instead of a vote. Suppose the three nearest neighbours have house prices 10, 14 and 18 (in lakh). The predicted price is (10 + 14 + 18)/3 = 42/3 = 14. The average is a sensible guess when nearby points have similar values.</p>
+  <h3>Why ties need care</h3>
+  <p>With two classes and an even k, the vote can tie, for example one red and one blue with k = 2. For binary problems choose an odd k to avoid ties. With several classes, ties can still happen and need a rule, such as choosing the nearest of the tied classes.</p>
+  <details class="check"><summary>Question: with k = 1, what is the prediction for q above?</summary><div class="ans"><p>The nearest point is A, which is red. So the prediction is red, from one neighbour alone.</p></div></details>
+  <details class="check"><summary>Question: why do we pick k from data, not from the rule that gives smallest training error?</summary><div class="ans"><p>With k = 1 each training point is its own nearest neighbour, so the training error is always zero. That tells you nothing about new data. We choose k by testing on data the model has not seen, as explained below.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Choosing k and the bias-variance trade-off">
+  <h2>Choosing k and the bias-variance trade-off</h2>
+  <h3>What k controls</h3>
+  <p>The number k decides how local the prediction is. A small k, such as 1, makes the prediction follow every single training point. A large k averages over many points and smooths everything out. The best k sits between these extremes.</p>
+  <ul>
+    <li><strong>k = 1.</strong> The boundary between classes is jagged. A single noisy point can create a small island of the wrong class. This is overfitting. The bias is low, because the model follows the data closely, but the variance is high, because a different training set would change the boundary a lot.</li>
+    <li><strong>Medium k.</strong> The boundary is smoother, and noise is averaged out. Usually this gives the best balance.</li>
+    <li><strong>k equal to the number of training points.</strong> Every query gets all the training points as neighbours. For classification, the prediction is simply the most common class in the whole training set. This is underfitting, with high bias and low variance.</li>
+  </ul>
+  <div class="note key"><p><span class="t">Key idea</span>Small k gives low bias and high variance. Large k gives high bias and low variance. Choose k in the middle using validation data, often with cross-validation as in the ridge topic.</p></div>
+  <h3>How to choose k in practice</h3>
+  <ol>
+    <li>Split the data into training and validation sets, or use k-fold cross-validation.</li>
+    <li>Try several values of k, for example 1, 3, 5, 7, 9.</li>
+    <li>For each k, measure the error on the validation data.</li>
+    <li>Pick the k with the lowest validation error, preferring a smaller k when the errors are about the same.</li>
+  </ol>
+  <h3>A small check on the effect of k</h3>
+  <p>Use the same query q = (2, 1) from the earlier table. With k = 1 the answer is red, from point A. With k = 3 it is red, from A, B and D. With k = 5 the neighbours are A, B, D, E and C, which are red, blue, red, red and blue. The votes are three red and two blue, so the answer is still red. Here k changed the set of neighbours but not the answer. In other examples a change in k flips the class.</p>
+  <details class="check"><summary>Question: a model with k = 1 has zero training error. Is it a good model?</summary><div class="ans"><p>Not necessarily. Zero training error is expected because each training point is its own nearest neighbour. Validation or test error is the real measure of quality.</p></div></details>
+  <details class="check"><summary>Question: why is an odd k common for two classes?</summary><div class="ans"><p>An odd number of voters cannot split exactly in half, so there is always a winner.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Curse of dimensionality and lazy learning">
+  <h2>Curse of dimensionality and lazy learning</h2>
+  <h3>What happens in many dimensions</h3>
+  <p>Think of searching for a friend in a town. On a single street, a few people are close to you. On a flat map, the circle of nearby people is bigger. In a building with twenty floors, the nearby region becomes very thin and sparse. As we add features, the space grows enormously, and the training points spread out thinly. This is the <strong>curse of dimensionality</strong>.</p>
+  <p>A concrete example shows the effect. Suppose data is spread evenly in a unit cube, a square in two dimensions or a cube in three dimensions, and so on. We want a small sub-cube around the query point that holds 10 percent of the data. In one dimension that sub-cube has side 0.1, which is 10 percent of the range. In d dimensions its side must be s, where s<sup>d</sup> = 0.1, so s = 0.1<sup>(1/d)</sup>.</p>
+  <ul>
+    <li>In 1 dimension, s = 0.1. A tiny interval.</li>
+    <li>In 2 dimensions, s = 0.1<sup>0.5</sup> ≈ 0.316. Almost a third of each axis.</li>
+    <li>In 10 dimensions, s = 0.1<sup>0.1</sup> ≈ 0.794. Almost 80 percent of each axis.</li>
+  </ul>
+  <p>In 10 dimensions, the "nearby" points are no longer near in any useful sense. A neighbourhood that holds 10 percent of the data stretches across nearly the whole range of every feature. The neighbours are not really similar to the query, and KNN loses its power. The fix is more data, fewer features, or dimension reduction methods such as principal component analysis (PCA).</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>When a question asks why KNN fails with many features, the answer is the curse of dimensionality: distances become less informative and data becomes sparse. Feature selection or dimension reduction is the usual remedy.</p></div>
+  <h3>Lazy learning and its cost</h3>
+  <p>A lazy learner, such as KNN, has almost no training step. It just stores the data. All the work happens at prediction time. For each query it must measure the distance to every stored point. That makes prediction slow for large data sets and uses a lot of memory.</p>
+  <p>An eager learner, such as logistic regression, does the work once. It fits the weights during training. Prediction is then fast, because it only computes a weighted sum. Choosing between eager and lazy learning is a trade-off between training cost and prediction cost, and between memory and speed.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>KNN (lazy)</th><th>Logistic regression (eager)</th></tr></thead>
+    <tbody>
+      <tr><td>Training step</td><td>None, just store the data</td><td>Fit the weights by iterative steps</td></tr>
+      <tr><td>Prediction cost</td><td>Compute distances to all stored points</td><td>One weighted sum</td></tr>
+      <tr><td>Memory</td><td>Must keep all training data</td><td>Keeps only the weights</td></tr>
+      <tr><td>Shape of boundary</td><td>Can be very irregular</td><td>Always linear in the inputs</td></tr>
+    </tbody>
+  </table></div>
+  <p>The code below checks the distances, the vote and the curse arithmetic for the examples on this page.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+points = {"A": ((1, 1), "red"), "B": ((3, 2), "blue"), "C": ((5, 5), "blue"),
+          "D": ((1, 3), "red"), "E": ((6, 1), "red"), "F": ((4, 6), "blue")}
+q = (2, 1)
+
+def euclid(a, b):
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
+
+def manhattan(a, b):
+    return sum(abs(x - y) for x, y in zip(a, b))
+
+print("Euclid (1,2) to (4,6) =", euclid((1, 2), (4, 6)))
+print("Manhattan (1,2) to (4,6) =", manhattan((1, 2), (4, 6)))
+
+ranked = sorted(points.items(), key=lambda item: euclid(item[1][0], q))
+for name, (p, label) in ranked:
+    print(name, label, round(euclid(p, q), 3))
+
+k = 3
+votes = [label for name, (p, label) in ranked[:k]]
+print("k =", k, "votes:", votes, "prediction:", max(set(votes), key=votes.count))
+
+print("regression average of 10, 14, 18 =", (10 + 14 + 18) / 3)
+print("side length for 10 percent in 10 dimensions =", round(0.1 ** (1 / 10), 3))</code></pre>
+  <pre class="output">Euclid (1,2) to (4,6) = 5.0
+Manhattan (1,2) to (4,6) = 7
+A red 1.0
+B blue 1.414
+D red 2.236
+E red 4.0
+C blue 5.0
+F blue 5.385
+k = 3 votes: ['red', 'blue', 'red'] prediction: red
+regression average of 10, 14, 18 = 14.0
+side length for 10 percent in 10 dimensions = 0.794</pre>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table close when you solve problems.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>d<sub>E</sub>(a, b) = √Σ(a<sub>j</sub> minus b<sub>j</sub>)²</td><td>Euclidean (straight-line) distance</td><td>Default distance for KNN</td></tr>
+      <tr><td>d<sub>M</sub>(a, b) = Σ|a<sub>j</sub> minus b<sub>j</sub>|</td><td>Manhattan (city block) distance</td><td>Grid-like movement or robustness to one large gap</td></tr>
+      <tr><td>Predicted class = most common label among k nearest</td><td>Majority vote</td><td>KNN classification</td></tr>
+      <tr><td>Predicted value = (1/k) Σ y<sub>i</sub> over k nearest</td><td>Average of neighbours</td><td>KNN regression</td></tr>
+      <tr><td>s = c<sup>1/d</sup></td><td>Side of a sub-cube that holds fraction c of uniform data in d dimensions</td><td>Illustrating the curse of dimensionality</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original GATE-style practice problems written for this page. They are not real past paper questions. Try each one before you read the answer. MSQ means more than one option can be correct. NAT means you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Straight-line distance (NAT)</h3>
+    <div class="statement"><p>Find the Euclidean distance between the points (2, 3) and (5, 7). (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One straight-line distance.</li>
+      <li><strong>Which idea applies.</strong> Euclidean distance is the square root of the sum of squared differences.</li>
+      <li><strong>Work it out.</strong> The differences are 5 minus 2 = 3 and 7 minus 3 = 4. Squares: 9 and 16. Sum: 25. Square root: 5.</li>
+      <li><strong>Check.</strong> A 3-4-5 triangle is a classic right triangle, so 5 is correct.</li>
+    </ol>
+    <p class="cx">Answer: 5</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about KNN (MSQ)</h3>
+    <div class="statement"><p>Which statements about K-nearest neighbour are true? Select all that apply.</p>
+    <p>(A) KNN is a lazy learner, because it stores the data and works at prediction time.</p>
+    <p>(B) A small k tends to give high variance.</p>
+    <p>(C) KNN never needs feature scaling.</p>
+    <p>(D) The decision boundary of KNN is always a straight line.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about KNN are right.</li>
+      <li><strong>Which idea applies.</strong> Lazy learning, the bias-variance trade-off, and the role of distances.</li>
+      <li><strong>Work it out.</strong> (A) is true. (B) is true, because a small k follows noise. (C) is false, because raw features with different units distort distances. (D) is false, because KNN boundaries can be very irregular.</li>
+      <li><strong>Check.</strong> The false statements are the ones that deny distances depend on units or that give KNN a neat linear boundary.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Manhattan distance in three dimensions (NAT)</h3>
+    <div class="statement"><p>Find the Manhattan distance between the points (2, minus 1, 3) and (5, 1, 0). (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The city-block distance across three features.</li>
+      <li><strong>Which idea applies.</strong> Add the absolute differences of the features.</li>
+      <li><strong>Work it out.</strong> |2 minus 5| = 3. |minus 1 minus 1| = |minus 2| = 2. |3 minus 0| = 3. The sum is 3 + 2 + 3 = 8.</li>
+      <li><strong>Check.</strong> The Euclidean distance would be √(9 + 4 + 9) = √22, about 4.69, which is smaller than 8. This matches the rule that Manhattan is the larger one.</li>
+    </ol>
+    <p class="cx">Answer: 8</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Majority vote with k = 3 (MCQ)</h3>
+    <div class="statement"><p>Training points, with labels: P = (1, 0) green, Q = (0, 3) red, R = (2, 2) red, S = (4, 0) green, T = (minus 1, minus 1) red. A new point is (0, 0). Using Euclidean distance and k = 3, which label is predicted? Select the single correct option.</p>
+    <p>(A) green (B) red</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The label of (0, 0) from its three nearest points.</li>
+      <li><strong>Which idea applies.</strong> Compute distances, sort, take the k nearest, then vote.</li>
+      <li><strong>Work it out.</strong> Distances: P = 1, T = √2 ≈ 1.414, R = √8 ≈ 2.828, Q = 3, S = 4. The three nearest are P (green), T (red) and R (red). Votes: red 2, green 1.</li>
+      <li><strong>Check.</strong> With k = 1 the answer would be green, from P alone. The change shows how sensitive small k can be.</li>
+    </ol>
+    <p class="cx">Answer: (B) red</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Averaging the neighbours (NAT)</h3>
+    <div class="statement"><p>A KNN regression uses k = 4. The four nearest neighbours have output values 8, 10, 12 and 14. Find the predicted value. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The predicted number for a regression query.</li>
+      <li><strong>Which idea applies.</strong> The prediction is the average of the k neighbours' outputs.</li>
+      <li><strong>Work it out.</strong> The sum is 8 + 10 + 12 + 14 = 44. Divide by 4 to get 11.</li>
+      <li><strong>Check.</strong> The answer lies between the smallest and largest neighbour values, as an average must.</li>
+    </ol>
+    <p class="cx">Answer: 11</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Sub-cube in four dimensions (NAT)</h3>
+    <div class="statement"><p>Points are spread evenly in a unit hypercube with d = 4 features. We want a small sub-cube around a query that contains 1 percent of the points. Find the side length of this sub-cube, rounded to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The side s of a cube in 4 dimensions whose volume is 1 percent of the unit cube.</li>
+      <li><strong>Which idea applies.</strong> In d dimensions, s<sup>d</sup> = c, so s = c<sup>1/d</sup>.</li>
+      <li><strong>Work it out.</strong> c = 0.01 and d = 4. So s = 0.01<sup>0.25</sup>. Since 0.01 = 0.1², the value is 0.1<sup>0.5</sup> = √0.1, about 0.316.</li>
+      <li><strong>Check.</strong> Raise 0.316 to the power 4: 0.316² is about 0.0999, and squaring again gives about 0.00997, close to 0.01.</li>
+    </ol>
+    <p class="cx">Answer: 0.316</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Distances, scaling and dimensions (MSQ)</h3>
+    <div class="statement"><p>A KNN classifier uses two features: height in centimetres and weight in grams. Select all true statements.</p>
+    <p>(A) Without scaling, the weight feature in grams can dominate the distances.</p>
+    <p>(B) With two classes and k = 2, a tie is impossible.</p>
+    <p>(C) A very large k can underfit the data.</p>
+    <p>(D) As the number of dimensions grows, the nearest and farthest distances from a query become relatively similar.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about scaling, ties, k and dimensions are correct.</li>
+      <li><strong>Which idea applies.</strong> Units change distances. Even k allows ties. Large k smooths too much. In high dimensions distances concentrate.</li>
+      <li><strong>Work it out.</strong> (A) is true: grams have much larger numbers than centimetres, so the weight difference swamps the height difference. (B) is false: with k = 2 one vote can go each way. (C) is true: with huge k the prediction is almost always the overall majority. (D) is true: this is the distance concentration part of the curse of dimensionality.</li>
+      <li><strong>Check.</strong> The false statement mentions the tie, which needs an even k with two classes.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D)</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+print("P1 Euclid =", math.sqrt((5 - 2) ** 2 + (7 - 3) ** 2))
+print("P3 Manhattan =", abs(2 - 5) + abs(-1 - 1) + abs(3 - 0))
+
+pts = {"P": ((1, 0), "green"), "Q": ((0, 3), "red"), "R": ((2, 2), "red"),
+       "S": ((4, 0), "green"), "T": ((-1, -1), "red")}
+q = (0, 0)
+ranked = sorted(pts.values(), key=lambda item: math.dist(item[0], q))
+votes = [label for _, label in ranked[:3]]
+print("P4 votes with k=3 =", votes, "prediction =", max(set(votes), key=votes.count))
+
+print("P5 average =", (8 + 10 + 12 + 14) / 4)
+print("P6 side length =", round(0.01 ** 0.25, 3))</code></pre>
+  <pre class="output">P1 Euclid = 5.0
+P3 Manhattan = 8
+P4 votes with k=3 = ['green', 'red', 'red'] prediction = red
+P5 average = 11.0
+P6 side length = 0.316</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Count the label 1 neighbours (NAT, 2 marks)</h3>
+    <div class="statement"><p>A k nearest neighbour classifier uses Euclidean distance and k = 3. The training set has six labelled points: (0, 0) with label 0, (3, 2) with label 1, (2, 4) with label 1, (5, 5) with label 0, (1, 3) with label 0, and (4, 1) with label 1. A new point is at (2, 2). Compute the distance from the new point to every training point, keep the three closest, and count how many of them have label 1. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count of label 1 points among the three nearest neighbours.</li>
+      <li><strong>Which idea applies.</strong> Euclidean distance is the square root of the sum of squared differences. Rank the points by that distance, then take the top three.</li>
+      <li><strong>Work it out.</strong> (3, 2) is at distance 1. (1, 3) is at square root of 2, about 1.414. (2, 4) is at distance 2. (4, 1) is at square root of 5, about 2.236. (0, 0) is at square root of 8, about 2.828. (5, 5) is at square root of 18, about 4.243. The three closest are (3, 2) with label 1, (1, 3) with label 0, and (2, 4) with label 1. Two have label 1.</li>
+      <li><strong>Check.</strong> The point (1, 3) is closer than (2, 4), so it is in the top three. The fourth closest, (4, 1), is at 2.236, which is further than 2, so it is correctly left out.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Which KNN facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A team tunes a k nearest neighbour classifier on a dataset with numeric features measured in very different units. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) A very small k gives low bias and high variance.</p><p>(B) KNN is a lazy learner: training mostly stores the data, and the work is done when a prediction is made.</p><p>(C) With a very large k, the prediction tends toward the majority class of the training data.</p><p>(D) Euclidean distance is unaffected by feature scale, so standardising the features never changes which neighbours are chosen.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four statements about KNN are true.</li>
+      <li><strong>Which idea applies.</strong> Small k follows the training noise. Large k averages over many points. Distances depend directly on the units of each feature.</li>
+      <li><strong>Work it out.</strong> (A) is true: one nearest point decides the answer, so the model is flexible and noisy. (B) is true: there is no real training step, and each prediction searches the data. (C) is true: with many neighbours, the vote is dominated by the most common class. (D) is false: a feature in thousands and a feature in ones changes which points are close, so scaling can change the neighbours.</li>
+      <li><strong>Check.</strong> The code below shows one example where scaling changes the nearest neighbour, which confirms that (D) is wrong.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Option (D) is wrong because scaling changes Euclidean distances.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Edge length in ten dimensions (NAT, 2 marks)</h3>
+    <div class="statement"><p>Suppose data points are spread uniformly at random in a d-dimensional unit cube. A small sub-cube that is centred in the cube must have edge length 0.01 raised to the power 1/d to hold 1 percent of the points on average. Compare d = 10 with d = 2. Find the ratio of the edge length needed in 10 dimensions to the edge length needed in 2 dimensions. Give the ratio to two decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A ratio of two edge lengths, which shows the curse of dimensionality.</li>
+      <li><strong>Which idea applies.</strong> A sub-cube holding a fraction f of the volume has edge f raised to the power 1/d.</li>
+      <li><strong>Work it out.</strong> In 10 dimensions the edge is 0.01 to the power 0.1, which is 10 to the power minus 0.2, about 0.631. In 2 dimensions the edge is 0.01 to the power 0.5, which is 0.1. The ratio is 0.631 divided by 0.1, which is about 6.31.</li>
+      <li><strong>Check.</strong> The edge in 10 dimensions is much larger than in 2 dimensions, so a KNN neighbourhood must reach far across each axis. That is why distance-based methods lose accuracy in high dimensions.</li>
+    </ol>
+    <p class="cx">Answer: 6.31</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Distance-weighted KNN prediction (NAT, 2 marks)</h3>
+    <div class="statement"><p>A k nearest neighbour regressor with k = 3 predicts a house price index for a new location. The three nearest training points have target values 10, 14 and 18, and they lie at distances 1, 2 and 4 from the new point. Compare two predictions: the plain average of the three target values, and an average weighted by inverse distance, where each weight is 1 divided by the distance. Find the inverse-distance weighted prediction to two decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The weighted prediction, which depends on the distance weights.</li>
+      <li><strong>Which idea applies.</strong> The weighted average is the sum of weight times value, divided by the sum of weights.</li>
+      <li><strong>Work it out.</strong> The weights are 1, 1/2 and 1/4. The weighted sum is 10 times 1 plus 14 times 0.5 plus 18 times 0.25 = 10 + 7 + 4.5 = 21.5. The sum of weights is 1.75. So the prediction is 21.5/1.75, which is about 12.29.</li>
+      <li><strong>Check.</strong> The plain average is 14. The weighted prediction 12.29 is lower, because the nearest point has the lowest value 10 and gets the largest weight.</li>
+    </ol>
+    <p class="cx">Answer: 12.29</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+# Exam-level 1: three nearest neighbours by Euclidean distance
+q = (2, 2)
+pts = [((0, 0), 0), ((3, 2), 1), ((2, 4), 1), ((5, 5), 0), ((1, 3), 0), ((4, 1), 1)]
+ranked = sorted((math.dist(p, q), lab, p) for p, lab in pts)
+for dist, lab, p in ranked:
+    print("E1 point", p, " label", lab, " distance", round(dist, 3))
+print("E1 label 1 among 3 nearest =", sum(1 for dist, lab, p in ranked[:3] if lab == 1))
+
+# Exam-level 2: feature scaling changes neighbours
+q2 = (0, 0)
+p1 = (1, 100)
+p2 = (10, 0)
+print("E2 raw distances", round(math.dist(q2, p1), 3), round(math.dist(q2, p2), 3))
+scaled = lambda p: (p[0], p[1] / 100)
+print("E2 scaled distances", round(math.dist(scaled(q2), scaled(p1)), 3), round(math.dist(scaled(q2), scaled(p2)), 3))
+
+# Exam-level 3: edge length needed to hold 1 percent of uniform points
+e10 = 0.01 ** (1 / 10)
+e2 = 0.01 ** (1 / 2)
+print("E3 edge d=10", round(e10, 3), " edge d=2", round(e2, 3), " ratio", round(e10 / e2, 2))
+
+# Exam-level 4: plain and inverse-distance weighted average
+ys = [10, 14, 18]
+ds = [1, 2, 4]
+ws = [1 / d for d in ds]
+print("E4 plain average =", round(sum(ys) / 3, 2), " weighted =", round(sum(w * y for w, y in zip(ws, ys)) / sum(ws), 2))</code></pre>
+  <pre class="output">E1 point (3, 2)  label 1  distance 1.0
+E1 point (1, 3)  label 0  distance 1.414
+E1 point (2, 4)  label 1  distance 2.0
+E1 point (4, 1)  label 1  distance 2.236
+E1 point (0, 0)  label 0  distance 2.828
+E1 point (5, 5)  label 0  distance 4.243
+E1 label 1 among 3 nearest = 2
+E2 raw distances 100.005 10.0
+E2 scaled distances 1.414 10.0
+E3 edge d=10 0.631  edge d=2 0.1  ratio 6.31
+E4 plain average = 14.0  weighted = 12.29</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>K-nearest neighbour (KNN)</dt><dd>A method that predicts from the k training points closest to the query.</dd></div>
+    <div><dt>Query point</dt><dd>The new point we want to predict for.</dd></div>
+    <div><dt>Euclidean distance</dt><dd>The straight-line distance, the square root of summed squared differences.</dd></div>
+    <div><dt>Manhattan distance</dt><dd>The sum of absolute differences across features.</dd></div>
+    <div><dt>Hyperparameter k</dt><dd>The number of neighbours, chosen by validation.</dd></div>
+    <div><dt>Majority vote</dt><dd>The most common label among the neighbours, used for classification.</dd></div>
+    <div><dt>Average of neighbours</dt><dd>The mean of the neighbours' values, used for regression.</dd></div>
+    <div><dt>Lazy learner</dt><dd>A method that stores the data and does its work only at prediction time.</dd></div>
+    <div><dt>Eager learner</dt><dd>A method that fits a model during training, such as logistic regression.</dd></div>
+    <div><dt>Bias-variance trade-off in k</dt><dd>Small k gives low bias and high variance. Large k gives high bias and low variance.</dd></div>
+    <div><dt>Overfitting</dt><dd>Following noise so closely that new predictions are poor, as with k = 1.</dd></div>
+    <div><dt>Underfitting</dt><dd>Using a model too simple to capture the pattern, as with very large k.</dd></div>
+    <div><dt>Feature scaling</dt><dd>Rescaling features so that distances are not dominated by units.</dd></div>
+    <div><dt>Curse of dimensionality</dt><dd>Distances become less informative and data becomes sparse as features grow.</dd></div>
+    <div><dt>Distance concentration</dt><dd>In high dimensions, nearest and farthest points become relatively similar in distance.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>KNN keeps the training data and votes or averages among the k nearest points.</li>
+    <li>Euclidean distance is the default. Manhattan adds absolute differences.</li>
+    <li>Always scale features with different units before computing distances.</li>
+    <li>Small k follows noise. Large k smooths too much. Choose k with validation data.</li>
+    <li>Use an odd k for two classes to avoid ties.</li>
+    <li>In many dimensions, neighbourhoods stop being local and KNN weakens.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 100?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 100 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-099.html"><small>Previous, topic 99</small>Logistic regression</a><a class="next" href="gate-101.html"><small>Next, topic 101</small>Naive Bayes classifier</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

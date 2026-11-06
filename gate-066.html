@@ -1,0 +1,533 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 66: Python functions & recursion</title><meta name="description" content="A function is a named, reusable block of code, and recursion is a function that calls itself. Both appear often in the code-tracing questions of the Data Science and AI paper, so this page teaches you to follow them one call at a time."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g66" data-key="g66" data-noun="topic" data-num="66" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Python functions &amp; recursion</h1>
+<p class="lede">A function is a named, reusable block of code, and recursion is a function that calls itself. Both appear often in the code-tracing questions of the Data Science and AI paper, so this page teaches you to follow them one call at a time.</p>
+<div class="station"><b>66</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Defining and calling functions</li><li>Parameters, default and keyword arguments, return</li><li>Scope: local and global variables</li><li>Recursion: base case and recursive case</li><li>Classic recursive problems</li><li>Recursion versus iteration</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a recipe card for making tea. The card has a name, "make tea", and a list of steps. Whenever you want tea, you read the card. You do not write the steps again each time. A <strong>function</strong> in Python is a recipe card for code. You give the block a name, write its steps once, and then <strong>call</strong> it by name whenever you need it.</p>
+  <p>Some recipes need ingredients. The ingredients you hand to a function are called <strong>arguments</strong>. Some recipes give something back, such as a cup of tea. What a function gives back is its <strong>return value</strong>.</p>
+  <p>Now imagine a recipe card that says "to make a stack of pancakes, make one pancake, then make a stack of one fewer pancakes". The card refers to itself. This is <strong>recursion</strong>. It sounds strange, but it is the natural way to describe many problems, such as factorials, number puzzles and tree structures. Recursion also needs a stop rule, or the cooking never ends. That stop rule is called the <strong>base case</strong>.</p>
+  <p><strong>Why this matters for GATE.</strong> Questions often show a small function, sometimes recursive, and ask for the printed value or the number of calls. The method is always the same: write down each call, follow the code in order, and keep a careful count. You will practise this method on this page.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Function</dt><dd>A named block of code that does one job. Defined with <code>def</code>. Plain meaning: a recipe card. Precise definition: a callable object whose body runs when it is called.</dd></div>
+    <div><dt>Definition</dt><dd>The code that creates a function, starting with <code>def name(...):</code>. Writing the definition does not run the body.</dd></div>
+    <div><dt>Call</dt><dd>Running a function by writing its name followed by brackets, such as <code>add(2, 3)</code>.</dd></div>
+    <div><dt>Parameter</dt><dd>A name listed in the definition, such as <code>a</code> in <code>def add(a, b)</code>. It is a placeholder.</dd></div>
+    <div><dt>Argument</dt><dd>The actual value passed in a call, such as 2 in <code>add(2, 3)</code>.</dd></div>
+    <div><dt>Default argument</dt><dd>A value given to a parameter in the definition, such as <code>greeting="Hello"</code>. It is used when the caller leaves that argument out.</dd></div>
+    <div><dt>Keyword argument</dt><dd>An argument passed by name in a call, such as <code>greeting="Hi"</code>. Its position does not matter.</dd></div>
+    <div><dt>Return value</dt><dd>The value a function sends back, given by <code>return</code>. If a function has no <code>return</code>, it gives back <code>None</code>.</dd></div>
+    <div><dt>None</dt><dd>Python's special "no value" object. You will see it printed when a function does not return anything.</dd></div>
+    <div><dt>Scope</dt><dd>The part of a program where a name can be used. Plain meaning: where a label is visible. Precise definition: the region of code in which a name binding is accessible.</dd></div>
+    <div><dt>Local variable</dt><dd>A variable created inside a function. It exists only while that function runs.</dd></div>
+    <div><dt>Global variable</dt><dd>A variable created outside all functions, at the top level of the file.</dd></div>
+    <div><dt>Recursion</dt><dd>A function that calls itself, directly or through other calls, to solve a smaller version of the same problem.</dd></div>
+    <div><dt>Base case</dt><dd>The simplest input, where the function answers directly without calling itself. It stops the recursion.</dd></div>
+    <div><dt>Recursive case</dt><dd>The part of the function that calls itself on a smaller input.</dd></div>
+    <div><dt>Call stack</dt><dd>The list of calls that are currently active. The most recent call is on top. When a call returns, it is removed from the top.</dd></div>
+    <div><dt>Recursion tree</dt><dd>A diagram where each box is one call and each child box is a call made by its parent.</dd></div>
+    <div><dt>Factorial</dt><dd>The product of all whole numbers from 1 up to n, written n!. For example, 5! = 1 * 2 * 3 * 4 * 5 = 120.</dd></div>
+    <div><dt>Fibonacci number</dt><dd>The sequence 0, 1, 1, 2, 3, 5, 8, 13, ... where each number is the sum of the two before it.</dd></div>
+    <div><dt>GCD</dt><dd>Greatest common divisor: the largest number that divides two given numbers exactly.</dd></div>
+    <div><dt>Iteration</dt><dd>Repeating work with a loop, rather than with a function calling itself.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Defining and calling functions">
+  <h2>Defining and calling functions</h2>
+  <h3>Why functions exist</h3>
+  <p>Suppose a program needs to add two numbers in ten places. You could copy the addition ten times, but if you later want to change it, you must change ten copies. A function solves this. You write the logic once and call it ten times. This idea is called <strong>reuse</strong>.</p>
+
+  <h3>The shape of a function</h3>
+  <p>A function has three parts: the <code>def</code> line with its name and parameters, a body indented underneath, and usually a <code>return</code> line.</p>
+<pre class="code" data-lang="text"><code>def add(a, b):        # name is add, parameters are a and b
+    return a + b      # body: work out the result and send it back</code></pre>
+
+  <p>Read the call <code>add(2, 3)</code> like this. Python puts 2 into the parameter <code>a</code> and 3 into the parameter <code>b</code>. It runs the body, which computes <code>2 + 3</code>. The <code>return</code> sends 5 back to the place where the call was written.</p>
+
+  <h3>Default and keyword arguments</h3>
+  <p>A default argument gives a parameter a starting value. The caller may leave it out. A keyword argument names the parameter in the call, so the order of the arguments can change.</p>
+<pre class="code" data-lang="python"><code>def add(a, b):
+    return a + b
+
+def greet(name, greeting="Hello"):
+    return greeting + ", " + name
+
+print(add(2, 3))
+print(greet("Asha"))
+print(greet("Ravi", greeting="Namaste"))
+print(greet(greeting="Hi", name="Meena"))</code></pre>
+<pre class="output">5
+Hello, Asha
+Namaste, Ravi
+Hi, Meena</pre>
+
+  <p>In the first <code>greet</code> call, the second parameter is left out, so it uses its default "Hello". In the last call, both arguments are named, so their order is free.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>A function with no <code>return</code> still runs its body, but it gives back <code>None</code>. A common exam mistake is to think a function "gives" the value of its last line. It does not. Only <code>return</code> sends a value back. The example <code>def sq(n): n * n</code> followed by <code>print(sq(4))</code> prints <code>None</code>.</p></div>
+
+  <details class="check"><summary>What does <code>print(greet("Ravi"))</code> print, using the definition above?</summary><div class="ans"><p>It prints <code>Hello, Ravi</code>. The missing <code>greeting</code> argument takes its default value "Hello".</p></div></details>
+  <details class="check"><summary>Is a positional argument allowed after a keyword argument in a call?</summary><div class="ans"><p>No. Positional arguments must come first. <code>greet(name="Ravi", "Hi")</code> is a syntax error. <code>greet("Ravi", greeting="Hi")</code> is fine.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Scope: local and global variables">
+  <h2>Scope: local and global variables</h2>
+  <h3>Where can a name be seen?</h3>
+  <p>Scope answers the question "where is this label visible?". Imagine a school with a notice board in the main hall, which everyone can read, and a note on one teacher's desk, which only that teacher can see. A global variable is the notice board. A local variable is the note on the desk.</p>
+  <p>In Python:</p>
+  <ul>
+    <li>A variable assigned inside a function is <strong>local</strong>. It is created when the function runs and disappears when the function returns.</li>
+    <li>A variable assigned at the top level of the file is <strong>global</strong>.</li>
+    <li>A function can read a global variable. But an assignment inside the function creates a new local variable with the same name. The global one is not changed.</li>
+    <li>To change a global variable inside a function, write <code>global name</code> first.</li>
+  </ul>
+
+  <div class="note key"><p><span class="t">Key idea</span>An assignment inside a function makes that name local for the whole function. The name is not looked up outside. This is the reason for many errors in exam questions.</p></div>
+
+  <h3>A runnable example</h3>
+<pre class="code" data-lang="python"><code>x = 10
+def f():
+    x = 20
+    print("inside f:", x)
+f()
+print("outside f:", x)
+
+def g():
+    global x
+    x = 30
+g()
+print("after g:", x)
+
+def h(v):
+    v = v + 1
+    return v
+y = 5
+print(h(y), y)</code></pre>
+<pre class="output">inside f: 20
+outside f: 10
+after g: 30
+6 5</pre>
+
+  <p>Step through it. In <code>f</code>, the assignment <code>x = 20</code> makes a new local <code>x</code>. The global <code>x</code> stays 10, as the next print shows. In <code>g</code>, the line <code>global x</code> tells Python to use the global <code>x</code>, so the value becomes 30. In <code>h</code>, the parameter <code>v</code> is a copy of the number 5. Changing <code>v</code> does not change <code>y</code>. The function returns 6, and <code>y</code> is still 5.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Numbers, strings and tuples are passed in as values, so a function cannot change the caller's variable by reassigning its parameter. Lists are different. If a function changes a list in place, for example with <code>append</code>, the caller sees the change. This is covered with aliasing on the previous page.</p></div>
+
+  <details class="check"><summary>What is printed by <code>def k(): z = 1</code> then <code>k()</code> then <code>print(z)</code>, if <code>z</code> was never defined at the top level?</summary><div class="ans"><p>Python prints an error, a <code>NameError</code>. The <code>z</code> inside <code>k</code> was local and disappeared when <code>k</code> returned, so no <code>z</code> exists at the top level.</p></div></details>
+  <details class="check"><summary>Why does <code>h(y)</code> leave <code>y</code> unchanged?</summary><div class="ans"><p>Because <code>v</code> is a new name bound to the value 5. The line <code>v = v + 1</code> moves the label <code>v</code> to 6. The label <code>y</code> still points to 5.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Recursion: base case and recursive case">
+  <h2>Recursion: base case and recursive case</h2>
+  <h3>The big idea</h3>
+  <p>A recursive function solves a problem by solving a smaller copy of the same problem. It must do two things:</p>
+  <ol>
+    <li>Have a <strong>base case</strong>: an input so small that the answer is given directly, with no further call.</li>
+    <li>Have a <strong>recursive case</strong>: a step that calls the same function on a smaller input, and then uses the answer.</li>
+  </ol>
+  <p>If the base case is missing, or if the calls never move towards it, the calls go on forever. Python then stops the program with a <code>RecursionError</code>.</p>
+
+  <h3>What happens on the call stack</h3>
+  <p>Each call gets its own set of local variables. Python keeps a list of the active calls, called the <strong>call stack</strong>. A new call is placed on top. When the call finishes, it is removed, and its return value goes to the call below it.</p>
+  <p>The next example prints a message when each call starts and when it ends. Follow the order carefully. Calls go down first, then the messages come back up.</p>
+<pre class="code" data-lang="python"><code>def countdown(n):
+    print("enter", n)
+    if n == 0:
+        print("base case")
+        return
+    countdown(n - 1)
+    print("leave", n)
+
+countdown(2)</code></pre>
+<pre class="output">enter 2
+enter 1
+enter 0
+base case
+leave 1
+leave 2</pre>
+
+  <p>Here is the call stack at the moment "base case" is printed. The top of the stack is the newest call.</p>
+<pre class="code" data-lang="text"><code>top     countdown(0)   waiting for nothing, it returns now
+        countdown(1)   waiting for countdown(0) to finish
+bottom  countdown(2)   waiting for countdown(1) to finish</code></pre>
+
+  <p>When <code>countdown(0)</code> returns, the top call is removed, and <code>countdown(1)</code> continues with the line <code>print("leave", 1)</code>. Then it returns, and <code>countdown(2)</code> prints "leave 2". This "down then back up" order is the most important thing to see when you trace recursion.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Every recursive call waits for the call it made. So the lines written after a recursive call run only on the way back up. In <code>countdown</code>, the line <code>print("leave", n)</code> runs after the deeper calls are finished.</p></div>
+
+  <h3>A recursion tree</h3>
+  <p>When a function calls itself twice, the picture becomes a tree. Each node is one call. The tree for <code>fib(4)</code> is in the next section. Counting the nodes gives you the total number of calls, which is often what a GATE question asks.</p>
+
+  <details class="check"><summary>In <code>countdown(3)</code>, how many lines does the function print in total?</summary><div class="ans"><p>There are 4 calls (3, 2, 1, 0). Each call prints "enter", and the base case prints one more line. Each call except the base case prints "leave" on the way back, so there are 3 "leave" lines. The total is 4 + 1 + 3 = 8 lines.</p></div></details>
+  <details class="check"><summary>What would happen if the base case in <code>countdown</code> were removed?</summary><div class="ans"><p>The calls would never stop. The number would go to 0, then -1, then -2, and so on. Python would end the program with a <code>RecursionError</code>.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Classic recursive problems">
+  <h2>Classic recursive problems</h2>
+  <h3>Factorial</h3>
+  <p>The factorial of n, written n!, is the product of the numbers 1 up to n. For example, 4! = 4 * 3 * 2 * 1 = 24. A useful fact is that n! = n * (n-1)!. So you can define it by a smaller copy of itself:</p>
+  <div class="formula">fact(0) = 1 (base case),  fact(n) = n * fact(n-1) for n &gt; 0 (recursive case)</div>
+  <p>Trace <code>fact(3)</code> by hand. The call <code>fact(3)</code> needs <code>fact(2)</code>, which needs <code>fact(1)</code>, which needs <code>fact(0)</code>. The base case gives 1. Now the answers come back up: fact(1) = 1 * 1 = 1, fact(2) = 2 * 1 = 2, fact(3) = 3 * 2 = 6.</p>
+
+  <h3>Fibonacci</h3>
+  <p>The Fibonacci numbers start with 0 and 1, and each later number is the sum of the two before it: 0, 1, 1, 2, 3, 5, 8, 13. The recursive rule is:</p>
+  <div class="formula">fib(0) = 0,  fib(1) = 1,  fib(n) = fib(n-1) + fib(n-2) for n &gt;= 2</div>
+  <p>The Fibonacci definition has two base cases, not one. The reason is that the recursive case looks back two steps, so both starting values must be known.</p>
+
+  <h3>Greatest common divisor by Euclid's method</h3>
+  <p>The GCD of two numbers can be found with a neat rule. If the second number is 0, the GCD is the first number. Otherwise, replace the pair (a, b) by (b, a % b), and try again. This is Euclid's algorithm, and it is one of the oldest algorithms known.</p>
+  <div class="formula">gcd(a, 0) = a,  gcd(a, b) = gcd(b, a % b) for b &gt; 0</div>
+
+  <p>Here are all three problems in one runnable program.</p>
+<pre class="code" data-lang="python"><code>def fact(n):
+    if n == 0:
+        return 1
+    return n * fact(n - 1)
+
+def fib(n):
+    if n &lt; 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+def gcd(a, b):
+    if b == 0:
+        return a
+    return gcd(b, a % b)
+
+print(fact(5))
+print(fib(0), fib(1), fib(2), fib(3), fib(4), fib(5), fib(6), fib(7))
+print(gcd(48, 18))
+print(gcd(17, 5))</code></pre>
+<pre class="output">120
+0 1 1 2 3 5 8 13
+6
+1</pre>
+
+  <p>Check the GCD by hand. <code>gcd(48, 18)</code> becomes <code>gcd(18, 12)</code>, since 48 % 18 is 12. Then <code>gcd(12, 6)</code>, since 18 % 12 is 6. Then <code>gcd(6, 0)</code>, since 12 % 6 is 0. The base case returns 6. The numbers 17 and 5 have no common factor, so the answer is 1.</p>
+
+  <h3>Counting calls in Fibonacci</h3>
+  <p>The recursive Fibonacci function repeats a lot of work. Look at the recursion tree for <code>fib(4)</code>:</p>
+<pre class="code" data-lang="text"><code>                 fib(4)
+              /          \
+          fib(3)          fib(2)
+          /     \         /    \
+      fib(2)   fib(1)  fib(1)  fib(0)
+      /    \
+  fib(1)  fib(0)</code></pre>
+  <p>Count the boxes. There are 9 calls. Two of them are <code>fib(2)</code>, and fib(1) appears three times. The same answer is computed again and again. Techniques such as memoization (saving answers already computed) remove this repeated work, but for this topic you only need to count the calls.</p>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>A common question asks how many calls <code>fib(n)</code> makes in total. For this naive version, the count is 2 * fib(n+1) - 1, where fib(n+1) is the next Fibonacci number. Check it with <code>fib(4)</code>: fib(5) is 5, and 2 * 5 - 1 = 9, which matches the tree above.</p></div>
+
+  <details class="check"><summary>What is <code>fact(0)</code>?</summary><div class="ans"><p>It is 1. This is the base case, and it returns directly without a call.</p></div></details>
+  <details class="check"><summary>What is <code>gcd(12, 0)</code>?</summary><div class="ans"><p>It is 12. The second number is 0, so the base case returns the first number.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Recursion versus iteration">
+  <h2>Recursion versus iteration</h2>
+  <h3>Two ways to repeat work</h3>
+  <p>Every recursive function can be rewritten with a loop, and every loop can be rewritten as recursion. This is called <strong>iteration</strong> when it uses a loop. Here is the factorial written with a loop:</p>
+<pre class="code" data-lang="python"><code>def fact_loop(n):
+    result = 1
+    for i in range(1, n + 1):
+        result = result * i
+    return result
+
+print(fact_loop(5))</code></pre>
+<pre class="output">120</pre>
+
+  <p>Both versions print the same answer. Which one should you use?</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Point</th><th>Recursion</th><th>Iteration (loop)</th></tr></thead>
+    <tbody>
+      <tr><td>Natural for</td><td>Trees, nested problems, divide and conquer</td><td>Simple counting and accumulating</td></tr>
+      <tr><td>Memory</td><td>Each call adds a frame to the call stack</td><td>Usually a fixed number of variables</td></tr>
+      <tr><td>Risk</td><td>Missing base case gives RecursionError</td><td>Missing change to the loop variable gives an endless loop</td></tr>
+      <tr><td>Speed</td><td>Extra cost for every call</td><td>Usually a little faster in Python</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Use recursion when the problem itself has a self-similar shape, such as a folder inside a folder. Use a loop when a simple repeat is all you need. In exams, read the question carefully. If it says "recursive function" you must trace calls. If it asks for a loop, you must trace iterations.</p>
+
+  <h3>A small trace with several results</h3>
+<pre class="code" data-lang="python"><code>def f(n):
+    if n &lt;= 1:
+        return 1
+    return f(n - 1) + f(n - 2)
+
+print(f(4))</code></pre>
+<pre class="output">5</pre>
+
+  <p>Draw the tree. <code>f(4)</code> calls <code>f(3)</code> and <code>f(2)</code>. <code>f(3)</code> returns <code>f(2) + f(1)</code>, which is 2 + 1 = 3. <code>f(2)</code> returns <code>f(1) + f(0)</code>, which is 1 + 1 = 2. So <code>f(4)</code> is 3 + 2 = 5. The base case here is "n is 1 or less", so both <code>f(1)</code> and <code>f(0)</code> return 1.</p>
+
+  <details class="check"><summary>Which is more likely to crash for a very large input, a loop or a recursive function with no base case?</summary><div class="ans"><p>The recursive function. A missing base case makes the calls pile up on the call stack until Python raises a <code>RecursionError</code>.</p></div></details>
+  <details class="check"><summary>Does <code>fact_loop(0)</code> return 1 or 0?</summary><div class="ans"><p>It returns 1. The <code>range(1, 1)</code> is empty, so the loop never runs, and <code>result</code> stays at its starting value of 1.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>fact(0) = 1, fact(n) = n * fact(n-1)</td><td>Factorial by recursion</td><td>Tracing factorial calls</td></tr>
+      <tr><td>fib(0) = 0, fib(1) = 1, fib(n) = fib(n-1) + fib(n-2)</td><td>Fibonacci by recursion, two base cases</td><td>Tracing Fibonacci values and trees</td></tr>
+      <tr><td>gcd(a, 0) = a, gcd(a, b) = gcd(b, a % b)</td><td>Euclid's algorithm</td><td>Finding a GCD quickly by hand</td></tr>
+      <tr><td>Calls made by naive fib(n) = 2 * fib(n+1) - 1</td><td>Total number of calls, including the base cases</td><td>Counting calls in a GATE question</td></tr>
+      <tr><td>Number of calls in fib(n) tree: fib(0) and fib(1) have 1 call each</td><td>Base cases are single nodes</td><td>Checking the count for small n</td></tr>
+      <tr><td>Scope rule: an assignment inside a function creates a local name</td><td>Local shadows global</td><td>Predicting which value a print shows</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style, and are not taken from any past paper. Trace each one on paper before you read the steps.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Default argument</h3>
+    <div class="statement"><p>What is printed by the following code? Write both numbers, separated by one space.</p>
+<pre class="code" data-lang="python"><code>def f(x, y=3):
+    return x * 10 + y
+print(f(2), f(2, 5))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two numbers, one from each call.</li>
+      <li><strong>Which idea applies.</strong> The first call leaves <code>y</code> out, so it uses the default 3. The second call passes 5.</li>
+      <li><strong>Work it out.</strong> <code>f(2)</code> is 2 * 10 + 3 = 23. <code>f(2, 5)</code> is 2 * 10 + 5 = 25.</li>
+      <li><strong>Check.</strong> The second value is 5 more than the first, which matches the change from 3 to 5 in <code>y</code>.</li>
+    </ol>
+    <p class="cx">Answer: 23 25</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Functions with no return</h3>
+    <div class="statement"><p>Consider the code <code>def sq(n):</code> followed by an indented line <code>n * n</code>. Select all statements that are true. (A) Calling <code>sq(4)</code> gives 16. (B) Calling <code>sq(4)</code> gives <code>None</code>. (C) <code>print(sq(4))</code> prints <code>None</code>. (D) <code>sq</code> cannot be called.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every true statement about a function that has no <code>return</code>.</li>
+      <li><strong>Which idea applies.</strong> Only <code>return</code> sends a value back. Without it the function gives <code>None</code>.</li>
+      <li><strong>Work it out.</strong> (A) is false, because the value 16 is computed but thrown away. (B) is true. (C) is true, since <code>print</code> shows the returned <code>None</code>. (D) is false, because the function can be called as normal.</li>
+      <li><strong>Check.</strong> Adding <code>return</code> in front of <code>n * n</code> would make A and not B or C true, which confirms the reasoning.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Factorial quotient</h3>
+    <div class="statement"><p>Give the number printed by this code.</p>
+<pre class="code" data-lang="python"><code>def fact(n):
+    if n == 0:
+        return 1
+    return n * fact(n - 1)
+print(fact(4) // fact(2))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The floor division of two factorials.</li>
+      <li><strong>Which idea applies.</strong> Each call of <code>fact</code> returns a factorial, and <code>//</code> is floor division.</li>
+      <li><strong>Work it out.</strong> fact(4) = 4 * 3 * 2 * 1 = 24. fact(2) = 2 * 1 = 2. Then 24 // 2 = 12.</li>
+      <li><strong>Check.</strong> 4! / 2! is 3 * 4 = 12, which is the same as the tree result.</li>
+    </ol>
+    <p class="cx">Answer: 12</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Parameter is a copy</h3>
+    <div class="statement"><p>What two numbers are printed? Give them in order, separated by one space.</p>
+<pre class="code" data-lang="python"><code>total = 100
+def spend(total):
+    total = total - 30
+    return total
+print(spend(total), total)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The return value of <code>spend</code>, and the value of the global <code>total</code> after the call.</li>
+      <li><strong>Which idea applies.</strong> The parameter <code>total</code> is a local name. Its assignment does not touch the global name.</li>
+      <li><strong>Work it out.</strong> Inside <code>spend</code>, the parameter starts as 100. The line <code>total = total - 30</code> makes it 70, and that is returned. The global <code>total</code> was never assigned, so it is still 100.</li>
+      <li><strong>Check.</strong> The printed pair is 70 then 100, showing that the two names are separate.</li>
+    </ol>
+    <p class="cx">Answer: 70 100</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting calls in naive Fibonacci</h3>
+    <div class="statement"><p>Give the two numbers printed, separated by one space. The variable <code>calls</code> counts how many times <code>fib</code> starts running.</p>
+<pre class="code" data-lang="python"><code>calls = 0
+def fib(n):
+    global calls
+    calls = calls + 1
+    if n &lt; 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+print(fib(6), calls)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of <code>fib(6)</code> and the total number of calls made.</li>
+      <li><strong>Which idea applies.</strong> The Fibonacci values, and the count formula 2 * fib(n+1) - 1 for naive calls.</li>
+      <li><strong>Work it out.</strong> The Fibonacci sequence is 0, 1, 1, 2, 3, 5, 8, so fib(6) is 8. For the number of calls, fib(6) needs 2 * fib(7) - 1. fib(7) is 13, so 2 * 13 - 1 = 25.</li>
+      <li><strong>Check.</strong> For fib(4) the formula gave 9, which matched the tree. The same method works here, so 25 is consistent.</li>
+    </ol>
+    <p class="cx">Answer: 8 25</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Tracing a walk</h3>
+    <div class="statement"><p>List the lines printed by this code, in order.</p>
+<pre class="code" data-lang="python"><code>def walk(n):
+    if n == 0:
+        return
+    print("down", n)
+    walk(n - 1)
+    print("up", n)
+walk(3)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every printed line, in the exact order.</li>
+      <li><strong>Which idea applies.</strong> A recursive call stops the current pass until it returns. The line after the call runs on the way back up.</li>
+      <li><strong>Work it out.</strong> Start with walk(3). It prints "down 3" and calls walk(2), which prints "down 2" and calls walk(1). That prints "down 1" and calls walk(0). walk(0) returns with no output. Back in walk(1), it prints "up 1". Back in walk(2), it prints "up 2". Back in walk(3), it prints "up 3".</li>
+      <li><strong>Check.</strong> There are three "down" lines and three "up" lines, one pair for each non-zero call. The "up" lines come in reverse order, which is the mark of a call stack.</li>
+    </ol>
+    <p class="cx">Answer: down 3, down 2, down 1, up 1, up 2, up 3 (one per line)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Digit sum by recursion</h3>
+    <div class="statement"><p>Give the number printed by this code.</p>
+<pre class="code" data-lang="python"><code>def mystery(n, acc=0):
+    if n == 0:
+        return acc
+    return mystery(n // 10, acc + n % 10)
+print(mystery(4721))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value returned for the input 4721.</li>
+      <li><strong>Which idea applies.</strong> <code>n % 10</code> gives the last digit. <code>n // 10</code> removes the last digit. The parameter <code>acc</code> collects a running total.</li>
+      <li><strong>Work it out.</strong> Step 1: n = 4721, last digit 1, acc = 0 + 1 = 1, next n = 472. Step 2: last digit 2, acc = 3, next n = 47. Step 3: last digit 7, acc = 10, next n = 4. Step 4: last digit 4, acc = 14, next n = 0. The base case returns acc = 14.</li>
+      <li><strong>Check.</strong> The digits of 4721 are 4, 7, 2 and 1, and 4 + 7 + 2 + 1 = 14.</li>
+    </ol>
+    <p class="cx">Answer: 14</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Two recursive calls</h3>
+    <div class="statement"><p>Give the number printed by this code.</p>
+<pre class="code" data-lang="python"><code>def f(n):
+    if n &lt;= 1:
+        return 1
+    return f(n - 1) + f(n - 2)
+print(f(4))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The return value of <code>f(4)</code>.</li>
+      <li><strong>Which idea applies.</strong> Both base cases, n = 0 and n = 1, return 1. Each other call adds two smaller calls.</li>
+      <li><strong>Work it out.</strong> f(0) = 1 and f(1) = 1. f(2) = f(1) + f(0) = 2. f(3) = f(2) + f(1) = 2 + 1 = 3. f(4) = f(3) + f(2) = 3 + 2 = 5.</li>
+      <li><strong>Check.</strong> The values 1, 1, 2, 3, 5 are the Fibonacci numbers, shifted because this version starts with 1 and 1 instead of 0 and 1.</li>
+    </ol>
+    <p class="cx">Answer: 5</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Recursion count (NAT, 2 marks)</h3>
+    <div class="statement"><p>def f(n): return 1 if n &lt;= 1 else f(n − 1) + f(n − 2). How many calls to f are made in total when f(6) is evaluated (including the first call)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The size of the recursion tree.</li>
+      <li><strong>Which idea applies.</strong> Let C(n) be the number of calls. C(0) = C(1) = 1 and C(n) = 1 + C(n − 1) + C(n − 2).</li>
+      <li><strong>Work it out.</strong> C(2) = 3, C(3) = 5, C(4) = 9, C(5) = 15, C(6) = 25.</li>
+      <li><strong>Check.</strong> The code counts with a global counter.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>calls = 0
+def f(n):
+    global calls
+    calls += 1
+    return 1 if n &lt;= 1 else f(n - 1) + f(n - 2)
+f(6)
+print(calls)
+</code></pre>
+    <pre class="output">25</pre>
+    <p class="cx">Answer: 25.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Closures (MCQ, 2 marks)</h3>
+    <div class="statement"><p>What does this print? fs = [lambda: i for i in range(3)]; print([g() for g in fs]) (A) [0, 1, 2] (B) [2, 2, 2] (C) [0, 0, 0] (D) Error</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Late binding of loop variables in closures.</li>
+      <li><strong>Which idea applies.</strong> Each lambda looks up i when it is called, not when it is created.</li>
+      <li><strong>Work it out.</strong> After the comprehension, i is 2 in that scope, so every call returns 2.</li>
+      <li><strong>Check.</strong> Writing lambda i=i: i would capture each value.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>fs = [lambda: i for i in range(3)]
+print([g() for g in fs])
+</code></pre>
+    <pre class="output">[2, 2, 2]</pre>
+    <p class="cx">Answer: (B).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Recursive sum of digits (NAT, 2 marks)</h3>
+    <div class="statement"><p>def g(n): return n if n &lt; 10 else g(sum(int(d) for d in str(n))). Find g(987654321).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The repeated digit sum.</li>
+      <li><strong>Which idea applies.</strong> The digital root equals 1 + (n − 1) mod 9 for n &gt; 0.</li>
+      <li><strong>Work it out.</strong> Digit sum = 45, then 4 + 5 = 9. g = 9.</li>
+      <li><strong>Check.</strong> 987654321 is divisible by 9, so the root is 9.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def g(n):
+    return n if n &lt; 10 else g(sum(int(d) for d in str(n)))
+print(g(987654321))
+</code></pre>
+    <pre class="output">9</pre>
+    <p class="cx">Answer: 9.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Function</dt><dd>A named, reusable block of code, defined with <code>def</code>.</dd></div>
+    <div><dt>Call</dt><dd>Running a function by writing its name and brackets.</dd></div>
+    <div><dt>Parameter and argument</dt><dd>A parameter is the placeholder in the definition. An argument is the value passed in the call.</dd></div>
+    <div><dt>Default argument</dt><dd>A value used when the caller leaves that argument out.</dd></div>
+    <div><dt>Keyword argument</dt><dd>An argument passed by name, so its position can change.</dd></div>
+    <div><dt>return</dt><dd>Sends a value back to the caller. Without it the result is None.</dd></div>
+    <div><dt>None</dt><dd>Python's "no value" object.</dd></div>
+    <div><dt>Local variable</dt><dd>A name created inside a function, which exists only during that call.</dd></div>
+    <div><dt>Global variable</dt><dd>A name created at the top level of the file.</dd></div>
+    <div><dt>global</dt><dd>A keyword that lets a function assign to a global name.</dd></div>
+    <div><dt>Recursion</dt><dd>A function that calls itself on a smaller input.</dd></div>
+    <div><dt>Base case</dt><dd>The simplest input, answered directly, which stops the recursion.</dd></div>
+    <div><dt>Recursive case</dt><dd>The step that calls the same function on a smaller input.</dd></div>
+    <div><dt>Call stack</dt><dd>The list of active calls, with the newest on top.</dd></div>
+    <div><dt>Recursion tree</dt><dd>A diagram of calls, where each node is one call.</dd></div>
+    <div><dt>Factorial</dt><dd>n! is the product of 1 to n, with 0! equal to 1.</dd></div>
+    <div><dt>Fibonacci</dt><dd>The sequence 0, 1, 1, 2, 3, 5, 8, ... with each term the sum of the two before.</dd></div>
+    <div><dt>GCD by Euclid</dt><dd>gcd(a, 0) is a, and gcd(a, b) is gcd(b, a % b).</dd></div>
+    <div><dt>Iteration</dt><dd>Repeating work with a loop instead of a self-call.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>A function does nothing until it is called. Only <code>return</code> gives a value back.</li>
+    <li>A name assigned inside a function is local, unless it is declared <code>global</code>.</li>
+    <li>Every recursive function needs a base case that stops the calls.</li>
+    <li>The lines after a recursive call run on the way back up, in reverse order.</li>
+    <li>Fibonacci has two base cases, because each term looks back two steps.</li>
+    <li>For naive fib(n), the total number of calls is 2 * fib(n+1) - 1.</li>
+    <li>Trace recursion by writing each call on a list, then fill in the return values from the bottom up.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 66?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 66 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-065.html"><small>Previous, topic 65</small>Python basics: syntax, data types, control flow</a><a class="next" href="gate-067.html"><small>Next, topic 67</small>Linear Search &amp; Binary Search</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

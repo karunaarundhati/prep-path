@@ -1,0 +1,350 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 6: Gaussian elimination</title><meta name="description" content="Gaussian elimination is the step-by-step method for solving systems by hand. You clear one unknown at a time with three simple row operations, reach a staircase shape, and then work upward. The same process gives the rank and the inverse, so it is the workhorse of GATE linear algebra."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g6" data-key="g6" data-noun="topic" data-num="6" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Gaussian elimination</h1>
+<p class="lede">Gaussian elimination is the step-by-step method for solving systems by hand. You clear one unknown at a time with three simple row operations, reach a staircase shape, and then work upward. The same process gives the rank and the inverse, so it is the workhorse of GATE linear algebra.</p>
+<div class="station"><b>6</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>Why elimination works: the three row operations</li><li>Forward elimination and back substitution, step by step</li><li>Row echelon form and reduced row echelon form</li><li>Finding the inverse by row reduction</li><li>Pivoting: swapping rows when a pivot is zero</li><li>Solved GATE-style problems, including a verified PYQ</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a crossword with clues that depend on each other. A good solver does not guess. One clue removes a letter from the others, the next clue removes another, and slowly the puzzle becomes simple enough to finish. <strong>Gaussian elimination</strong> does this to a system of equations. It uses one equation to remove one unknown from the equations below it, repeats for each unknown, and leaves a staircase. Then back substitution fills in the answers from the bottom row upward.</p>
+  <p>Every step is a row operation, and every row operation keeps the solutions exactly the same. For GATE, the same process gives the rank (count the pivots), the determinant (track the sign changes) and the inverse (apply the same steps to the identity matrix).</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Elementary row operation</dt><dd>One of three allowed moves: swap two rows, multiply a row by a non-zero number, or add a multiple of one row to another.</dd></div>
+    <div><dt>Augmented matrix, [A | b]</dt><dd>The coefficient matrix with the right-hand side added as an extra column.</dd></div>
+    <div><dt>Pivot</dt><dd>The entry used to clear the entries below it in a column. It must be non-zero.</dd></div>
+    <div><dt>Multiplier</dt><dd>The number you multiply a pivot row by before subtracting it.</dd></div>
+    <div><dt>Forward elimination</dt><dd>Clearing the entries below each pivot, from left to right.</dd></div>
+    <div><dt>Back substitution</dt><dd>Solving the staircase from the bottom row upward.</dd></div>
+    <div><dt>Row echelon form (REF)</dt><dd>A staircase with zeros below each pivot, and each pivot to the right of the one above.</dd></div>
+    <div><dt>Reduced row echelon form (RREF)</dt><dd>A row echelon form where every pivot is 1 and the entries above each pivot are also 0.</dd></div>
+    <div><dt>Partial pivoting</dt><dd>Choosing the entry with the largest absolute value in the column as the pivot, by swapping rows.</dd></div>
+    <div><dt>Inverse, A<sup>-1</sup></dt><dd>The matrix with A<sup>-1</sup>A = I.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The three row operations">
+  <h2>Why elimination works: the three row operations</h2>
+  <p>Write 2x + y = 3 and x + 3y = 4 as [[2, 1 | 3], [1, 3 | 4]]. Each row is one equation. We may change rows in three ways, and none changes the solution:</p>
+  <ul>
+    <li><strong>Swap:</strong> exchange two rows, written R<sub>1</sub> &lt;-&gt; R<sub>2</sub>.</li>
+    <li><strong>Scale:</strong> multiply a row by a non-zero number, written R<sub>2</sub> &larr; 3R<sub>2</sub>.</li>
+    <li><strong>Replace:</strong> add a multiple of one row to another, written R<sub>2</sub> &larr; R<sub>2</sub> - 2R<sub>1</sub>.</li>
+  </ul>
+  <p>The third move is the engine of elimination. Replacing row 2 by row 2 minus 2 times row 1 clears the first entry of row 2. For the example, use R<sub>2</sub> &larr; R<sub>2</sub> - (1/2)R<sub>1</sub>: row 2 becomes (1 - 1, 3 - 0.5 | 4 - 1.5) = (0, 2.5 | 2.5). Now the second row says 2.5y = 2.5, so y = 1 at once.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Row operations keep the solution set exactly the same, because each move can be undone. Elimination never gives a wrong answer if the arithmetic is right.</p></div>
+  <details class="check"><summary>Apply R<sub>2</sub> &larr; R<sub>2</sub> - 3R<sub>1</sub> to the row (3, 5 | 7), with pivot row (1, 2 | 4).</summary><div class="ans"><p>Three times row 1 is (3, 6 | 12). Subtract: (0, -1 | -5). The first entry is cleared.</p></div></details>
+  <details class="check"><summary>Why is multiplying a row by 0 not allowed?</summary><div class="ans"><p>It turns that equation into 0 = 0, throwing away information, so the solutions can change.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Forward elimination and back substitution">
+  <h2>Forward elimination and back substitution, step by step</h2>
+  <p>We solve x + 2y + z = 8, 2x + y + 3z = 13, and 3x + 2y + 2z = 13. The augmented matrix is [[1, 2, 1 | 8], [2, 1, 3 | 13], [3, 2, 2 | 13]].</p>
+  <ol>
+    <li><strong>Row 2.</strong> Replace row 2 by row 2 - 2 x row 1: (0, -3, 1 | -3).</li>
+    <li><strong>Row 3.</strong> Replace row 3 by row 3 - 3 x row 1: (0, -4, -1 | -11).</li>
+    <li><strong>Column 2.</strong> The pivot is -3. The multiplier for row 3 is (-4)/(-3) = 4/3. Replace row 3 by row 3 - (4/3) x row 2: (0, 0, -7/3 | -7).</li>
+  </ol>
+  <p>The staircase is [[1, 2, 1 | 8], [0, -3, 1 | -3], [0, 0, -7/3 | -7]]. Back substitution: -7/3 z = -7 gives z = 3. Then -3y + 3 = -3 gives y = 2. Then x + 4 + 3 = 8 gives x = 1. Check: 1 + 4 + 3 = 8, 2 + 2 + 9 = 13, and 3 + 4 + 6 = 13.</p>
+  <p>The Python block runs the same two stages with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def gauss_solve(A, b):
+    n = len(A)
+    M = [[F(x) for x in row] + [F(bi)] for row, bi in zip(A, b)]
+    for c in range(n):
+        p = next(i for i in range(c, n) if M[i][c] != 0)
+        M[c], M[p] = M[p], M[c]
+        for i in range(c + 1, n):
+            m = M[i][c] / M[c][c]
+            M[i] = [M[i][k] - m * M[c][k] for k in range(n + 1)]
+    x = [F(0)] * n
+    for i in range(n - 1, -1, -1):
+        s = sum(M[i][k] * x[k] for k in range(i + 1, n))
+        x[i] = (M[i][n] - s) / M[i][i]
+    return M, x
+
+A = [[1, 2, 1], [2, 1, 3], [3, 2, 2]]
+b = [8, 13, 13]
+M, x = gauss_solve(A, b)
+print("row echelon form:")
+for row in M:
+    print([str(v) for v in row])
+print("solution x, y, z =", [str(v) for v in x])</code></pre>
+  <pre class="output">row echelon form:
+['1', '2', '1', '8']
+['0', '-3', '1', '-3']
+['0', '0', '-7/3', '-7']
+solution x, y, z = ['1', '2', '3']</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Carry the right-hand side in every row operation. Forgetting it gives a wrong answer even when the coefficients look right.</p></div>
+</section>
+
+<section class="unit" id="c3" data-title="Row echelon form and reduced row echelon form">
+  <h2>Row echelon form and reduced row echelon form</h2>
+  <p>A matrix is in <strong>row echelon form (REF)</strong> when every all-zero row is at the bottom, each pivot is to the right of the pivot above, and all entries below each pivot are zero. The staircase above is in REF, with pivots 1, -3 and -7/3. Its rank is the number of pivots, which is 3.</p>
+  <p>It is in <strong>reduced row echelon form (RREF)</strong> when, in addition, every pivot is 1 and every entry above a pivot is 0. Dividing rows to make the pivots 1, and clearing above them, gives:</p>
+  <pre class="code" data-lang="text"><code>[ 1  0  0 | 1 ]
+[ 0  1  0 | 2 ]
+[ 0  0  1 | 3 ]</code></pre>
+  <p>Read the answer directly: x = 1, y = 2, z = 3. This is Gauss-Jordan elimination.</p>
+  <div class="note key"><p><span class="t">Key idea</span>REF is not unique, but RREF is. Both forms have the same pivot positions, so they give the same rank.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Do not call a particular REF "the" answer. Only the RREF is unique.</p></div>
+  <details class="check"><summary>Is [[1, 2, 0], [0, 0, 1], [0, 0, 0]] in row echelon form?</summary><div class="ans"><p>Yes. The zero row is at the bottom, the pivots move right, and entries below pivots are 0. Its rank is 2.</p></div></details>
+  <details class="check"><summary>Is [[2, 4], [0, 3]] in reduced row echelon form?</summary><div class="ans"><p>No. The pivots are 2 and 3, not 1, and the entry 4 above the second pivot is not 0.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Finding the inverse by row reduction">
+  <h2>Finding the inverse by row reduction</h2>
+  <p>Write A next to the identity, [A | I], and row-reduce the left half to I. The same operations turn the right half into A<sup>-1</sup>, giving [I | A<sup>-1</sup>].</p>
+  <p>Take A = [[1, 1], [2, 3]]. Start with [[1, 1 | 1, 0], [2, 3 | 0, 1]].</p>
+  <ol>
+    <li><strong>Clear below the pivot.</strong> Row 2 becomes row 2 - 2 row 1 = (0, 1 | -2, 1).</li>
+    <li><strong>Clear above the second pivot.</strong> Row 1 becomes row 1 - row 2 = (1, 0 | 3, -1).</li>
+    <li><strong>Read the inverse.</strong> A<sup>-1</sup> = [[3, -1], [-2, 1]].</li>
+    <li><strong>Check.</strong> Row 1 of A times column 1 of the inverse is 3 - 2 = 1. Row 1 times column 2 is -1 + 1 = 0. Row 2 times column 1 is 6 - 6 = 0. Row 2 times column 2 is -2 + 3 = 1. This gives the identity.</li>
+  </ol>
+  <p>The shear A = [[1, 1], [0, 1]] has the reverse shear as its inverse, [[1, -1], [0, 1]]. The picture shows the first move sliding the grid one way, and the inverse sliding it back.</p>
+  <div class="viz" data-viz="transform" data-m="1,1,0,1"></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>A row of zeros on the left half of [A | I] means A has no inverse, so det(A) = 0.</p></div>
+  <details class="check"><summary>What is the inverse of [[1, 0], [3, 1]]?</summary><div class="ans"><p>[[1, 0], [-3, 1]]. Check: row 2 of A, (3, 1), times column 1, (1, -3), gives 3 - 3 = 0.</p></div></details>
+  <details class="check"><summary>What does a row of zeros on the left half of [A | I] tell you?</summary><div class="ans"><p>A is singular and has no inverse.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Pivoting and zero pivots">
+  <h2>Pivoting: swapping rows when a pivot is zero</h2>
+  <p>Elimination divides by the pivot, so a zero pivot is a problem. For [[0, 1 | 2], [1, 1 | 3]], the top-left entry is 0. Swap the rows to get [[1, 1 | 3], [0, 1 | 2]]. Then y = 2 and x = 1. Check: 0 + 2 = 2 and 1 + 2 = 3.</p>
+  <p>In practice, <strong>partial pivoting</strong> swaps in the row with the largest absolute value in the column. Small pivots create large multipliers, which amplify rounding errors. Each swap changes the sign of the determinant, which matters for the LU page.</p>
+  <div class="note trap"><p><span class="t">Trap</span>When you swap rows, swap the whole augmented row, including the right-hand side.</p></div>
+  <details class="check"><summary>Which row operation starts elimination for [[0, 2], [3, 1]]?</summary><div class="ans"><p>Swap row 1 and row 2, so the new first pivot is 3.</p></div></details>
+  <details class="check"><summary>Why prefer partial pivoting?</summary><div class="ans"><p>Because it keeps the multipliers small, so rounding errors stay under control.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or rule</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>R<sub>i</sub> &larr; R<sub>i</sub> - m R<sub>k</sub>, with m = a<sub>ik</sub> / a<sub>kk</sub></td><td>Clear entry (i, k)</td><td>Forward elimination</td></tr>
+      <tr><td>R<sub>i</sub> &lt;-&gt; R<sub>k</sub></td><td>Swap rows (the sign of det changes)</td><td>Zero pivots</td></tr>
+      <tr><td>R<sub>i</sub> &larr; c R<sub>i</sub>, with c not 0</td><td>Scale a row</td><td>Making a pivot 1</td></tr>
+      <tr><td>x<sub>i</sub> = (b<sub>i</sub> - sum of u<sub>ik</sub> x<sub>k</sub>) / u<sub>ii</sub></td><td>Back substitution</td><td>Solving a staircase</td></tr>
+      <tr><td>[A | I] becomes [I | A<sup>-1</sup>]</td><td>Inverse by row reduction</td><td>Small inverses</td></tr>
+      <tr><td>rank(A) = number of pivots in REF</td><td>Rank from the staircase</td><td>Uniqueness tests</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Problems 2 to 8 are original GATE-style problems. Problem 1 is a real past question from GATE, rewritten in this format and marked as a verified PYQ.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>GATE ME 1996 (verified PYQ): the shape after elimination</h3>
+    <div class="statement"><p>Triangularization in the Gauss elimination method produces which kind of matrix?<br>(A) diagonal<br>(B) lower triangular<br>(C) upper triangular<br>(D) singular</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The shape after the elimination stage.</li>
+      <li><strong>Which idea applies.</strong> Forward elimination clears every entry below each pivot.</li>
+      <li><strong>Work it out.</strong> The entries under the diagonal become zero and the rest stay, which is an upper triangular shape.</li>
+      <li><strong>Check.</strong> The staircase [[1, 2, 1], [0, -3, 1], [0, 0, -7/3]] has zeros below the diagonal.</li>
+    </ol>
+    <p class="cx">Answer: (C) upper triangular. This is a verified PYQ from GATE ME 1996, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Solve a two-by-two system by elimination</h3>
+    <div class="statement"><p>Solve x + y = 4 and 2x - y = 2 by elimination.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Both unknowns.</li>
+      <li><strong>Which idea applies.</strong> Use row 1 as the pivot to clear the x in row 2.</li>
+      <li><strong>Work it out.</strong> Row 2 minus 2 row 1 gives (0, -3 | -6), so y = 2. Then x + 2 = 4, so x = 2.</li>
+      <li><strong>Check.</strong> 2 + 2 = 4 and 2(2) - 2 = 2.</li>
+    </ol>
+    <p class="cx">Answer: x = 2 and y = 2.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Count the pivots (NAT)</h3>
+    <div class="statement"><p>Let A = [[1, 2, 3], [2, 4, 7], [3, 6, 10]]. Use row reduction to find the rank of A. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rank, which is the number of pivots.</li>
+      <li><strong>Which idea applies.</strong> Reduce to row echelon form and count non-zero rows.</li>
+      <li><strong>Work it out.</strong> Row 2 minus 2 row 1 is (0, 0, 1). Row 3 minus 3 row 1 is (0, 0, 1). Then row 3 minus row 2 is (0, 0, 0). The staircase has two non-zero rows.</li>
+      <li><strong>Check.</strong> Row 2 is twice row 1 plus (0, 0, 1), and row 3 is three times row 1 plus (0, 0, 1). One row is redundant, so the rank is 2.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Find the third unknown by elimination (NAT)</h3>
+    <div class="statement"><p>Solve x + y + z = 6, 2x + 3y + z = 10, and x + 2y + 3z = 13. Give the value of z.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of z.</li>
+      <li><strong>Which idea applies.</strong> Forward elimination, then back substitution.</li>
+      <li><strong>Work it out.</strong> Row 2 becomes (0, 1, -1 | -2) and row 3 becomes (0, 1, 2 | 7). Then row 3 minus row 2 is (0, 0, 3 | 9), so z = 3. Then y = 1 and x = 2.</li>
+      <li><strong>Check.</strong> (2, 1, 3): 6, 10 and 13 all match.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>An entry of an inverse (NAT)</h3>
+    <div class="statement"><p>Let A = [[1, 2], [3, 4]]. The inverse of A is [[p, q], [r, s]]. Find q. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The entry in row 1, column 2 of A<sup>-1</sup>.</li>
+      <li><strong>Which idea applies.</strong> Row-reduce [A | I] to [I | A<sup>-1</sup>].</li>
+      <li><strong>Work it out.</strong> Row 2 minus 3 row 1 gives (0, -2 | -3, 1). Divide by -2: (0, 1 | 3/2, -1/2). Row 1 minus 2 row 2 gives (1, 0 | -2, 1). So A<sup>-1</sup> = [[-2, 1], [3/2, -1/2]], and q = 1.</li>
+      <li><strong>Check.</strong> Row 1 of A times column 2 of the inverse is 1(1) + 2(-1/2) = 0.</li>
+    </ol>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>True statements about echelon forms (MSQ)</h3>
+    <div class="statement"><p>Let A be a matrix. Select all true statements.</p>
+    <p>(A) The row echelon form of A is unique.<br>(B) The reduced row echelon form has a 1 in each pivot position and zeros above and below each pivot.<br>(C) The row echelon form has zeros below each pivot.<br>(D) The number of non-zero rows in any row echelon form of A equals the rank of A.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test four facts.</li>
+      <li><strong>Which idea applies.</strong> REF is not unique, RREF is, and the pivot count is the rank.</li>
+      <li><strong>Work it out.</strong> (A) false. (B) true, by definition. (C) true, by definition. (D) true.</li>
+      <li><strong>Check.</strong> The only false statement is the uniqueness claim.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>A parameter that controls the solutions (NAT)</h3>
+    <div class="statement"><p>Consider x + y + z = 1, x + 2y + 3z = 2, and x + 3y + az = b. Suppose a = 5. For which value of b does the system have infinitely many solutions? Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The b that makes the system consistent with a free variable.</li>
+      <li><strong>Which idea applies.</strong> Row-reduce with a = 5 and see what the last row says.</li>
+      <li><strong>Work it out.</strong> Row 2 minus row 1 is (0, 1, 2 | 1). Row 3 minus row 1 is (0, 2, 4 | b - 1). Row 3 minus 2 row 2 is (0, 0, 0 | b - 3). So b = 3, and the rank is 2 with one free variable.</li>
+      <li><strong>Check.</strong> With b = 3, z = 0 gives (0, 1, 0), and z = 1 gives (1, -1, 1). Both satisfy all three equations.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Describe the solution set (MSQ)</h3>
+    <div class="statement"><p>Use the system from the previous problem with a = 5 and b = 3: x + y + z = 1, x + 2y + 3z = 2, and x + 3y + 5z = 3. Select all true statements.</p>
+    <p>(A) The system has a unique solution.<br>(B) The system has infinitely many solutions.<br>(C) The rank of the coefficient matrix is 2.<br>(D) The solution set is a line in three-dimensional space.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The nature of the solution set.</li>
+      <li><strong>Which idea applies.</strong> Count pivots for the rank, then count free variables.</li>
+      <li><strong>Work it out.</strong> The staircase is [[1, 1, 1 | 1], [0, 1, 2 | 1], [0, 0, 0 | 0]]. Two pivots, so the rank is 2, and there is one free variable. So (B), (C) and (D) are true, and (A) is false.</li>
+      <li><strong>Check.</strong> With z = t: y = 1 - 2t and x = t, so the solutions are (t, 1 - 2t, t). At t = 0, (0, 1, 0) satisfies all three equations.</li>
+    </ol>
+    <p class="cx">Answer: (B), (C) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Pivot count after elimination (NAT, 2 marks)</h3>
+    <div class="statement"><p>Apply Gaussian elimination to A = [[1, 2, 1, 3], [2, 4, 3, 7], [3, 6, 4, 10]]. How many pivots does the echelon form have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of pivots, which equals the rank.</li>
+      <li><strong>Which idea applies.</strong> Eliminate below each pivot and count nonzero rows.</li>
+      <li><strong>Work it out.</strong> R2 − 2R1 = (0, 0, 1, 1). R3 − 3R1 = (0, 0, 1, 1). R3 − R2 = 0. So there are 2 pivots (columns 1 and 3).</li>
+      <li><strong>Check.</strong> The code reduces A exactly.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+M = [[F(x) for x in r] for r in [[1, 2, 1, 3], [2, 4, 3, 7], [3, 6, 4, 10]]]
+r, piv = 0, []
+for c in range(4):
+    p = next((i for i in range(r, 3) if M[i][c] != 0), None)
+    if p is None:
+        continue
+    M[r], M[p] = M[p], M[r]
+    for i in range(r + 1, 3):
+        M[i] = [a - M[i][c] / M[r][c] * b for a, b in zip(M[i], M[r])]
+    piv.append(c + 1); r += 1
+print("pivot columns:", piv)
+</code></pre>
+    <pre class="output">pivot columns: [1, 3]</pre>
+    <p class="cx">Answer: 2.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Operation count (MCQ, 1 mark)</h3>
+    <div class="statement"><p>Gaussian elimination without pivoting on a dense n × n system needs about how many multiplications for large n? (A) n² (B) n³/3 (C) 2n³ (D) n log n</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The leading order cost of forward elimination.</li>
+      <li><strong>Which idea applies.</strong> At step k, about (n − k)² entries are updated.</li>
+      <li><strong>Work it out.</strong> The sum of (n − k)² for k = 1 to n is about n³/3.</li>
+      <li><strong>Check.</strong> For n = 100, the code counts updates directly and compares with n³/3.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>n = 100
+print(sum((n - k) * (n - k + 1) for k in range(1, n)), round(n ** 3 / 3))
+</code></pre>
+    <pre class="output">333300 333333</pre>
+    <p class="cx">Answer: (B).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Back substitution value (NAT, 2 marks)</h3>
+    <div class="statement"><p>Solve 2x + y − z = 8, −3x − y + 2z = −11, −2x + y + 2z = −3 by Gaussian elimination. Find x + y + z.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The solution, then the sum of the three unknowns.</li>
+      <li><strong>Which idea applies.</strong> Eliminate x from rows 2 and 3, then y from row 3, and back substitute.</li>
+      <li><strong>Work it out.</strong> R2 + 1.5R1: (0, 0.5, 0.5 | 1). R3 + R1: (0, 2, 1 | 5). R3 − 4R2: (0, 0, −1 | 1), so z = −1. Then 0.5y − 0.5 = 1 gives y = 3. Then 2x + 3 + 1 = 8 gives x = 2. Sum = 2 + 3 − 1 = 4.</li>
+      <li><strong>Check.</strong> The code substitutes back into the original equations.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>x, y, z = 2, 3, -1
+print(2*x + y - z, -3*x - y + 2*z, -2*x + y + 2*z, "sum =", x + y + z)
+</code></pre>
+    <pre class="output">8 -11 -3 sum = 4</pre>
+    <p class="cx">Answer: 4.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Elementary row operation</dt><dd>Swap rows, scale a row by a non-zero number, or add a multiple of one row to another.</dd></div>
+    <div><dt>Augmented matrix</dt><dd>The coefficients with the right-hand side as an extra column.</dd></div>
+    <div><dt>Pivot</dt><dd>The entry used to clear the entries below it. Must be non-zero.</dd></div>
+    <div><dt>Multiplier</dt><dd>The number of copies of the pivot row to subtract.</dd></div>
+    <div><dt>Forward elimination</dt><dd>Clearing entries below each pivot, column by column.</dd></div>
+    <div><dt>Back substitution</dt><dd>Solving a staircase from the bottom row upward.</dd></div>
+    <div><dt>Row echelon form (REF)</dt><dd>A staircase with zeros below each pivot.</dd></div>
+    <div><dt>Reduced row echelon form (RREF)</dt><dd>Pivots equal to 1, with zeros above and below each pivot. Unique for each matrix.</dd></div>
+    <div><dt>Gauss-Jordan elimination</dt><dd>Row reduction all the way to RREF.</dd></div>
+    <div><dt>Inverse by row reduction</dt><dd>Row-reduce [A | I] to [I | A<sup>-1</sup>].</dd></div>
+    <div><dt>Zero pivot</dt><dd>Swap with a lower row that has a non-zero entry in that column.</dd></div>
+    <div><dt>Partial pivoting</dt><dd>Choose the largest absolute value in the column as the pivot.</dd></div>
+    <div><dt>Rank from REF</dt><dd>The number of pivots.</dd></div>
+    <div><dt>Free variable</dt><dd>A column with no pivot. Each one gives a direction of solutions.</dd></div>
+      <div><dt>Staircase</dt><dd>The shape of a matrix in row echelon form, with pivots moving right.</dd></div>
+    <div><dt>Forward and back substitution</dt><dd>The two stages used to solve a staircase system.</dd></div>
+</dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Only three row operations are allowed, and none of them changes the solutions.</li>
+    <li>Forward elimination makes a staircase, and back substitution reads the answer from the bottom up.</li>
+    <li>Always carry the right-hand side along with each row.</li>
+    <li>If a pivot is zero, swap in a lower row with a non-zero entry in that column.</li>
+    <li>To find an inverse, row-reduce [A | I] to [I | A<sup>-1</sup>].</li>
+    <li>The number of pivots is the rank. Compare it with the number of unknowns to test uniqueness.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 6?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 6 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-005.html"><small>Previous, topic 5</small>Systems of linear equations and solutions</a><a class="next" href="gate-007.html"><small>Next, topic 7</small>LU Decomposition</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,401 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 5: Systems of linear equations and solutions</title><meta name="description" content="A system of linear equations is a set of straight-line rules that must all hold at once. You will learn to write it as Ax = b, to tell whether it has one solution, none or infinitely many, and to solve it by hand. Almost every GATE linear algebra question starts here."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g5" data-key="g5" data-noun="topic" data-num="5" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Systems of linear equations and solutions</h1>
+<p class="lede">A system of linear equations is a set of straight-line rules that must all hold at once. You will learn to write it as Ax = b, to tell whether it has one solution, none or infinitely many, and to solve it by hand. Almost every GATE linear algebra question starts here.</p>
+<div class="station"><b>5</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>What a system of equations is, and how to write it as Ax = b</li><li>Three outcomes: one solution, no solution, infinitely many</li><li>The rank test that decides which outcome you have</li><li>Homogeneous systems and trivial versus non-trivial solutions</li><li>Cramer&#x27;s rule for square systems</li><li>Solved GATE-style problems, including verified PYQs</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine two clues. "Two apples and one orange cost 3 pounds." "One apple and three oranges cost 4 pounds." Each clue alone allows many prices, but together they may fix the price of each fruit exactly. That is a <strong>system of linear equations</strong>: straight-line rules that must hold together.</p>
+  <p>Each equation with two unknowns is a straight line. A solution is a point where the lines meet. Three things can happen: the lines cross at one point (one solution), they are parallel (no solution), or they lie on top of each other (infinitely many solutions). Your job is to find which case you are in, and then to solve.</p>
+  <p>GATE DA and RA questions ask "how many solutions", or "for which value of a parameter is the solution unique". Solving systems is also the core computation of least squares and of finding robot joint angles.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Linear equation</dt><dd>Each unknown is multiplied by a number and added, with no squares. Example: 2x + y = 3.</dd></div>
+    <div><dt>Coefficient matrix, A</dt><dd>The table of numbers that multiply the unknowns.</dd></div>
+    <div><dt>Right-hand side, b</dt><dd>The column of numbers on the right of the equals signs.</dd></div>
+    <div><dt>Augmented matrix, [A | b]</dt><dd>A with b added as an extra column. The whole system in one table.</dd></div>
+    <div><dt>Consistent / inconsistent</dt><dd>Consistent means at least one solution exists. Inconsistent means none exists.</dd></div>
+    <div><dt>Homogeneous system</dt><dd>A system Ax = 0, where every right-hand side is zero.</dd></div>
+    <div><dt>Trivial and non-trivial solution</dt><dd>The trivial solution is x = 0, which always works for Ax = 0. A non-trivial solution is any other solution.</dd></div>
+    <div><dt>Free variable</dt><dd>An unknown you may choose freely, with the others following from it.</dd></div>
+    <div><dt>Cramer's rule</dt><dd>A formula that gives each unknown as a ratio of two determinants, when the system is square with non-zero determinant.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Writing a system as Ax = b">
+  <h2>Writing a system as Ax = b</h2>
+  <p>Take the system 2x + y = 3 and x + 3y = 4. Collect the coefficients into a matrix, the unknowns into a vector x, and the right-hand sides into b:</p>
+  <div class="formula">A x = b, where A = [[2, 1], [1, 3]], x = (x, y), b = (3, 4)</div>
+  <p>There is a second reading, called the <strong>column picture</strong>. The columns of A are (2, 1) and (1, 3), and x and y are the amounts of each column. So the question becomes: <strong>what mix of the columns gives b?</strong></p>
+  <div class="formula">x (2, 1) + y (1, 3) = (3, 4)</div>
+  <p>Try x = 1 and y = 1: (2, 1) + (1, 3) = (3, 4). That is b, so (1, 1) is the solution. Check the original equations: 2 + 1 = 3 and 1 + 3 = 4.</p>
+  <p>The picture shows the two column arrows and the target b. Drag the second arrow and see how the mix changes.</p>
+  <div class="viz" data-viz="vectors" data-u="2,1" data-v="1,3"></div>
+  <div class="note key"><p><span class="t">Key idea</span>Solving Ax = b asks: can b be made as a mix of the columns of A, and if so, in how many ways?</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Keep the unknowns in the same order in every equation, or the coefficient matrix will be wrong.</p></div>
+  <details class="check"><summary>Write x + y = 5 and x - y = 1 as Ax = b. What is A?</summary><div class="ans"><p>A = [[1, 1], [1, -1]] and b = (5, 1).</p></div></details>
+  <details class="check"><summary>Is (2, 0) a solution of 2x + y = 3 and x + 3y = 4?</summary><div class="ans"><p>No. 2(2) + 0 = 4, not 3. A solution must satisfy both equations.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Three outcomes">
+  <h2>Three outcomes: one solution, no solution, infinitely many</h2>
+  <p>For any system Ax = b, exactly one of three outcomes happens.</p>
+  <ul>
+    <li><strong>One solution:</strong> 2x + y = 3 and x + 3y = 4 meet at (1, 1). The lines are not parallel.</li>
+    <li><strong>No solution:</strong> x + y = 1 and x + y = 2 are parallel lines. The same left side cannot equal 1 and 2 at once.</li>
+    <li><strong>Infinitely many:</strong> x + y = 1 and 2x + 2y = 2 describe the same line. Points such as (1, 0), (0, 1) and (3, -2) all work.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>"Infinitely many solutions" does not mean any numbers. The solutions form a line, plane or flat shape with at least one free variable.</p></div>
+  <p>In the column picture, the two columns of [[1, 1], [2, 2]] are parallel. Drag the second arrow and notice it can only point along the first. This is the picture behind the no-solution and infinite cases.</p>
+  <div class="viz" data-viz="vectors" data-u="1,1" data-v="2,2"></div>
+  <details class="check"><summary>Does x + 2y = 3 and 2x + 4y = 7 have a solution?</summary><div class="ans"><p>No. Doubling the first gives 2x + 4y = 6, which cannot equal 7.</p></div></details>
+  <details class="check"><summary>How many solutions does x + 2y = 3 and 2x + 4y = 6 have?</summary><div class="ans"><p>Infinitely many. The second is twice the first. Pick any y, and then x = 3 - 2y.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="The rank test">
+  <h2>The rank test that decides which outcome you have</h2>
+  <p>Let r = rank(A), r' = rank([A | b]), and n be the number of unknowns. Then:</p>
+  <ul>
+    <li><strong>No solution:</strong> r' is bigger than r. Adding b raised the rank, so b is not a mix of the columns.</li>
+    <li><strong>Unique solution:</strong> r = r' = n. Every unknown is fixed.</li>
+    <li><strong>Infinitely many:</strong> r = r' is less than n. There are n - r free variables.</li>
+  </ul>
+  <div class="note key"><p><span class="t">Key idea</span>The number of free variables is n - r. If there are none, the solution is unique, as long as the system is consistent.</p></div>
+  <p>The Python block runs this test on the earlier examples and on a three-unknown system.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def rank(M):
+    A = [[F(x) for x in row] for row in M]
+    rows, cols = len(A), len(A[0])
+    r = 0
+    for c in range(cols):
+        p = None
+        for i in range(r, rows):
+            if A[i][c] != 0:
+                p = i
+                break
+        if p is None:
+            continue
+        A[r], A[p] = A[p], A[r]
+        for i in range(rows):
+            if i != r and A[i][c] != 0:
+                f = A[i][c] / A[r][c]
+                A[i] = [A[i][k] - f * A[r][k] for k in range(cols)]
+        r += 1
+    return r
+
+def classify(A, b):
+    n = len(A[0])
+    aug = [row + [bi] for row, bi in zip(A, b)]
+    rA, rAb = rank(A), rank(aug)
+    if rA != rAb:
+        result = "no solution"
+    elif rA == n:
+        result = "unique solution"
+    else:
+        result = "infinitely many solutions"
+    print("rank A =", rA, "rank [A|b] =", rAb, "unknowns =", n, "means", result)
+
+classify([[2, 1], [1, 3]], [3, 4])
+classify([[1, 1], [1, 1]], [1, 2])
+classify([[1, 1], [2, 2]], [1, 2])
+classify([[1, 1, 1], [2, -1, 1], [1, 2, -1]], [6, 3, 2])</code></pre>
+  <pre class="output">rank A = 2 rank [A|b] = 2 unknowns = 2 means unique solution
+rank A = 1 rank [A|b] = 2 unknowns = 2 means no solution
+rank A = 1 rank [A|b] = 1 unknowns = 2 means infinitely many solutions
+rank A = 3 rank [A|b] = 3 unknowns = 3 means unique solution</pre>
+  <details class="check"><summary>A system has 4 unknowns and a consistent coefficient matrix of rank 3. How many free variables are there?</summary><div class="ans"><p>4 - 3 = 1, so there are infinitely many solutions forming a line.</p></div></details>
+  <details class="check"><summary>Does x + y = 1 and x - y = 1 have one, none or infinitely many solutions?</summary><div class="ans"><p>Rank 2 for both A and the augmented matrix, with n = 2. So one solution: x = 1, y = 0.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Homogeneous systems">
+  <h2>Homogeneous systems: trivial and non-trivial solutions</h2>
+  <p>A homogeneous system Ax = 0 is always consistent, because x = 0 always works. That is the <strong>trivial solution</strong>. The real question is whether a <strong>non-trivial solution</strong> exists.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Ax = 0 has a non-trivial solution exactly when rank(A) is less than n. For a square matrix, this happens exactly when det(A) = 0.</p></div>
+  <p>Take x + 2y - z = 0 and 2x + 4y - 2z = 0. The second equation is twice the first, so the rank is 1, and there are 3 - 1 = 2 free variables. Let y = s and z = t. Then x = -2s + t, and every solution is (-2s + t, s, t). For example, (-2, 1, 0) and (1, 0, 1) both check out: -2 + 2 - 0 = 0 and 1 + 0 - 1 = 0.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The test is the rank, not the shape. A 2 x 3 matrix with rank 2 has non-trivial solutions, but a 3 x 3 matrix with rank 3 does not.</p></div>
+  <details class="check"><summary>Does Ax = 0 have a non-trivial solution for [[1, 2, 3], [0, 1, 4], [5, 6, 0]]?</summary><div class="ans"><p>No. Its determinant is 1, which is not 0, so only x = 0 works.</p></div></details>
+  <details class="check"><summary>What is the solution set of Ax = 0 for the 2 x 2 zero matrix?</summary><div class="ans"><p>Every vector in R<sup>2</sup>, since 0 x = 0. The rank is 0 and the nullity is 2.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Cramer's rule">
+  <h2>Cramer's rule for square systems</h2>
+  <p>For a square system Ax = b with det(A) not 0, each unknown is a ratio of determinants. To find x<sub>i</sub>, replace column i of A by b, call the result A<sub>i</sub>, and compute:</p>
+  <div class="formula">x<sub>i</sub> = det(A<sub>i</sub>) / det(A)</div>
+  <p>For 2x + y = 3 and x + 3y = 4: det(A) = 6 - 1 = 5. Replacing column 1 gives [[3, 1], [4, 3]] with det 9 - 4 = 5, so x = 5/5 = 1. Replacing column 2 gives [[2, 3], [1, 4]] with det 8 - 3 = 5, so y = 1. The Python block repeats this with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def det2(M):
+    return M[0][0] * M[1][1] - M[0][1] * M[1][0]
+
+A = [[2, 1], [1, 3]]
+b = [3, 4]
+d = det2(A)
+x = F(det2([[b[0], A[0][1]], [b[1], A[1][1]]]), d)
+y = F(det2([[A[0][0], b[0]], [A[1][0], b[1]]]), d)
+print("det A =", d)
+print("x =", x)
+print("y =", y)
+print("check:", 2 * x + y, x + 3 * y)</code></pre>
+  <pre class="output">det A = 5
+x = 1
+y = 1
+check: 3 4</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Cramer's rule needs det(A) not 0. If det(A) = 0 you cannot divide, and the system is either inconsistent or has infinitely many solutions.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>Cramer's rule is quick for 2 x 2 and 3 x 3 systems. For bigger systems, use Gaussian elimination, which we meet on the next page.</p></div>
+  <details class="check"><summary>Use Cramer's rule to find x for 3x + 2y = 12 and x + 4y = 14.</summary><div class="ans"><p>det(A) = 12 - 2 = 10. Replacing column 1 gives det [[12, 2], [14, 4]] = 48 - 28 = 20. So x = 2, and y = 3.</p></div></details>
+  <details class="check"><summary>Why can you not use Cramer's rule for x + 2y = 3 and 2x + 4y = 6?</summary><div class="ans"><p>The determinant is 0, so you cannot divide. The system has infinitely many solutions.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>Ax = b</td><td>System in matrix form</td><td>Writing any system</td></tr>
+      <tr><td>b = x<sub>1</sub>c<sub>1</sub> + ... + x<sub>n</sub>c<sub>n</sub></td><td>b is a mix of the columns of A</td><td>Column picture</td></tr>
+      <tr><td>rank(A) = rank([A | b])</td><td>Consistent (at least one solution)</td><td>Consistency test</td></tr>
+      <tr><td>rank(A) = rank([A | b]) = n</td><td>Unique solution</td><td>Unique test</td></tr>
+      <tr><td>rank(A) = rank([A | b]) less than n</td><td>Infinitely many, with n - rank free variables</td><td>Counting free variables</td></tr>
+      <tr><td>rank(A) less than rank([A | b])</td><td>No solution</td><td>Inconsistency test</td></tr>
+      <tr><td>Ax = 0 is always consistent</td><td>x = 0 always works</td><td>Homogeneous systems</td></tr>
+      <tr><td>x<sub>i</sub> = det(A<sub>i</sub>) / det(A)</td><td>Cramer's rule, when det(A) is not 0</td><td>Square systems</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Problems 1, 2, 3, 4, 9 and 10 are original GATE-style problems. Problems 5, 6, 7 and 8 are real past questions from GATE papers, rewritten in this format and marked as verified PYQs.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Solve a small system</h3>
+    <div class="statement"><p>Solve 2x + y = 7 and x - y = 2. Give x and y.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Both unknowns.</li>
+      <li><strong>Which idea applies.</strong> Add the equations to remove y.</li>
+      <li><strong>Work it out.</strong> 3x = 9, so x = 3. Then 3 - y = 2, so y = 1.</li>
+      <li><strong>Check.</strong> 2(3) + 1 = 7 and 3 - 1 = 2. Both hold.</li>
+    </ol>
+    <p class="cx">Answer: x = 3 and y = 1.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about solutions (MSQ)</h3>
+    <div class="statement"><p>A is a 3 x 3 matrix. Select all true statements.</p>
+    <p>(A) If rank(A) = 3, then Ax = b has at most one solution.<br>(B) If Ax = b is inconsistent, it has no solution.<br>(C) A homogeneous system Ax = 0 is always inconsistent.<br>(D) If rank(A) = 2 and Ax = b is consistent, it has infinitely many solutions.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test each statement.</li>
+      <li><strong>Which idea applies.</strong> Nullity = 3 - rank.</li>
+      <li><strong>Work it out.</strong> (A) true, nullity 0. (B) true, by definition. (C) false, since x = 0 always works. (D) true, since nullity is 1.</li>
+      <li><strong>Check.</strong> The trap is (C).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>The value that gives infinitely many solutions (NAT)</h3>
+    <div class="statement"><p>For which value of c do x + 2y = 3 and 2x + 4y = c have infinitely many solutions? Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One value of c.</li>
+      <li><strong>Which idea applies.</strong> The second equation must be twice the first.</li>
+      <li><strong>Work it out.</strong> Twice the first is 2x + 4y = 6, so c = 6.</li>
+      <li><strong>Check.</strong> The rank is 1, which is less than n = 2, so there are infinitely many solutions.</li>
+    </ol>
+    <p class="cx">Answer: 6.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Find x by Cramer's rule (NAT)</h3>
+    <div class="statement"><p>Solve 3x + 2y = 12 and x + 4y = 14 by Cramer's rule. Find x.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of x.</li>
+      <li><strong>Which idea applies.</strong> x = det(A<sub>1</sub>) / det(A).</li>
+      <li><strong>Work it out.</strong> det(A) = 12 - 2 = 10. det(A<sub>1</sub>) = det [[12, 2], [14, 4]] = 20. So x = 2.</li>
+      <li><strong>Check.</strong> y = 3, and 3(2) + 2(3) = 12, 2 + 4(3) = 14.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>GATE CSE 2014 Set 1 Q4 (verified PYQ): number of solutions (NAT)</h3>
+    <div class="statement"><p>Consider four equations in three unknowns x, y and z: 3x + 2y = 1, 4x + 7z = 1, x + y + z = 3, and x - 2y + 7z = 0. Find the number of solutions. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> How many solutions.</li>
+      <li><strong>Which idea applies.</strong> Solve three equations, then test the fourth.</li>
+      <li><strong>Work it out.</strong> From equation 3, y = 3 - x - z. Equation 1 gives x = 2z - 5. Equation 2 gives 15z = 21, so z = 7/5, x = -11/5, y = 19/5.</li>
+      <li><strong>Check.</strong> Equation 4: -11/5 - 38/5 + 49/5 = 0. All four hold, so the solution is unique.</li>
+    </ol>
+    <p class="cx">Answer: 1. This is a verified PYQ from GATE CSE 2014 Set 1, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>GATE CSE 2008 Q3 (verified PYQ): values of a parameter for a unique solution</h3>
+    <div class="statement"><p>Consider x<sub>1</sub> + x<sub>2</sub> + 2x<sub>3</sub> = 1, x<sub>1</sub> + 2x<sub>2</sub> + 3x<sub>3</sub> = 2, and x<sub>1</sub> + 4x<sub>2</sub> + αx<sub>3</sub> = 4. For what values of α does the system have a unique solution?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The α giving exactly one solution.</li>
+      <li><strong>Which idea applies.</strong> Unique needs three pivots, so det(A) is not 0.</li>
+      <li><strong>Work it out.</strong> Row 2 minus row 1: (0, 1, 1 | 1). Row 3 minus row 1: (0, 3, α - 2 | 3). Row 3 minus 3 times row 2: (0, 0, α - 5 | 0). So α is not 5.</li>
+      <li><strong>Check.</strong> If α = 5, the last row is zero and the system has infinitely many solutions, never exactly one.</li>
+    </ol>
+    <p class="cx">Answer: every real α except α = 5. This is a verified PYQ from GATE CSE 2008 Q3, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>GATE CSE 2015 Set 3 Q42 (verified PYQ): when does a homogeneous system have a non-trivial solution?</h3>
+    <div class="statement"><p>Let px + qy + rz = 0, qx + ry + pz = 0, and rx + py + qz = 0, with p, q and r constants. If the system has a non-trivial solution, which condition holds?<br>(A) p - q + r = 0 or p = q = -r<br>(B) p + q - r = 0 or p = -q = r<br>(C) p + q + r = 0 or p = q = r<br>(D) p - q + r = 0 or p = -q = -r</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The condition on p, q and r.</li>
+      <li><strong>Which idea applies.</strong> A square homogeneous system has a non-trivial solution exactly when det = 0.</li>
+      <li><strong>Work it out.</strong> The determinant is 3pqr - (p<sup>3</sup> + q<sup>3</sup> + r<sup>3</sup>). Using p<sup>3</sup> + q<sup>3</sup> + r<sup>3</sup> - 3pqr = (p + q + r)(p<sup>2</sup> + q<sup>2</sup> + r<sup>2</sup> - pq - qr - rp), and the second factor is zero only when p = q = r, the determinant is zero when p + q + r = 0 or p = q = r.</li>
+      <li><strong>Check.</strong> With p = q = r = 1, the equations are x + y + z = 0, which has non-zero solutions. Option (C) fits and (A) fails.</li>
+    </ol>
+    <p class="cx">Answer: (C). This is a verified PYQ from GATE CSE 2015 Set 3, Q42, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>GATE CSE 2025 (verified PYQ): classify solutions by k</h3>
+    <div class="statement"><p>For the system x + ky = 1 and kx + y = -1, where k is a real constant, classify the solutions for each value of k.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of solutions for each k.</li>
+      <li><strong>Which idea applies.</strong> det = 1 - k<sup>2</sup>. If it is not 0, the solution is unique. If it is 0, check the right-hand sides.</li>
+      <li><strong>Work it out.</strong> The determinant is 0 when k = 1 or k = -1. For k = 1: x + y = 1 and x + y = -1 contradict each other, so no solution. For k = -1: x - y = 1 and -x + y = -1 describe the same line, so infinitely many.</li>
+      <li><strong>Check.</strong> For k = 2, det = -3, not 0, so the solution is unique, as the formula says.</li>
+    </ol>
+    <p class="cx">Answer: unique for k not equal to 1 or -1; no solution for k = 1; infinitely many for k = -1. This is a verified PYQ from GATE CSE 2025, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Non-trivial solutions with a parameter (MSQ)</h3>
+    <div class="statement"><p>Consider kx + y + z = 0, x + ky + z = 0, and x + y + kz = 0, with k real. For which values of k does the system have a non-trivial solution?<br>(A) k = 1<br>(B) k = -2<br>(C) k = 0<br>(D) k = 2</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The k giving a non-zero solution.</li>
+      <li><strong>Which idea applies.</strong> Square and homogeneous, so the determinant must be 0.</li>
+      <li><strong>Work it out.</strong> The determinant of [[k, 1, 1], [1, k, 1], [1, 1, k]] is (k - 1)<sup>2</sup>(k + 2), which is 0 at k = 1 and k = -2. The Python block checks each option.</li>
+      <li><strong>Check.</strong> For k = -2, the vector (1, 1, 1) gives -2 + 1 + 1 = 0 in each equation.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def det3(M):
+    return (M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1])
+            - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0])
+            + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]))
+
+for k in [1, -2, 0, 2]:
+    M = [[k, 1, 1], [1, k, 1], [1, 1, k]]
+    print("k =", k, "det =", det3(M))</code></pre>
+    <pre class="output">k = 1 det = 0
+k = -2 det = 0
+k = 0 det = 2
+k = 2 det = 4</pre>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>The solution set of a consistent wide system (MSQ)</h3>
+    <div class="statement"><p>A is a 4 x 5 matrix of rank 3, and Ax = b is consistent. Select all true statements.</p>
+    <p>(A) The null space of A has dimension 2<br>(B) The solution set of Ax = b is a shifted copy of a 2-dimensional subspace<br>(C) Ax = b has a unique solution<br>(D) Ax = b has a solution for every b in the column space of A</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Facts that follow from rank 3 and 5 columns.</li>
+      <li><strong>Which idea applies.</strong> Rank-nullity, and the fact that solutions are one particular solution plus the null space.</li>
+      <li><strong>Work it out.</strong> (A) true, nullity 5 - 3 = 2. (B) true. (C) false, since nullity 2 gives many solutions. (D) true, which is what being in the column space means.</li>
+      <li><strong>Check.</strong> Rank 3 is less than 4 rows, so some b cannot be reached, but (D) only concerns b in the column space.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Consistency with a parameter (MCQ, 2 marks)</h3>
+    <div class="statement"><p>Consider x + y + z = 3, x + 2y + 3z = 6, x + 4y + az = b. For which (a, b) does the system have infinitely many solutions? (A) a = 7, b = 12 (B) a = 7, b ≠ 12 (C) a ≠ 7 (D) a = 6, b = 12</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The pair (a, b) that gives a rank-deficient but consistent system.</li>
+      <li><strong>Which idea applies.</strong> Row reduce the augmented matrix. Infinitely many solutions need rank(A) = rank([A|b]) less than 3.</li>
+      <li><strong>Work it out.</strong> R2 − R1: (0, 1, 2 | 3). R3 − R1: (0, 3, a − 1 | b − 3). R3 − 3R2: (0, 0, a − 7 | b − 12). So a = 7 and b = 12 makes the last row zero.</li>
+      <li><strong>Check.</strong> With a = 7 and b = 12, both (1, 1, 1) and (2, −1, 2) solve all three equations, so there is more than one solution.</li>
+    </ol>
+    <p class="cx">Answer: (A).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Solutions of a homogeneous system (NAT, 1 mark)</h3>
+    <div class="statement"><p>A is a 4 × 6 real matrix whose rows are linearly independent. What is the dimension of the solution space of Ax = 0?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The nullity of A.</li>
+      <li><strong>Which idea applies.</strong> Independent rows means rank(A) = 4. Rank-nullity: nullity = 6 − rank.</li>
+      <li><strong>Work it out.</strong> nullity = 6 − 4 = 2.</li>
+      <li><strong>Check.</strong> A wide matrix always has a nontrivial null space, so the answer must be at least 6 − 4.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Least squares for an inconsistent system (NAT, 2 marks)</h3>
+    <div class="statement"><p>The system x = 1, x = 2, x = 6 has no exact solution. Using the normal equations AᵀAx = Aᵀb, find the least squares value of x. Then find the minimum value of ‖Ax − b‖².</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The least squares x and the squared residual.</li>
+      <li><strong>Which idea applies.</strong> For a single unknown with A = (1, 1, 1)ᵀ, the normal equation gives the mean of b.</li>
+      <li><strong>Work it out.</strong> AᵀA = 3 and Aᵀb = 9, so x = 3. Residuals are −2, −1, 3, so ‖Ax − b‖² = 4 + 1 + 9 = 14.</li>
+      <li><strong>Check.</strong> The code scans x on a fine grid and confirms the minimum.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>best = min((sum((x / 100 - t) ** 2 for t in (1, 2, 6)), x / 100) for x in range(0, 701))
+print("min residual^2 = %.2f at x = %.2f" % best)
+</code></pre>
+    <pre class="output">min residual^2 = 14.00 at x = 3.00</pre>
+    <p class="cx">Answer: x = 3 and the minimum ‖Ax − b‖² = 14.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>System of linear equations</dt><dd>Straight-line rules that must hold together.</dd></div>
+    <div><dt>Matrix form Ax = b</dt><dd>A holds coefficients, x the unknowns, b the right-hand sides.</dd></div>
+    <div><dt>Augmented matrix</dt><dd>A with b added as an extra column.</dd></div>
+    <div><dt>Column picture</dt><dd>Ax = b asks for the mix of the columns of A that gives b.</dd></div>
+    <div><dt>Consistent</dt><dd>At least one solution exists.</dd></div>
+    <div><dt>Inconsistent</dt><dd>No solution exists.</dd></div>
+    <div><dt>Unique solution</dt><dd>Consistent, with rank equal to the number of unknowns.</dd></div>
+    <div><dt>Infinitely many solutions</dt><dd>Consistent, with rank less than the number of unknowns.</dd></div>
+    <div><dt>Rank test</dt><dd>Consistent exactly when rank(A) = rank([A | b]).</dd></div>
+    <div><dt>Free variable</dt><dd>An unknown you may choose. The number of free variables is n minus the rank.</dd></div>
+    <div><dt>Homogeneous system</dt><dd>Ax = 0, always consistent.</dd></div>
+    <div><dt>Trivial solution</dt><dd>x = 0, always a solution of a homogeneous system.</dd></div>
+    <div><dt>Non-trivial solution</dt><dd>A non-zero solution of Ax = 0, which exists when rank is less than n.</dd></div>
+    <div><dt>Cramer's rule</dt><dd>x<sub>i</sub> = det(A<sub>i</sub>) / det(A), when det(A) is not 0.</dd></div>
+      <div><dt>Parallel lines</dt><dd>Lines with the same direction that never meet, giving no solution.</dd></div>
+    <div><dt>Row reduction test</dt><dd>Reduce [A | b] and compare its pivots with the number of unknowns.</dd></div>
+</dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Write a system as Ax = b, and read it as "b is a mix of the columns of A".</li>
+    <li>Consistent means rank(A) = rank([A | b]).</li>
+    <li>Unique means rank equals the number of unknowns. Fewer means infinitely many, if consistent.</li>
+    <li>Homogeneous systems always have the trivial solution x = 0.</li>
+    <li>A square homogeneous system has a non-trivial solution exactly when the determinant is 0.</li>
+    <li>Cramer's rule is quick for 2 x 2 and 3 x 3 systems, but needs det(A) not 0.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 5?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 5 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-004.html"><small>Previous, topic 4</small>Determinant, rank and nullity</a><a class="next" href="gate-006.html"><small>Next, topic 6</small>Gaussian elimination</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

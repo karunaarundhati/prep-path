@@ -1,0 +1,502 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 59: Solutions of heat, wave & Laplace's equations</title><meta name="description" content="Some physical quantities depend on both position and time, such as the temperature along a rod or the shape of a vibrating string. Their rules are partial differential equations. This page teaches the three standard equations (heat, wave and Laplace), the separation of variables method that solves them, and how boundary and initial conditions pick one answer."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g59" data-key="g59" data-noun="topic" data-num="59" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Solutions of heat, wave &amp; Laplace&#x27;s equations</h1>
+<p class="lede">Some physical quantities depend on both position and time, such as the temperature along a rod or the shape of a vibrating string. Their rules are partial differential equations. This page teaches the three standard equations (heat, wave and Laplace), the separation of variables method that solves them, and how boundary and initial conditions pick one answer.</p>
+<div class="station"><b>59</b><span>Unit 4 · Differential equations · Paper RA · Deep dive</span></div>
+<ul class="topics"><li>Partial derivatives and the three standard equations</li><li>Heat equation and separation of variables</li><li>Wave equation and standing waves</li><li>Laplace&#x27;s equation and steady states</li><li>Boundary and initial conditions</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a long metal rod. One end is in a flame and the other end is in ice. Over time, heat travels along the rod, and the temperature at each point changes. The temperature depends on two things: where you are along the rod, and how much time has passed. A function that depends on more than one variable is written u(x, t).</p>
+  <p>Physics gives a rule for how such a temperature changes. This rule is a <strong>partial differential equation</strong>, usually shortened to PDE. The word "partial" means that the equation has derivatives with respect to one variable at a time, while the other variables are held still. A PDE is like an ordinary differential equation with more than one independent variable.</p>
+  <p>Three standard PDEs appear again and again in engineering:</p>
+  <ul>
+    <li><strong>Heat equation.</strong> It describes how heat spreads out, like ink spreading in still water.</li>
+    <li><strong>Wave equation.</strong> It describes how a disturbance travels, like a plucked guitar string.</li>
+    <li><strong>Laplace's equation.</strong> It describes a steady state, where nothing is changing with time anymore, like the final temperature of a plate that has settled down.</li>
+  </ul>
+  <p>To solve these equations, the most common method is <strong>separation of variables</strong>. The idea is to guess that the answer splits into a product of a function of x and a function of t. This turns one hard PDE into two easier ordinary differential equations, which you already know how to solve from the previous topics.</p>
+  <p><strong>Why this matters for GATE.</strong> The Robotics and Automation paper expects you to recognise these three equations, know their standard forms, understand what each one means physically, and apply simple boundary and initial conditions. Questions are usually conceptual or use a short standard solution. You do not need advanced theory, but you do need to read each equation correctly.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now. Return to it when a symbol or word feels unfamiliar.</p>
+  <dl>
+    <div><dt>Partial derivative</dt><dd>A derivative of a function with several variables, taken with respect to one variable while the others are held constant. Written as ∂u/∂x or u<sub>x</sub>.</dd></div>
+    <div><dt>Subscript notation</dt><dd>A short way to write derivatives. u<sub>x</sub> means ∂u/∂x, u<sub>xx</sub> means ∂<sup>2</sup>u/∂x<sup>2</sup>, and u<sub>t</sub> means ∂u/∂t.</dd></div>
+    <div><dt>Partial differential equation (PDE)</dt><dd>An equation that contains partial derivatives of an unknown function of two or more variables.</dd></div>
+    <div><dt>Heat (diffusion) equation</dt><dd>u<sub>t</sub> = c<sup>2</sup>u<sub>xx</sub>. It describes how temperature spreads over time.</dd></div>
+    <div><dt>Wave equation</dt><dd>u<sub>tt</sub> = c<sup>2</sup>u<sub>xx</sub>. It describes how a disturbance travels with speed c.</dd></div>
+    <div><dt>Laplace's equation</dt><dd>u<sub>xx</sub> + u<sub>yy</sub> = 0. It describes a steady state with no change in time.</dd></div>
+    <div><dt>Harmonic function</dt><dd>A function that satisfies Laplace's equation.</dd></div>
+    <div><dt>Separation of variables</dt><dd>A method that assumes u(x, t) = X(x)T(t), a product of a function of x and a function of t.</dd></div>
+    <div><dt>Eigenvalue and eigenfunction</dt><dd>In this topic, an eigenvalue λ is a special constant for which a boundary problem has a non-zero solution. The matching solution is the eigenfunction. Example: sin(nπx/L) for λ = (nπ/L)<sup>2</sup>.</dd></div>
+    <div><dt>Mode</dt><dd>One of the simple patterns a system can vibrate or decay in. Mode n has n half-waves along the length.</dd></div>
+    <div><dt>Boundary condition</dt><dd>A rule for u at the edge of the region, such as u(0, t) = 0. It says what happens at the ends.</dd></div>
+    <div><dt>Initial condition</dt><dd>A rule for u at the starting time, such as u(x, 0) = f(x). It says what the system looks like when you start.</dd></div>
+    <div><dt>Steady state</dt><dd>A situation where the solution does not change with time. Then u<sub>t</sub> = 0.</dd></div>
+    <div><dt>Standing wave</dt><dd>A wave pattern that stays in the same place and only goes up and down in height. Its nodes are the points that never move.</dd></div>
+    <div><dt>Node</dt><dd>A point on a vibrating string that stays at rest all the time.</dd></div>
+    <div><dt>Diffusivity c<sup>2</sup></dt><dd>The constant in the heat equation. A larger value means heat spreads faster.</dd></div>
+    <div><dt>Wave speed c</dt><dd>The constant in the wave equation. It is the speed at which disturbances travel.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The three standard equations">
+  <h2>Step 1: The three standard equations</h2>
+  <h3>Reading the derivatives</h3>
+  <p>Let us start with the notation. Suppose u(x, t) gives the temperature at position x and time t. There are four derivatives we need:</p>
+  <ul>
+    <li><strong>u<sub>t</sub></strong> is the rate of change over time at a fixed position. It tells you whether a point is getting hotter or colder.</li>
+    <li><strong>u<sub>x</sub></strong> is the slope along the rod at a fixed time. It tells you which way heat is flowing.</li>
+    <li><strong>u<sub>xx</sub></strong> is the curvature along the rod. It tells you whether a point is hotter or colder than its neighbours on average.</li>
+    <li><strong>u<sub>tt</sub></strong> is the rate at which the rate of change itself is changing. It is used for vibration.</li>
+  </ul>
+  
+  <h3>The heat equation</h3>
+  <div class="formula">u<sub>t</sub> = c<sup>2</sup> u<sub>xx</sub></div>
+  <p>In words: the rate of change of temperature over time is proportional to the curvature of temperature in space. Heat flows from hot to cold, and the rate is set by c<sup>2</sup>, the diffusivity. The equation has one time derivative and two space derivatives. This is why it has a special shape. It is called <em>parabolic</em>, but you do not need that name for GATE.</p>
+
+  <h3>The wave equation</h3>
+  <div class="formula">u<sub>tt</sub> = c<sup>2</sup> u<sub>xx</sub></div>
+  <p>In words: the acceleration of a point is proportional to the curvature of the string. A string that bends sharply is pulled back quickly, and this makes it vibrate. Here c is the wave speed. The equation has two time derivatives, which is why it describes motion that keeps going rather than dying out.</p>
+
+  <h3>Laplace's equation</h3>
+  <div class="formula">u<sub>xx</sub> + u<sub>yy</sub> = 0</div>
+  <p>In words: the curvature in x plus the curvature in y is zero. There is no time variable at all. This is the steady state. Once the heat has settled, the temperature at each point is the average tendency of its neighbours, so the curvatures balance.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Heat has one time derivative, so it forgets its past and dies out. The wave equation has two time derivatives, so vibration keeps going. Laplace's equation has no time, so it describes a settled state.</p></div>
+
+  <details class="check"><summary>Question: Which of the three equations has no time variable?</summary><div class="ans"><p>Laplace's equation, u<sub>xx</sub> + u<sub>yy</sub> = 0. It describes a steady state where nothing changes with time.</p></div></details>
+  <details class="check"><summary>Question: The equation u<sub>tt</sub> = 25u<sub>xx</sub> is a wave equation. What is its wave speed c?</summary><div class="ans"><p>Compare with u<sub>tt</sub> = c<sup>2</sup>u<sub>xx</sub>. Here c<sup>2</sup> = 25, so c = 5.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Heat equation and separation of variables">
+  <h2>Step 2: Heat equation and separation of variables</h2>
+  <h3>The problem</h3>
+  <p>Consider a rod of length L whose ends are kept at zero temperature. At the start, the temperature along the rod is given by a function f(x). We want to know how the temperature evolves. Written in full:</p>
+  <div class="formula">u<sub>t</sub> = c<sup>2</sup> u<sub>xx</sub>, for 0 &lt; x &lt; L and t &gt; 0<br>
+  boundary conditions: u(0, t) = 0 and u(L, t) = 0<br>
+  initial condition: u(x, 0) = f(x)</div>
+  <p>The boundary conditions say the ends stay cold. The initial condition says what the rod looks like at the beginning.</p>
+
+  <h3>The method, one step at a time</h3>
+  <ol>
+    <li><strong>Assume a product.</strong> Let u(x, t) = X(x)T(t). This means the shape in x and the decay in t are separate.</li>
+    <li><strong>Substitute.</strong> u<sub>t</sub> = XT' and u<sub>xx</sub> = X''T. So XT' = c<sup>2</sup>X''T.</li>
+    <li><strong>Separate.</strong> Divide both sides by c<sup>2</sup>XT to get T'/(c<sup>2</sup>T) = X''/X. The left side depends only on t, and the right side only on x. They can only be equal if both equal a constant. Call this constant -λ.</li>
+    <li><strong>Solve the x-part.</strong> X'' + λX = 0 with X(0) = 0 and X(L) = 0. The solutions that are not all zero exist only for special values λ<sub>n</sub> = (nπ/L)<sup>2</sup>, with n = 1, 2, 3, .... The matching shapes are X<sub>n</sub>(x) = sin(nπx/L).</li>
+    <li><strong>Solve the t-part.</strong> T' = -c<sup>2</sup>λ<sub>n</sub>T. This gives T<sub>n</sub>(t) = e<sup>-c<sup>2</sup>λ<sub>n</sub>t</sup>.</li>
+    <li><strong>Add the modes.</strong> Each mode works on its own, and the sum of solutions is also a solution. So u(x, t) = Σ b<sub>n</sub> sin(nπx/L) e<sup>-c<sup>2</sup>(nπ/L)<sup>2</sup>t</sup>.</li>
+    <li><strong>Use the initial condition.</strong> At t = 0, u(x, 0) = Σ b<sub>n</sub> sin(nπx/L) = f(x). This is a Fourier sine series, and the coefficients are b<sub>n</sub> = (2/L) ∫<sub>0</sub><sup>L</sup> f(x) sin(nπx/L) dx.</li>
+  </ol>
+
+  <div class="note tip"><p><span class="t">Tip</span>In step 4, the equation X'' + λX = 0 is the same kind you solved in the previous topic. Its boundary conditions force the special values of λ. The number n is the mode number.</p></div>
+
+  <h3>Worked example 1: the initial shape is one mode</h3>
+  <p>Solve the heat problem with L = 1, c = 1, and f(x) = sin(πx).</p>
+  <ol>
+    <li><strong>Modes.</strong> With L = 1, the modes are sin(nπx) with exponents -(nπ)<sup>2</sup>t.</li>
+    <li><strong>Coefficients.</strong> The initial shape sin(πx) is exactly mode n = 1. So b<sub>1</sub> = 1, and all other b<sub>n</sub> = 0.</li>
+    <li><strong>Solution.</strong> u(x, t) = sin(πx) e<sup>-π<sup>2</sup>t</sup>.</li>
+    <li><strong>Check.</strong> At t = 0, u = sin(πx), which matches. At x = 0 and x = 1, sin is zero, so the ends stay cold. The shape keeps its form and shrinks in height over time.</li>
+  </ol>
+
+  <h3>Worked example 2: a shape that needs many modes</h3>
+  <p>Take L = 1, c = 1, and f(x) = x(1 - x). This is a parabola that is zero at both ends. Its sine coefficients are found by integration. Using the known result for this f, the coefficients are b<sub>n</sub> = 8/(n<sup>3</sup>π<sup>3</sup>) for odd n, and b<sub>n</sub> = 0 for even n. A numerical check follows.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def b(n, N=100000):
+    # b_n = 2 * integral from 0 to 1 of x(1 - x) sin(n pi x) dx, midpoint rule
+    total = 0.0
+    h = 1.0 / N
+    for k in range(N):
+        x = (k + 0.5) * h
+        total += x * (1 - x) * math.sin(n * math.pi * x)
+    return 2 * total * h
+
+b1 = b(1)
+b2 = b(2)
+print("b1 =", round(b1, 4))
+print("b1 matches 8/pi^3:", abs(b1 - 8 / math.pi**3) &lt; 1e-6)
+print("b2 is about zero:", abs(b2) &lt; 1e-6)</code></pre>
+  <pre class="output">b1 = 0.258
+b1 matches 8/pi^3: True
+b2 is about zero: True</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The exponent includes the square of the mode factor. For mode n, the decay exponent is -c<sup>2</sup>(nπ/L)<sup>2</sup>t, not -c<sup>2</sup>nπt/L. Forgetting the square makes the high modes decay too slowly.</p></div>
+
+  
+  <details class="check"><summary>Question: For the heat equation with u(0, t) = u(L, t) = 0, what happens to u as t tends to infinity?</summary><div class="ans"><p>Every exponential factor e<sup>-c<sup>2</sup>λ<sub>n</sub>t</sup> goes to zero, because λ<sub>n</sub> is positive. So u tends to zero, and the rod cools to the boundary temperature.</p></div></details>
+  <details class="check"><summary>Question: If the initial shape is 2 sin(3πx), which mode is present with what coefficient?</summary><div class="ans"><p>Only mode n = 3, with coefficient b<sub>3</sub> = 2. All other coefficients are zero. The solution is 2 sin(3πx) e<sup>-9π<sup>2</sup>c<sup>2</sup>t/L<sup>2</sup></sup>, with L and c in their place.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Wave equation and standing waves">
+  <h2>Step 3: Wave equation and standing waves</h2>
+  <h3>The problem</h3>
+  <p>Take a string of length L, fixed at both ends, like a guitar string between the bridge and the nut. Its displacement is u(x, t), the height of the string at position x and time t. The wave equation with fixed ends is:</p>
+  <div class="formula">u<sub>tt</sub> = c<sup>2</sup> u<sub>xx</sub>, for 0 &lt; x &lt; L and t &gt; 0<br>
+  boundary conditions: u(0, t) = 0 and u(L, t) = 0<br>
+  initial conditions: u(x, 0) = f(x) and u<sub>t</sub>(x, 0) = g(x)</div>
+  <p>Notice that the wave equation needs <strong>two</strong> initial conditions. The string needs a starting shape f(x), and it also needs a starting velocity g(x). The heat equation needed only one, because heat has only one time derivative.</p>
+
+  <h3>The method</h3>
+  <ol>
+    <li><strong>Assume a product.</strong> u = X(x)T(t). Then u<sub>tt</sub> = XT'' and u<sub>xx</sub> = X''T.</li>
+    <li><strong>Separate.</strong> XT'' = c<sup>2</sup>X''T, so T''/(c<sup>2</sup>T) = X''/X = -λ.</li>
+    <li><strong>The x-part is the same as for heat.</strong> X'' + λX = 0 with X(0) = X(L) = 0 gives λ<sub>n</sub> = (nπ/L)<sup>2</sup> and X<sub>n</sub> = sin(nπx/L).</li>
+    <li><strong>The t-part oscillates.</strong> T'' + c<sup>2</sup>λ<sub>n</sub>T = 0. Write ω<sub>n</sub> = nπc/L. Then T<sub>n</sub>(t) = A<sub>n</sub> cos(ω<sub>n</sub>t) + B<sub>n</sub> sin(ω<sub>n</sub>t).</li>
+    <li><strong>Add the modes.</strong> u(x, t) = Σ sin(nπx/L) [A<sub>n</sub> cos(ω<sub>n</sub>t) + B<sub>n</sub> sin(ω<sub>n</sub>t)].</li>
+    <li><strong>Use the initial conditions.</strong> Setting t = 0 gives A<sub>n</sub> as the sine coefficients of f. Differentiating in t and setting t = 0 gives B<sub>n</sub>ω<sub>n</sub> as the sine coefficients of g.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>Heat modes decay, because the t-part is an exponential with a negative exponent. Wave modes keep oscillating, because the t-part is a cosine and sine with frequency ω<sub>n</sub>. Each mode vibrates without losing energy in this simple model.</p></div>
+
+  <h3>Worked example 3: a plucked string</h3>
+  <p>Solve the wave problem with L = 1, c = 1, u(x, 0) = sin(πx), and u<sub>t</sub>(x, 0) = 0. The string starts in the shape of mode 1 and is released from rest.</p>
+  <ol>
+    <li><strong>Modes.</strong> With L = 1 and c = 1, ω<sub>n</sub> = nπ.</li>
+    <li><strong>Initial shape.</strong> sin(πx) is mode 1, so A<sub>1</sub> = 1 and all other A<sub>n</sub> = 0.</li>
+    <li><strong>Initial velocity.</strong> The velocity is zero, so every B<sub>n</sub> = 0.</li>
+    <li><strong>Solution.</strong> u(x, t) = sin(πx) cos(πt).</li>
+    <li><strong>Check.</strong> u<sub>tt</sub> = -π<sup>2</sup> sin(πx) cos(πt), and c<sup>2</sup>u<sub>xx</sub> = -π<sup>2</sup> sin(πx) cos(πt). They match. At t = 1, u = -sin(πx), so the string is flipped upside down. This is the half-period of the motion.</li>
+  </ol>
+
+  <h3>Worked example 4: a string set moving</h3>
+  <p>Solve the wave problem with L = 1, c = 1, u(x, 0) = 0, and u<sub>t</sub>(x, 0) = 3 sin(2πx).</p>
+  <ol>
+    <li><strong>Which mode.</strong> The velocity is sin(2πx), which is mode 2. So the only nonzero coefficient is B<sub>2</sub>.</li>
+    <li><strong>Frequency.</strong> ω<sub>2</sub> = 2π · c/L = 2π.</li>
+    <li><strong>Coefficient.</strong> From u<sub>t</sub>(x, 0) = B<sub>2</sub>ω<sub>2</sub> sin(2πx) = 3 sin(2πx), we get B<sub>2</sub> = 3/(2π).</li>
+    <li><strong>Solution.</strong> u(x, t) = (3/(2π)) sin(2πx) sin(2πt).</li>
+    <li><strong>Check.</strong> At t = 0, u = 0, as required. Differentiating in t gives u<sub>t</sub> = 3 sin(2πx) cos(2πt), which equals 3 sin(2πx) at t = 0.</li>
+  </ol>
+
+  <h3>Frequencies and nodes</h3>
+  <p>Each mode vibrates at frequency f<sub>n</sub> = ω<sub>n</sub>/(2π) = nc/(2L) cycles per unit time. The first mode is the fundamental, and higher modes are its harmonics. Mode n has n - 1 nodes inside the string, which are points that never move. For mode 2, the node is at x = L/2, because sin(2π(L/2)/L) = sin(π) = 0.</p>
+  <pre class="code" data-lang="python"><code>c = 340.0
+L = 0.5
+
+for n in [1, 2, 3]:
+    print("mode", n, "frequency =", n * c / (2 * L), "Hz")</code></pre>
+  <pre class="output">mode 1 frequency = 340.0 Hz
+mode 2 frequency = 680.0 Hz
+mode 3 frequency = 1020.0 Hz</pre>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>A standing wave has nodes where the string never moves and antinodes where it moves most. Questions often ask for the number of nodes or the position of a node for a given mode. Use sin(nπx/L): its zeros inside (0, L) are the nodes.</p></div>
+
+  
+  <details class="check"><summary>Question: For a string with fixed ends, how many nodes are inside the string in mode 3?</summary><div class="ans"><p>Two. The mode sin(3πx/L) is zero at x = L/3 and x = 2L/3, inside the string. In general, mode n has n - 1 interior nodes.</p></div></details>
+  <details class="check"><summary>Question: What is the second mode's frequency if L = 2 m and c = 100 m/s?</summary><div class="ans"><p>Use f<sub>n</sub> = nc/(2L). For n = 2: f<sub>2</sub> = 2 × 100/(2 × 2) = 50 Hz.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Laplace's equation and steady states">
+  <h2>Step 4: Laplace's equation and steady states</h2>
+  <h3>What steady means</h3>
+  <p>Suppose you heat one side of a metal plate and keep the other sides at fixed temperatures. At first the temperature changes. After a long time, it stops changing. The final temperature pattern is a <strong>steady state</strong>. Because nothing changes with time, u<sub>t</sub> = 0, and the heat equation reduces to Laplace's equation:</p>
+  <div class="formula">u<sub>xx</sub> + u<sub>yy</sub> = 0</div>
+
+
+  <h3>Checking that a function is harmonic</h3>
+  <p>To check a candidate, compute the two second derivatives and add them. The sum must be zero for every point.</p>
+  <ul>
+    <li><strong>u = x<sup>2</sup> - y<sup>2</sup>.</strong> u<sub>xx</sub> = 2 and u<sub>yy</sub> = -2. The sum is 0. Harmonic.</li>
+    <li><strong>u = xy.</strong> u<sub>xx</sub> = 0 and u<sub>yy</sub> = 0. The sum is 0. Harmonic.</li>
+    <li><strong>u = e<sup>x</sup> cos y.</strong> u<sub>xx</sub> = e<sup>x</sup> cos y and u<sub>yy</sub> = -e<sup>x</sup> cos y. The sum is 0. Harmonic.</li>
+    <li><strong>u = x<sup>2</sup> + y<sup>2</sup>.</strong> u<sub>xx</sub> = 2 and u<sub>yy</sub> = 2. The sum is 4, not 0. Not harmonic.</li>
+  </ul>
+
+  <h3>The maximum principle, in plain words</h3>
+  <p>A steady temperature cannot have a hot spot in the middle of a plate unless the edges are hotter still. This is the <strong>maximum principle</strong>: for a harmonic function on a region, the largest and smallest values occur on the boundary. An interior point always lies between them.</p>
+  <p>Example: u = x<sup>2</sup> - y<sup>2</sup> on the square with -1 ≤ x ≤ 1 and -1 ≤ y ≤ 1. On the edges, the largest value is 1 (at x = ±1, y = 0), and the smallest is -1 (at x = 0, y = ±1). At the centre, u = 0, which lies between -1 and 1, as the principle predicts.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>Laplace's equation has no initial condition. The boundary values alone determine the steady state, and the extreme values of the answer are always found on the boundary.</p></div>
+
+  <h3>Worked example 5: a square plate with one hot edge</h3>
+  <p>Solve u<sub>xx</sub> + u<sub>yy</sub> = 0 on the unit square 0 &lt; x &lt; 1, 0 &lt; y &lt; 1, with u = 0 on the three edges x = 0, x = 1, and y = 0, and u(x, 1) = sin(πx) on the top edge.</p>
+  <ol>
+    <li><strong>Assume a product.</strong> u = X(x)Y(y). Then X''Y + XY'' = 0, so X''/X = -Y''/Y = -λ.</li>
+    <li><strong>The x-part.</strong> X'' + λX = 0 with X(0) = X(1) = 0 gives λ = π<sup>2</sup> and X = sin(πx).</li>
+    <li><strong>The y-part.</strong> Y'' = λY = π<sup>2</sup>Y, with Y(0) = 0. The solution that is zero at y = 0 is Y = sinh(πy). Here sinh is the hyperbolic sine, defined as (e<sup>z</sup> - e<sup>-z</sup>)/2.</li>
+    <li><strong>Combine and fit the top edge.</strong> u = C sin(πx) sinh(πy). At y = 1, u = C sinh(π) sin(πx). This must equal sin(πx), so C = 1/sinh(π).</li>
+    <li><strong>Answer.</strong> u(x, y) = sin(πx) sinh(πy)/sinh(π).</li>
+  </ol>
+  <p>The program below evaluates this solution at two points, and checks that the Laplacian is zero using finite differences. A finite difference replaces a derivative by a difference of nearby values.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def u(x, y):
+    return math.sin(math.pi * x) * math.sinh(math.pi * y) / math.sinh(math.pi)
+
+h = 1e-4
+
+def laplacian(f, x, y):
+    fxx = (f(x + h, y) - 2 * f(x, y) + f(x - h, y)) / h**2
+    fyy = (f(x, y + h) - 2 * f(x, y) + f(x, y - h)) / h**2
+    return fxx + fyy
+
+print("u(0.5, 0.5) =", round(u(0.5, 0.5), 4))
+print("u(0.5, 1.0) =", round(u(0.5, 1.0), 4))
+print("Laplacian is near zero:", abs(laplacian(u, 0.3, 0.6)) &lt; 1e-4)</code></pre>
+  <pre class="output">u(0.5, 0.5) = 0.1993
+u(0.5, 1.0) = 1.0
+Laplacian is near zero: True</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>For Laplace's equation with separation, the signs flip. X'' + λX = 0 gives sines, but Y'' - λY = 0 gives sinh and cosh. Students often use sin for both directions, which is wrong for the y-part.</p></div>
+
+  <details class="check"><summary>Question: Is u = x<sup>2</sup> + xy - y<sup>2</sup> harmonic?</summary><div class="ans"><p>Compute u<sub>xx</sub> = 2 and u<sub>yy</sub> = -2. The sum is 0, so yes, it is harmonic. The xy term has no second derivative contribution to Laplace's equation.</p></div></details>
+  <details class="check"><summary>Question: Where is the largest value of a harmonic function on a bounded region?</summary><div class="ans"><p>On the boundary of the region. The maximum principle says an interior point cannot be larger than the largest boundary value (unless the function is constant).</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Boundary and initial conditions">
+  <h2>Step 5: Boundary and initial conditions</h2>
+  <h3>Two common kinds of boundary condition</h3>
+  <p>The boundary conditions tell the solution what happens at the edges. There are two main kinds:</p>
+  <ul>
+    <li><strong>Dirichlet condition.</strong> The value of u is fixed on the boundary. Example: a rod end held at 0 degrees, or a string end clamped to zero height. Written u(0, t) = 0.</li>
+    <li><strong>Neumann condition.</strong> The rate of change of u across the boundary is fixed. Example: an insulated end of a rod, where no heat flows out. Written u<sub>x</sub>(0, t) = 0.</li>
+  </ul>
+  <p>For an insulated rod with both ends insulated, the sine modes are replaced by cosine modes cos(nπx/L), with n = 0, 1, 2, .... The mode n = 0 is a constant. It never decays, because its eigenvalue is zero. As t grows, the temperature of an insulated rod settles to the average of its starting temperature. This is a useful fact for conceptual questions.</p>
+
+  <h3>How many conditions do you need?</h3>
+  <p>The table below summarises what each equation needs. This helps you check whether a problem is complete.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Equation</th><th>Initial conditions</th><th>Boundary conditions</th><th>Typical meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Heat, u<sub>t</sub> = c<sup>2</sup>u<sub>xx</sub></td><td>One: u(x, 0)</td><td>Two, one at each end of the rod</td><td>Temperature spreading out</td></tr>
+      <tr><td>Wave, u<sub>tt</sub> = c<sup>2</sup>u<sub>xx</sub></td><td>Two: u(x, 0) and u<sub>t</sub>(x, 0)</td><td>Two, one at each end of the string</td><td>Vibration keeps going</td></tr>
+      <tr><td>Laplace, u<sub>xx</sub> + u<sub>yy</sub> = 0</td><td>None, there is no time</td><td>One value on every edge of the region</td><td>Steady state</td></tr>
+    </tbody>
+  </table></div>
+
+  
+  <div class="note tip"><p><span class="t">Tip</span>Before you start separating variables, write down three things: the equation, the boundary conditions, and the initial conditions. Count them. If the count does not match the table above, something is missing.</p></div>
+
+  <details class="check"><summary>Question: How many initial conditions does the wave equation need?</summary><div class="ans"><p>Two: the initial displacement u(x, 0) and the initial velocity u<sub>t</sub>(x, 0). The wave equation is second order in time, so it needs two time conditions.</p></div></details>
+    <details class="check"><summary>Question: Which of the three equations needs only one initial condition?</summary><div class="ans"><p>The heat equation, which has one time derivative. Its initial shape u(x, 0) is enough.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>u<sub>t</sub> = c<sup>2</sup>u<sub>xx</sub></td><td>Heat equation, one time derivative</td><td>Spreading of temperature or concentration</td></tr>
+      <tr><td>u<sub>tt</sub> = c<sup>2</sup>u<sub>xx</sub></td><td>Wave equation, two time derivatives</td><td>Vibrating string, travelling disturbance</td></tr>
+      <tr><td>u<sub>xx</sub> + u<sub>yy</sub> = 0</td><td>Laplace's equation</td><td>Steady state, no time</td></tr>
+      <tr><td>X'' + λX = 0, X(0) = X(L) = 0 gives λ<sub>n</sub> = (nπ/L)<sup>2</sup>, X<sub>n</sub> = sin(nπx/L)</td><td>Eigenvalues for fixed ends</td><td>Separation in x</td></tr>
+      <tr><td>u = Σ b<sub>n</sub> sin(nπx/L) e<sup>-c<sup>2</sup>(nπ/L)<sup>2</sup>t</sup></td><td>Heat solution with fixed ends</td><td>Heat problems with zero boundary values</td></tr>
+      <tr><td>b<sub>n</sub> = (2/L) ∫<sub>0</sub><sup>L</sup> f(x) sin(nπx/L) dx</td><td>Coefficients from the initial shape</td><td>Matching the initial condition</td></tr>
+      <tr><td>ω<sub>n</sub> = nπc/L, f<sub>n</sub> = nc/(2L)</td><td>Wave frequency of mode n</td><td>Vibrating string questions</td></tr>
+      <tr><td>u = Σ sin(nπx/L)[A<sub>n</sub> cos(ω<sub>n</sub>t) + B<sub>n</sub> sin(ω<sub>n</sub>t)]</td><td>Wave solution with fixed ends</td><td>Wave problems with two initial conditions</td></tr>
+      <tr><td>sinh z = (e<sup>z</sup> - e<sup>-z</sup>)/2</td><td>Hyperbolic sine</td><td>The y-part of Laplace's equation</td></tr>
+      <tr><td>Maximum principle</td><td>Extreme values of a harmonic function are on the boundary</td><td>Quick checks and conceptual questions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one on paper before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Wave speed from the equation</h3>
+    <div class="statement"><p>A string obeys u<sub>tt</sub> = 36 u<sub>xx</sub>. What is the wave speed c? (Answer type: NAT, a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The wave speed c.</li>
+      <li><strong>Which idea applies.</strong> Compare the equation with the standard wave form u<sub>tt</sub> = c<sup>2</sup>u<sub>xx</sub>.</li>
+      <li><strong>Work it out.</strong> The coefficient of u<sub>xx</sub> is c<sup>2</sup>, so c<sup>2</sup> = 36. Since speed is positive, c = 6.</li>
+      <li><strong>Check.</strong> 6 squared is 36, which matches.</li>
+    </ol>
+    <p class="cx">Answer: c = 6.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which functions are harmonic?</h3>
+    <div class="statement"><p>Select all the functions that satisfy Laplace's equation u<sub>xx</sub> + u<sub>yy</sub> = 0.</p>
+    <p>(A) x<sup>2</sup> - y<sup>2</sup><br>
+    (B) xy<br>
+    (C) x<sup>2</sup> + y<sup>2</sup><br>
+    (D) e<sup>x</sup> cos y</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which functions have second derivatives that cancel when added.</li>
+      <li><strong>Which idea applies.</strong> Compute u<sub>xx</sub> and u<sub>yy</sub> for each function, then add them.</li>
+      <li><strong>Work it out.</strong> (A) 2 + (-2) = 0. Harmonic. (B) 0 + 0 = 0. Harmonic. (C) 2 + 2 = 4. Not harmonic. (D) e<sup>x</sup> cos y + (-e<sup>x</sup> cos y) = 0. Harmonic.</li>
+      <li><strong>Check.</strong> Only (C) has a positive sum, which matches the idea that x<sup>2</sup> + y<sup>2</sup> curves up in every direction.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Heat decay of a single mode</h3>
+    <div class="statement"><p>A rod of length 1 with c = 1 has u(0, t) = u(1, t) = 0 and initial shape u(x, 0) = sin(2πx). Find u(1/4, 1/10), rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The temperature at x = 1/4 and t = 1/10.</li>
+      <li><strong>Which idea applies.</strong> The initial shape is one mode, with n = 2. Its decay exponent is -c<sup>2</sup>(2π)<sup>2</sup>t = -4π<sup>2</sup>t.</li>
+      <li><strong>Work it out.</strong> The solution is u = sin(2πx) e<sup>-4π<sup>2</sup>t</sup>. At x = 1/4, sin(2π/4) = sin(π/2) = 1. At t = 1/10, the exponent is -0.4π<sup>2</sup>, which is about -3.9478. So u = e<sup>-0.4π<sup>2</sup></sup>, which is about 0.0193.</li>
+      <li><strong>Check.</strong> The program evaluates the exponential directly.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round(math.exp(-4 * math.pi**2 * 0.1), 4))</code></pre>
+    <pre class="output">0.0193</pre>
+    <p class="cx">Answer: u(1/4, 1/10) = e<sup>-0.4π<sup>2</sup></sup>, which is 0.0193 to four decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Frequency of the second mode</h3>
+    <div class="statement"><p>A string of length 0.5 m, with wave speed 340 m/s, is fixed at both ends. What is the frequency in Hz of mode n = 2? (Answer type: NAT, a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The frequency of mode 2 in hertz.</li>
+      <li><strong>Which idea applies.</strong> For fixed ends, f<sub>n</sub> = nc/(2L).</li>
+      <li><strong>Work it out.</strong> f<sub>2</sub> = 2 × 340/(2 × 0.5) = 680/1 = 680 Hz.</li>
+      <li><strong>Check.</strong> The program repeats the calculation.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print(2 * 340 / (2 * 0.5))</code></pre>
+    <pre class="output">680.0</pre>
+    <p class="cx">Answer: 680 Hz.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Two modes in one initial shape</h3>
+    <div class="statement"><p>A rod of length π with c = 1 has u(0, t) = u(π, t) = 0 and initial shape u(x, 0) = 3 sin x - 2 sin 2x. Find u(π/2, 1), rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The temperature at the middle of the rod, after time 1.</li>
+      <li><strong>Which idea applies.</strong> The initial shape is a sum of two modes, sin x (n = 1) and sin 2x (n = 2). Each mode decays with its own exponent. For length π, the mode sin(nx) has eigenvalue n<sup>2</sup>.</li>
+      <li><strong>Work it out.</strong> u = 3e<sup>-t</sup> sin x - 2e<sup>-4t</sup> sin 2x. At x = π/2, sin(π/2) = 1 and sin(π) = 0. So the second term vanishes, and u = 3e<sup>-t</sup>. At t = 1, u = 3e<sup>-1</sup>, which is about 1.1036.</li>
+      <li><strong>Check.</strong> The program evaluates 3e<sup>-1</sup>.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round(3 * math.exp(-1), 4))</code></pre>
+    <pre class="output">1.1036</pre>
+    <p class="cx">Answer: u(π/2, 1) = 3e<sup>-1</sup>, which is 1.1036 to four decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Steady temperature in a square plate</h3>
+    <div class="statement"><p>On the unit square, u satisfies Laplace's equation with u = 0 on the edges x = 0, x = 1, and y = 0, and u(x, 1) = sin(πx) on the top edge. Find u(1/2, 1/2), rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The steady temperature at the centre of the plate.</li>
+      <li><strong>Which idea applies.</strong> Separation of variables for Laplace's equation, as in Worked example 5.</li>
+      <li><strong>Work it out.</strong> The solution is u = sin(πx) sinh(πy)/sinh(π). It is zero on the three edges and equals sin(πx) on the top. At x = 1/2 and y = 1/2, sin(π/2) = 1. So u = sinh(π/2)/sinh(π). Using sinh(π/2) ≈ 2.3013 and sinh(π) ≈ 11.5487, the ratio is about 0.1993.</li>
+      <li><strong>Check.</strong> The program evaluates the ratio. A value between 0 and 1 is expected, because the top edge reaches 1 and the centre is lower.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+print(round(math.sinh(math.pi / 2) / math.sinh(math.pi), 4))</code></pre>
+    <pre class="output">0.1993</pre>
+    <p class="cx">Answer: u(1/2, 1/2) = sinh(π/2)/sinh(π), which is 0.1993 to four decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about heat and waves are true?</h3>
+    <div class="statement"><p>Select all the statements that are true.</p>
+    <p>(A) For the heat equation with u(0, t) = u(L, t) = 0, every solution tends to 0 as t tends to infinity.<br>
+    (B) For a string with fixed ends, mode n = 2 has a node at the midpoint x = L/2.<br>
+    (C) Heat diffusion can be run exactly backwards in time, just as the wave equation can.<br>
+    (D) A harmonic function on a square can have its largest value at an interior point, unless it is constant.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are correct.</li>
+      <li><strong>Which idea applies.</strong> Use the heat solution, the mode shapes of a string, and the maximum principle.</li>
+      <li><strong>Work it out.</strong> (A) Every heat mode has a decay factor e<sup>-c<sup>2</sup>λ<sub>n</sub>t</sup> with positive λ<sub>n</sub>, so every mode goes to zero. True. (B) sin(2πx/L) at x = L/2 is sin(π) = 0. True. (C) Heat spreads out and smooths away detail. Running it backwards would amplify the high modes, which decay fastest. So reversal is not possible in this exact sense. False. (D) The maximum principle says the largest value is on the boundary, unless the function is constant. False.</li>
+      <li><strong>Check.</strong> Statement (C) fails because the high modes decay fastest, so reversing them would make them grow without limit. This is a physical reason, and it matches the mode analysis.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Separation for the heat equation (NAT, 2 marks)</h3>
+    <div class="statement"><p>u<sub>t</sub> = u<sub>xx</sub> on 0 &lt; x &lt; π with u(0, t) = u(π, t) = 0 and u(x, 0) = 3 sin x + sin 2x. Find u(π/2, 1), correct to 3 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The temperature at the middle at t = 1.</li>
+      <li><strong>Which idea applies.</strong> Each mode sin nx decays as e<sup>−n²t</sup>.</li>
+      <li><strong>Work it out.</strong> u = 3e<sup>−t</sup>sin x + e<sup>−4t</sup>sin 2x. At x = π/2, sin 2x = 0, so u = 3e<sup>−1</sup> = 1.104.</li>
+      <li><strong>Check.</strong> The second mode is zero at the midpoint for every t.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+x, t = math.pi / 2, 1
+print("%.3f" % (3 * math.exp(-t) * math.sin(x) + math.exp(-4 * t) * math.sin(2 * x)))
+</code></pre>
+    <pre class="output">1.104</pre>
+    <p class="cx">Answer: about 1.104.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Wave equation with zero initial speed (NAT, 2 marks)</h3>
+    <div class="statement"><p>u<sub>tt</sub> = 4u<sub>xx</sub> on 0 &lt; x &lt; 1, fixed ends, u(x, 0) = sin(πx), u<sub>t</sub>(x, 0) = 0. Find u(1/2, 1/4).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The displacement at the middle at t = 1/4.</li>
+      <li><strong>Which idea applies.</strong> With c = 2, the mode sin(πx) oscillates as cos(2πt).</li>
+      <li><strong>Work it out.</strong> u = sin(πx)cos(2πt). At x = 1/2 and t = 1/4: 1 · cos(π/2) = 0.</li>
+      <li><strong>Check.</strong> The string passes through rest position at a quarter of its period 1.</li>
+    </ol>
+    <p class="cx">Answer: 0.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Classifying PDEs (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Classify by B² − 4AC for Au<sub>xx</sub> + Bu<sub>xy</sub> + Cu<sub>yy</sub>. Which are TRUE? (A) u<sub>xx</sub> + u<sub>yy</sub> = 0 is elliptic. (B) u<sub>t</sub> = u<sub>xx</sub> is parabolic. (C) u<sub>tt</sub> = u<sub>xx</sub> is hyperbolic. (D) u<sub>xx</sub> + 2u<sub>xy</sub> + u<sub>yy</sub> = 0 is elliptic.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The type of each equation.</li>
+      <li><strong>Which idea applies.</strong> Negative discriminant: elliptic. Zero: parabolic. Positive: hyperbolic.</li>
+      <li><strong>Work it out.</strong> (A) 0 − 4 &lt; 0. Elliptic. (B) Only one second derivative: B² − 4AC = 0. Parabolic. (C) 0 + 4 &gt; 0. Hyperbolic. (D) 4 − 4 = 0. Parabolic, not elliptic.</li>
+      <li><strong>Check.</strong> (D) factors as (∂<sub>x</sub> + ∂<sub>y</sub>)²u = 0, a repeated real direction.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Partial derivative</dt><dd>A derivative with respect to one variable while the others are held fixed.</dd></div>
+    <div><dt>Partial differential equation (PDE)</dt><dd>An equation with partial derivatives of a function of several variables.</dd></div>
+    <div><dt>Heat equation</dt><dd>u<sub>t</sub> = c<sup>2</sup>u<sub>xx</sub>. It has one time derivative and describes spreading.</dd></div>
+    <div><dt>Wave equation</dt><dd>u<sub>tt</sub> = c<sup>2</sup>u<sub>xx</sub>. It has two time derivatives and describes vibration.</dd></div>
+    <div><dt>Laplace's equation</dt><dd>u<sub>xx</sub> + u<sub>yy</sub> = 0. It describes a steady state.</dd></div>
+    <div><dt>Separation of variables</dt><dd>Assume u = X(x)T(t) (or X(x)Y(y)) to turn a PDE into two ordinary equations.</dd></div>
+    <div><dt>Eigenvalue</dt><dd>A special constant that allows a non-zero solution to a boundary problem. For fixed ends, λ<sub>n</sub> = (nπ/L)<sup>2</sup>.</dd></div>
+    <div><dt>Mode</dt><dd>One simple pattern of a system, indexed by n.</dd></div>
+    <div><dt>Fourier sine coefficient</dt><dd>b<sub>n</sub> = (2/L) ∫ f(x) sin(nπx/L) dx, used to match an initial shape.</dd></div>
+    <div><dt>Heat decay of a mode</dt><dd>Each mode decays like e<sup>-c<sup>2</sup>λ<sub>n</sub>t</sup>, so higher modes vanish first.</dd></div>
+    <div><dt>Standing wave</dt><dd>A vibration pattern with fixed nodes and a shape that oscillates in place.</dd></div>
+    <div><dt>Node</dt><dd>A point that stays still during a standing wave.</dd></div>
+    <div><dt>Wave frequency</dt><dd>f<sub>n</sub> = nc/(2L) for a string with fixed ends.</dd></div>
+    <div><dt>Harmonic function</dt><dd>A function that satisfies Laplace's equation.</dd></div>
+    <div><dt>Maximum principle</dt><dd>A harmonic function reaches its largest and smallest values on the boundary.</dd></div>
+    <div><dt>Dirichlet condition</dt><dd>A boundary condition that fixes the value of u.</dd></div>
+    <div><dt>Neumann condition</dt><dd>A boundary condition that fixes the normal derivative, such as an insulated end.</dd></div>
+    <div><dt>Steady state</dt><dd>A solution that no longer changes with time, so u<sub>t</sub> = 0.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Heat needs one initial condition. The wave equation needs two. Laplace needs none, only boundary values.</li>
+    <li>Heat modes decay, and higher modes decay fastest. Wave modes oscillate.</li>
+    <li>For fixed ends, the modes are sin(nπx/L), with eigenvalues (nπ/L)<sup>2</sup>.</li>
+    <li>For Laplace's equation, the y-part uses sinh, not sin.</li>
+    <li>Harmonic functions reach their extremes on the boundary.</li>
+    <li>Check a candidate solution by computing its second derivatives, not by guessing.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 59?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 59 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-058.html"><small>Previous, topic 58</small>Laplace Transforms</a><a class="next" href="gate-060.html"><small>Next, topic 60</small>Fourier Series</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

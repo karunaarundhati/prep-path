@@ -1,0 +1,491 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 93: Data warehouse modelling: schema types</title><meta name="description" content="A data warehouse stores years of history so that managers can ask big questions, such as which product sold best in which region. This topic explains how a warehouse differs from an ordinary database, how its tables are arranged as star, snowflake or fact constellation schemas, and the OLAP operations used to explore the data."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g93" data-key="g93" data-noun="topic" data-num="93" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Data warehouse modelling: <em>schema types</em></h1>
+<p class="lede">A data warehouse stores years of history so that managers can ask big questions, such as which product sold best in which region. This topic explains how a warehouse differs from an ordinary database, how its tables are arranged as star, snowflake or fact constellation schemas, and the OLAP operations used to explore the data.</p>
+<div class="station"><b>93</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Data warehouse versus database: OLTP and OLAP</li><li>Fact tables and dimension tables</li><li>Star, snowflake and fact constellation schemas</li><li>The multidimensional data model and the data cube</li><li>OLAP operations: roll-up, drill-down, slice, dice and pivot</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a shop with two kinds of records. The till records each sale as it happens: "one phone, Pune, paid 500". That is the daily work of the shop. The owner also wants to know, "which city bought the most phones over the last three years?" That question needs millions of old sales added together, and it should not slow down the till.</p>
+  <p>A <strong>data warehouse</strong> is a separate store built for questions like the owner's. It collects data from many operational systems, cleans it, and keeps history. A normal database is built for the till: it records and changes single transactions quickly. The two jobs need different designs.</p>
+  <p>GATE Data Science and AI (paper DA) asks conceptual questions on this topic. Typical questions ask you to:</p>
+  <ul>
+    <li>tell an OLTP system from an OLAP system,</li>
+    <li>identify a star, snowflake or fact constellation from a diagram or a description,</li>
+    <li>name the OLAP operation that changes a view in a given way, and</li>
+    <li>count rows or columns in a fact or dimension table for a small example.</li>
+  </ul>
+  <p>We will use one running example. A company sells products in several cities. Each sale is recorded with a time, a product, a location, the units sold and the dollars earned.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A data warehouse is designed for reading large amounts of history quickly. An operational database is designed for writing and changing small amounts of current data quickly.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Data warehouse</dt><dd>A subject-oriented, integrated, time-variant and non-volatile collection of data for analysis. Plain meaning: a store of history built for questions.</dd></div>
+    <div><dt>OLTP</dt><dd>Online transaction processing. Plain meaning: the everyday systems that record each transaction. Short, frequent reads and writes of current data.</dd></div>
+    <div><dt>OLAP</dt><dd>Online analytical processing. Plain meaning: systems that answer analysis questions over large history. Few writes, large reads, often summarized.</dd></div>
+    <div><dt>Fact table</dt><dd>A central table that stores the measurements of events, such as sales. Plain meaning: one row per event, with numbers to add up.</dd></div>
+    <div><dt>Dimension table</dt><dd>A table that describes the context of a fact, such as product, time or location. Plain meaning: the who, what, when and where.</dd></div>
+    <div><dt>Measure</dt><dd>A numeric value stored in a fact table, such as units sold or dollars. Plain meaning: a number you add up or average.</dd></div>
+    <div><dt>Dimension attribute</dt><dd>A column of a dimension table, such as city or category.</dd></div>
+    <div><dt>Surrogate key</dt><dd>An artificial key, usually an integer, used as the primary key of a dimension table. Plain meaning: a simple id made for the warehouse.</dd></div>
+    <div><dt>Star schema</dt><dd>One fact table joined directly to several dimension tables, each stored in one flat table. Plain meaning: a star shape with the fact table in the middle.</dd></div>
+    <div><dt>Snowflake schema</dt><dd>A star schema where dimension tables are normalized into several linked tables. Plain meaning: the star's points split into smaller branches.</dd></div>
+    <div><dt>Fact constellation</dt><dd>A schema with more than one fact table that shares some dimension tables. Plain meaning: several stars that share some points.</dd></div>
+    <div><dt>Data cube</dt><dd>A multidimensional view of measures indexed by dimension values. Plain meaning: a block of numbers you can slice in several directions.</dd></div>
+    <div><dt>Concept hierarchy</dt><dd>An ordering of attribute values from detailed to general, such as city, state, country.</dd></div>
+    <div><dt>Roll-up</dt><dd>Moving up a concept hierarchy, or removing a dimension, to see coarser totals.</dd></div>
+    <div><dt>Drill-down</dt><dd>Moving down a concept hierarchy to see finer detail. The opposite of roll-up.</dd></div>
+    <div><dt>Slice</dt><dd>Fixing one dimension to a single value, which reduces the cube by one dimension.</dd></div>
+    <div><dt>Dice</dt><dd>Selecting a range or set of values on two or more dimensions to form a smaller sub-cube.</dd></div>
+    <div><dt>Pivot</dt><dd>Rotating the cube so that different dimensions appear as rows and columns. Also called rotate.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="OLTP and OLAP">
+  <h2>Concept 1: Data warehouse versus database, OLTP and OLAP</h2>
+  <h3>Two kinds of work</h3>
+  <p>Operational systems do the daily work of an organization. They are called OLTP systems. Each transaction is small: create an order, update a balance, cancel a booking. Many users work at once, so each transaction must be fast and must not disturb the others.</p>
+  <p>Analytical systems answer questions over large history. They are called OLAP systems, and a data warehouse is their usual home. A typical analyst query reads millions of rows and summarizes them, for example "total dollars per city per quarter".</p>
+  <h3>The differences</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>OLTP (operational database)</th><th>OLAP (data warehouse)</th></tr></thead>
+    <tbody>
+      <tr><td>Main purpose</td><td>Run daily transactions</td><td>Support analysis and decisions</td></tr>
+      <tr><td>Typical operation</td><td>Insert, update, delete a few rows</td><td>Read and summarize many rows</td></tr>
+      <tr><td>Data</td><td>Current, detailed</td><td>History, summarized where useful</td></tr>
+      <tr><td>Design</td><td>Normalized, to avoid redundancy</td><td>Denormalized, for fast reading</td></tr>
+      <tr><td>Update frequency</td><td>Continuous</td><td>Periodic loads</td></tr>
+      <tr><td>Query speed priority</td><td>Short transactions</td><td>Large scans and aggregates</td></tr>
+    </tbody>
+  </table></div>
+  <p>The four properties usually listed for a data warehouse are:</p>
+  <ul>
+    <li><strong>Subject-oriented:</strong> organized around topics such as sales, not around applications.</li>
+    <li><strong>Integrated:</strong> data from many sources is cleaned and given one consistent format.</li>
+    <li><strong>Time-variant:</strong> data carries a time dimension, so history can be compared.</li>
+    <li><strong>Non-volatile:</strong> data is loaded and read, not changed row by row once stored.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>A normalized design is good for OLTP, because it avoids repeated data. A warehouse often accepts repeated data on purpose, because joins are costly when the table is large and the question is read-only.</p></div>
+  <details class="check"><summary>Question: Which system is more likely to be normalized, an OLTP database or a data warehouse?</summary><div class="ans"><p>The OLTP database. Normalization avoids repeated data during frequent updates. A warehouse is often denormalized for faster reading.</p></div></details>
+  <details class="check"><summary>Question: Why does a warehouse keep history?</summary><div class="ans"><p>Analysis needs comparisons over time, such as this quarter against last quarter. An operational system often keeps only current values.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Fact and dimension tables">
+  <h2>Concept 2: Fact tables and dimension tables</h2>
+  <h3>The fact table</h3>
+  <p>A fact table records events. Each row is one event, such as one sale. A fact table has two kinds of column:</p>
+  <ul>
+    <li><strong>Foreign keys</strong> that point to each dimension table, such as time_id, item_id and location_id.</li>
+    <li><strong>Measures</strong>, the numbers we add up, such as units_sold and dollars_sold.</li>
+  </ul>
+  <p>Here is a small fact table for the running example. Each row is one sale record summarized by quarter, product category and city.</p>
+  <div class="tablewrap"><table>
+    <caption>Sales (time_id, item_id, location_id, units_sold, dollars_sold)</caption>
+    <thead><tr><th>time_id</th><th>item_id</th><th>location_id</th><th>units_sold</th><th>dollars_sold</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>1</td><td>1</td><td>10</td><td>5000</td></tr>
+      <tr><td>1</td><td>1</td><td>2</td><td>4</td><td>2000</td></tr>
+      <tr><td>1</td><td>2</td><td>1</td><td>6</td><td>900</td></tr>
+      <tr><td>2</td><td>1</td><td>1</td><td>7</td><td>3500</td></tr>
+      <tr><td>2</td><td>2</td><td>2</td><td>3</td><td>450</td></tr>
+      <tr><td>2</td><td>1</td><td>3</td><td>5</td><td>2600</td></tr>
+    </tbody>
+  </table></div>
+  <h3>The dimension tables</h3>
+  <p>A dimension table describes the context of each fact. Here are the three dimensions of the example.</p>
+  <div class="tablewrap"><table>
+    <caption>Item (item_id, name, category)</caption>
+    <thead><tr><th>item_id</th><th>name</th><th>category</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Phone</td><td>Electronics</td></tr>
+      <tr><td>2</td><td>Shirt</td><td>Clothing</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <caption>Location (location_id, city, state, country)</caption>
+    <thead><tr><th>location_id</th><th>city</th><th>state</th><th>country</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Pune</td><td>Maharashtra</td><td>India</td></tr>
+      <tr><td>2</td><td>Delhi</td><td>Delhi</td><td>India</td></tr>
+      <tr><td>3</td><td>Dhaka</td><td>Dhaka Division</td><td>Bangladesh</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <caption>Time (time_id, quarter, year)</caption>
+    <thead><tr><th>time_id</th><th>quarter</th><th>year</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Q1</td><td>Y1</td></tr>
+      <tr><td>2</td><td>Q2</td><td>Y1</td></tr>
+    </tbody>
+  </table></div>
+  <p>The fact table holds the numbers, and the dimensions give meaning to them. To answer "dollars by category", the database joins Sales with Item and groups by category.</p>
+  <div class="note tip"><p><span class="t">Tip</span>When counting rows for a GATE question, the fact table usually has the most rows. Dimension tables are small, because each dimension value appears once.</p></div>
+  <details class="check"><summary>Question: In the example, how many rows does the Sales fact table have, and how many rows does the Item dimension have?</summary><div class="ans"><p>Six fact rows and two item rows. Each fact row is one summarized sale record, and each item appears once.</p></div></details>
+  <details class="check"><summary>Question: Is a measure such as dollars_sold stored in a fact table or in a dimension table?</summary><div class="ans"><p>In the fact table. Measures are the numbers that are added up, and they belong to each event.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Star, snowflake and fact constellation">
+  <h2>Concept 3: Star, snowflake and fact constellation schemas</h2>
+  <h3>Star schema</h3>
+  <p>In a star schema, the fact table sits in the middle and each dimension table is joined to it directly. Each dimension is stored as one flat table, even if it has repeated values such as state and country next to city.</p>
+  <p>The shape looks like a star: a centre with rays. For the example, the star has the Sales fact table in the middle and the Time, Item and Location tables around it. A query joins the fact table with one or more dimensions, then groups.</p>
+  <h3>Snowflake schema</h3>
+  <p>A snowflake schema normalizes the dimension tables. The Location dimension is split into smaller tables:</p>
+  <div class="formula">Location(location_id, city, state_id) → State(state_id, state, country_id) → Country(country_id, country)</div>
+  <p>Read the arrows as "refers to". The branches look like a snowflake. The benefit is less repetition, and the cost is more joins. To find the country of a sale, a query joins Sales, Location, State and Country.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A snowflake schema is not the same as a normalized OLTP design. It normalizes only the dimension tables. The fact table is still one central table.</p></div>
+  <h3>Fact constellation schema</h3>
+  <p>A fact constellation has two or more fact tables that share some dimension tables. For example, Sales and Shipments might both use Time and Location, but each has its own measures. The shape looks like several stars that share points. It is also called a galaxy schema.</p>
+  <h3>Comparing the three</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Schema</th><th>Fact tables</th><th>Dimension tables</th><th>Joins for a typical query</th><th>Redundancy</th></tr></thead>
+    <tbody>
+      <tr><td>Star</td><td>One</td><td>Flat, may repeat values</td><td>Fewest</td><td>Highest in dimensions</td></tr>
+      <tr><td>Snowflake</td><td>One</td><td>Normalized into sub-tables</td><td>More</td><td>Lower</td></tr>
+      <tr><td>Fact constellation</td><td>Two or more</td><td>Shared by facts</td><td>Depends on the query</td><td>Depends on the design</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>A common question asks which schema gives the fewest joins for a simple query. The answer is the star schema. Another asks which schema has the most normalized dimensions. The answer is the snowflake.</p></div>
+  <details class="check"><summary>Question: How many joins does a star query need to get the country of a sale?</summary><div class="ans"><p>One join, from Sales to Location, because Location stores country directly.</p></div></details>
+  <details class="check"><summary>Question: Two fact tables share the Time and Location dimensions. Which schema is this?</summary><div class="ans"><p>A fact constellation schema.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="The data cube">
+  <h2>Concept 4: The multidimensional data model and the data cube</h2>
+  <h3>From tables to a cube</h3>
+  <p>The star schema suggests a multidimensional view. Each dimension is an axis, and each cell holds a measure value. With three dimensions (time, item and location), the view is a cube. Each cell is the total for one combination, such as "Q1, Phone, Pune".</p>
+  <p>Cubes can have more than three dimensions, but they are hard to draw. A four-dimensional cube is a set of cubes, and the same idea holds.</p>
+  <h3>Cells and totals</h3>
+  <p>Some cells are empty when no sale happened. The cube also holds totals along each axis. For example, the total dollars for Electronics across all cities and quarters is one aggregate cell. Warehouses precompute many of these totals so that queries are fast.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A data cube is a way of organizing the same fact table, not a new kind of storage. Each combination of dimension values gives one cell.</p></div>
+  <details class="check"><summary>Question: A cube has three dimensions with 4, 5 and 3 values. How many base cells does it have?</summary><div class="ans"><p>4 × 5 × 3 = 60 cells, some of which may be empty.</p></div></details>
+  <details class="check"><summary>Question: What is an aggregate cell?</summary><div class="ans"><p>A cell that holds a total over some values of a dimension, such as the total for all cities.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="OLAP operations">
+  <h2>Concept 5: OLAP operations: roll-up, drill-down, slice, dice and pivot</h2>
+  <h3>Why operations on the cube</h3>
+  <p>An analyst moves through the cube by changing the view. The standard operations are roll-up, drill-down, slice, dice and pivot. Each one takes a view and returns another view.</p>
+  <h3>Roll-up</h3>
+  <p>Roll-up moves up a concept hierarchy, so the detail becomes coarser. Moving from city to country in the Location dimension is a roll-up. The totals are now per country, and there are fewer cells.</p>
+  <h3>Drill-down</h3>
+  <p>Drill-down is the opposite. It moves down a hierarchy to finer detail, such as from country to city. Drill-down needs the detailed data to be present.</p>
+  <h3>Slice</h3>
+  <p>Slice fixes one dimension to one value. Fixing category to Electronics gives a two-dimensional view, with time and location still free. The cube loses one dimension.</p>
+  <h3>Dice</h3>
+  <p>Dice picks values on two or more dimensions. For example, category is Electronics and city is Pune or Delhi. The result is a smaller sub-cube, with all dimensions still present but fewer values.</p>
+  <h3>Pivot</h3>
+  <p>Pivot rotates the view. If the table has quarters down the side and categories across the top, pivoting swaps them. Pivot does not change the numbers. It only changes which dimension is shown on which axis.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A restriction on one dimension to a single value is a slice. A restriction on two or more dimensions at once, such as category Electronics and city Pune or Delhi, is a dice.</p></div>
+  <h3>A worked example with the cube</h3>
+  <p>Start from the six sales rows. Roll-up to country, slice to Electronics, dice to Electronics in Pune or Delhi, and pivot to quarter by category. The program below computes each view from the fact rows.</p>
+  <pre class="code" data-lang="python"><code># (quarter, category, city, country, units, dollars)
+facts = [
+    ("Q1", "Electronics", "Pune", "India", 10, 5000),
+    ("Q1", "Electronics", "Delhi", "India", 4, 2000),
+    ("Q1", "Clothing", "Pune", "India", 6, 900),
+    ("Q2", "Electronics", "Pune", "India", 7, 3500),
+    ("Q2", "Clothing", "Delhi", "India", 3, 450),
+    ("Q2", "Electronics", "Dhaka", "Bangladesh", 5, 2600),
+]
+
+# Roll-up: city to country, total dollars
+by_country = {}
+for q, cat, city, country, units, dollars in facts:
+    by_country[country] = by_country.get(country, 0) + dollars
+print("roll-up to country:", by_country)
+
+# Slice: category fixed to Electronics, total units
+print("slice Electronics units:", sum(f[4] for f in facts if f[1] == "Electronics"))
+
+# Dice: category Electronics and city in Pune or Delhi, total dollars
+dice = [f for f in facts if f[1] == "Electronics" and f[2] in ("Pune", "Delhi")]
+print("dice dollars:", sum(f[5] for f in dice))
+
+# Pivot: quarter (rows) by category (columns), dollars
+table = {}
+for q, cat, city, country, units, dollars in facts:
+    table[(q, cat)] = table.get((q, cat), 0) + dollars
+for q in ("Q1", "Q2"):
+    print("pivot", q, [table.get((q, c), 0) for c in ("Electronics", "Clothing")])
+
+# Average is algebraic: sum and count combine, so the average is sum / count
+india = [f[5] for f in facts if f[3] == "India"]
+print("average dollars India:", sum(india) / len(india))
+</code></pre>
+  <pre class="output">roll-up to country: {'India': 11850, 'Bangladesh': 2600}
+slice Electronics units: 26
+dice dollars: 10500
+pivot Q1 [7000, 900]
+pivot Q2 [6100, 450]
+average dollars India: 2370.0</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>To name an OLAP operation, ask two questions. First, did the number of dimensions change? A slice or a roll-up that removes a dimension does. Second, did the detail level change? Roll-up and drill-down do.</p></div>
+  <details class="check"><summary>Question: Which operation moves from Pune to India as a location?</summary><div class="ans"><p>Roll-up, along the location hierarchy city, state, country.</p></div></details>
+  <details class="check"><summary>Question: Which operation changes only the layout of the table and not the numbers?</summary><div class="ans"><p>Pivot.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Idea or formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Star: one fact table joined to flat dimensions</td><td>Fewest joins</td><td>Fast reporting queries</td></tr>
+      <tr><td>Snowflake: dimensions normalized into sub-tables</td><td>Less repetition, more joins</td><td>Large dimensions with repeated values</td></tr>
+      <tr><td>Fact constellation: two or more fact tables sharing dimensions</td><td>Several stars</td><td>Related subjects such as sales and shipments</td></tr>
+      <tr><td>Cube cells = product of dimension sizes</td><td>4 × 5 × 3 = 60 base cells</td><td>Counting cells</td></tr>
+      <tr><td>Roll-up: move up a hierarchy</td><td>Coarser totals</td><td>Summary reports</td></tr>
+      <tr><td>Drill-down: move down a hierarchy</td><td>Finer detail</td><td>Investigating a total</td></tr>
+      <tr><td>Slice: fix one dimension</td><td>One fewer dimension</td><td>One value of interest</td></tr>
+      <tr><td>Dice: select values on two or more dimensions</td><td>A sub-cube</td><td>A focused region</td></tr>
+      <tr><td>Pivot: rotate the axes</td><td>Same numbers, new layout</td><td>Comparing dimensions side by side</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>OLTP or OLAP</h3>
+    <div class="statement"><p>A system records each bank transfer as it happens and updates two account balances. Is this an OLTP or an OLAP system?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The type of system.</li>
+      <li><strong>Which idea applies.</strong> OLTP handles short transactions that change current data. OLAP summarizes large history.</li>
+      <li><strong>Work it out.</strong> A transfer is one short transaction that updates two balances. That matches OLTP.</li>
+      <li><strong>Check.</strong> No summary over many years is involved, so OLAP does not fit.</li>
+    </ol>
+    <p class="cx">Answer: OLTP.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Rows in a star</h3>
+    <div class="statement"><p>A star schema has one fact table and three dimension tables. How many joins does a query that uses all three dimensions need?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The joins for one query.</li>
+      <li><strong>Which idea applies.</strong> In a star, each dimension joins directly to the fact table.</li>
+      <li><strong>Work it out.</strong> Three dimensions, each joined once to the fact table, give three joins.</li>
+      <li><strong>Check.</strong> A snowflake would need more joins, so the star gives the minimum.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about schemas</h3>
+    <div class="statement"><p>Select all that apply. Which statements about data warehouse schemas are true?</p>
+      <p>(A) A snowflake schema normalizes the dimension tables.</p>
+      <p>(B) A star schema has more than one fact table.</p>
+      <p>(C) A fact constellation can share dimension tables between fact tables.</p>
+      <p>(D) In a star schema, the dimension tables are always normalized.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Recall the defining feature of each schema.</li>
+      <li><strong>Work it out.</strong> (A) True, that is the definition of snowflake. (B) False, a star has one fact table. (C) True, that is the point of a constellation. (D) False, star dimensions are flat tables.</li>
+      <li><strong>Check.</strong> Two statements are true, one describing snowflake and one describing constellation.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Cells in a cube</h3>
+    <div class="statement"><p>A data cube has dimensions time (8 values), item (5 values) and location (6 values). How many base cells does it have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of base cells.</li>
+      <li><strong>Which idea applies.</strong> Each cell is one combination of one value from each dimension.</li>
+      <li><strong>Work it out.</strong> 8 × 5 × 6 = 240.</li>
+      <li><strong>Check.</strong> The number of cells is the product of the sizes, not the sum.</li>
+    </ol>
+    <p class="cx">Answer: 240.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which operation is it</h3>
+    <div class="statement"><p>An analyst starts with sales by city and asks for sales by country. Which OLAP operation is this?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The name of the operation.</li>
+      <li><strong>Which idea applies.</strong> Moving from detailed to general along a concept hierarchy.</li>
+      <li><strong>Work it out.</strong> City is below country in the location hierarchy. Going from city up to country is moving up.</li>
+      <li><strong>Check.</strong> The level got coarser, so it is not drill-down.</li>
+    </ol>
+    <p class="cx">Answer: roll-up.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Joins in a snowflake</h3>
+    <div class="statement"><p>A snowflake schema stores the Location dimension as Location(location_id, city, state_id), State(state_id, state, country_id) and Country(country_id, country). A query needs the country of every sale in the Sales fact table. How many joins does it need, counting joins between Sales and each table on the path?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of joins on the path from Sales to Country.</li>
+      <li><strong>Which idea applies.</strong> Each link in the snowflake is one join.</li>
+      <li><strong>Work it out.</strong> Sales joins Location (1). Location joins State (2). State joins Country (3).</li>
+      <li><strong>Check.</strong> In a star, the same answer needs only one join, so the snowflake needs two more.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Identify the operation chain</h3>
+    <div class="statement"><p>Select all that apply. Which of these changes the cube so that it has fewer dimensions than before?</p>
+      <p>(A) Slice on item fixed to one value</p>
+      <p>(B) Roll-up from city to country</p>
+      <p>(C) Dice on item and location</p>
+      <p>(D) Pivot that swaps time and location</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which operations reduce the number of dimensions.</li>
+      <li><strong>Which idea applies.</strong> Slice fixes one dimension, which removes it from the view. Roll-up changes the level of detail, but keeps the dimension. Dice selects values, and pivot only rotates.</li>
+      <li><strong>Work it out.</strong> (A) Fixing item to one value removes item from the view, so the view has fewer dimensions. True. (B) Roll-up keeps location as a dimension, only coarser. False. (C) Dice keeps both dimensions. False. (D) Pivot keeps all dimensions. False.</li>
+      <li><strong>Check.</strong> Only the slice removes a dimension in this list.</li>
+    </ol>
+    <p class="cx">Answer: (A) only.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Dollars for a dice</h3>
+    <div class="statement"><p>Using the six sales rows in the worked example, what is the total dollars for category Clothing in any city? Then state which OLAP operation produces this view from the full cube.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A total and an operation name.</li>
+      <li><strong>Which idea applies.</strong> Fixing one dimension to a single value is a slice. Summing the measure gives the total.</li>
+      <li><strong>Work it out.</strong> Clothing rows: Pune in Q1 with 900 dollars, and Delhi in Q2 with 450 dollars. Total 900 + 450 = 1350. Fixing category to one value is a slice.</li>
+      <li><strong>Check.</strong> The full total is 5000 + 2000 + 900 + 3500 + 450 + 2600 = 14450. Electronics is 5000 + 2000 + 3500 + 2600 = 13100, and 13100 + 1350 = 14450, which matches.</li>
+    </ol>
+    <p class="cx">Answer: 1350 dollars, produced by a slice on category.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: cells in a full data cube (NAT, 2 marks)</h3>
+    <div class="statement"><p>A sales cube has three dimensions. Time has 4 quarters, Product has 5 products and Region has 3 regions. Every dimension also has an ALL value, which means all of its members are grouped together. A cell is one combination of one value from each dimension, where a value can be ALL. How many cells does the full data cube have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of cells, counting ALL.</li>
+      <li><strong>Which idea applies.</strong> Each dimension gives its own values plus ALL, and the cube is every combination of one choice per dimension.</li>
+      <li><strong>Work it out.</strong> Time has 4 + 1 = 5 choices, Product has 5 + 1 = 6, and Region has 3 + 1 = 4. Multiply: 5 × 6 × 4 = 120.</li>
+      <li><strong>Check.</strong> Leaving out ALL would give 4 × 5 × 3 = 60 cells, which are only the ungrouped cells. So 120 is the size of the full cube.</li>
+    </ol>
+    <p class="cx">Answer: 120 cells.</p>
+    <pre class="code" data-lang="python"><code>time=4+1
+product=5+1
+region=3+1
+print(time, product, region, time*product*region)</code></pre>
+    <pre class="output">5 6 4 120</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: star, snowflake and constellation (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A warehouse has a fact table Sales that refers to dimension tables Product and Store. A query needs the product Category and the store State. In a star schema, each dimension is one flat table. In a snowflake schema, each dimension is normalized into linked tables, such as Product to Category and Store to City to State. Select all that apply. Which of these statements are true?</p>
+      <p>(A) The snowflake version needs more joins than the star version for this query.</p>
+      <p>(B) A star schema normalizes each dimension into a chain of tables.</p>
+      <p>(C) A fact constellation has two or more fact tables that share dimension tables.</p>
+      <p>(D) Fact tables usually store descriptive text, such as a city name.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about schema types are true.</li>
+      <li><strong>Which idea applies.</strong> A star keeps dimensions flat, a snowflake normalizes them, and a constellation uses several fact tables that share dimensions.</li>
+      <li><strong>Work it out.</strong> Star: Sales joins Product and Store, so there are 2 joins, and Category and State are columns in those flat tables. Snowflake: Sales to Product, Product to Category, Sales to Store, Store to City, City to State. That is 5 joins, 3 more than the star. So (A) is true.</li>
+      <li><strong>Check.</strong> (C) is the definition of a constellation. (B) and (D) reverse the rules, since a snowflake normalizes dimensions and fact tables hold keys and measures, not descriptive text.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C). Why the others fail: (B) is the snowflake idea, while a star keeps each dimension flat; (D) descriptive attributes belong in dimension tables, while fact tables hold keys and measures.</p>
+    <pre class="code" data-lang="python"><code>star_joins=['Sales-Product','Sales-Store']
+snow_joins=['Sales-Product','Product-Category','Sales-Store','Store-City','City-State']
+print(len(star_joins), len(snow_joins))
+print(len(snow_joins)-len(star_joins))</code></pre>
+    <pre class="output">2 5
+3</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: cuboids in the lattice (NAT, 2 marks)</h3>
+    <div class="statement"><p>A cube has three dimensions with hierarchies. Time has three levels: day, month and year. Location has two levels: city and state. Product has one level, product. Each dimension can also roll up to ALL. A cuboid is one choice of level in each dimension. How many cuboids does the full lattice contain?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of cuboids in the lattice.</li>
+      <li><strong>Which idea applies.</strong> Count the choices for each dimension, including ALL, then multiply, because each dimension is chosen independently.</li>
+      <li><strong>Work it out.</strong> Time has 3 + 1 = 4 choices. Location has 2 + 1 = 3 choices. Product has 1 + 1 = 2 choices. Multiply: 4 × 3 × 2 = 24.</li>
+      <li><strong>Check.</strong> Forgetting ALL would give 3 × 2 × 1 = 6, which is too few, because the top of each dimension would be missing.</li>
+    </ol>
+    <p class="cx">Answer: 24 cuboids.</p>
+    <pre class="code" data-lang="python"><code>dims={'Time':3,'Location':2,'Product':1}
+total=1
+for name,levels in dims.items():
+    total*=(levels+1)
+    print(name, levels+1)
+print(total)</code></pre>
+    <pre class="output">Time 4
+Location 3
+Product 2
+24</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: fact table size (NAT, 2 marks)</h3>
+    <div class="statement"><p>A retailer sells 30 products in 12 months across 10 stores. Each product, month and store combination is a slot. Nine out of every ten slots have sales, and each slot with sales has exactly 2 rows in the fact table. How many fact rows are there in total?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of fact rows.</li>
+      <li><strong>Which idea applies.</strong> Count the slots, keep only the slots with sales, then multiply by the rows per slot.</li>
+      <li><strong>Work it out.</strong> 30 × 12 × 10 = 3600 slots. Nine in ten have sales: 3600 × 9 / 10 = 3240. Each has 2 rows: 3240 × 2 = 6480.</li>
+      <li><strong>Check.</strong> 6480 is 1.8 times 3600, which matches 2 rows on 90 percent of the slots.</li>
+    </ol>
+    <p class="cx">Answer: 6480 rows.</p>
+    <pre class="code" data-lang="python"><code>combos=30*12*10
+active=combos*9//10
+print(combos, active, active*2)</code></pre>
+    <pre class="output">3600 3240 6480</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Data warehouse</dt><dd>A subject-oriented, integrated, time-variant, non-volatile store for analysis.</dd></div>
+    <div><dt>OLTP</dt><dd>Operational systems with short transactions on current data, usually normalized.</dd></div>
+    <div><dt>OLAP</dt><dd>Analysis systems that summarize large history, often denormalized.</dd></div>
+    <div><dt>Fact table</dt><dd>Central table of events, with foreign keys and measures.</dd></div>
+    <div><dt>Dimension table</dt><dd>Context tables for facts: who, what, when and where.</dd></div>
+    <div><dt>Measure</dt><dd>A numeric value in a fact table, such as units or dollars.</dd></div>
+    <div><dt>Surrogate key</dt><dd>An artificial integer key of a dimension table.</dd></div>
+    <div><dt>Star schema</dt><dd>One fact table joined directly to flat dimension tables.</dd></div>
+    <div><dt>Snowflake schema</dt><dd>A star whose dimensions are normalized into sub-tables.</dd></div>
+    <div><dt>Fact constellation</dt><dd>Two or more fact tables sharing dimension tables.</dd></div>
+    <div><dt>Data cube</dt><dd>A multidimensional view with one cell per combination of dimension values.</dd></div>
+    <div><dt>Concept hierarchy</dt><dd>Attribute values ordered from detailed to general.</dd></div>
+    <div><dt>Roll-up</dt><dd>Move up a hierarchy, to coarser totals.</dd></div>
+    <div><dt>Drill-down</dt><dd>Move down a hierarchy, to finer detail.</dd></div>
+    <div><dt>Slice</dt><dd>Fix one dimension to a single value.</dd></div>
+    <div><dt>Dice</dt><dd>Select values on two or more dimensions.</dd></div>
+    <div><dt>Pivot</dt><dd>Rotate the view, without changing the numbers.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>OLTP handles many small transactions. OLAP reads large history.</li>
+    <li>The fact table holds measures and foreign keys. Dimension tables hold descriptions.</li>
+    <li>A star has the fewest joins. A snowflake normalizes dimensions. A constellation has several fact tables.</li>
+    <li>A data cube has one cell for each combination of dimension values.</li>
+    <li>Roll-up and drill-down change the detail level. Slice and dice select values. Pivot rotates.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 93?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 93 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-092.html"><small>Previous, topic 92</small>File organization &amp; indexing (B/B+ trees)</a><a class="next" href="gate-094.html"><small>Next, topic 94</small>Concept hierarchies &amp; measures</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

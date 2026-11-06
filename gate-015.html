@@ -1,0 +1,373 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 15: Quadratic forms</title><meta name="description" content="A quadratic form is a squared-type expression in several variables, written with a symmetric matrix. Whether it is always positive, always negative or mixed decides the shape of a bowl, a hill or a saddle, and it is the key test for optimisation and the Hessian in data science."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g15" data-key="g15" data-noun="topic" data-num="15" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Quadratic forms</h1>
+<p class="lede">A quadratic form is a squared-type expression in several variables, written with a symmetric matrix. Whether it is always positive, always negative or mixed decides the shape of a bowl, a hill or a saddle, and it is the key test for optimisation and the Hessian in data science.</p>
+<div class="station"><b>15</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>From a quadratic expression to a symmetric matrix</li><li>Definite, semidefinite and indefinite forms</li><li>Testing with eigenvalues</li><li>Sylvester&#x27;s criterion with leading minors</li><li>Conic sections and the Hessian</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a landscape described by a height function. Stand at the origin, which is the lowest point of a bowl. Every step away from the origin raises you. That shape is a bowl, and the height function is <strong>positive definite</strong>. Turn the bowl upside down and every step lowers you: that is a hill, or <strong>negative definite</strong>. A saddle, like a horse saddle, goes up in one direction and down in another. That is <strong>indefinite</strong>.</p>
+  <p>The height functions in these pictures are quadratic forms. A quadratic form is an expression where every term has total degree 2, such as 2x² + 6xy + 3y². Each one can be written compactly as xᵀAx, where A is a symmetric matrix. The shape of the bowl, hill or saddle is hidden in the numbers of A.</p>
+  <p>Why does GATE care? Quadratic forms are the core of optimisation in data science. The Hessian matrix, which holds the second derivatives of a cost function, is a symmetric matrix. Testing whether it is positive definite tells you if a point is a minimum. Many GATE DA questions ask exactly this.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Quadratic form</dt><dd>An expression q(x) = xᵀAx, where every term has degree 2 in the entries of x.</dd></div>
+    <div><dt>Symmetric matrix</dt><dd>A square matrix equal to its transpose: A = Aᵀ. Its off-diagonal entries are mirror images.</dd></div>
+    <div><dt>Positive definite (PD)</dt><dd>xᵀAx is greater than 0 for every non-zero x.</dd></div>
+    <div><dt>Negative definite (ND)</dt><dd>xᵀAx is less than 0 for every non-zero x.</dd></div>
+    <div><dt>Positive semidefinite (PSD)</dt><dd>xᵀAx is at least 0 for every x, and equals 0 for some non-zero x.</dd></div>
+    <div><dt>Negative semidefinite (NSD)</dt><dd>xᵀAx is at most 0 for every x, and equals 0 for some non-zero x.</dd></div>
+    <div><dt>Indefinite</dt><dd>The form takes both positive and negative values.</dd></div>
+    <div><dt>Eigenvalue</dt><dd>A number λ with Av = λv for some non-zero v. Symmetric matrices have real eigenvalues.</dd></div>
+    <div><dt>Leading principal minor</dt><dd>The determinant of the top-left k × k block of A, for k = 1, 2, ..., n.</dd></div>
+    <div><dt>Hessian</dt><dd>The matrix of second partial derivatives of a function. It is symmetric.</dd></div>
+    <div><dt>Conic section</dt><dd>An ellipse, parabola or hyperbola, the shapes obtained by slicing a cone.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="From a quadratic expression to a symmetric matrix">
+  <h2>Step 1: From a quadratic expression to a symmetric matrix</h2>
+  <p>Start with a vector x = (x, y), written as a column. The product xᵀAx is a number. For a 2 × 2 symmetric matrix A = [[a, b], [b, c]]:</p>
+  <div class="formula">xᵀAx = [x  y] [[a, b], [b, c]] [x; y] = ax² + 2bxy + cy²</div>
+  <p>Notice that the off-diagonal entry b appears twice, once for each of the two cross terms. That is why the matrix must be symmetric: the cross term 2bxy is split evenly between the two off-diagonal positions.</p>
+  <p><strong>Worked example.</strong> Write q(x, y) = 2x² + 6xy + 3y² as xᵀAx.</p>
+  <ol>
+    <li>The coefficient of x² is 2, so a = 2.</li>
+    <li>The coefficient of y² is 3, so c = 3.</li>
+    <li>The cross term 6xy must equal 2bxy, so 2b = 6 and b = 3.</li>
+    <li>So A = [[2, 3], [3, 3]].</li>
+    <li>Check: [x y] [[2, 3], [3, 3]] [x; y] = 2x² + 3xy + 3xy + 3y² = 2x² + 6xy + 3y². Correct.</li>
+  </ol>
+  <p>Rule of thumb: the diagonal entries are the coefficients of the squared terms, and each off-diagonal entry is half the coefficient of the cross term.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not put the full cross coefficient 6 in the matrix. That gives [[2, 6], [6, 3]], which has the wrong form. The entries must be half the cross coefficient.</p></div>
+  <details class="check"><summary>Question: what symmetric matrix represents q = x² − 4xy + y²?</summary><div class="ans"><p>[[1, −2], [−2, 1]]. The cross coefficient −4 is split into two entries of −2.</p></div></details>
+  <details class="check"><summary>Question: evaluate xᵀAx for A = [[1, 0], [0, 1]] and x = (3, 4).</summary><div class="ans"><p>x² + y² = 9 + 16 = 25. The identity matrix gives the squared length of x.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Definite, semidefinite and indefinite forms">
+  <h2>Step 2: Definite, semidefinite and indefinite forms</h2>
+  <p>A quadratic form is classified by the sign of its value at every non-zero x. Here are the four main types with simple examples:</p>
+  <ul>
+    <li><strong>Positive definite:</strong> q = x² + y². It is positive at every point except the origin. This is the bowl.</li>
+    <li><strong>Negative definite:</strong> q = −x² − y². It is negative everywhere except the origin. This is the hill.</li>
+    <li><strong>Positive semidefinite:</strong> q = x². It is zero along the whole y-axis, and never negative. It is a flat trough.</li>
+    <li><strong>Indefinite:</strong> q = x² − y². It is positive along the x-axis and negative along the y-axis. This is the saddle.</li>
+  </ul>
+  <p>The zero vector always gives q = 0. The classification concerns non-zero x only, because including x = 0 would make every form look semidefinite.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Definite means the sign never changes except at the origin. Indefinite means the sign changes. Semidefinite means the sign never changes, but there is a non-zero direction where the form gives zero.</p></div>
+  <p>Take the form q = 2x² + 6xy + 3y² from Step 1. Try x = (1, 0): q = 2. Try x = (0, 1): q = 3. Try x = (1, −1): q = 2 − 6 + 3 = −1. The value is negative, so q takes both signs. It is indefinite. That matches the saddle shape.</p>
+  <details class="check"><summary>Question: is the form x² + 2xy + y² positive definite?</summary><div class="ans"><p>No. It equals (x + y)², which is zero along the line x = −y. So it is positive semidefinite, not positive definite.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Testing with eigenvalues">
+  <h2>Step 3: Testing with eigenvalues</h2>
+  <p>For a symmetric matrix, the classification is controlled by its eigenvalues. The <strong>spectral theorem</strong> says that a real symmetric matrix can be written as A = QΛQᵀ, with Q orthogonal and Λ diagonal, holding the eigenvalues. Substituting y = Qᵀx turns the form into a sum of squares:</p>
+  <div class="formula">xᵀAx = λ<sub>1</sub>y<sub>1</sub>² + λ<sub>2</sub>y<sub>2</sub>² + ... + λ<sub>n</sub>y<sub>n</sub>²</div>
+  <p>Each square has a fixed sign, so the signs of the eigenvalues decide everything:</p>
+  <ul>
+    <li><strong>Positive definite:</strong> all eigenvalues are greater than 0.</li>
+    <li><strong>Negative definite:</strong> all eigenvalues are less than 0.</li>
+    <li><strong>Positive semidefinite:</strong> all eigenvalues are at least 0, with at least one equal to 0.</li>
+    <li><strong>Negative semidefinite:</strong> all eigenvalues are at most 0, with at least one equal to 0.</li>
+    <li><strong>Indefinite:</strong> some eigenvalue is positive and some is negative.</li>
+  </ul>
+  <p>For a 2 × 2 symmetric matrix [[a, b], [b, c]], the eigenvalues come from λ² − (a + c)λ + (ac − b²) = 0. The code below computes them for three matrices.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def eig_sym2(a, b, c):
+    tr = a + c
+    det = a * c - b * b
+    r = math.sqrt(tr * tr - 4 * det)
+    return (tr + r) / 2, (tr - r) / 2
+
+for name, (a, b, c) in [("[[2,1],[1,2]]", (2, 1, 2)), ("[[2,3],[3,3]]", (2, 3, 3)), ("[[1,2],[2,1]]", (1, 2, 1))]:
+    hi, lo = eig_sym2(a, b, c)
+    print(name, "eigenvalues:", round(hi, 6), round(lo, 6))</code></pre>
+  <pre class="output">[[2,1],[1,2]] eigenvalues: 3.0 1.0
+[[2,3],[3,3]] eigenvalues: 5.541381 -0.541381
+[[1,2],[2,1]] eigenvalues: 3.0 -1.0</pre>
+  <p>The first matrix has both eigenvalues positive, so it is positive definite. The second has one positive and one negative eigenvalue, so it is indefinite, which matches the sign change found in Step 2. The third is also indefinite.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>If a question gives the eigenvalues of a symmetric matrix, the classification is immediate: look only at their signs.</p></div>
+  <details class="check"><summary>Question: a symmetric matrix has eigenvalues 4 and 0. What type is it?</summary><div class="ans"><p>Positive semidefinite, because all eigenvalues are at least 0 and one of them is 0.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Sylvester's criterion with leading minors">
+  <h2>Step 4: Sylvester's criterion with leading minors</h2>
+  <p>Eigenvalues need a calculation. Sylvester's criterion gives a test using only determinants. Compute the leading principal minors D<sub>1</sub>, D<sub>2</sub>, ..., D<sub>n</sub>, where D<sub>k</sub> is the determinant of the top-left k × k block of A. Then:</p>
+  <ul>
+    <li><strong>Positive definite</strong> if and only if D<sub>1</sub> &gt; 0, D<sub>2</sub> &gt; 0, ..., D<sub>n</sub> &gt; 0.</li>
+    <li><strong>Negative definite</strong> if and only if the signs alternate, starting with negative: D<sub>1</sub> &lt; 0, D<sub>2</sub> &gt; 0, D<sub>3</sub> &lt; 0, and so on.</li>
+  </ul>
+  <p>For a 2 × 2 matrix [[a, b], [b, c]], these become simple: PD if a &gt; 0 and ac − b² &gt; 0, and ND if a &lt; 0 and ac − b² &gt; 0.</p>
+  <p><strong>Worked example.</strong> Test A = [[2, 3], [3, 3]].</p>
+  <ol>
+    <li>D<sub>1</sub> = 2, which is positive.</li>
+    <li>D<sub>2</sub> = 2 · 3 − 3 · 3 = 6 − 9 = −3, which is negative.</li>
+    <li>Not PD, because D<sub>2</sub> must be positive. Not ND, because D<sub>1</sub> must be negative.</li>
+    <li>So A is indefinite. This agrees with the eigenvalue result in Step 3.</li>
+  </ol>
+  <div class="note trap"><p><span class="t">Trap</span>Sylvester's criterion with leading minors proves positive or negative definiteness only. For semidefinite forms, you need all principal minors, not just the leading ones. The matrix [[0, 0], [0, −1]] has leading minors 0 and 0, which settle nothing, yet it is negative semidefinite. Its eigenvalues are 0 and −1.</p></div>
+  <p>A useful check for semidefinite forms: for NSD, every 1 × 1 principal minor (each diagonal entry) must be at most 0, and every 2 × 2 principal minor must be at least 0. For [[0, 0], [0, −1]], the diagonal entries are 0 and −1, both at most 0, and the determinant is 0. So it is NSD.</p>
+  <details class="check"><summary>Question: is [[5, 2], [2, 1]] positive definite?</summary><div class="ans"><p>D<sub>1</sub> = 5 &gt; 0 and D<sub>2</sub> = 5 − 4 = 1 &gt; 0. Both are positive, so yes, it is positive definite.</p></div></details>
+  <details class="check"><summary>Question: is [[−2, 1], [1, −3]] negative definite?</summary><div class="ans"><p>D<sub>1</sub> = −2 &lt; 0 and D<sub>2</sub> = 6 − 1 = 5 &gt; 0. The signs alternate, so yes, it is negative definite.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Conic sections and the Hessian">
+  <h2>Step 5: Conic sections and the Hessian</h2>
+  <p>Set a quadratic form equal to 1 and you get a curve. Its shape tells you the type of the form:</p>
+  <ul>
+    <li><strong>Positive definite</strong> gives an <strong>ellipse</strong>. For example, x² + 4y² = 1 is an ellipse with semi-axes 1 and 1/2.</li>
+    <li><strong>Indefinite</strong> gives a <strong>hyperbola</strong>. For example, x² − y² = 1 is a hyperbola with two branches.</li>
+  </ul>
+  <p>This is the same story as the bowl and saddle in the introduction. Ellipses are closed bowls, and hyperbolas open out in two directions.</p>
+  <p>The most important application in data science is the <strong>Hessian</strong>. Near a point where the slope of a function is zero, the function behaves like a quadratic form in the small change h. The matrix H of second derivatives controls that form. So:</p>
+  <ul>
+    <li>If H is positive definite, the point is a strict local minimum.</li>
+    <li>If H is negative definite, the point is a strict local maximum.</li>
+    <li>If H is indefinite, the point is a saddle.</li>
+  </ul>
+  <p><strong>Worked example.</strong> Let f(x, y) = x² + xy + y². The second derivatives are f<sub>xx</sub> = 2, f<sub>xy</sub> = 1 and f<sub>yy</sub> = 2, so H = [[2, 1], [1, 2]]. Then D<sub>1</sub> = 2 &gt; 0 and D<sub>2</sub> = 4 − 1 = 3 &gt; 0. H is positive definite, so the origin is a strict local minimum. Indeed, f(0, 0) = 0 and f is positive everywhere else.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The Hessian is a symmetric matrix, so every test in this topic applies to it: eigenvalues, leading minors and definiteness.</p></div>
+  <details class="check"><summary>Question: why does positive definiteness of the Hessian give a minimum rather than a maximum?</summary><div class="ans"><p>Positive definiteness means the function rises in every direction away from the critical point, like the bottom of a bowl. Rising in all directions means the critical point is the lowest nearby point, which is a minimum.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or test</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>xᵀAx = Σ<sub>i</sub>Σ<sub>j</sub> a<sub>ij</sub>x<sub>i</sub>x<sub>j</sub></td><td>Definition of the quadratic form.</td><td>Expanding or evaluating a form.</td></tr>
+      <tr><td>Off-diagonal entry = half the cross coefficient</td><td>Building the symmetric matrix.</td><td>Converting a polynomial to a matrix.</td></tr>
+      <tr><td>All eigenvalues &gt; 0 ⇒ PD</td><td>Eigenvalue test.</td><td>Symmetric matrices with known eigenvalues.</td></tr>
+      <tr><td>D<sub>1</sub>, ..., D<sub>n</sub> all positive ⇒ PD</td><td>Sylvester's criterion.</td><td>Testing positive definiteness by hand.</td></tr>
+      <tr><td>D<sub>k</sub> alternate in sign, starting negative ⇒ ND</td><td>Sylvester's criterion for negative definite.</td><td>Testing negative definiteness.</td></tr>
+      <tr><td>Eigenvalues of mixed sign ⇒ indefinite</td><td>Indefinite test.</td><td>Confirming a saddle.</td></tr>
+      <tr><td>ax² + 2bxy + cy² = 1</td><td>Conic. Ellipse if PD, hyperbola if indefinite.</td><td>Sketching level curves.</td></tr>
+      <tr><td>H positive definite at a critical point ⇒ local minimum</td><td>Second-derivative test.</td><td>Optimisation questions.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Try each problem before reading the answer. Every problem here is a GATE-style practice problem.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Matrix of a quadratic form</h3>
+    <div class="statement"><p>Write q(x, y) = x² + 4xy + 2y² as xᵀAx, where A is symmetric.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A symmetric 2 × 2 matrix A.</li>
+      <li><strong>Which idea applies.</strong> Diagonal entries are the squared coefficients. Off-diagonal entries are half the cross coefficient.</li>
+      <li><strong>Work it out.</strong> The x² coefficient is 1, so a = 1. The y² coefficient is 2, so c = 2. The cross coefficient is 4, so each off-diagonal entry is 4/2 = 2. So A = [[1, 2], [2, 2]].</li>
+      <li><strong>Check.</strong> [x y][[1, 2], [2, 2]][x; y] = x² + 2xy + 2xy + 2y² = x² + 4xy + 2y².</li>
+    </ol>
+    <p class="cx">Answer: A = [[1, 2], [2, 2]].</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Positive definite?</h3>
+    <div class="statement"><p>Is the quadratic form 3x² − 2xy + 3y² positive definite? Justify with a determinant test.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A yes or no, with a reason.</li>
+      <li><strong>Which idea applies.</strong> Sylvester's criterion: D<sub>1</sub> and D<sub>2</sub> must both be positive.</li>
+      <li><strong>Work it out.</strong> The matrix is [[3, −1], [−1, 3]]. D<sub>1</sub> = 3 &gt; 0. D<sub>2</sub> = 9 − 1 = 8 &gt; 0.</li>
+      <li><strong>Check.</strong> The eigenvalues are 3 ± 1, which are 4 and 2, both positive. Consistent.</li>
+    </ol>
+    <p class="cx">Answer: yes, it is positive definite.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which forms are positive semidefinite? (MSQ)</h3>
+    <div class="statement"><p>Select all matrices that are positive semidefinite.</p><p>(A) [[1, 0], [0, 0]] &nbsp; (B) [[1, 2], [2, 1]] &nbsp; (C) [[2, 0], [0, 5]] &nbsp; (D) [[0, 0], [0, −1]]</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which matrices have all eigenvalues at least 0.</li>
+      <li><strong>Which idea applies.</strong> Use the eigenvalues, which are easy for diagonal matrices and 2 × 2 matrices.</li>
+      <li><strong>Work it out.</strong> (A) is diagonal with entries 1 and 0, so the eigenvalues are 1 and 0. PSD. (B) has eigenvalues 3 and −1, so it is indefinite. (C) is diagonal with entries 2 and 5, so PD, which implies PSD. (D) has eigenvalues 0 and −1, so it is negative semidefinite, not positive.</li>
+      <li><strong>Check.</strong> A quick sanity check on (D): the form is −y², which is never positive.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Counting integer values of k (NAT)</h3>
+    <div class="statement"><p>For how many integer values of k is the matrix [[1, k], [k, 4]] positive definite? Give the count as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of integers k that make the matrix PD.</li>
+      <li><strong>Which idea applies.</strong> Sylvester's criterion: D<sub>1</sub> &gt; 0 and D<sub>2</sub> &gt; 0.</li>
+      <li><strong>Work it out.</strong> D<sub>1</sub> = 1 is always positive. D<sub>2</sub> = 4 − k² must be positive, so k² &lt; 4, which means −2 &lt; k &lt; 2. The integers are −1, 0 and 1.</li>
+      <li><strong>Check.</strong> At k = 2, D<sub>2</sub> = 0, so the matrix is only PSD, and k = 2 is excluded. The count is therefore 3.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Value of a quadratic form (NAT)</h3>
+    <div class="statement"><p>Let A = [[2, 1], [1, 2]]. Evaluate xᵀAx at x = (1, −1). Give the answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number xᵀAx at a specific vector.</li>
+      <li><strong>Which idea applies.</strong> Expand the form as 2x² + 2xy + 2y², then substitute.</li>
+      <li><strong>Work it out.</strong> With x = 1 and y = −1: 2(1)² + 2(1)(−1) + 2(−1)² = 2 − 2 + 2 = 2.</li>
+      <li><strong>Check.</strong> Compute Ax first: Ax = (2 − 1, 1 − 2) = (1, −1). Then xᵀ(Ax) = 1·1 + (−1)(−1) = 2. Same answer.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Classify from eigenvalues</h3>
+    <div class="statement"><p>A symmetric matrix has eigenvalues 0, 2 and 5. Is it positive definite, positive semidefinite, or neither? Justify.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The strongest type that fits.</li>
+      <li><strong>Which idea applies.</strong> Look at the signs of the eigenvalues. PD needs all strictly positive.</li>
+      <li><strong>Work it out.</strong> All eigenvalues are at least 0, so the matrix is PSD. But one eigenvalue is 0, so it is not PD. The determinant is 0 times 2 times 5 = 0, which confirms it is singular.</li>
+      <li><strong>Check.</strong> There is a non-zero vector (an eigenvector for 0) on which the form gives zero, which is exactly the defining feature of PSD but not PD.</li>
+    </ol>
+    <p class="cx">Answer: positive semidefinite, but not positive definite.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>For which k is the matrix positive definite? (NAT)</h3>
+    <div class="statement"><p>Let A = [[2, 0, 1], [0, 2, 0], [1, 0, k]]. For which real k is A positive definite? Give the boundary value k<sub>0</sub>, as a fraction, such that A is positive definite exactly when k &gt; k<sub>0</sub>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The condition on k, expressed through the boundary value.</li>
+      <li><strong>Which idea applies.</strong> Sylvester's criterion: D<sub>1</sub>, D<sub>2</sub>, D<sub>3</sub> must all be positive.</li>
+      <li><strong>Work it out.</strong> D<sub>1</sub> = 2 &gt; 0. D<sub>2</sub> = 2·2 − 0 = 4 &gt; 0. D<sub>3</sub> = det A. Expanding along the second row, det A = 2 · det[[2, 1], [1, k]] = 2(2k − 1) = 4k − 2. D<sub>3</sub> &gt; 0 requires k &gt; 1/2. So the boundary is k = 1/2, which is excluded.</li>
+      <li><strong>Check.</strong> The code below evaluates det A at four values of k. The value is zero at k = 1/2, negative below it and positive above it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def det3(m):
+    a, b, c = m[0]
+    d, e, f = m[1]
+    g, h, i = m[2]
+    return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+
+for k in [0, 0.5, 1, 2]:
+    A = [[2, 0, 1], [0, 2, 0], [1, 0, k]]
+    print("k =", k, "D3 =", det3(A))</code></pre>
+    <pre class="output">k = 0 D3 = -2
+k = 0.5 D3 = 0.0
+k = 1 D3 = 2
+k = 2 D3 = 6</pre>
+    <p class="cx">Answer: k<sub>0</sub> = 1/2. A is positive definite exactly when k &gt; 1/2.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Hessian of a cost function</h3>
+    <div class="statement"><p>Let f(x, y) = x² − xy + 2y². The origin is a critical point of f. What kind of point is it? Use the Hessian.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Minimum, maximum or saddle at the origin.</li>
+      <li><strong>Which idea applies.</strong> The Hessian H of second derivatives, then Sylvester's criterion.</li>
+      <li><strong>Work it out.</strong> f<sub>xx</sub> = 2, f<sub>xy</sub> = −1, f<sub>yy</sub> = 4. So H = [[2, −1], [−1, 4]]. D<sub>1</sub> = 2 &gt; 0 and D<sub>2</sub> = 8 − 1 = 7 &gt; 0. H is positive definite.</li>
+      <li><strong>Check.</strong> Completing the square gives f = (x − y/2)² + (7/4)y². This is never negative and is zero only at the origin, which confirms a strict minimum.</li>
+    </ol>
+    <p class="cx">Answer: a strict local minimum.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which values make the matrix positive definite? (MSQ)</h3>
+    <div class="statement"><p>Let A = [[a, 1], [1, a]]. Select all values of a for which A is positive definite.</p><p>(A) a = 0 &nbsp; (B) a = 1 &nbsp; (C) a = 2 &nbsp; (D) a = 3</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four specific values of a give PD.</li>
+      <li><strong>Which idea applies.</strong> Sylvester's criterion: a &gt; 0 and a² − 1 &gt; 0.</li>
+      <li><strong>Work it out.</strong> (A) a = 0 gives D<sub>1</sub> = 0, which is not positive, so not PD. (B) a = 1 gives D<sub>2</sub> = 1 − 1 = 0, so only PSD. (C) a = 2 gives D<sub>1</sub> = 2 and D<sub>2</sub> = 4 − 1 = 3, both positive: PD. (D) a = 3 gives D<sub>1</sub> = 3 and D<sub>2</sub> = 9 − 1 = 8: PD.</li>
+      <li><strong>Check.</strong> The eigenvalues are a + 1 and a − 1. For a = 2 they are 3 and 1, and for a = 3 they are 4 and 2, all positive.</li>
+    </ol>
+    <p class="cx">Answer: (C) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Positive definite range (NAT, 2 marks)</h3>
+    <div class="statement"><p>Consider the quadratic form Q(x, y, z) = x² + 2y² + 3z² + 2axy. Find the sum of all integers a for which Q is positive definite.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The integer values of a that keep Q positive definite, then their sum.</li>
+      <li><strong>Which idea applies.</strong> The matrix is [[1, a, 0], [a, 2, 0], [0, 0, 3]]. Use Sylvester's criterion: all leading principal minors positive.</li>
+      <li><strong>Work it out.</strong> Minors: 1 > 0, 2 − a² > 0, 3(2 − a²) > 0. So a² &lt; 2, giving integers a = −1, 0, 1. Sum = 0.</li>
+      <li><strong>Check.</strong> The code tests each integer with the minors.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>ok = [a for a in range(-5, 6) if 1 &gt; 0 and 2 - a * a &gt; 0 and 3 * (2 - a * a) &gt; 0]
+print(ok, "sum =", sum(ok))
+</code></pre>
+    <pre class="output">[-1, 0, 1] sum = 0</pre>
+    <p class="cx">Answer: 0 (a = −1, 0, 1).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Minimum on the unit circle (NAT, 2 marks)</h3>
+    <div class="statement"><p>Find the minimum value of Q(x, y) = 5x² + 4xy + 2y² subject to x² + y² = 1.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest value of the form on the unit circle.</li>
+      <li><strong>Which idea applies.</strong> By the Rayleigh quotient, the minimum is the smallest eigenvalue of the symmetric matrix [[5, 2], [2, 2]].</li>
+      <li><strong>Work it out.</strong> λ² − 7λ + 6 = 0 gives λ = 1 and 6. Minimum = 1.</li>
+      <li><strong>Check.</strong> The code samples the circle.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+print("min = %.4f" % min(5*math.cos(t)**2 + 4*math.cos(t)*math.sin(t) + 2*math.sin(t)**2 for t in [k * 2 * math.pi / 100000 for k in range(100000)]))
+</code></pre>
+    <pre class="output">min = 1.0000</pre>
+    <p class="cx">Answer: 1.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Classifying a form (MCQ, 2 marks)</h3>
+    <div class="statement"><p>The form Q = x² + y² + z² + 4xy + 4yz + 4xz is (A) positive definite (B) negative definite (C) indefinite (D) positive semidefinite.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sign pattern of the eigenvalues of its matrix.</li>
+      <li><strong>Which idea applies.</strong> The matrix is I + 2(J − I) = 2J − I where J is the all ones 3 × 3 matrix. J has eigenvalues 3, 0, 0.</li>
+      <li><strong>Work it out.</strong> Eigenvalues: 2·3 − 1 = 5 and 2·0 − 1 = −1 (twice). Mixed signs, so indefinite.</li>
+      <li><strong>Check.</strong> Q(1, −1, 0) = 1 + 1 − 4 = −2 and Q(1, 1, 1) = 15.</li>
+    </ol>
+    <p class="cx">Answer: (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Quadratic form</dt><dd>xᵀAx, an expression of degree 2 in the entries of x.</dd></div>
+    <div><dt>Symmetric matrix</dt><dd>A square matrix equal to its transpose. Quadratic forms are always written with one.</dd></div>
+    <div><dt>Positive definite</dt><dd>xᵀAx &gt; 0 for every non-zero x. A bowl.</dd></div>
+    <div><dt>Negative definite</dt><dd>xᵀAx &lt; 0 for every non-zero x. A hill.</dd></div>
+    <div><dt>Positive semidefinite</dt><dd>xᵀAx ≥ 0 for every x, with some non-zero x giving zero.</dd></div>
+    <div><dt>Negative semidefinite</dt><dd>xᵀAx ≤ 0 for every x, with some non-zero x giving zero.</dd></div>
+    <div><dt>Indefinite</dt><dd>The form takes both signs. A saddle.</dd></div>
+    <div><dt>Eigenvalue test</dt><dd>All eigenvalues positive gives PD. All negative gives ND. Mixed signs give indefinite.</dd></div>
+    <div><dt>Leading principal minor</dt><dd>The determinant of a top-left block of A.</dd></div>
+    <div><dt>Sylvester's criterion</dt><dd>PD exactly when all leading principal minors are positive.</dd></div>
+    <div><dt>Spectral theorem</dt><dd>A symmetric matrix has real eigenvalues and orthogonal eigenvectors.</dd></div>
+    <div><dt>Hessian</dt><dd>The symmetric matrix of second derivatives of a function.</dd></div>
+    <div><dt>Ellipse</dt><dd>The level curve q = 1 of a positive definite form.</dd></div>
+    <div><dt>Hyperbola</dt><dd>The level curve q = 1 of an indefinite form.</dd></div>
+    <div><dt>Strict local minimum</dt><dd>A critical point where the Hessian is positive definite.</dd></div>
+    <div><dt>Saddle point</dt><dd>A critical point where the Hessian is indefinite.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Off-diagonal entries of the matrix are half the cross coefficients.</li>
+    <li>Definiteness is about the sign of xᵀAx for non-zero x.</li>
+    <li>Sylvester's criterion proves positive or negative definiteness using leading minors.</li>
+    <li>For semidefinite forms, leading minors are not enough. Check all principal minors or use eigenvalues.</li>
+    <li>Positive definite gives an ellipse, indefinite gives a hyperbola.</li>
+    <li>A positive definite Hessian at a critical point means a strict local minimum.</li>
+  </ol>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 15?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 15 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-014.html"><small>Previous, topic 14</small>Rank &amp; eigenvalues recap for RA context</a><a class="next" href="gate-016.html"><small>Next, topic 16</small>Singular Value Decomposition (SVD)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,445 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 80: Recursion (recap)</title><meta name="description" content="Recursion means a function that calls itself to solve a smaller copy of the same problem. It is a neat way to write factorials, tree walks and puzzles such as the Tower of Hanoi. This quick recap covers the base case and the recursive case, how the call stack works, why some recursive programs become very slow, and the counting facts GATE asks about."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g80" data-key="g80" data-noun="topic" data-num="80" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Recursion (recap)</h1>
+<p class="lede">Recursion means a function that calls itself to solve a smaller copy of the same problem. It is a neat way to write factorials, tree walks and puzzles such as the Tower of Hanoi. This quick recap covers the base case and the recursive case, how the call stack works, why some recursive programs become very slow, and the counting facts GATE asks about.</p>
+<div class="station"><b>80</b><span>Unit 6 · Programming and data structures · Paper RA · Quick Recap</span></div>
+<ul class="topics"><li>Base case and recursive case</li><li>Factorial and the call stack</li><li>Fibonacci and the cost of repeated work</li><li>Tower of Hanoi</li><li>Recursion versus iteration</li><li>Trace and count questions</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you are in a long queue and want to know your position. You cannot see the front, so you ask the person in front of you. They ask the person ahead, and so on, until the first person says "I am first, so my position is 1". Each person then adds one and passes the answer back. That is recursion. The question is passed down a line of smaller questions until one can be answered directly, and then the answers travel back up.</p>
+  <p>Every correct recursive function has two parts. The <strong>base case</strong> is the simple case that is answered directly, with no further calls. The <strong>recursive case</strong> reduces the problem to a smaller one and calls itself on it. If the base case is missing, or the calls never get closer to it, the function runs forever (or until Python stops it with an error).</p>
+  <div class="note key"><p><span class="t">Key idea</span>Recursion needs a base case that stops it, and a recursive step that moves towards that base case. Check both before you trust any recursive program.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Recursion</dt><dd>A function that calls itself. Precisely: the function body contains a call to the same function with a smaller input.</dd></div>
+    <div><dt>Base case</dt><dd>The input for which the answer is given directly, without a further call.</dd></div>
+    <div><dt>Recursive case</dt><dd>The part where the function calls itself on a smaller problem.</dd></div>
+    <div><dt>Call stack</dt><dd>The record of calls that are still waiting for an answer. Precisely: each active call is a frame holding its variables, and the newest frame is on top.</dd></div>
+    <div><dt>Frame</dt><dd>One entry on the call stack, for one active call.</dd></div>
+    <div><dt>Factorial</dt><dd>n! is the product 1 x 2 x ... x n, with 0! defined as 1.</dd></div>
+    <div><dt>Fibonacci numbers</dt><dd>F(0) = 0, F(1) = 1, and F(n) = F(n - 1) + F(n - 2) for n at least 2.</dd></div>
+    <div><dt>Tower of Hanoi</dt><dd>A puzzle with three pegs and n disks of different sizes. Move all disks to another peg, one at a time, never placing a bigger disk on a smaller one.</dd></div>
+    <div><dt>Iteration</dt><dd>Repeating code with a loop instead of with calls. Precisely: a for or while loop.</dd></div>
+    <div><dt>Recursion depth</dt><dd>The largest number of frames on the call stack at one time.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Base and recursive cases">
+  <h2>The base case and the recursive case</h2>
+  <p>Let us write the simplest useful recursion: the number of items in a list, counted one at a time. The base case says: an empty list has 0 items. The recursive case says: a non-empty list has 1 item plus the number of items in the rest of the list. Each call works on a shorter list, so the calls reach the base case after one call per item.</p>
+  <p>Writing the rule as an equation helps. If L is the list, then count(L) = 0 when L is empty, and count(L) = 1 + count(rest of L) otherwise. The same pattern works for every recursion: an equation with a base value and a formula that uses a smaller input.</p>
+  <div class="formula">count(empty list) = 0</div>
+  <div class="formula">count(L) = 1 + count(L without its first item)</div>
+  <p>Common mistakes are a wrong base case (for example, stopping at n == 1 when n == 0 is also possible), and a recursive call that does not get smaller (for example, calling f(n) instead of f(n - 1)). Always ask: "what is the smallest input I answer directly, and does every call move towards it?"</p>
+  <details class="check"><summary>What is the base case for counting the items in a list?</summary><div class="ans"><p>An empty list, whose count is 0.</p></div></details>
+  <details class="check"><summary>What goes wrong if the recursive call uses n instead of n - 1?</summary><div class="ans"><p>The input never gets smaller, so the calls never reach the base case and the program does not stop.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Factorial and the call stack">
+  <h2>Factorial and the call stack</h2>
+  <p>The factorial of n, written n!, is 1 x 2 x 3 x ... x n. For example 4! = 4 x 3 x 2 x 1 = 24. The base case is 0! = 1, which is a convention that makes the formulas work. The recursive case uses the rule n! = n x (n - 1)!.</p>
+  <pre class="code" data-lang="python"><code>def fact(n):
+    if n == 0:
+        return 1
+    return n * fact(n - 1)
+
+print(fact(5))</code></pre>
+  <pre class="output">120</pre>
+  <p>To see how Python runs this, follow the call stack for fact(3). Each call starts, then waits for the call below it to return:</p>
+  <ul>
+    <li>fact(3) needs fact(2). It waits.</li>
+    <li>fact(2) needs fact(1). It waits.</li>
+    <li>fact(1) needs fact(0). It waits.</li>
+    <li>fact(0) is the base case. It returns 1.</li>
+    <li>fact(1) computes 1 x 1 = 1 and returns it.</li>
+    <li>fact(2) computes 2 x 1 = 2 and returns it.</li>
+    <li>fact(3) computes 3 x 2 = 6 and returns it.</li>
+  </ul>
+  <p>At the deepest point there are four frames on the stack: fact(3), fact(2), fact(1) and fact(0). Each frame holds its own copy of n. Frames are removed one at a time as answers return. This is the picture behind almost every recursion question.</p>
+  <div class="note tip"><p><span class="t">Tip</span>When tracing a recursive call, write the call, then the reason it waits, then the value that comes back. A small table like the list above avoids most mistakes.</p></div>
+  <details class="check"><summary>How many frames are on the stack when fact(4) reaches its base case?</summary><div class="ans"><p>Five: fact(4), fact(3), fact(2), fact(1) and fact(0).</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Fibonacci">
+  <h2>Fibonacci and the cost of repeated work</h2>
+  <p>The Fibonacci numbers start 0, 1, 1, 2, 3, 5, 8, 13, and each one after the first two is the sum of the two before it. The recursive definition copies this rule directly. The program below also counts the calls, so you can see the cost.</p>
+  <pre class="code" data-lang="python"><code>calls = 0
+
+def fib(n):
+    global calls
+    calls += 1
+    if n &lt; 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+print(fib(5), calls)</code></pre>
+  <pre class="output">5 15</pre>
+  <p>The answer to fib(5) is 5, and it took 15 calls. The reason is that fib(5) asks for fib(4) and fib(3), and fib(4) asks for fib(3) again. The same smaller values are recomputed many times. Let C(n) be the number of calls for fib(n). Then C(0) = C(1) = 1, and C(n) = 1 + C(n - 1) + C(n - 2). This gives C(2) = 3, C(3) = 5, C(4) = 9, C(5) = 15 and C(6) = 25. The count grows exponentially, roughly like 1.6 to the power n, which is far too slow for large n.</p>
+  <div class="formula">naive recursive Fibonacci: about 1.6<sup>n</sup> calls</div>
+  <p>A loop avoids the repeated work. It keeps only the last two values and moves forward once.</p>
+  <pre class="code" data-lang="python"><code>def fib_iter(n):
+    a, b = 0, 1
+    for _ in range(n):
+        a, b = b, a + b
+    return a
+
+print(fib_iter(10))</code></pre>
+  <pre class="output">55</pre>
+  <div class="note trap"><p><span class="t">Trap</span>A recursive function can be correct and still be far too slow. Count the calls before you accept a recursive design, and remember that memoization (storing answers already computed) also removes the repeated work.</p></div>
+  <details class="check"><summary>Why does fib(5) make 15 calls?</summary><div class="ans"><p>Because each call with n of 2 or more makes two more calls, and the smaller values are recomputed many times. Counting all calls gives 15.</p></div></details>
+  <details class="check"><summary>What is the value of fib_iter(7)?</summary><div class="ans"><p>13. The sequence is 0, 1, 1, 2, 3, 5, 8, 13, so index 7 holds 13.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Tower of Hanoi">
+  <h2>Tower of Hanoi: a recursion that is natural</h2>
+  <p>The puzzle has three pegs, A, B and C, and n disks. All disks start on peg A, the smallest on top and the largest at the bottom. Move them all to peg C, one disk at a time, and never put a larger disk on a smaller one. Peg B is a spare.</p>
+  <p>The recursive idea has three steps. To move n disks from A to C: first move the top n - 1 disks from A to B (using C as the spare). Then move the largest disk from A to C, which is now free. Then move the n - 1 disks from B to C (using A as the spare). The base case is zero disks, which needs no moves.</p>
+  <div class="formula">moves(n) = 2 x moves(n - 1) + 1, with moves(0) = 0, so moves(n) = 2<sup>n</sup> - 1</div>
+  <p>For three disks the answer is 2<sup>3</sup> - 1 = 7 moves. The program below prints the moves for three disks. Notice that the moves are written with an arrow, and the code escapes the greater-than sign as &gt;.</p>
+  <pre class="code" data-lang="python"><code>def hanoi(n, src, dst, aux, moves):
+    if n == 0:
+        return
+    hanoi(n - 1, src, aux, dst, moves)
+    moves.append(src + "-&gt;" + dst)
+    hanoi(n - 1, aux, dst, src, moves)
+
+moves = []
+hanoi(3, "A", "C", "B", moves)
+print(len(moves))
+print(moves)</code></pre>
+  <pre class="output">7
+['A-&gt;C', 'A-&gt;B', 'C-&gt;B', 'A-&gt;C', 'B-&gt;A', 'B-&gt;C', 'A-&gt;C']</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>The smallest disk moves on every other move, so it moves 2<sup>n-1</sup> times in total. For three disks that is 4 times, which is the first, third, fifth and seventh move.</p></div>
+  <details class="check"><summary>How many moves does the puzzle need for 4 disks?</summary><div class="ans"><p>15, because 2<sup>4</sup> - 1 = 15.</p></div></details>
+  <details class="check"><summary>What is the first move for 3 disks from A to C?</summary><div class="ans"><p>A to C. The first move in the list above is A-&gt;C, the smallest disk going to the target peg.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Recursion versus iteration">
+  <h2>Recursion versus iteration</h2>
+  <p>Every recursive function can be written with a loop, and every loop can be written with recursion. The choice depends on the problem. Recursion matches problems that split naturally into smaller copies, such as trees, Hanoi and divide-and-conquer sorting. Iteration is usually faster and uses less memory, because a loop keeps only a few variables rather than a frame for each call.</p>
+  <p>Recursion has a memory cost. Each pending call needs a frame on the call stack. Python stops a chain of nested calls after about 1,000 by default, with a RecursionError. A loop has no such limit.</p>
+  <div class="note tip"><p><span class="t">Tip</span>If a question asks for the stack space used by a recursive call, count the depth. If it asks for the time of a naive recursion, count the calls.</p></div>
+  <details class="check"><summary>Which is usually faster, a loop or the equivalent recursion?</summary><div class="ans"><p>A loop, because it avoids the overhead of creating a frame for each call.</p></div></details>
+  <details class="check"><summary>What error does Python raise when recursion is too deep?</summary><div class="ans"><p>RecursionError.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Quantity</th><th>Formula</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td>Factorial</td><td>n! = n x (n - 1)!, 0! = 1</td><td>4! = 24</td></tr>
+      <tr><td>Fibonacci</td><td>F(n) = F(n - 1) + F(n - 2)</td><td>F(6) = 8</td></tr>
+      <tr><td>Calls for naive fib</td><td>C(n) = 1 + C(n - 1) + C(n - 2), C(0) = C(1) = 1</td><td>C(6) = 25</td></tr>
+      <tr><td>Hanoi moves</td><td>2<sup>n</sup> - 1</td><td>3 disks: 7</td></tr>
+      <tr><td>Moves of the smallest disk</td><td>2<sup>n-1</sup></td><td>3 disks: 4</td></tr>
+      <tr><td>Stack depth of fact(n)</td><td>n + 1 frames</td><td>fact(5): 6 frames</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Doubling recursively</h3>
+    <div class="statement"><p>What does this program print?</p>
+<pre class="code" data-lang="python"><code>def f(n):
+    if n == 0:
+        return 1
+    return 2 * f(n - 1)
+
+print(f(4))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of f(4).</li>
+      <li><strong>Which idea applies.</strong> Base case: f(0) = 1. Recursive case: f(n) = 2 x f(n - 1).</li>
+      <li><strong>Work it out.</strong> f(4) = 2 x f(3). f(3) = 2 x f(2). f(2) = 2 x f(1). f(1) = 2 x f(0) = 2 x 1 = 2. Then f(2) = 4, f(3) = 8, f(4) = 16.</li>
+      <li><strong>Check.</strong> Doubling four times from 1 gives 16, which is 2<sup>4</sup>.</li>
+    </ol>
+    <p class="cx">Answer: 16</p>
+    <pre class="code" data-lang="python"><code>def f(n):
+    if n == 0:
+        return 1
+    return 2 * f(n - 1)
+
+print(f(4))</code></pre>
+    <pre class="output">16</pre>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Moves for four disks</h3>
+    <div class="statement"><p>What is the minimum number of moves for the Tower of Hanoi with 4 disks? Verify with a calculation.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimum number of moves for 4 disks.</li>
+      <li><strong>Which idea applies.</strong> The minimum is 2<sup>n</sup> - 1.</li>
+      <li><strong>Work it out.</strong> With n = 4, 2<sup>4</sup> = 16, and 16 - 1 = 15.</li>
+      <li><strong>Check.</strong> Using moves(n) = 2 x moves(n - 1) + 1: 1, 3, 7, 15 for n = 1 to 4.</li>
+    </ol>
+    <p class="cx">Answer: 15</p>
+    <pre class="code" data-lang="python"><code>print(2 ** 4 - 1)</code></pre>
+    <pre class="output">15</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about recursion are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) Every correct recursive function needs a base case.</li><li>(B) The naive recursive Fibonacci makes an exponential number of calls.</li><li>(C) Each recursive call must move towards the base case.</li><li>(D) Recursion uses no extra memory compared with a loop.</li><li>(E) Any recursion can be rewritten as a loop that keeps its own stack.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims are true.</li>
+      <li><strong>Which idea applies.</strong> Base case, progress, call counts, and the call stack.</li>
+      <li><strong>Work it out.</strong> (A) True, without a base case the calls never stop. (B) True, the counts grow like 1.6<sup>n</sup>. (C) True, otherwise the base case is never reached. (D) False, each pending call needs a frame on the call stack. (E) True, an explicit stack in a loop can replace the call stack.</li>
+      <li><strong>Check.</strong> For (D), recall that fact(5) holds six frames at its deepest point, which is memory that a simple loop does not need.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B), (C) and (E).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Sum by recursion</h3>
+    <div class="statement"><p>What does this program print?</p>
+<pre class="code" data-lang="python"><code>def f(n):
+    if n == 0:
+        return 0
+    return n + f(n - 1)
+
+print(f(4))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The value of f(4).</li>
+      <li><strong>Which idea applies.</strong> f(n) adds n to the answer for n - 1, and f(0) = 0.</li>
+      <li><strong>Work it out.</strong> f(4) = 4 + f(3) = 4 + 3 + f(2) = 4 + 3 + 2 + f(1) = 4 + 3 + 2 + 1 + f(0) = 10 + 0 = 10.</li>
+      <li><strong>Check.</strong> The sum 1 + 2 + 3 + 4 is 10.</li>
+    </ol>
+    <p class="cx">Answer: 10</p>
+    <pre class="code" data-lang="python"><code>def f(n):
+    if n == 0:
+        return 0
+    return n + f(n - 1)
+
+print(f(4))</code></pre>
+    <pre class="output">10</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Enter and leave</h3>
+    <div class="statement"><p>What does this program print, in order?</p>
+<pre class="code" data-lang="python"><code>def g(n):
+    if n &lt;= 0:
+        print("base")
+        return
+    print("enter", n)
+    g(n - 1)
+    print("leave", n)
+
+g(2)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every printed line in order.</li>
+      <li><strong>Which idea applies.</strong> Code before the recursive call runs on the way down, and code after the call runs on the way back up.</li>
+      <li><strong>Work it out.</strong> g(2) prints "enter 2" and calls g(1). g(1) prints "enter 1" and calls g(0). g(0) prints "base" and returns. Back in g(1), it prints "leave 1". Back in g(2), it prints "leave 2".</li>
+      <li><strong>Check.</strong> Each "enter" has exactly one matching "leave", in reverse order, and "base" appears once in the middle.</li>
+    </ol>
+    <p class="cx">Answer: enter 2, enter 1, base, leave 1, leave 2 (one per line).</p>
+    <pre class="code" data-lang="python"><code>def g(n):
+    if n &lt;= 0:
+        print("base")
+        return
+    print("enter", n)
+    g(n - 1)
+    print("leave", n)
+
+g(2)</code></pre>
+    <pre class="output">enter 2
+enter 1
+base
+leave 1
+leave 2</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Calls for fib(6)</h3>
+    <div class="statement"><p>The naive recursive Fibonacci program below counts its calls. How many calls does fib(6) make?</p>
+<pre class="code" data-lang="python"><code>calls = 0
+
+def fib(n):
+    global calls
+    calls += 1
+    if n &lt; 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+fib(6)
+print(calls)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of calls, which is the printed value of calls.</li>
+      <li><strong>Which idea applies.</strong> C(n) = 1 + C(n - 1) + C(n - 2), with C(0) = C(1) = 1.</li>
+      <li><strong>Work it out.</strong> C(0) = 1 and C(1) = 1. C(2) = 1 + 1 + 1 = 3. C(3) = 1 + 3 + 1 = 5. C(4) = 1 + 5 + 3 = 9. C(5) = 1 + 9 + 5 = 15. C(6) = 1 + 15 + 9 = 25.</li>
+      <li><strong>Check.</strong> The code below prints the count, which should match 25.</li>
+    </ol>
+    <p class="cx">Answer: 25 calls.</p>
+    <pre class="code" data-lang="python"><code>calls = 0
+
+def fib(n):
+    global calls
+    calls += 1
+    if n &lt; 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+fib(6)
+print(calls)</code></pre>
+    <pre class="output">25</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Disk 1 in a three-disk puzzle</h3>
+    <div class="statement"><p>In the optimal solution for 3 disks, moving all disks from A to C, how many times does the smallest disk (disk 1) move?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of moves made by the smallest disk.</li>
+      <li><strong>Which idea applies.</strong> The smallest disk moves on every other move, so it moves 2<sup>n-1</sup> times.</li>
+      <li><strong>Work it out.</strong> For n = 3, 2<sup>3-1</sup> = 2<sup>2</sup> = 4. The moves are 1, 3, 5 and 7 in the list shown on this page, and the moves listed at those positions are the ones that move disk 1.</li>
+      <li><strong>Check.</strong> Seven moves in total, with the smallest disk moving at 1, 3, 5 and 7, is four times.</li>
+    </ol>
+    <p class="cx">Answer: 4 times.</p>
+    <pre class="code" data-lang="python"><code>print(2 ** (3 - 1))</code></pre>
+    <pre class="output">4</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Depth of the call stack</h3>
+    <div class="statement"><p>The program below counts the frames on the call stack while computing fact(5). What are the printed values of the factorial and the maximum depth?</p>
+<pre class="code" data-lang="python"><code>depth = 0
+max_depth = 0
+
+def fact(n):
+    global depth, max_depth
+    depth += 1
+    max_depth = max(max_depth, depth)
+    if n == 0:
+        depth -= 1
+        return 1
+    r = n * fact(n - 1)
+    depth -= 1
+    return r
+
+print(fact(5), max_depth)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two printed numbers: fact(5) and the maximum depth.</li>
+      <li><strong>Which idea applies.</strong> Each call adds a frame. The calls for fact(5) are fact(5), fact(4), fact(3), fact(2), fact(1) and fact(0), which is 6 calls in a chain.</li>
+      <li><strong>Work it out.</strong> 5 x 4 x 3 x 2 x 1 = 120. The deepest point is when fact(0) is active, and all six frames are on the stack, so the maximum depth is 6.</li>
+      <li><strong>Check.</strong> The depth is n + 1 = 6 for n = 5, which matches the formula on this page.</li>
+    </ol>
+    <p class="cx">Answer: 120 and 6.</p>
+    <pre class="code" data-lang="python"><code>depth = 0
+max_depth = 0
+
+def fact(n):
+    global depth, max_depth
+    depth += 1
+    max_depth = max(max_depth, depth)
+    if n == 0:
+        depth -= 1
+        return 1
+    r = n * fact(n - 1)
+    depth -= 1
+    return r
+
+print(fact(5), max_depth)</code></pre>
+    <pre class="output">120 6</pre>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Tower of Hanoi moves (NAT, 1 mark)</h3>
+    <div class="statement"><p>How many moves does the recursive Tower of Hanoi solution need for 7 disks?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimum move count.</li>
+      <li><strong>Which idea applies.</strong> T(n) = 2T(n − 1) + 1 with T(1) = 1, so T(n) = 2ⁿ − 1.</li>
+      <li><strong>Work it out.</strong> 2<sup>7</sup> − 1 = 127.</li>
+      <li><strong>Check.</strong> The code counts recursively.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>T = lambda n: 0 if n == 0 else 2 * T(n - 1) + 1
+print(T(7))
+</code></pre>
+    <pre class="output">127</pre>
+    <p class="cx">Answer: 127.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Recursion output (NAT, 2 marks)</h3>
+    <div class="statement"><p>def f(n): return 0 if n == 0 else (n % 10) * (n % 2) + f(n // 10). Find f(735284).</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The recursive sum of odd digits.</li>
+      <li><strong>Which idea applies.</strong> Each call adds the last digit if it is odd, then recurses on the rest.</li>
+      <li><strong>Work it out.</strong> Digits 7, 3, 5, 2, 8, 4. Odd digits: 7 + 3 + 5 = 15.</li>
+      <li><strong>Check.</strong> The code runs it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def f(n):
+    return 0 if n == 0 else (n % 10) * (n % 2) + f(n // 10)
+print(f(735284))
+</code></pre>
+    <pre class="output">15</pre>
+    <p class="cx">Answer: 15.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Recursion depth (NAT, 2 marks)</h3>
+    <div class="statement"><p>def g(n): return 1 if n &lt;= 1 else g(n // 2) + 1. What is g(1000)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of halvings plus one.</li>
+      <li><strong>Which idea applies.</strong> g(n) = ⌊log<sub>2</sub> n⌋ + 1 for n ≥ 1.</li>
+      <li><strong>Work it out.</strong> 1000 → 500 → 250 → 125 → 62 → 31 → 15 → 7 → 3 → 1 is 9 halvings. g = 10.</li>
+      <li><strong>Check.</strong> The code runs it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>g = lambda n: 1 if n &lt;= 1 else g(n // 2) + 1
+print(g(1000))
+</code></pre>
+    <pre class="output">10</pre>
+    <p class="cx">Answer: 10.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Recursion</dt><dd>A function that calls itself on a smaller input.</dd></div>
+    <div><dt>Base case</dt><dd>The input answered directly, which stops the recursion.</dd></div>
+    <div><dt>Recursive case</dt><dd>The step that calls the function on a smaller problem.</dd></div>
+    <div><dt>Call stack</dt><dd>The stack of active calls, one frame per call.</dd></div>
+    <div><dt>Factorial</dt><dd>n! = n x (n - 1)!, with 0! = 1.</dd></div>
+    <div><dt>Naive Fibonacci</dt><dd>Recomputes values many times, with about 1.6<sup>n</sup> calls.</dd></div>
+    <div><dt>Iterative Fibonacci</dt><dd>A loop that keeps the last two values and runs in linear time.</dd></div>
+    <div><dt>Tower of Hanoi</dt><dd>Move n - 1 disks away, move the largest, then move the n - 1 disks back on top.</dd></div>
+    <div><dt>Hanoi moves</dt><dd>2<sup>n</sup> - 1 moves for n disks.</dd></div>
+    <div><dt>Recursion depth</dt><dd>The largest number of frames active at once.</dd></div>
+    <div><dt>Recursion versus iteration</dt><dd>Recursion matches divide-and-conquer problems. A loop is usually faster and uses less memory.</dd></div>
+    <div><dt>RecursionError</dt><dd>The error Python raises when nested calls go too deep.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Every recursion needs a base case and a step that moves towards it.</li>
+    <li>Trace a recursive call by writing what each call waits for.</li>
+    <li>Count calls to measure the time of a naive recursion.</li>
+    <li>Count frames to measure the stack space.</li>
+    <li>Hanoi with n disks takes 2<sup>n</sup> - 1 moves.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 80?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 80 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-079.html"><small>Previous, topic 79</small>Python operators, expressions &amp; conditionals (recap)</a><a class="next" href="gate-081.html"><small>Next, topic 81</small>Looping statements &amp; loop control (recap)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

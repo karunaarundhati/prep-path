@@ -1,0 +1,490 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 33: Bayes' Theorem</title><meta name="description" content="Bayes&#x27; theorem tells you how to update a belief after you see new evidence. It is one of the most useful formulas in probability, and GATE uses it in many numerical questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g33" data-key="g33" data-noun="topic" data-num="33" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Bayes&#x27; Theorem</h1>
+<p class="lede">Bayes&#x27; theorem tells you how to update a belief after you see new evidence. It is one of the most useful formulas in probability, and GATE uses it in many numerical questions.</p>
+<div class="station"><b>33</b><span>Unit 3 · Probability and statistics · Paper DA · New concept</span></div>
+<ul class="topics"><li>Conditional probability</li><li>Law of total probability</li><li>Bayes&#x27; theorem and the tree method</li><li>Prior, likelihood and posterior</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you hear a noise at night and you wonder whether a burglar is in the house. Before the noise, you might think a burglar is quite unlikely, maybe 1 chance in 100. Then you hear the noise. Now your belief goes up. How much it goes up depends on two things: how unlikely the noise would be in a normal night, and how likely the noise is if a burglar really is there.</p>
+  <p>That process of starting with a belief, seeing evidence, and then correcting the belief is exactly what <strong>Bayes' theorem</strong> does. It is named after the English minister Thomas Bayes, but you do not need any history to use it. You only need a clear method.</p>
+  <p>Here is the everyday picture. Suppose a disease is rare, with 1 person in 100 having it. A test for the disease is quite good: it catches 95 out of 100 sick people. It also gives a false alarm for 5 out of 100 healthy people. You test positive. Most beginners think the chance you are sick is about 95 percent. That is wrong. Bayes' theorem shows that the real answer is much smaller, about 16 percent. The reason is that the disease is rare, so most positive results come from the large group of healthy people who got a false alarm. This surprise is the reason Bayes' theorem matters.</p>
+  <p>Why does it matter for GATE? Bayes' theorem appears in the probability and statistics part of the Data Science and AI (DA) paper, and in the probability part of the Robotics and Automation (RA) paper. Bayes questions are a regular favourite in GATE probability sections. Many of them are numerical answer type (NAT) questions where you must compute one number. Naive Bayes classifiers, which are used to sort emails into spam and not spam, are built on this same formula, so the idea also shows up in machine learning topics.</p>
+  <p>The good news is that every Bayes question follows the same few steps. Once you learn those steps, you can solve them calmly.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. You will meet each one again in the explanations below.</p>
+  <dl>
+    <div><dt>Event</dt><dd>Plain meaning: something that might happen. Precise definition: a set of outcomes of a random experiment. For example, "the die shows an even number".</dd></div>
+    <div><dt>Probability P(A)</dt><dd>Plain meaning: how likely event A is, as a number from 0 to 1. Precise definition: a number between 0 and 1 that measures how likely event A is, where 0 means impossible and 1 means certain.</dd></div>
+    <div><dt>Conditional probability P(A|B)</dt><dd>Plain meaning: the chance of A, once you already know B has happened. It is read as "probability of A given B". Precise definition: P(A|B) = P(A and B) / P(B), when P(B) is not zero.</dd></div>
+    <div><dt>Complement</dt><dd>Plain meaning: "everything except". The complement of A is "A does not happen". It is written as A' or not-A, and P(not A) = 1 - P(A).</dd></div>
+    <div><dt>Partition</dt><dd>Plain meaning: a way of splitting all possibilities into separate groups, so that exactly one group happens. Precise definition: events B<sub>1</sub>, B<sub>2</sub>, ..., B<sub>n</sub> are mutually exclusive (no two can happen together) and their union is the whole sample space.</dd></div>
+    <div><dt>Law of total probability</dt><dd>Plain meaning: add up the chance of B through every group that could lead to it. Precise definition: P(B) = Σ P(B|B<sub>i</sub>) P(B<sub>i</sub>), summed over a partition B<sub>i</sub>.</dd></div>
+    <div><dt>Prior probability</dt><dd>Plain meaning: your belief before you see the new evidence. Precise definition: P(A), the probability of the hypothesis A before the evidence B is observed.</dd></div>
+    <div><dt>Likelihood</dt><dd>Plain meaning: how well the evidence fits a given hypothesis. Precise definition: P(B|A), the probability of seeing evidence B if hypothesis A is true.</dd></div>
+    <div><dt>Evidence (normalising constant)</dt><dd>Plain meaning: how likely the evidence is overall, across all hypotheses. Precise definition: P(B), the total probability of the evidence, found by the law of total probability.</dd></div>
+    <div><dt>Posterior probability</dt><dd>Plain meaning: your updated belief after seeing the evidence. Precise definition: P(A|B), the probability of hypothesis A after evidence B is observed.</dd></div>
+    <div><dt>Sensitivity</dt><dd>Plain meaning: how often a test is positive when the person really has the condition. Precise definition: P(positive test | disease), also called the true positive rate.</dd></div>
+    <div><dt>False positive rate</dt><dd>Plain meaning: how often a test is positive when the person is healthy. Precise definition: P(positive test | no disease).</dd></div>
+    <div><dt>Tree diagram</dt><dd>Plain meaning: a picture of a multi-stage experiment, drawn as branches. Precise definition: a diagram where each branch carries a probability, and the probability of a path is the product of the branch probabilities along it.</dd></div>
+    <div><dt>Naive Bayes</dt><dd>Plain meaning: a simple classifier that assumes the features are independent once you know the class. Precise definition: a classifier that picks the class C maximising P(C) × Π P(feature<sub>i</sub> | C).</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Conditional probability, the building block">
+  <h2>Concept 1: Conditional probability, the building block</h2>
+  <h3>Why we need it</h3>
+  <p>Before Bayes' theorem, you need one idea: once you know something, your probabilities change. Suppose you roll a fair six-sided die. The chance of rolling a 6 is 1/6. Now a friend tells you "the number is even". The possible results are now only 2, 4 and 6. The chance of a 6 is now 1/3, not 1/6. The extra information changed the answer.</p>
+  <p>This is the core of conditional probability. We write P(A|B) to mean "the probability of A, given that B has happened". The vertical bar means "given".</p>
+  <h3>The formula</h3>
+  <div class="formula">P(A|B) = P(A and B) / P(B)</div>
+  <p>Here is what each symbol means:</p>
+  <ul>
+    <li><strong>P(A|B)</strong> is the answer we want: the chance of A once B is known.</li>
+    <li><strong>P(A and B)</strong> is the chance that both A and B happen together.</li>
+    <li><strong>P(B)</strong> is the chance of B alone. It must not be zero, because we cannot divide by zero.</li>
+  </ul>
+  <p>The idea behind the formula is simple. Once B is known to have happened, the only outcomes we still care about are the ones inside B. Among those, we ask what fraction also has A. The fraction is "A and B" divided by "B".</p>
+  <h3>Worked example: the die</h3>
+  <p>Let A be "the number is 6" and B be "the number is even". Use a fair die with six equally likely faces.</p>
+  <ol>
+    <li>List the outcomes for A and B. A = {6}. B = {2, 4, 6}.</li>
+    <li>Find P(A and B). A and B means "6 and even", which is just {6}. So P(A and B) = 1/6.</li>
+    <li>Find P(B). B has 3 outcomes out of 6, so P(B) = 3/6 = 1/2.</li>
+    <li>Divide. P(A|B) = (1/6) / (1/2) = (1/6) × 2 = 2/6 = 1/3.</li>
+  </ol>
+  <p>This matches the everyday reasoning: after learning the number is even, there are 3 equally likely choices, and only one of them is 6.</p>
+  <p>Here is a Python check. It uses exact fractions so that the answer is not affected by rounding.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+p_a_and_b = Fraction(1, 6)   # only the outcome 6 is both even and 6
+p_b = Fraction(3, 6)         # outcomes 2, 4, 6 are even
+p_a_given_b = p_a_and_b / p_b
+
+print("P(A and B) =", p_a_and_b)
+print("P(B) =", p_b)
+print("P(A|B) =", p_a_given_b)</code></pre>
+  <pre class="output">P(A and B) = 1/6
+P(B) = 1/2
+P(A|B) = 1/3</pre>
+  <div class="note trap"><p><span class="t">Trap</span>P(A|B) is not the same as P(B|A). For the die, P(B|A) means "even, given 6", which is 1, because 6 is always even. The two numbers are very different. Always check which event is the condition, the part after the bar.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>If two events are independent, knowing B tells you nothing about A. Then P(A|B) = P(A). You can check independence this way: if P(A|B) equals P(A), the events are independent.</p></div>
+  <details class="check"><summary>Self-check: if P(A) = 0.3 and A and B are independent, what is P(A|B)?</summary><div class="ans"><p>For independent events, knowing B changes nothing, so P(A|B) = P(A) = 0.3.</p></div></details>
+  <details class="check"><summary>Self-check: P(A and B) = 0.12 and P(B) = 0.4. What is P(A|B)?</summary><div class="ans"><p>P(A|B) = 0.12 / 0.4 = 0.3.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="The law of total probability">
+  <h2>Concept 2: The law of total probability, finding P(B)</h2>
+  <h3>Why we need it</h3>
+  <p>Bayes' theorem has P(B) in its bottom line. That is the total chance of the evidence. Often the problem does not give P(B) directly. It gives you groups of cases that could lead to B, and you must add them up. This adding-up step is the <strong>law of total probability</strong>.</p>
+  <h3>The formula</h3>
+  <div class="formula">P(B) = P(B|A<sub>1</sub>) P(A<sub>1</sub>) + P(B|A<sub>2</sub>) P(A<sub>2</sub>) + ... + P(B|A<sub>n</sub>) P(A<sub>n</sub>)</div>
+  <p>Each symbol means:</p>
+  <ul>
+    <li><strong>A<sub>1</sub>, A<sub>2</sub>, ..., A<sub>n</sub></strong> are the groups. They must form a partition: exactly one group happens each time, and no two overlap.</li>
+    <li><strong>P(A<sub>i</sub>)</strong> is the chance of group i. The chances of all groups must add to 1.</li>
+    <li><strong>P(B|A<sub>i</sub>)</strong> is the chance of the evidence B inside group i.</li>
+  </ul>
+  <p>The rule says: for each group, multiply "how likely the group is" by "how likely B is inside that group". Then add all the products.</p>
+  <h3>Worked example: three machines</h3>
+  <p>A factory has three machines. Machine A makes 50 percent of the items, machine B makes 30 percent, and machine C makes 20 percent. The defect rates are 2 percent for A, 3 percent for B and 5 percent for C. What is the chance that a randomly chosen item is defective?</p>
+  <ol>
+    <li>Write the groups and their chances. P(A) = 0.50, P(B) = 0.30, P(C) = 0.20. These add to 1, so they form a partition.</li>
+    <li>Write the defect chance inside each group. P(defect|A) = 0.02, P(defect|B) = 0.03, P(defect|C) = 0.05.</li>
+    <li>Multiply each pair. For A: 0.02 × 0.50 = 0.010. For B: 0.03 × 0.30 = 0.009. For C: 0.05 × 0.20 = 0.010.</li>
+    <li>Add the three products. 0.010 + 0.009 + 0.010 = 0.029.</li>
+    <li>So P(defect) = 0.029. About 2.9 percent of the items are defective.</li>
+  </ol>
+  <p>Here is the same calculation in Python. Notice that the code mirrors the steps above.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+p_group = {"A": F(50, 100), "B": F(30, 100), "C": F(20, 100)}
+p_defect_given = {"A": F(2, 100), "B": F(3, 100), "C": F(5, 100)}
+
+total = F(0)
+for g in p_group:
+    part = p_defect_given[g] * p_group[g]
+    print("group", g, "contributes", part)
+    total += part
+
+print("P(defect) =", total)</code></pre>
+  <pre class="output">group A contributes 1/100
+group B contributes 9/1000
+group C contributes 1/100
+P(defect) = 29/1000</pre>
+  <p>The answer is 29/1000, which is 0.029. Notice how the calculation is just "multiply, then add". This pattern appears in almost every total probability question.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Before you can use Bayes' theorem, you must know the groups. Always ask yourself: "What are all the different ways the evidence could have happened, and how likely is each way?"</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The groups must cover everything. If you forget a group, your total probability will be too small. In the factory example, if you forgot machine C, you would get 0.019 and the answer would be wrong. A quick check: the group chances must add to 1.</p></div>
+  <details class="check"><summary>Self-check: P(A) = 0.6, P(B|A) = 0.5, P(not A) = 0.4 and P(B|not A) = 0.1. What is P(B)?</summary><div class="ans"><p>P(B) = 0.5 × 0.6 + 0.1 × 0.4 = 0.30 + 0.04 = 0.34.</p></div></details>
+  <details class="check"><summary>Self-check: why must the groups in the law of total probability add up to 1?</summary><div class="ans"><p>Because exactly one group happens every time. The chances of the groups must therefore cover the whole sample space, and the total must be 1.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Bayes' theorem and the tree method">
+  <h2>Concept 3: Bayes' theorem and the tree method</h2>
+  <h3>Why we need it</h3>
+  <p>Now we can state the main result. In many problems you know P(B|A), which is how the evidence looks when the hypothesis is true. But you want P(A|B), which is the hypothesis given the evidence. Bayes' theorem swaps the order of the condition. It turns the answer you know into the answer you want.</p>
+  <h3>The formula</h3>
+  <div class="formula">P(A|B) = P(B|A) × P(A) / P(B)</div>
+  <p>Each symbol means:</p>
+  <ul>
+    <li><strong>P(A|B)</strong> is the posterior, the updated belief in A after seeing B.</li>
+    <li><strong>P(B|A)</strong> is the likelihood, how well the evidence fits A.</li>
+    <li><strong>P(A)</strong> is the prior, the belief in A before the evidence.</li>
+    <li><strong>P(B)</strong> is the evidence, found with the law of total probability when it is not given.</li>
+  </ul>
+  <p>Where does the formula come from? By the definition of conditional probability, P(A and B) can be written two ways: P(A|B) × P(B) and P(B|A) × P(A). Both are equal to P(A and B). Set them equal and divide by P(B). That gives Bayes' theorem. You do not need to memorise the proof, but knowing where it comes from helps you trust it.</p>
+  <h3>Worked example: the disease test</h3>
+  <p>A disease affects 1 person in 100. A test gives a positive result for 95 percent of sick people, and for 5 percent of healthy people. A random person tests positive. What is the chance that this person is sick?</p>
+  <ol>
+    <li><strong>Name the events.</strong> Let D mean "sick" and + mean "positive test".</li>
+    <li><strong>Write what you know.</strong> P(D) = 0.01 (prior). P(+|D) = 0.95 (sensitivity). P(+|not D) = 0.05 (false positive rate).</li>
+    <li><strong>Find the evidence P(+).</strong> By total probability: P(+) = P(+|D) P(D) + P(+|not D) P(not D) = 0.95 × 0.01 + 0.05 × 0.99 = 0.0095 + 0.0495 = 0.059.</li>
+    <li><strong>Apply Bayes' theorem.</strong> P(D|+) = P(+|D) P(D) / P(+) = 0.0095 / 0.059.</li>
+    <li><strong>Simplify.</strong> 0.0095 / 0.059 = 95 / 590 = 19 / 118, which is about 0.161.</li>
+    <li><strong>Interpret.</strong> A positive test raises the chance of disease from 1 percent to about 16 percent. It is a big rise, but the answer is far from 95 percent.</li>
+  </ol>
+  <h3>The tree method</h3>
+  <p>Many students find formulas abstract. The <strong>tree method</strong> draws the problem instead. It works especially well for multi-stage problems, where a second choice happens after the first.</p>
+  <ol>
+    <li>Draw the first split. Put the prior probabilities on the first branches. They must add to 1.</li>
+    <li>From each first-stage node, draw the second split. Write the conditional probabilities on the branches.</li>
+    <li>Multiply along each path. The product gives the probability of that complete path.</li>
+    <li>To find P(B), add the products of all paths that end in B. This is the total probability.</li>
+    <li>To find P(A|B), take the path or paths that go through A and B, and divide their total by P(B).</li>
+  </ol>
+  <p>The tree makes it clear that "the chance of A and B" is one path, and "the chance of B" is every path that ends in B. Bayes is then just "the good paths divided by all the paths that reach the evidence".</p>
+  <p>Here is the same disease example in Python. It checks the answer exactly.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+p_d = Fraction(1, 100)              # prior: P(disease)
+p_pos_given_d = Fraction(95, 100)   # sensitivity
+p_pos_given_nd = Fraction(5, 100)   # false positive rate
+
+p_nd = 1 - p_d
+p_pos = p_pos_given_d * p_d + p_pos_given_nd * p_nd   # total probability
+p_d_given_pos = p_pos_given_d * p_d / p_pos            # Bayes theorem
+
+print("P(positive) =", p_pos)
+print("P(disease | positive) =", p_d_given_pos)
+print("as a decimal:", round(float(p_d_given_pos), 3))</code></pre>
+  <pre class="output">P(positive) = 59/1000
+P(disease | positive) = 19/118
+as a decimal: 0.161</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>GATE often gives you the prior, the likelihoods and asks for the posterior. Write down all four numbers in a list before you start. Most lost marks come from mixing up P(A|B) and P(B|A).</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Students often answer 95 percent in the disease example. This comes from confusing P(+|D) with P(D|+). The first is the test's accuracy, the second is the answer to the real question. Always ask: "What is the condition in the question?"</p></div>
+  <details class="check"><summary>Self-check: in a tree, how do you find P(B) from the paths?</summary><div class="ans"><p>Add the probabilities of all the paths that end in B. Each path probability is the product of its branch probabilities.</p></div></details>
+  <details class="check"><summary>Self-check: P(A) = 0.2, P(B|A) = 0.5 and P(B) = 0.25. What is P(A|B)?</summary><div class="ans"><p>P(A|B) = 0.5 × 0.2 / 0.25 = 0.10 / 0.25 = 0.4.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Prior, likelihood, posterior and Naive Bayes">
+  <h2>Concept 4: Prior, likelihood, posterior and Naive Bayes</h2>
+  <h3>Updating beliefs step by step</h3>
+  <p>Bayes' theorem can be used again and again. The posterior from one piece of evidence becomes the prior for the next, just as a detective starts each new clue with the suspect list she already has.</p>
+  <p>Suppose the disease test is repeated on the same person, and both tests are positive. Assume the two tests are independent once we know whether the person is sick. The first posterior, 0.161, becomes the prior for the second test. We do not need to start over. Instead, we can compute directly with both pieces of evidence:</p>
+  <div class="formula">P(D|+,+) = P(+|D)² P(D) / [P(+|D)² P(D) + P(+|not D)² P(not D)]</div>
+  <p>Here the numerator is "sick and both tests positive", and the denominator is "all ways to get two positives". The square appears because the two tests are assumed to be independent given the state, so their chances multiply.</p>
+  <h3>Worked example: two positive tests</h3>
+  <ol>
+    <li>Numerator: 0.95² × 0.01 = 0.9025 × 0.01 = 0.009025.</li>
+    <li>Second term of the denominator: 0.05² × 0.99 = 0.0025 × 0.99 = 0.002475.</li>
+    <li>Denominator: 0.009025 + 0.002475 = 0.0115.</li>
+    <li>Posterior: 0.009025 / 0.0115 = 361 / 460, which is about 0.785.</li>
+    <li>Interpret: two positive tests give about a 78 percent chance of disease. Each test adds weight, and the answer climbs quickly.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+p_d = F(1, 100)
+num = F(95, 100) ** 2 * p_d
+den = num + F(5, 100) ** 2 * (1 - p_d)
+post = num / den
+
+print("P(D | two positives) =", post)
+print("about", round(float(post), 2))</code></pre>
+  <pre class="output">P(D | two positives) = 361/460
+about 0.78</pre>
+  <h3>Naive Bayes, the classifier</h3>
+  <p>A <strong>Naive Bayes</strong> classifier uses Bayes' theorem to decide a class from several features. For example, an email might contain the words "win" and "meeting". The classifier asks: which class (spam or not spam) is more likely, given these words?</p>
+  <p>The word "naive" comes from a simplifying assumption. We pretend that, within each class, the words appear independent of one another. This is almost never exactly true, but it makes the calculation easy. For each class C, we compute a score:</p>
+  <div class="formula">score(C) = P(C) × P(word<sub>1</sub>|C) × P(word<sub>2</sub>|C) × ...</div>
+  <p>Then we divide each score by the sum of all the scores, which turns them into probabilities that add to 1. This division plays the role of P(B) in Bayes' theorem.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Naive Bayes is Bayes' theorem with a shortcut for the likelihood. The shortcut is to multiply the per-word likelihoods. Everything else is the same formula you have already learned.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Do not forget the prior. A word can look very strong, but if the class is rare, the prior pulls the answer down. The prior is the first factor in every score.</p></div>
+  <details class="check"><summary>Self-check: what does the posterior become after the first test, if the second test is then ignored?</summary><div class="ans"><p>It is the first posterior, about 0.161. Using the second test as the new prior is the same as using both tests together.</p></div></details>
+  <details class="check"><summary>Self-check: in Naive Bayes, why do we divide the scores by their sum?</summary><div class="ans"><p>To turn each score into a probability between 0 and 1 that adds to 1 across the classes. The sum of the scores plays the role of P(B), the evidence.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>P(A|B) = P(A and B) / P(B)</td><td>Chance of A once B is known</td><td>When you have a joint probability and a condition</td></tr>
+      <tr><td>P(not A) = 1 - P(A)</td><td>Complement rule</td><td>When it is easier to find the chance of "not"</td></tr>
+      <tr><td>P(B) = Σ P(B|A<sub>i</sub>) P(A<sub>i</sub>)</td><td>Total probability of the evidence</td><td>When B can happen through several groups</td></tr>
+      <tr><td>P(A|B) = P(B|A) P(A) / P(B)</td><td>Bayes' theorem</td><td>When you know the reverse condition and need the posterior</td></tr>
+      <tr><td>P(A|B) = P(B|A) P(A) / [P(B|A) P(A) + P(B|not A) P(not A)]</td><td>Bayes with two hypotheses</td><td>The most common GATE form, with a test or a yes/no state</td></tr>
+      <tr><td>score(C) = P(C) Π P(word<sub>i</sub>|C)</td><td>Naive Bayes score</td><td>Classifying with several independent features</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past paper questions. Try each one on paper before you read the answer. Use the four steps in "How to think about it".</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Two boxes of balls</h3>
+    <div class="statement"><p>Box 1 contains 2 red and 3 blue balls. Box 2 contains 4 red and 1 blue ball. One box is chosen with equal chance, and then one ball is drawn at random from it. The ball is red. What is the probability that the box chosen was Box 1?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(Box 1 | red). The evidence is "red", and we want the box.</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem, with P(red) found by total probability.</li>
+      <li><strong>Work it out.</strong> Priors: P(Box 1) = P(Box 2) = 1/2. Likelihoods: P(red | Box 1) = 2/5 and P(red | Box 2) = 4/5. Evidence: P(red) = (1/2)(2/5) + (1/2)(4/5) = 1/5 + 2/5 = 3/5. Posterior: P(Box 1 | red) = (1/2)(2/5) / (3/5) = (1/5) / (3/5) = 1/3.</li>
+      <li><strong>Check.</strong> Box 2 has more red balls, so a red ball should make Box 2 more likely. The answer 1/3 is below 1/2, which agrees.</li>
+    </ol>
+    <p class="cx">Answer: 1/3</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Faulty part after a positive check</h3>
+    <div class="statement"><p>NAT question. A part is defective with probability 0.3. A quality check flags a defective part with probability 0.8, and it flags a good part with probability 0.2. A part is flagged. Find the probability that it is defective. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(defective | flagged), correct to two decimals.</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem, with P(flagged) from total probability.</li>
+      <li><strong>Work it out.</strong> Prior 0.3, likelihood 0.8, and P(good) = 0.7 with P(flagged | good) = 0.2. Evidence: P(flagged) = 0.8 × 0.3 + 0.2 × 0.7 = 0.24 + 0.14 = 0.38. Posterior: 0.24 / 0.38 = 12/19, which is about 0.6316.</li>
+      <li><strong>Check.</strong> The check flags defective parts more often, so the answer should be above the prior 0.3. It is 0.63, which is above 0.3.</li>
+    </ol>
+    <p class="cx">Answer: 0.63</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Spam word test</h3>
+    <div class="statement"><p>Forty percent of all emails are spam. The word "free" appears in 60 percent of spam emails and in 5 percent of non-spam emails. An email contains the word "free". What is the probability that it is spam? Give your answer as a fraction.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(spam | free).</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem with the two-group form of the evidence.</li>
+      <li><strong>Work it out.</strong> P(spam) = 0.4, P(free | spam) = 0.6, P(free | not spam) = 0.05, P(not spam) = 0.6. Evidence: P(free) = 0.4 × 0.6 + 0.6 × 0.05 = 0.24 + 0.03 = 0.27. Posterior: 0.24 / 0.27 = 24/27 = 8/9.</li>
+      <li><strong>Check.</strong> 8/9 is about 0.89, which is well above the prior 0.4. The word is strong evidence, so a large rise is expected.</li>
+    </ol>
+    <p class="cx">Answer: 8/9</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Select all true statements about the factory</h3>
+    <div class="statement"><p>Use the factory with three machines. Machine A makes 50 percent of items with a 2 percent defect rate. Machine B makes 30 percent with a 3 percent defect rate. Machine C makes 20 percent with a 5 percent defect rate. An item is chosen at random. Select all that apply.</p><p>(A) P(defect) = 0.029<br>(B) P(machine B | defect) = 9/29<br>(C) P(machine C | defect) = 1/2<br>(D) P(defect | machine A) = 0.02</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Check each option and tick the true ones.</li>
+      <li><strong>Which idea applies.</strong> Total probability for P(defect), and Bayes for the reverse conditions.</li>
+      <li><strong>Work it out.</strong> Option A: 0.01 + 0.009 + 0.01 = 0.029, so A is true. Option B: P(machine B | defect) = 0.009 / 0.029 = 9/29, so B is true. Option C: P(machine C | defect) = 0.010 / 0.029 = 10/29, which is not 1/2, so C is false. Option D: this is the defect rate of machine A given in the question, so D is true.</li>
+      <li><strong>Check.</strong> The three machine shares of defects must add to 1: 10/29 + 9/29 + 10/29 = 29/29 = 1. This confirms the calculations.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D) are true. Option (C) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>A system with an alarm</h3>
+    <div class="statement"><p>A machine is faulty with probability 0.1. An alarm rings with probability 0.9 when the machine is faulty, and with probability 0.1 when it is working. The alarm rings. Find the probability that the machine is faulty.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(faulty | alarm).</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem with total probability.</li>
+      <li><strong>Work it out.</strong> P(faulty) = 0.1, P(alarm | faulty) = 0.9, P(working) = 0.9, P(alarm | working) = 0.1. Evidence: 0.9 × 0.1 + 0.1 × 0.9 = 0.09 + 0.09 = 0.18. Posterior: 0.09 / 0.18 = 1/2.</li>
+      <li><strong>Check.</strong> The faulty path and the working path each contribute 0.09 to the total of 0.18. The faulty share is therefore exactly one half.</li>
+    </ol>
+    <p class="cx">Answer: 1/2</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Naive Bayes with two words</h3>
+    <div class="statement"><p>An email is spam with prior probability 0.4 and not spam with prior probability 0.6. The word "win" appears in 50 percent of spam and 10 percent of non-spam emails. The word "meeting" appears in 10 percent of spam and 40 percent of non-spam emails. Assume the two words are independent within each class. An email contains both "win" and "meeting". Using Naive Bayes, find P(spam | both words). Give the answer as a fraction.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The posterior probability of spam, given both words.</li>
+      <li><strong>Which idea applies.</strong> Naive Bayes scores, then normalise them so they add to 1.</li>
+      <li><strong>Work it out.</strong> Spam score: 0.4 × 0.5 × 0.1 = 0.020. Not-spam score: 0.6 × 0.1 × 0.4 = 0.024. Sum: 0.044. Posterior: 0.020 / 0.044 = 20/44 = 5/11.</li>
+      <li><strong>Check.</strong> 5/11 is about 0.45. It is above 0.4, the prior, which makes sense because "win" is more common in spam while "meeting" is more common in ordinary mail. The two effects pull in opposite directions, so the answer is a moderate rise.</li>
+    </ol>
+    <p class="cx">Answer: 5/11</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Two independent positive checks</h3>
+    <div class="statement"><p>NAT question. A rare fault has prior probability 0.01. A sensor gives a positive reading with probability 0.95 when the fault is present, and with probability 0.05 when it is absent. Two separate readings are taken, and both are positive. Assume the readings are independent given the state of the system. Find the probability that the fault is present. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(fault | two positives), to two decimals.</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem with both pieces of evidence, using the square of each likelihood.</li>
+      <li><strong>Work it out.</strong> Fault term: 0.95 × 0.95 × 0.01 = 0.009025. No-fault term: 0.05 × 0.05 × 0.99 = 0.002475. Sum: 0.0115. Posterior: 0.009025 / 0.0115 = 361/460, which is about 0.7848.</li>
+      <li><strong>Check.</strong> Two positives should give a bigger rise than one (one positive gave about 0.16). The value 0.78 is much bigger than 0.16, which agrees.</li>
+    </ol>
+    <p class="cx">Answer: 0.78</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Working backwards from a posterior</h3>
+    <div class="statement"><p>NAT question. For two events A and B, P(A) = 0.2, P(B) = 0.25 and P(A | B) = 0.3. Find P(B | A). Give the answer as a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The reverse conditional, P(B | A).</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem read in reverse: P(B|A) = P(A|B) P(B) / P(A).</li>
+      <li><strong>Work it out.</strong> P(B|A) = 0.3 × 0.25 / 0.2 = 0.075 / 0.2 = 0.375.</li>
+      <li><strong>Check.</strong> The answer must be between 0 and 1. It is 0.375, which is. Also, P(A and B) = 0.075 can be found from both sides: 0.3 × 0.25 = 0.075 and 0.375 × 0.2 = 0.075. Both agree.</li>
+    </ol>
+    <p class="cx">Answer: 0.375</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Three suppliers and a defect (NAT, 2 marks)</h3>
+    <div class="statement"><p>NAT question. A factory buys identical circuit boards from three suppliers. Supplier A provides 50 percent of the boards, supplier B provides 30 percent, and supplier C provides 20 percent. The defect rates are 1 percent for supplier A, 2 percent for supplier B and 4 percent for supplier C. A board is picked at random from the store and is found to be defective. Find the probability that it came from supplier C. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(C | defective), to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem, with P(defective) found by the law of total probability over the three suppliers.</li>
+      <li><strong>Work it out.</strong> Joint terms: A gives 0.5 × 0.01 = 0.005, B gives 0.3 × 0.02 = 0.006, and C gives 0.2 × 0.04 = 0.008. So P(defective) = 0.005 + 0.006 + 0.008 = 0.019. Then P(C | defective) = 0.008 / 0.019 = 8/19, which is about 0.4211.</li>
+      <li><strong>Check.</strong> Supplier C provides only 20 percent of the boards, but its defect rate is high, so its share of the defective boards should be larger than 20 percent. About 42 percent is larger, so the answer is plausible.</li>
+    </ol>
+    <p class="cx">Answer: 0.42</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction
+pri = {"A": Fraction(1, 2), "B": Fraction(3, 10), "C": Fraction(1, 5)}
+dft = {"A": Fraction(1, 100), "B": Fraction(2, 100), "C": Fraction(4, 100)}
+pd = sum(pri[k] * dft[k] for k in pri)
+post = pri["C"] * dft["C"] / pd
+print("P(defective) =", pd)
+print("P(C | defective) =", post)
+print("decimal =", round(float(post), 2))</code></pre>
+    <pre class="output">P(defective) = 19/1000
+P(C | defective) = 8/19
+decimal = 0.42</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Screening test, one positive result (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A screening test is given to adults in a town. Two in every hundred adults have a certain condition. The test is positive for 90 percent of people who have the condition (this is the sensitivity) and negative for 95 percent of people who do not have it (this is the specificity). A randomly chosen adult tests positive once. Which of the following is the probability that this adult actually has the condition? (A) 0.90 (B) 0.27 (C) 0.05 (D) 0.95. Select one option.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(condition | positive), for one positive test.</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem, with P(positive) found by total probability over people with and without the condition.</li>
+      <li><strong>Work it out.</strong> P(positive) = 0.02 × 0.9 + 0.98 × 0.05 = 0.018 + 0.049 = 0.067. Then P(condition | positive) = 0.018 / 0.067 = 18/67, which is about 0.2687. The answer is option B.</li>
+      <li><strong>Check.</strong> When the condition is rare, even a good test gives a modest posterior. 0.27 is far below the sensitivity of 0.90, which is the common mistake. Why the other options fail: (A) mistakes the sensitivity for the posterior, (C) is the false positive rate for healthy people, and (D) is the specificity.</li>
+    </ol>
+    <p class="cx">Answer: (B) 0.27</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction
+prev = Fraction(2, 100)
+sens = Fraction(9, 10)
+spec = Fraction(95, 100)
+p_pos = prev * sens + (1 - prev) * (1 - spec)
+post = prev * sens / p_pos
+print("P(positive) =", p_pos)
+print("P(condition | positive) =", post)
+print("decimal =", round(float(post), 4))</code></pre>
+    <pre class="output">P(positive) = 67/1000
+P(condition | positive) = 18/67
+decimal = 0.2687</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: True statements about two events (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Two events A and B are defined on the same sample space. From a long record of days, the following values were measured: P(A) = 0.4, P(B) = 0.5 and P(A | B) = 0.6. Select all the statements that are true.</p>
+    <ul>
+      <li>(A) P(B | A) = 0.75</li>
+      <li>(B) P(A and B) = 0.24</li>
+      <li>(C) P(A | not B) = 0.2</li>
+      <li>(D) A and B are independent.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are true. Select all that apply.</li>
+      <li><strong>Which idea applies.</strong> The product rule P(A and B) = P(A | B) P(B), Bayes' theorem, the complement rule, and the test for independence P(A and B) = P(A) P(B).</li>
+      <li><strong>Work it out.</strong> P(A and B) = 0.6 × 0.5 = 0.3. Then P(B | A) = 0.3 / 0.4 = 0.75, so (A) is true. P(A and not B) = 0.4 - 0.3 = 0.1 and P(not B) = 0.5, so P(A | not B) = 0.1 / 0.5 = 0.2, so (C) is true. Option (B) is false, since the value is 0.3, not 0.24 (0.24 is 0.6 × 0.4, a wrong pair of numbers). Option (D) is false, since P(A) P(B) = 0.2, which is not 0.3.</li>
+      <li><strong>Check.</strong> Each true statement can be confirmed from the joint value 0.3. The two false statements fail for the reasons given, so the answer is A and C.</li>
+    </ol>
+    <p class="cx">Answer: A and C</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+pA = F(4, 10)
+pB = F(5, 10)
+pAgB = F(6, 10)
+pAB = pAgB * pB
+print("P(A and B) =", pAB)
+print("P(B | A) =", pAB / pA)
+print("P(A | not B) =", (pA - pAB) / (1 - pB))
+print("P(A) P(B) =", pA * pB, "so independent:", pA * pB == pAB)</code></pre>
+    <pre class="output">P(A and B) = 3/10
+P(B | A) = 3/4
+P(A | not B) = 1/5
+P(A) P(B) = 1/5 so independent: False</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: A coin of unknown type (NAT, 2 marks)</h3>
+    <div class="statement"><p>NAT question. A box holds many coins. Four in every five are fair, with P(heads) = 0.5. The other one in five is biased, with P(heads) = 0.9. A coin is picked at random from the box and tossed three times, and all three tosses show heads. Find the probability that the coin picked is the biased one. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> P(biased | HHH), to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> Bayes' theorem. The three tosses are independent once the coin is known, so the likelihood of three heads is p cubed.</li>
+      <li><strong>Work it out.</strong> Priors: biased 0.2, fair 0.8. Likelihoods: P(HHH | fair) = 0.5³ = 0.125 and P(HHH | biased) = 0.9³ = 0.729. Numerator: 0.2 × 0.729 = 0.1458. Denominator: 0.8 × 0.125 + 0.1458 = 0.2458. Posterior: 0.1458 / 0.2458 = 729/1229, which is about 0.5932.</li>
+      <li><strong>Check.</strong> Three heads is much more likely from the biased coin (0.729 against 0.125), but the biased coin is rare. The posterior is above the prior 0.2, and it is not close to 1, so 0.59 is sensible.</li>
+    </ol>
+    <p class="cx">Answer: 0.59</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+pb = F(1, 5)
+pf = 1 - pb
+lf = F(1, 2) ** 3
+lb = F(9, 10) ** 3
+post = pb * lb / (pb * lb + pf * lf)
+print("P(biased | HHH) =", post)
+print("decimal =", round(float(post), 2))</code></pre>
+    <pre class="output">P(biased | HHH) = 729/1229
+decimal = 0.59</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Conditional probability</dt><dd>The chance of A once B is known, P(A|B) = P(A and B) / P(B).</dd></div>
+    <div><dt>Independence</dt><dd>Two events are independent when knowing one does not change the chance of the other.</dd></div>
+    <div><dt>Partition</dt><dd>A set of groups that do not overlap and together cover all possibilities.</dd></div>
+    <div><dt>Law of total probability</dt><dd>P(B) is the sum of P(B|A<sub>i</sub>) P(A<sub>i</sub>) over a partition.</dd></div>
+    <div><dt>Bayes' theorem</dt><dd>P(A|B) = P(B|A) P(A) / P(B), which reverses a conditional.</dd></div>
+    <div><dt>Prior</dt><dd>P(A), your belief before the evidence.</dd></div>
+    <div><dt>Likelihood</dt><dd>P(B|A), how well the evidence fits the hypothesis.</dd></div>
+    <div><dt>Evidence</dt><dd>P(B), the overall chance of the evidence, found by total probability.</dd></div>
+    <div><dt>Posterior</dt><dd>P(A|B), your updated belief after the evidence.</dd></div>
+    <div><dt>Sensitivity</dt><dd>P(positive | disease), the true positive rate of a test.</dd></div>
+    <div><dt>False positive rate</dt><dd>P(positive | no disease).</dd></div>
+    <div><dt>Tree diagram</dt><dd>A picture of a multi-stage problem where a path probability is the product of its branches.</dd></div>
+    <div><dt>Repeated updating</dt><dd>The posterior after one piece of evidence becomes the prior for the next.</dd></div>
+    <div><dt>Naive Bayes</dt><dd>A classifier that multiplies per-feature likelihoods and the prior, then normalises.</dd></div>
+    <div><dt>Complement</dt><dd>P(not A) = 1 - P(A).</dd></div>
+    <div><dt>Base rate</dt><dd>The prior. A rare condition with a good test can still give a low posterior.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Bayes' theorem reverses a condition: P(A|B) = P(B|A) P(A) / P(B).</li>
+    <li>The denominator P(B) is found by the law of total probability, so the groups must cover everything and add to 1.</li>
+    <li>P(B|A) and P(A|B) are different. Always identify the condition, the part after the bar.</li>
+    <li>A rare condition with a good test still gives a modest posterior, because the prior is small.</li>
+    <li>In a tree, the probability of a path is the product of its branches, and P(B) is the sum of the paths that reach B.</li>
+    <li>In Naive Bayes, multiply the prior by the likelihoods, then divide by the sum of the scores.</li>
+    <li>The posterior from one piece of evidence becomes the prior for the next.</li>
+  </ol>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 33?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 33 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-032.html"><small>Previous, topic 32</small>Marginal, conditional &amp; joint probability</a><a class="next" href="gate-034.html"><small>Next, topic 34</small>Discrete random variables &amp; PMF</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

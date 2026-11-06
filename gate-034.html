@@ -1,0 +1,485 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 34: Discrete random variables & PMF</title><meta name="description" content="A discrete random variable turns the outcome of a random experiment into a whole number. Its probability mass function (PMF) lists how likely each number is, and from the PMF you can compute the mean and the variance."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g34" data-key="g34" data-noun="topic" data-num="34" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Discrete random variables &amp; PMF</h1>
+<p class="lede">A discrete random variable turns the outcome of a random experiment into a whole number. Its probability mass function (PMF) lists how likely each number is, and from the PMF you can compute the mean and the variance.</p>
+<div class="station"><b>34</b><span>Unit 3 · Probability and statistics · Paper DA · New concept</span></div>
+<ul class="topics"><li>Random variables</li><li>Probability mass function (PMF)</li><li>Expectation (mean)</li><li>Variance and standard deviation</li><li>Cumulative distribution function (CDF) from a PMF</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you toss three coins and count the heads. The result could be 0, 1, 2 or 3. You do not know the answer before you toss, so the count is uncertain. A quantity whose value depends on chance is called a <strong>random variable</strong>. We usually write it with a capital letter, such as X.</p>
+  <p>Think of a shop that counts customers each hour. The count changes from hour to hour, and you cannot know it in advance. But you can record how often each count happened over many hours. That record is a table of frequencies. Turn the frequencies into probabilities and you have a <strong>probability mass function</strong>, or PMF. The PMF tells you how the random variable spreads its chances over the possible values.</p>
+  <p>Once you have the PMF, two summary numbers become very useful. The first is the <strong>expectation</strong>, which is the long-run average. The second is the <strong>variance</strong>, which measures how spread out the values are around that average. GATE questions on this topic almost always give you a PMF table and ask for one of these numbers. If you can read the table and multiply carefully, you can answer them.</p>
+  <p>This topic is the bridge between basic probability and the rest of the statistics in the Data Science and AI (DA) paper, and it is also used in the probability parts of the Robotics and Automation (RA) paper. Later topics, such as the binomial and Poisson distributions, are just special PMFs with neat formulas.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Each term is explained first in plain words, then in its precise form.</p>
+  <dl>
+    <div><dt>Random experiment</dt><dd>Plain meaning: an action whose result you cannot predict exactly, such as a coin toss. Precise definition: a process with a set of possible outcomes, where each outcome has a definite probability.</dd></div>
+    <div><dt>Random variable</dt><dd>Plain meaning: a rule that gives a number for each outcome. Precise definition: a function from the outcomes of a random experiment to the real numbers.</dd></div>
+    <div><dt>Discrete random variable</dt><dd>Plain meaning: a variable that takes values you can list one by one, such as 0, 1, 2. Precise definition: a random variable whose set of possible values is finite or countably infinite.</dd></div>
+    <div><dt>Support</dt><dd>Plain meaning: the list of values the variable can actually take. Precise definition: the set of all x with P(X = x) > 0.</dd></div>
+    <div><dt>PMF, p(x) or P(X = x)</dt><dd>Plain meaning: the chance that X equals a particular value x. Precise definition: a function that gives P(X = x) for each x, with every value at least 0 and the values adding to 1.</dd></div>
+    <div><dt>Expectation E[X]</dt><dd>Plain meaning: the long-run average value of X. Precise definition: E[X] = Σ x P(X = x), summed over the support.</dd></div>
+    <div><dt>Variance Var(X)</dt><dd>Plain meaning: the average squared distance from the mean. Precise definition: Var(X) = E[(X - E[X])²], which can also be written as E[X²] - (E[X])².</dd></div>
+    <div><dt>Standard deviation</dt><dd>Plain meaning: a spread measure in the same units as X. Precise definition: the positive square root of the variance, √Var(X).</dd></div>
+    <div><dt>Cumulative distribution function (CDF)</dt><dd>Plain meaning: the chance that X is at most x. Precise definition: F(x) = P(X ≤ x) = Σ P(X = t) over all t ≤ x.</dd></div>
+    <div><dt>Mean</dt><dd>Plain meaning: another name for the expectation of X. Precise definition: μ = E[X].</dd></div>
+    <div><dt>Notation Σ</dt><dd>Plain meaning: "add these up". Precise definition: Σ<sub>x</sub> f(x) is the sum of f(x) over all values x in the support.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Random variables and the PMF">
+  <h2>Concept 1: Random variables and the PMF</h2>
+  <h3>From outcomes to numbers</h3>
+  <p>A random experiment has outcomes. For three coin tosses, one outcome is HTH (heads, tails, heads). Another is TTT. A random variable X is a rule that turns each outcome into a number. The rule "count the heads" turns HTH into 2 and TTT into 0.</p>
+  <p>Notice that the random variable is not the same as the outcome. Many different outcomes can give the same number. For example, HHT, HTH and THH all give X = 2.</p>
+  <h3>The PMF</h3>
+  <p>The probability mass function gives the chance of each value. We write it as P(X = x), read as "the probability that X equals x". Two rules must always hold:</p>
+  <div class="formula">P(X = x) ≥ 0 for every x, and Σ P(X = x) = 1</div>
+  <ul>
+    <li>Every probability is zero or positive. A negative chance is impossible.</li>
+    <li>All the probabilities add to exactly 1, because X must take some value.</li>
+  </ul>
+  <p>To find the chance of a set of values, add the PMF over that set. For example, P(X ≥ 2) = P(X = 2) + P(X = 3).</p>
+  <h3>Worked example: three coin tosses</h3>
+  <ol>
+    <li>There are 8 equally likely outcomes: HHH, HHT, HTH, HTT, THH, THT, TTH and TTT.</li>
+    <li>Count the heads in each outcome. The counts are 3, 2, 2, 1, 2, 1, 1 and 0.</li>
+    <li>Count how many outcomes give each value. Zero heads: 1 outcome. One head: 3 outcomes. Two heads: 3 outcomes. Three heads: 1 outcome.</li>
+    <li>Divide by 8. P(X = 0) = 1/8, P(X = 1) = 3/8, P(X = 2) = 3/8, P(X = 3) = 1/8.</li>
+    <li>Check. The four probabilities add to 1/8 + 3/8 + 3/8 + 1/8 = 8/8 = 1.</li>
+  </ol>
+  <p>Here is a Python check that builds the same PMF by listing all 8 outcomes.</p>
+  <pre class="code" data-lang="python"><code>from itertools import product
+from fractions import Fraction as F
+from collections import Counter
+
+outcomes = list(product("HT", repeat=3))   # all 8 equally likely sequences
+counts = Counter(seq.count("H") for seq in outcomes)
+pmf = {x: F(counts[x], len(outcomes)) for x in sorted(counts)}
+
+for x, p in pmf.items():
+    print(f"P(X = {x}) = {p}")
+print("sum of PMF =", sum(pmf.values()))
+print("P(X &gt;= 2) =", sum(p for x, p in pmf.items() if x &gt;= 2))</code></pre>
+  <pre class="output">P(X = 0) = 1/8
+P(X = 1) = 3/8
+P(X = 2) = 3/8
+P(X = 3) = 1/8
+sum of PMF = 1
+P(X &gt;= 2) = 1/2</pre>
+  <div class="note key"><p><span class="t">Key idea</span>A PMF is valid only if every entry is at least 0 and the entries add to 1. This check is the first thing to do with any table in a GATE question.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Students sometimes read P(X ≥ 2) as P(X > 2). The symbol ≥ includes the value 2 itself. Write down the values you include before you add.</p></div>
+  <details class="check"><summary>Self-check: a PMF has P(X = 1) = 0.2, P(X = 2) = 0.5 and P(X = 3) = 0.4. Is it valid?</summary><div class="ans"><p>No. The values add to 1.1, not 1. Every value is non-negative, but the total must be exactly 1.</p></div></details>
+  <details class="check"><summary>Self-check: using the three-toss PMF, what is P(1 ≤ X ≤ 2)?</summary><div class="ans"><p>P(X = 1) + P(X = 2) = 3/8 + 3/8 = 6/8 = 3/4.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Expectation, the long-run average">
+  <h2>Concept 2: Expectation, the long-run average</h2>
+  <h3>Why we need it</h3>
+  <p>Suppose you play a game many times, and the amount you win is a random variable X. You would like one number that tells you what to expect per game. The expectation is that number. It is the average result you would get if you repeated the experiment a very large number of times.</p>
+  <p>Everyday picture: a shop sells apples in bags. Some bags have 0 bad apples, some have 1 and some have 2. If you buy many bags, the average number of bad apples per bag settles to a fixed value. That settled value is the expectation.</p>
+  <h3>The formula</h3>
+  <div class="formula">E[X] = Σ x × P(X = x)</div>
+  <ul>
+    <li><strong>x</strong> is each possible value of the variable.</li>
+    <li><strong>P(X = x)</strong> is the chance of that value.</li>
+    <li><strong>Σ</strong> means you add the product over all values.</li>
+  </ul>
+  <p>Each value is weighted by its probability. Values that are more likely pull the average towards them.</p>
+  <h3>Worked example: the three-toss count</h3>
+  <ol>
+    <li>Write the products x × P(X = x) in a table. For x = 0: 0 × 1/8 = 0. For x = 1: 1 × 3/8 = 3/8. For x = 2: 2 × 3/8 = 6/8. For x = 3: 3 × 1/8 = 3/8.</li>
+    <li>Add the products. 0 + 3/8 + 6/8 + 3/8 = 12/8 = 3/2.</li>
+    <li>So E[X] = 3/2 = 1.5. On average you see 1.5 heads per three tosses. This makes sense: a fair coin gives heads half the time, and 3 × 1/2 = 3/2.</li>
+  </ol>
+  <h3>A second quantity: E[X²]</h3>
+  <p>Later you will need E[X²], the expectation of the square of X. The rule is the same, but each value is squared before weighting:</p>
+  <div class="formula">E[X²] = Σ x² × P(X = x)</div>
+  <p>Do not square the answer E[X] to get E[X²]. Square each value first, then weight it.</p>
+  <p>The Python block below computes both E[X] and E[X²] for the same PMF, and it uses exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+pmf = {0: F(1, 8), 1: F(3, 8), 2: F(3, 8), 3: F(1, 8)}
+
+ex = sum(x * p for x, p in pmf.items())
+ex2 = sum(x * x * p for x, p in pmf.items())
+
+print("E[X] =", ex)
+print("E[X^2] =", ex2)</code></pre>
+  <pre class="output">E[X] = 3/2
+E[X^2] = 3</pre>
+  <div class="note trap"><p><span class="t">Trap</span>E[X] is not always one of the possible values. Here the mean is 1.5, which X can never equal. The expectation is an average, not a value you must see.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expectation questions often give a PMF table with an unknown constant c. First use the fact that the PMF sums to 1 to find c. Then compute E[X]. Students who skip the first step get the wrong answer.</p></div>
+  <details class="check"><summary>Self-check: X takes 1 with probability 0.5 and 3 with probability 0.5. What is E[X]?</summary><div class="ans"><p>E[X] = 1 × 0.5 + 3 × 0.5 = 0.5 + 1.5 = 2.</p></div></details>
+  <details class="check"><summary>Self-check: what is E[X²] for the same variable?</summary><div class="ans"><p>E[X²] = 1² × 0.5 + 3² × 0.5 = 0.5 + 4.5 = 5.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Variance and standard deviation">
+  <h2>Concept 3: Variance and standard deviation</h2>
+  <h3>Why we need it</h3>
+  <p>Two variables can have the same mean but very different spreads. Imagine two cricket players who both average 40 runs. One scores about 40 every match. The other scores 0 in some matches and 80 in others. The mean is the same, but the second player is far less predictable. The variance is the number that tells these two cases apart.</p>
+  <h3>The definition and the shortcut</h3>
+  <p>The variance is the average squared distance of X from its mean μ = E[X]. Squaring makes all distances positive, so that values above and below the mean do not cancel out.</p>
+  <div class="formula">Var(X) = E[(X - μ)²] = E[X²] - (E[X])²</div>
+  <p>The second form is a shortcut. It is usually faster in exams: first find E[X] and E[X²], then subtract the square of the mean.</p>
+  <p>The standard deviation is the square root of the variance. It has the same units as X, so it is easier to read:</p>
+  <div class="formula">SD(X) = √Var(X)</div>
+  <h3>Worked example: the three-toss count</h3>
+  <ol>
+    <li>From Concept 2: E[X] = 3/2 and E[X²] = 3.</li>
+    <li>Square the mean. (3/2)² = 9/4.</li>
+    <li>Subtract. Var(X) = 3 - 9/4 = 12/4 - 9/4 = 3/4.</li>
+    <li>Standard deviation. √(3/4) = √3 / 2, which is about 0.866.</li>
+  </ol>
+  <p>The Python check below computes the variance and standard deviation from the same PMF.</p>
+  <pre class="code" data-lang="python"><code>import math
+from fractions import Fraction as F
+
+pmf = {0: F(1, 8), 1: F(3, 8), 2: F(3, 8), 3: F(1, 8)}
+ex = sum(x * p for x, p in pmf.items())
+ex2 = sum(x * x * p for x, p in pmf.items())
+var = ex2 - ex ** 2
+
+print("Var(X) =", var, "=", float(var))
+print("SD(X) =", round(math.sqrt(var), 3))</code></pre>
+  <pre class="output">Var(X) = 3/4 = 0.75
+SD(X) = 0.866</pre>
+  <h3>Two rules for changing the variable</h3>
+  <p>Often a question asks about Y = aX + b, where a and b are constants. Two rules help:</p>
+  <ul>
+    <li><strong>Expectation is linear:</strong> E[aX + b] = a E[X] + b.</li>
+    <li><strong>Variance ignores the shift and squares the scale:</strong> Var(aX + b) = a² Var(X). The constant b disappears, because adding b shifts every value equally.</li>
+  </ul>
+  <p>For example, if E[X] = 4 and Var(X) = 5, then Y = 2X + 3 has E[Y] = 2 × 4 + 3 = 11 and Var(Y) = 2² × 5 = 20.</p>
+  <div class="note trap"><p><span class="t">Trap</span>E[X²] is not the same as (E[X])². For the three-toss variable, E[X²] = 3, but (E[X])² = 2.25. Mixing these up is the most common mistake in variance questions.</p></div>
+  <div class="note key"><p><span class="t">Key idea</span>The variance is always zero or positive. If you get a negative variance, you have made an arithmetic error, usually in E[X²] or in squaring the mean.</p></div>
+  <details class="check"><summary>Self-check: E[X] = 2 and E[X²] = 6. What is Var(X)?</summary><div class="ans"><p>Var(X) = 6 - 2² = 6 - 4 = 2.</p></div></details>
+  <details class="check"><summary>Self-check: if Var(X) = 9, what is the standard deviation of X?</summary><div class="ans"><p>SD(X) = √9 = 3.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="CDF from a PMF">
+  <h2>Concept 4: The CDF from a PMF</h2>
+  <h3>Why we need it</h3>
+  <p>The PMF gives the chance of exactly one value. Many questions ask about "at most" a value, such as "what is the chance of at most 1 head?" The cumulative distribution function, or CDF, answers this directly. It adds the PMF from the smallest value up to x.</p>
+  <h3>The formula</h3>
+  <div class="formula">F(x) = P(X ≤ x) = Σ P(X = t), summed over all t ≤ x</div>
+  <p>The CDF has three properties that help you check your work:</p>
+  <ul>
+    <li>It never decreases as x grows. Adding more values can only add probability.</li>
+    <li>It starts at 0 for very small x and reaches 1 for large x.</li>
+    <li>For a discrete variable it is a staircase. It jumps at each value of the support and stays flat in between.</li>
+  </ul>
+  <h3>Using the CDF for intervals</h3>
+  <p>To find the chance that X lies between two values, subtract the CDF values. For discrete variables, be careful with the endpoints:</p>
+  <div class="formula">P(a &lt; X ≤ b) = F(b) - F(a)</div>
+  <p>The left endpoint a is excluded, and the right endpoint b is included. This is why the formula uses F(a), not F(a) minus a single PMF value.</p>
+  <h3>Worked example: the three-toss count</h3>
+  <ol>
+    <li>F(0) = P(X ≤ 0) = 1/8.</li>
+    <li>F(1) = P(X ≤ 1) = 1/8 + 3/8 = 4/8 = 1/2.</li>
+    <li>F(2) = P(X ≤ 2) = 1/2 + 3/8 = 7/8.</li>
+    <li>F(3) = P(X ≤ 3) = 7/8 + 1/8 = 1. The staircase has reached its top.</li>
+    <li>P(1 &lt; X ≤ 2) = F(2) - F(1) = 7/8 - 1/2 = 3/8, which matches P(X = 2) directly.</li>
+  </ol>
+  <p>The Python check computes the staircase and the interval probability.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+pmf = {0: F(1, 8), 1: F(3, 8), 2: F(3, 8), 3: F(1, 8)}
+
+cum = F(0)
+for x in sorted(pmf):
+    cum += pmf[x]
+    print(f"F({x}) = {cum}")
+
+print("P(1 &lt; X ≤ 2) =", F(7, 8) - F(1, 2))</code></pre>
+  <pre class="output">F(0) = 1/8
+F(1) = 1/2
+F(2) = 7/8
+F(3) = 1
+P(1 &lt; X ≤ 2) = 3/8</pre>
+  <div class="note tip"><p><span class="t">Tip</span>To build the CDF table quickly, write the PMF in one column, then add each row to the running total in the next column. The last total must be 1. If it is not, the PMF is wrong.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>For discrete variables, P(X &lt; 2) and P(X ≤ 2) are different when X can equal 2. The first is F(1), the second is F(2). Read the inequality carefully.</p></div>
+  <details class="check"><summary>Self-check: what is F(x) for x below the smallest value of the support?</summary><div class="ans"><p>It is 0, because X cannot be that small.</p></div></details>
+  <details class="check"><summary>Self-check: F(1) = 0.4 and F(3) = 0.9. What is P(1 &lt; X ≤ 3)?</summary><div class="ans"><p>P(1 &lt; X ≤ 3) = F(3) - F(1) = 0.9 - 0.4 = 0.5.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>P(X = x) ≥ 0 and Σ P(X = x) = 1</td><td>Validity of a PMF</td><td>First check of any table, or to find a missing constant</td></tr>
+      <tr><td>E[X] = Σ x P(X = x)</td><td>Expectation, the mean</td><td>Average outcome of the variable</td></tr>
+      <tr><td>E[X²] = Σ x² P(X = x)</td><td>Second moment</td><td>Needed for the variance</td></tr>
+      <tr><td>Var(X) = E[X²] - (E[X])²</td><td>Variance shortcut</td><td>Spread of the variable, the fastest route</td></tr>
+      <tr><td>SD(X) = √Var(X)</td><td>Standard deviation</td><td>When the answer must be in the units of X</td></tr>
+      <tr><td>E[aX + b] = a E[X] + b</td><td>Linear rule for the mean</td><td>When the variable is rescaled or shifted</td></tr>
+      <tr><td>Var(aX + b) = a² Var(X)</td><td>Linear rule for the variance</td><td>Shifts do not change the spread</td></tr>
+      <tr><td>F(x) = P(X ≤ x)</td><td>CDF</td><td>"At most" questions and interval probabilities</td></tr>
+      <tr><td>P(a &lt; X ≤ b) = F(b) - F(a)</td><td>Interval from the CDF</td><td>Chance that X lies in a range</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past paper questions. Work each one on paper first, then compare with the solution.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Expectation from a small table</h3>
+    <div class="statement"><p>A random variable X takes the values 1, 2 and 3 with probabilities 0.2, 0.5 and 0.3. Find E[X].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The mean of X.</li>
+      <li><strong>Which idea applies.</strong> E[X] = Σ x P(X = x).</li>
+      <li><strong>Work it out.</strong> 1 × 0.2 = 0.2. 2 × 0.5 = 1.0. 3 × 0.3 = 0.9. Sum: 0.2 + 1.0 + 0.9 = 2.1.</li>
+      <li><strong>Check.</strong> The mean must lie between the smallest value 1 and the largest value 3. The answer 2.1 does, and it is closer to 2, where most of the probability sits.</li>
+    </ol>
+    <p class="cx">Answer: E[X] = 2.1</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Select all true statements about a PMF</h3>
+    <div class="statement"><p>A random variable X has P(X = 0) = 0.5, P(X = 1) = 0.3, P(X = 2) = 0.2 and P(X = 3) = 0. Select all that apply.</p><p>(A) The table is a valid PMF.<br>(B) P(X ≤ 1) = 0.8.<br>(C) E[X] = 0.7.<br>(D) P(X = 3) = 0.3.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Check each statement and tick the true ones.</li>
+      <li><strong>Which idea applies.</strong> PMF validity, adding probabilities, and the expectation formula.</li>
+      <li><strong>Work it out.</strong> Option A: all values are at least 0 and 0.5 + 0.3 + 0.2 + 0 = 1, so A is true. Option B: P(X ≤ 1) = 0.5 + 0.3 = 0.8, so B is true. Option C: E[X] = 0 × 0.5 + 1 × 0.3 + 2 × 0.2 + 3 × 0 = 0.3 + 0.4 = 0.7, so C is true. Option D: P(X = 3) is given as 0, so D is false.</li>
+      <li><strong>Check.</strong> The table in option D has the value 3 with probability 0, so D cannot be true.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C) are true. Option (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Variance of a die</h3>
+    <div class="statement"><p>A fair six-sided die is rolled once. Let X be the number shown. Find Var(X). Give the answer as a fraction in lowest terms.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The variance of a uniform variable on 1 to 6.</li>
+      <li><strong>Which idea applies.</strong> Compute E[X], then E[X²], then use Var(X) = E[X²] - (E[X])².</li>
+      <li><strong>Work it out.</strong> Each value has probability 1/6. E[X] = (1 + 2 + 3 + 4 + 5 + 6)/6 = 21/6 = 7/2. E[X²] = (1 + 4 + 9 + 16 + 25 + 36)/6 = 91/6. Var(X) = 91/6 - (7/2)² = 91/6 - 49/4. Common denominator 12: 182/12 - 147/12 = 35/12.</li>
+      <li><strong>Check.</strong> 35/12 is about 2.92. The standard deviation is about 1.71, which is a sensible spread for values from 1 to 6.</li>
+    </ol>
+    <p class="cx">Answer: 35/12</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Mean and spread of a gain</h3>
+    <div class="statement"><p>NAT question. A game gives a gain X with P(X = -1) = 0.2, P(X = 0) = 0.5 and P(X = 2) = 0.3. Find Var(X). Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The variance of X, to two decimals.</li>
+      <li><strong>Which idea applies.</strong> The variance shortcut, which needs E[X] and E[X²].</li>
+      <li><strong>Work it out.</strong> E[X] = (-1)(0.2) + 0(0.5) + 2(0.3) = -0.2 + 0 + 0.6 = 0.4. E[X²] = (1)(0.2) + 0(0.5) + 4(0.3) = 0.2 + 1.2 = 1.4. Var(X) = 1.4 - 0.4² = 1.4 - 0.16 = 1.24.</li>
+      <li><strong>Check.</strong> A negative value is included, so E[X²] must be larger than E[X]² = 0.16, and it is (1.4 is larger). The answer 1.24 is positive, as it must be.</li>
+    </ol>
+    <p class="cx">Answer: 1.24</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Finding the constant first</h3>
+    <div class="statement"><p>A random variable X has P(X = x) = c × x for x = 1, 2, 3 and 4, and P(X = x) = 0 otherwise. Find E[X]. Give the answer as a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> E[X], but the constant c is unknown.</li>
+      <li><strong>Which idea applies.</strong> The PMF must sum to 1, which gives c. Then use the expectation formula.</li>
+      <li><strong>Work it out.</strong> Sum: c(1 + 2 + 3 + 4) = 10c = 1, so c = 0.1. Then P(X = 1) = 0.1, P(X = 2) = 0.2, P(X = 3) = 0.3, P(X = 4) = 0.4. E[X] = 1 × 0.1 + 2 × 0.2 + 3 × 0.3 + 4 × 0.4 = 0.1 + 0.4 + 0.9 + 1.6 = 3.0.</li>
+      <li><strong>Check.</strong> The probabilities 0.1, 0.2, 0.3 and 0.4 add to 1. The mean 3.0 is weighted towards the larger values, which have larger probabilities, so it sits above the midpoint 2.5.</li>
+    </ol>
+    <p class="cx">Answer: 3.0</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Mean and variance with an unknown probability</h3>
+    <div class="statement"><p>A random variable X takes the values 0, 1 and 2. Its PMF is P(X = 0) = a, P(X = 1) = 0.4 and P(X = 2) = a, where a is a constant. Find Var(X). Give the answer as a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The variance, but the constant a is unknown.</li>
+      <li><strong>Which idea applies.</strong> The PMF sums to 1 to find a. Then compute E[X] and E[X²].</li>
+      <li><strong>Work it out.</strong> Sum: a + 0.4 + a = 1, so 2a = 0.6 and a = 0.3. Then E[X] = 0 × 0.3 + 1 × 0.4 + 2 × 0.3 = 0.4 + 0.6 = 1.0. E[X²] = 0 × 0.3 + 1 × 0.4 + 4 × 0.3 = 0.4 + 1.2 = 1.6. Var(X) = 1.6 - 1.0² = 0.6.</li>
+      <li><strong>Check.</strong> The distribution is symmetric about 1, since P(0) = P(2). A symmetric shape has mean 1, which matches. The variance 0.6 is less than 1, which is reasonable because most of the probability is at 1.</li>
+    </ol>
+    <p class="cx">Answer: 0.6</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Mean of a squared shift</h3>
+    <div class="statement"><p>A random variable X has E[X] = 4 and Var(X) = 5. Find E[(X - 2)²]. Give the answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The mean of the squared distance from 2, not from the mean of X.</li>
+      <li><strong>Which idea applies.</strong> Expand the square and use linearity of expectation.</li>
+      <li><strong>Work it out.</strong> (X - 2)² = X² - 4X + 4. So E[(X - 2)²] = E[X²] - 4 E[X] + 4. We know E[X²] = Var(X) + (E[X])² = 5 + 16 = 21. Then 21 - 4 × 4 + 4 = 21 - 16 + 4 = 9.</li>
+      <li><strong>Check.</strong> Another route: E[(X - 2)²] = Var(X) + (E[X] - 2)² = 5 + (4 - 2)² = 5 + 4 = 9. Both routes agree.</li>
+    </ol>
+    <p class="cx">Answer: 9</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Difference of two dice</h3>
+    <div class="statement"><p>NAT question. Two fair six-sided dice are rolled. Let X be the absolute difference of the two numbers shown. Find E[X]. Give the answer correct to three decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The expectation of the absolute difference, to three decimals.</li>
+      <li><strong>Which idea applies.</strong> Build the PMF of X from the 36 equally likely pairs, then use the expectation formula.</li>
+      <li><strong>Work it out.</strong> Counting the 36 pairs gives: difference 0 in 6 pairs, 1 in 10, 2 in 8, 3 in 6, 4 in 4 and 5 in 2. Total 36. So P(X = 0) = 6/36, P(X = 1) = 10/36, P(X = 2) = 8/36, P(X = 3) = 6/36, P(X = 4) = 4/36, P(X = 5) = 2/36. E[X] = (0 × 6 + 1 × 10 + 2 × 8 + 3 × 6 + 4 × 4 + 5 × 2)/36 = (0 + 10 + 16 + 18 + 16 + 10)/36 = 70/36 = 35/18, which is about 1.944.</li>
+      <li><strong>Check.</strong> The six counts add to 36, and the answer lies between 0 and 5. The mean is below 2.5, which is the midpoint of 0 and 5, as expected because small differences are more common.</li>
+    </ol>
+    <p class="cx">Answer: 1.944</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Variance after a linear change (NAT, 2 marks)</h3>
+    <div class="statement"><p>NAT question. A small shop counts the number of customer complaints X that it receives in one hour. The probability mass function is P(X = 0) = 0.1, P(X = 1) = 0.4, P(X = 2) = 0.3 and P(X = 3) = 0.2. The shop then uses the score Y = 3X - 2 in a monthly report. Find the variance of Y. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Var(Y), to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> Var(aX + b) = a² Var(X), so the shift -2 is ignored. Also Var(X) = E[X²] - (E[X])².</li>
+      <li><strong>Work it out.</strong> E[X] = 0 + 0.4 + 0.6 + 0.6 = 1.6. E[X²] = 0 + 0.4 + 0.3 × 4 + 0.2 × 9 = 0.4 + 1.2 + 1.8 = 3.4. Var(X) = 3.4 - 1.6² = 3.4 - 2.56 = 0.84. Then Var(Y) = 3² × 0.84 = 7.56.</li>
+      <li><strong>Check.</strong> The constant -2 moves the values but does not change the spread. The factor 3 changes the spread by 3² = 9, and 9 × 0.84 = 7.56.</li>
+    </ol>
+    <p class="cx">Answer: 7.56</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+pmf = {0: F(1, 10), 1: F(4, 10), 2: F(3, 10), 3: F(2, 10)}
+EX = sum(x * p for x, p in pmf.items())
+EX2 = sum(x * x * p for x, p in pmf.items())
+VX = EX2 - EX ** 2
+VY = 3 ** 2 * VX
+print("E[X] =", EX)
+print("Var(X) =", VX)
+print("Var(Y) =", VY, "=", float(VY))</code></pre>
+    <pre class="output">E[X] = 8/5
+Var(X) = 21/25
+Var(Y) = 189/25 = 7.56</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Scores with a linear conversion (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A quality team at a bakery gives each product a taste score X from 1 to 4. The team uses the probability mass function P(X = k) = k/10 for k = 1, 2, 3 and 4, so a score of 4 is the most likely outcome. The team then converts each score into a cost C = 2X - 1 for its budget model. Which of the following is the variance of C? (A) 1 (B) 2 (C) 3 (D) 4. Select one option.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Var(C) = Var(2X - 1).</li>
+      <li><strong>Which idea applies.</strong> Var(aX + b) = a² Var(X), and Var(X) = E[X²] - (E[X])².</li>
+      <li><strong>Work it out.</strong> E[X] = 0.1(1) + 0.2(2) + 0.3(3) + 0.4(4) = 3. E[X²] = 0.1(1) + 0.2(4) + 0.3(9) + 0.4(16) = 10. So Var(X) = 10 - 9 = 1, and Var(2X - 1) = 2² × 1 = 4. The answer is option D.</li>
+      <li><strong>Check.</strong> The shift -1 does not change the spread. Why the other options fail: (A) is Var(X) with no factor of 2², (B) uses a factor of 2 instead of 4, and (C) is E[X], which is a mean, not a variance.</li>
+    </ol>
+    <p class="cx">Answer: (D) 4</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+pmf = {k: F(k, 10) for k in range(1, 5)}
+EX = sum(k * p for k, p in pmf.items())
+EX2 = sum(k * k * p for k, p in pmf.items())
+VX = EX2 - EX ** 2
+print("sum of probabilities =", sum(pmf.values()))
+print("E[X] =", EX)
+print("E[X^2] =", EX2)
+print("Var(X) =", VX)
+print("Var(2X - 1) =", 2 ** 2 * VX)</code></pre>
+    <pre class="output">sum of probabilities = 1
+E[X] = 3
+E[X^2] = 10
+Var(X) = 1
+Var(2X - 1) = 4</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Checking a PMF and its summaries (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A call centre records how many times X a caller is transferred before reaching an agent. The probability mass function is P(X = 0) = 0.2, P(X = 1) = 0.5 and P(X = 2) = 0.3. Select all the statements that are true.</p>
+    <ul>
+      <li>(A) E[X] = 1.1</li>
+      <li>(B) Var(X) = 0.49</li>
+      <li>(C) P(X ≥ 1) = 0.8</li>
+      <li>(D) The cumulative distribution function satisfies F(1) = 0.5.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are true. Select all that apply.</li>
+      <li><strong>Which idea applies.</strong> E[X] = Σ x P(x), Var(X) = E[X²] - (E[X])², P(X ≥ 1) = 1 - P(X = 0), and F(x) = P(X ≤ x).</li>
+      <li><strong>Work it out.</strong> E[X] = 0 × 0.2 + 1 × 0.5 + 2 × 0.3 = 1.1, so (A) is true. E[X²] = 0.5 + 4 × 0.3 = 1.7, so Var(X) = 1.7 - 1.1² = 1.7 - 1.21 = 0.49, and (B) is true. P(X ≥ 1) = 1 - 0.2 = 0.8, so (C) is true. F(1) = P(X ≤ 1) = 0.2 + 0.5 = 0.7, so (D) is false.</li>
+      <li><strong>Check.</strong> The mean 1.1 lies between 0 and 2, and the variance 0.49 is below 1, which is reasonable for values that are mostly 1 or 2. Option (D) is false because it reads F(1) as P(X = 1) alone, which is 0.5, and forgets the value 0.</li>
+    </ol>
+    <p class="cx">Answer: A, B and C</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+pmf = {0: F(2, 10), 1: F(5, 10), 2: F(3, 10)}
+EX = sum(x * p for x, p in pmf.items())
+VX = sum(x * x * p for x, p in pmf.items()) - EX ** 2
+print("E[X] =", EX, "=", float(EX))
+print("Var(X) =", VX, "=", float(VX))
+print("P(X at least 1) =", sum(p for x, p in pmf.items() if x &gt;= 1))
+print("F(1) =", sum(p for x, p in pmf.items() if x &lt;= 1))</code></pre>
+    <pre class="output">E[X] = 11/10 = 1.1
+Var(X) = 49/100 = 0.49
+P(X at least 1) = 4/5
+F(1) = 7/10</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Finding a constant, then a mean (NAT, 2 marks)</h3>
+    <div class="statement"><p>NAT question. A machine produces a random number X of defective items in each batch. The values 1, 2 and 3 are possible, and P(X = x) is proportional to x squared. That is, P(X = x) = c x² for x = 1, 2 and 3, and P(X = x) = 0 otherwise, where c is a constant. Find the expected number of defective items, E[X]. Give the answer correct to two decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> E[X], to two decimal places, when c is not given.</li>
+      <li><strong>Which idea applies.</strong> First find c, because the probabilities must add to 1. Then use E[X] = Σ x P(X = x).</li>
+      <li><strong>Work it out.</strong> The weights are 1, 4 and 9, which add to 14, so c × 14 = 1 and c = 1/14. Then E[X] = (1 × 1 + 2 × 4 + 3 × 9) / 14 = (1 + 8 + 27) / 14 = 36/14 = 18/7, which is about 2.57.</li>
+      <li><strong>Check.</strong> The mean must lie between 1 and 3. It does, and it sits above the midpoint 2, which fits because the weight on 3 is the largest.</li>
+    </ol>
+    <p class="cx">Answer: 2.57</p>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+w = {x: x * x for x in (1, 2, 3)}
+c = F(1, sum(w.values()))
+EX = sum(x * c * w[x] for x in w)
+print("c =", c)
+print("E[X] =", EX)
+print("decimal =", round(float(EX), 2))</code></pre>
+    <pre class="output">c = 1/14
+E[X] = 18/7
+decimal = 2.57</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Random variable</dt><dd>A rule that turns each outcome of a random experiment into a number.</dd></div>
+    <div><dt>Discrete random variable</dt><dd>A random variable whose values can be listed one by one.</dd></div>
+    <div><dt>Support</dt><dd>The set of values x with P(X = x) greater than 0.</dd></div>
+    <div><dt>PMF</dt><dd>A function giving P(X = x), with every value at least 0 and the total equal to 1.</dd></div>
+    <div><dt>Expectation</dt><dd>The long-run average, E[X] = Σ x P(X = x).</dd></div>
+    <div><dt>E[X²]</dt><dd>The expectation of the square of X, Σ x² P(X = x).</dd></div>
+    <div><dt>Variance</dt><dd>The average squared distance from the mean, Var(X) = E[X²] - (E[X])².</dd></div>
+    <div><dt>Standard deviation</dt><dd>The square root of the variance, in the same units as X.</dd></div>
+    <div><dt>Linearity of expectation</dt><dd>E[aX + b] = a E[X] + b.</dd></div>
+    <div><dt>Variance of a linear change</dt><dd>Var(aX + b) = a² Var(X), so shifts do not change the spread.</dd></div>
+    <div><dt>CDF</dt><dd>F(x) = P(X ≤ x), the running total of the PMF.</dd></div>
+    <div><dt>Staircase</dt><dd>The shape of a discrete CDF: it jumps at each value of the support and is flat between them.</dd></div>
+    <div><dt>Interval probability</dt><dd>P(a &lt; X ≤ b) = F(b) - F(a).</dd></div>
+    <div><dt>Normalisation</dt><dd>The step of finding an unknown constant so that the PMF sums to 1.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A PMF must have every value at least 0 and must add to exactly 1.</li>
+    <li>E[X] weights each value by its probability, so it is an average, not necessarily a value X can take.</li>
+    <li>Compute E[X²] by squaring each value before weighting, never by squaring E[X].</li>
+    <li>Use Var(X) = E[X²] - (E[X])² as the fast route to the variance.</li>
+    <li>Adding a constant to X shifts the mean but leaves the variance unchanged.</li>
+    <li>The CDF is the running total of the PMF, and it always finishes at 1.</li>
+    <li>For discrete variables, check whether an endpoint is included before you subtract CDF values.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 34?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 34 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-033.html"><small>Previous, topic 33</small>Bayes&#x27; Theorem</a><a class="next" href="gate-035.html"><small>Next, topic 35</small>Uniform, Bernoulli, Binomial distributions</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

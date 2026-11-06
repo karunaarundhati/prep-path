@@ -1,0 +1,438 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 82: Binary search tree (recap)</title><meta name="description" content="A binary search tree is a way to store numbers so that you can find, add and remove them quickly. This quick recap covers the ordering rule, the three main operations, and why an inorder walk gives sorted output, all of which GATE uses in data structure questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g82" data-key="g82" data-noun="topic" data-num="82" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Binary search tree (recap)</h1>
+<p class="lede">A binary search tree is a way to store numbers so that you can find, add and remove them quickly. This quick recap covers the ordering rule, the three main operations, and why an inorder walk gives sorted output, all of which GATE uses in data structure questions.</p>
+<div class="station"><b>82</b><span>Unit 6 · Programming and data structures · Paper RA · Quick Recap</span></div>
+<ul class="topics"><li>The binary search tree rule</li><li>Search</li><li>Insert</li><li>Delete</li><li>Inorder traversal and height</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a long shelf of books sorted by title. To find one book, you do not start at the left end and walk along. You go to the middle, see whether your title comes before or after the book there, and then search only the half where it must be. Each look throws away half the shelf.</p>
+  <p>A <strong>binary search tree</strong> (BST) copies this idea using nodes linked together. Each node holds one key, a number, and points to at most two children: a left child and a right child. The shape is an upside-down tree, with the root at the top.</p>
+  <p>The whole structure depends on one rule. Every key in the left subtree of a node is smaller than the node's key, and every key in the right subtree is larger. This rule lets each comparison decide which side to explore.</p>
+  <p>Why this matters for GATE: BST questions ask you to draw the tree after some insertions or deletions, to count comparisons, to give the height, or to say what an inorder walk prints. These are fast marks if you know the rule well.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Node</dt><dd>One box in the tree. It holds a key and links to its children.</dd></div>
+    <div><dt>Key</dt><dd>The number stored in a node, used for ordering.</dd></div>
+    <div><dt>Root</dt><dd>The top node, which has no parent.</dd></div>
+    <div><dt>Leaf</dt><dd>A node with no children.</dd></div>
+    <div><dt>Subtree</dt><dd>A node together with everything below it.</dd></div>
+    <div><dt>Height</dt><dd>The number of nodes on the longest path from the root down to a leaf. A single node has height 1. Some books count edges instead, so always read the question's definition.</dd></div>
+    <div><dt>Inorder traversal</dt><dd>Visit the left subtree, then the node, then the right subtree.</dd></div>
+    <div><dt>Inorder successor</dt><dd>The smallest key that is larger than a given key. In a BST it is the smallest key in the right subtree of the node.</dd></div>
+    <div><dt>Comparison</dt><dd>One test of the form "is the key smaller, equal or larger than this node's key?"</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The BST rule">
+  <h2>The binary search tree rule</h2>
+  <p>Take the keys 50, 30, 70, 20, 40, 60 and 80. Insert them in that order. The first key, 50, becomes the root. Each later key goes left or right by comparing with the nodes it meets on the way down. The resulting tree is:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Node</th><th>Left child</th><th>Right child</th><th>Check of the rule</th></tr></thead>
+    <tbody>
+      <tr><td>50 (root)</td><td>30</td><td>70</td><td>30 is smaller and 70 is larger</td></tr>
+      <tr><td>30</td><td>20</td><td>40</td><td>20 is smaller and 40 is larger</td></tr>
+      <tr><td>70</td><td>60</td><td>80</td><td>60 is smaller and 80 is larger</td></tr>
+      <tr><td>20, 40, 60, 80</td><td>none</td><td>none</td><td>leaves</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>The rule applies to every node, not only the root. All keys under the left child are smaller than the node. All keys under the right child are larger.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Checking only a node and its two children is not enough. Test each key against all of its ancestors. For example, if 6 were placed as the right child of 3, it would sit in the left subtree of 50, so it must be smaller than 50. It is smaller, so that placement is valid. A key such as 60 in the same place would break the rule.</p></div>
+  <p>The shape of the tree depends on the order of insertion. If you insert 10, 20, 30 and 40 in that order, each key is larger than the one before, so every new key goes right. The tree becomes a single long chain. This is the worst case, and its height is 4 for four keys. The first tree above has height 3 for seven keys, which is much better.</p>
+  <details class="check"><summary>In the tree above, where does the key 45 go when it is inserted?</summary><div class="ans"><p>Start at 50. 45 is smaller, so go left to 30. 45 is larger than 30, so go right to 40. 45 is larger than 40, and 40 has no right child, so 45 becomes the right child of 40.</p></div></details>
+  <details class="check"><summary>Is this a valid BST? Root 5, left child 3, and 6 is the right child of 3.</summary><div class="ans"><p>No. The key 6 is inside the left subtree of 5, because 3 is the left child of 5. Every key in that subtree must be smaller than 5, but 6 is larger.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Search">
+  <h2>Search</h2>
+  <p>To search for a key, start at the root. If the key equals the node's key, you are done. If the key is smaller, go to the left child. If it is larger, go to the right child. If you reach an empty place where a child should be, the key is not in the tree.</p>
+  <p>Searching for 60 in the tree above visits 50, then 70, then 60. That is 3 comparisons. Searching for 65 visits 50, 70 and 60, and then finds that 60 has no right child, so 65 is not present. That is also 3 comparisons.</p>
+  <p>Each comparison moves one level down. So the number of comparisons is at most the height of the tree. For a balanced tree with n keys this is about log<sub>2</sub>(n), which is small. For a chain it can be n, which is slow.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a successful search that ends at node x, the number of comparisons equals the depth of x, when the root has depth 1.</p></div>
+  <details class="check"><summary>How many comparisons does a successful search for 40 make in the tree above?</summary><div class="ans"><p>Three: 50, then 30, then 40.</p></div></details>
+  <details class="check"><summary>Why does a search in a chain take so many steps?</summary><div class="ans"><p>Each comparison removes only one node from consideration, because the tree is a single line. The search has to walk down the whole line.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Insert">
+  <h2>Insert</h2>
+  <p>Insertion uses the same path as search. Walk down from the root, going left or right by comparison, until you reach an empty child position. Put the new node there. A new key always becomes a leaf, and existing keys do not move.</p>
+  <p>Example: insert 45 into the tree above. The path is 50, 30, 40, and then 45 becomes the right child of 40.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Duplicate keys are usually not allowed in a basic BST. If a question inserts a key that already exists, read the question to see what it says should happen.</p></div>
+  <details class="check"><summary>After inserting 45 as described, what is the depth of 45?</summary><div class="ans"><p>Depth 4, with the root at depth 1: 50 (depth 1), 30 (depth 2), 40 (depth 3), 45 (depth 4).</p></div></details>
+  <details class="check"><summary>Can an ordinary insertion change the key stored in an existing node?</summary><div class="ans"><p>No. A basic insertion only adds a new leaf. Existing keys stay where they are.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Delete">
+  <h2>Delete</h2>
+  <p>Deletion has three cases. Learn them as a list.</p>
+  <ol>
+    <li><strong>The node is a leaf.</strong> Remove it. Nothing else changes.</li>
+    <li><strong>The node has one child.</strong> Replace the node by its only child. The child moves up.</li>
+    <li><strong>The node has two children.</strong> Find its inorder successor, which is the smallest key in its right subtree. Copy that key into the node. Then delete the successor from the right subtree. The successor has no left child, so this last step is easy.</li>
+  </ol>
+  <p>Why the successor? It is the next larger key after the deleted one, so it can take its place without breaking the rule. Every key in the left subtree is smaller than it, and every key in the right subtree is larger.</p>
+  <p>Example: delete 30 from the tree above. Node 30 has two children, 20 and 40. Its right subtree holds only 40, so the successor is 40. Copy 40 into the node that held 30, then delete the leaf 40 from its old place. The node that now holds 40 has 20 on its left.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Many students delete a node with two children by removing it and attaching its children to its parent. That can break the rule. Always use the successor, or the predecessor, which is the largest key in the left subtree.</p></div>
+  <details class="check"><summary>What is the inorder successor of 50 in the tree above?</summary><div class="ans"><p>60. Go to the right child 70, then keep going left as far as possible: 70 to 60. 60 has no left child, so it is the smallest key in that right subtree.</p></div></details>
+  <details class="check"><summary>When you delete a leaf, does the order of the remaining keys in the inorder walk change?</summary><div class="ans"><p>No. Only the deleted key disappears from the walk. The other keys stay in the same order.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Inorder and height">
+  <h2>Inorder traversal and height</h2>
+  <p>An inorder traversal visits the left subtree first, then the node, then the right subtree. Apply this rule recursively from the root. For a BST the result is the keys in sorted order. The reason is simple. Everything to the left of a node is smaller and everything to the right is larger, so the walk lists keys from smallest to largest.</p>
+  <p>The code below builds the tree from this page and prints the inorder walk, the height and some searches. Each function is short, so read them one at a time.</p>
+  <pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, key):
+        self.key = key
+        self.left = None
+        self.right = None
+
+def insert(root, key):
+    if root is None:
+        return Node(key)
+    if key &lt; root.key:
+        root.left = insert(root.left, key)
+    elif key &gt; root.key:
+        root.right = insert(root.right, key)
+    return root
+
+def inorder(root, out):
+    if root is None:
+        return
+    inorder(root.left, out)
+    out.append(root.key)
+    inorder(root.right, out)
+
+def height(node):
+    if node is None:
+        return 0
+    return 1 + max(height(node.left), height(node.right))
+
+def search(root, key):
+    if root is None:
+        return False
+    if key == root.key:
+        return True
+    if key &lt; root.key:
+        return search(root.left, key)
+    return search(root.right, key)
+
+def find_min(node):
+    while node.left is not None:
+        node = node.left
+    return node
+
+def delete(root, key):
+    if root is None:
+        return None
+    if key &lt; root.key:
+        root.left = delete(root.left, key)
+    elif key &gt; root.key:
+        root.right = delete(root.right, key)
+    else:
+        if root.left is None:
+            return root.right
+        if root.right is None:
+            return root.left
+        succ = find_min(root.right)
+        root.key = succ.key
+        root.right = delete(root.right, succ.key)
+    return root
+
+def build(keys):
+    root = None
+    for k in keys:
+        root = insert(root, k)
+    return root
+
+tree = build([50, 30, 70, 20, 40, 60, 80])
+out = []
+inorder(tree, out)
+print("inorder:", out)
+print("height:", height(tree))
+print("search 60:", search(tree, 60), "search 65:", search(tree, 65))
+tree = delete(tree, 30)
+out = []
+inorder(tree, out)
+print("after deleting 30:", out)
+print("height:", height(tree))
+skewed = build([10, 20, 30, 40])
+print("skewed height:", height(skewed))</code></pre>
+  <pre class="output">inorder: [20, 30, 40, 50, 60, 70, 80]
+height: 3
+search 60: True search 65: False
+after deleting 30: [20, 40, 50, 60, 70, 80]
+height: 3
+skewed height: 4</pre>
+  <p>Notice two things. The inorder walk is sorted, as promised. The tree built from 10, 20, 30, 40 has height 4, the worst case for four keys.</p>
+  <div class="note tip"><p><span class="t">Tip</span>You do not need to memorise the code for GATE. Learn the three cases of delete and the fact that an inorder walk is sorted. Use code only to check your hand traces.</p></div>
+  <details class="check"><summary>Why does the inorder walk of any valid BST come out sorted?</summary><div class="ans"><p>For each node, the keys on the left are smaller and the keys on the right are larger. Visiting left, then node, then right therefore lists keys from smallest to largest.</p></div></details>
+  <details class="check"><summary>What is the height of a chain of 6 keys inserted in increasing order?</summary><div class="ans"><p>6. Each key is added as the right child of the previous one, so the chain has 6 nodes on one path.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Quantity</th><th>Rule</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>BST property</td><td>Left keys are less than the node key, which is less than right keys</td><td>Checking any tree</td></tr>
+      <tr><td>Search or insert cost</td><td>Number of nodes on the path, at most the height h</td><td>Comparison counts</td></tr>
+      <tr><td>Balanced height</td><td>About log<sub>2</sub>(n)</td><td>Best case estimates</td></tr>
+      <tr><td>Chain height</td><td>n keys in a chain give height n</td><td>Worst case, sorted insertion</td></tr>
+      <tr><td>Inorder output</td><td>Left, node, right gives sorted keys</td><td>Any inorder question</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not real past questions. Draw the tree on paper before you check with code.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Inorder walk of a small tree</h3>
+    <div class="statement"><p>Keys 8, 3, 10, 1 and 6 are inserted into an empty BST in that order. What is the inorder traversal?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The inorder list of the keys in the tree.</li>
+      <li><strong>Which idea applies.</strong> An inorder walk of a BST gives the keys in sorted order.</li>
+      <li><strong>Work it out.</strong> The keys are 1, 3, 6, 8 and 10. Sorted, they are 1, 3, 6, 8, 10.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>print(sorted([8, 3, 10, 1, 6]))</code></pre>
+    <pre class="output">[1, 3, 6, 8, 10]</pre>
+    <p class="cx">Answer: 1, 3, 6, 8, 10.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Comparisons for a successful search</h3>
+    <div class="statement"><p>The tree has root 8, left child 3 (with children 1 and 6) and right child 10. How many comparisons does a successful search for 6 make? Count the root.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of nodes visited to find 6.</li>
+      <li><strong>Which idea applies.</strong> Search follows one path from the root, with one comparison per node visited.</li>
+      <li><strong>Work it out.</strong> Compare 6 with 8: 6 is smaller, go left. Compare with 3: 6 is larger, go right. Compare with 6: equal, found. That is 3 comparisons.</li>
+      <li><strong>Check.</strong> Run the code below, which follows the same path.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>left = {8: 3, 3: 1}
+right = {8: 10, 3: 6}
+node = 8
+count = 0
+while node != 6:
+    count = count + 1
+    node = left[node] if 6 &lt; node else right[node]
+count = count + 1
+print(count)</code></pre>
+    <pre class="output">3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Select all true statements about a chain</h3>
+    <div class="statement"><p>Keys 1, 2, 3 and 4 are inserted into an empty BST in that order. Select all that apply.</p>
+    <ul>
+      <li>(A) The height of the tree is 4.</li>
+      <li>(B) A successful search for 4 makes 4 comparisons.</li>
+      <li>(C) The inorder traversal is 1, 2, 3, 4.</li>
+      <li>(D) The tree is balanced.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Each key is larger than the one before, so each goes right of the last. The result is a chain.</li>
+      <li><strong>Work it out.</strong> The chain is 1, with 2 to its right, then 3, then 4. The height is 4, so (A) is true. Searching for 4 visits 1, 2, 3, 4, which is 4 comparisons, so (B) is true. The inorder walk is sorted, so (C) is true. A chain is the opposite of balanced, so (D) is false.</li>
+      <li><strong>Check.</strong> Run the code below. It uses lists in place of nodes, with each list holding the key and two children.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def insert(root, key):
+    if root is None:
+        return [key, None, None]
+    if key &lt; root[0]:
+        root[1] = insert(root[1], key)
+    else:
+        root[2] = insert(root[2], key)
+    return root
+
+def height(node):
+    if node is None:
+        return 0
+    return 1 + max(height(node[1]), height(node[2]))
+
+root = None
+for k in [1, 2, 3, 4]:
+    root = insert(root, k)
+print(height(root))</code></pre>
+    <pre class="output">4</pre>
+    <p class="cx">Answer: (A) and (B) and (C). Statement (D) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Root after deleting a key with two children</h3>
+    <div class="statement"><p>The keys 50, 30, 70, 20, 40, 60 and 80 are inserted in that order. Then the key 50 is deleted using the inorder successor rule. Which key is now at the root? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The key at the root after the deletion.</li>
+      <li><strong>Which idea applies.</strong> A node with two children is replaced by its inorder successor, the smallest key in its right subtree.</li>
+      <li><strong>Work it out.</strong> The right subtree of 50 holds 60, 70 and 80. The smallest of these is 60. So 60 is copied into the root position, and the old 60 leaf is removed.</li>
+      <li><strong>Check.</strong> Run the code below, which finds the smallest key larger than 50.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>right_keys = [60, 70, 80]
+print(min(k for k in right_keys if k &gt; 50))</code></pre>
+    <pre class="output">60</pre>
+    <p class="cx">Answer: 60.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Comparisons for an unsuccessful search</h3>
+    <div class="statement"><p>The tree has root 15, with left child 10 and right child 20. Node 10 has left child 8 and right child 12. Node 8 has left child 6. Node 20 has left child 17 and right child 25. How many comparisons does an unsuccessful search for 9 make? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of comparisons before the search ends with no match.</li>
+      <li><strong>Which idea applies.</strong> The search goes down one path and ends when it reaches an empty child.</li>
+      <li><strong>Work it out.</strong> Compare 9 with 15: 9 is smaller, go left to 10. Compare with 10: smaller, go left to 8. Compare with 8: 9 is larger, go right. The right child of 8 is empty, so the search ends. That is 3 comparisons.</li>
+      <li><strong>Check.</strong> Run the code below, which follows the same path.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>left = {15: 10, 10: 8, 8: 6, 20: 17}
+right = {15: 20, 10: 12, 20: 25}
+node = 15
+count = 0
+while node is not None:
+    count = count + 1
+    if node == 9:
+        break
+    node = left.get(node) if 9 &lt; node else right.get(node)
+print(count)</code></pre>
+    <pre class="output">3</pre>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Height of a tree built from a sequence</h3>
+    <div class="statement"><p>The keys 15, 10, 20, 8, 12, 17, 25 and 6 are inserted into an empty BST in that order. What is the height of the tree, counting the root as height 1? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The longest path length, in nodes.</li>
+      <li><strong>Which idea applies.</strong> Each key goes down the tree by comparison. The height is the longest of these paths.</li>
+      <li><strong>Work it out.</strong> 6 is smaller than 15, then smaller than 10, then smaller than 8. Its path is 15, 10, 8, 6, which has 4 nodes. The other branches are shorter: 25 has path 15, 20, 25, which has 3 nodes. So the height is 4.</li>
+      <li><strong>Check.</strong> Run the code below, which builds the tree from the list of lists approach.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def insert(root, key):
+    if root is None:
+        return [key, None, None]
+    if key &lt; root[0]:
+        root[1] = insert(root[1], key)
+    else:
+        root[2] = insert(root[2], key)
+    return root
+
+def height(node):
+    if node is None:
+        return 0
+    return 1 + max(height(node[1]), height(node[2]))
+
+root = None
+for k in [15, 10, 20, 8, 12, 17, 25, 6]:
+    root = insert(root, k)
+print(height(root))</code></pre>
+    <pre class="output">4</pre>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Select all true statements about deletion</h3>
+    <div class="statement"><p>Select all that apply to deletion in a BST.</p>
+    <ul>
+      <li>(A) Deleting a leaf does not change the relative order of the other keys.</li>
+      <li>(B) Replacing a deleted node that has two children by its inorder successor keeps the BST rule.</li>
+      <li>(C) Deleting the root always makes its old left child the new root.</li>
+      <li>(D) After any deletion, the inorder traversal is no longer sorted.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The three deletion cases, and the rule that inorder is sorted.</li>
+      <li><strong>Work it out.</strong> (A) is true, because a leaf is simply removed. (B) is true, because the successor is larger than all keys in the left subtree and smaller than all keys left in the right subtree. (C) is false. If the root has two children, its successor replaces it, and the left child is not necessarily the new root. (D) is false, because deletion keeps the inorder walk sorted.</li>
+      <li><strong>Check.</strong> The statements have been checked by the case analysis above. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Deleting a node with two children (MCQ, 2 marks)</h3>
+    <div class="statement"><p>In the BST built by inserting 50, 30, 70, 20, 40, 60, 80, 65, the root 50 is deleted using the inorder successor. What is the new root? (A) 40 (B) 60 (C) 65 (D) 70</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The key that replaces the root.</li>
+      <li><strong>Which idea applies.</strong> The inorder successor is the smallest key in the right subtree.</li>
+      <li><strong>Work it out.</strong> Right subtree of 50: 70 with left child 60. 60 has no left child. Successor 60. Its right child 65 moves up.</li>
+      <li><strong>Check.</strong> The new inorder is 20 30 40 60 65 70 80, still sorted.</li>
+    </ol>
+    <p class="cx">Answer: (B).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Range count (NAT, 2 marks)</h3>
+    <div class="statement"><p>In a BST holding keys 1 to 100, how many keys lie in [25, 60]?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of keys in a closed range.</li>
+      <li><strong>Which idea applies.</strong> All integers from 25 to 60 are present.</li>
+      <li><strong>Work it out.</strong> 60 − 25 + 1 = 36.</li>
+      <li><strong>Check.</strong> An inorder traversal visits them consecutively.</li>
+    </ol>
+    <p class="cx">Answer: 36.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Height bounds (MSQ, 2 marks)</h3>
+    <div class="statement"><p>For a BST with n = 31 nodes, which are TRUE? (A) Minimum height is 4. (B) Maximum height is 30. (C) Search is O(log n) in every BST. (D) Inserting keys in sorted order gives maximum height.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Height range of BSTs.</li>
+      <li><strong>Which idea applies.</strong> Height is measured in edges. A perfect tree with 31 nodes has height 4.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) A chain has 30 edges. True. (C) Only for balanced trees. False. (D) True.</li>
+      <li><strong>Check.</strong> 2<sup>5</sup> − 1 = 31 fits the perfect tree.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Binary search tree</dt><dd>A tree where each left subtree is smaller than the node and each right subtree is larger.</dd></div>
+    <div><dt>Node</dt><dd>One box in the tree, holding a key and two child links.</dd></div>
+    <div><dt>Root</dt><dd>The top node of the tree.</dd></div>
+    <div><dt>Leaf</dt><dd>A node with no children.</dd></div>
+    <div><dt>Height</dt><dd>The number of nodes on the longest root-to-leaf path.</dd></div>
+    <div><dt>Search</dt><dd>Start at the root, go left or right by comparison, and stop on a match or an empty child.</dd></div>
+    <div><dt>Insert</dt><dd>Search for the key, then add it as a new leaf where the search ends.</dd></div>
+    <div><dt>Delete</dt><dd>Remove a leaf, or replace a node with its only child, or replace it with its inorder successor.</dd></div>
+    <div><dt>Inorder successor</dt><dd>The smallest key in the right subtree, which is the next larger key.</dd></div>
+    <div><dt>Inorder traversal</dt><dd>Left subtree, then node, then right subtree. It lists the keys in sorted order.</dd></div>
+    <div><dt>Chain</dt><dd>A tree where every node has one child, so the height equals the number of keys.</dd></div>
+    <div><dt>Successful search</dt><dd>Comparisons equal the depth of the node found, with the root at depth 1.</dd></div>
+    <div><dt>Unsuccessful search</dt><dd>Comparisons equal the nodes on the path to an empty child.</dd></div>
+    <div><dt>Balanced tree</dt><dd>A tree whose height is close to log<sub>2</sub>(n) for n keys.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ul>
+    <li>Every left subtree is smaller than its node, and every right subtree is larger.</li>
+    <li>Search and insert follow one path from the root, one comparison per node.</li>
+    <li>A new key is always inserted as a leaf.</li>
+    <li>For two children, delete using the inorder successor.</li>
+    <li>An inorder walk of any BST lists the keys in sorted order.</li>
+    <li>Insertion in sorted order produces a chain, the worst case.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 82?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 82 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-081.html"><small>Previous, topic 81</small>Looping statements &amp; loop control (recap)</a><a class="next" href="gate-083.html"><small>Next, topic 83</small>Linked list (recap)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,440 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 4: Determinant, rank and nullity</title><meta name="description" content="The determinant tells you whether a square matrix squashes space flat. The rank counts how many independent directions survive, and the nullity counts how many directions a matrix destroys. Together they decide how many solutions an equation has, which is why they appear in almost every GATE linear algebra question."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g4" data-key="g4" data-noun="topic" data-num="4" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Determinant, rank and nullity</h1>
+<p class="lede">The determinant tells you whether a square matrix squashes space flat. The rank counts how many independent directions survive, and the nullity counts how many directions a matrix destroys. Together they decide how many solutions an equation has, which is why they appear in almost every GATE linear algebra question.</p>
+<div class="station"><b>4</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>Determinant by cofactor expansion, step by step</li><li>Properties of the determinant: row swaps, scaling and products</li><li>Rank: counting pivots after row reduction</li><li>Null space and nullity: the directions that vanish</li><li>The rank-nullity theorem and the link to invertibility</li><li>Solved GATE-style problems, including verified PYQs</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Picture a square matrix as a machine that moves the plane. Sometimes the machine keeps the plane in one piece, so you can always undo it. Sometimes it squashes the plane flat onto a line, and information is lost. The <strong>determinant</strong> is one number that tells you which case you are in: a non-zero value means the plane survives, and zero means it is squashed.</p>
+  <p>The <strong>rank</strong> counts the independent directions that survive. The <strong>nullity</strong> counts the directions that are destroyed. Rank and nullity always add up to the number of columns, which is the rank-nullity theorem.</p>
+  <p>GATE asks "how many solutions does this system have?", "is this matrix invertible?", and "what is the dimension of the null space?". All three are answered by these tools. In Robotics, a zero determinant of a Jacobian means the arm has lost a direction of motion.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Determinant, det(A)</dt><dd>A number linked to a square matrix: how much it scales areas, with a sign for flips. For 2 x 2, ad - bc.</dd></div>
+    <div><dt>Minor and cofactor</dt><dd>M<sub>ij</sub> is the determinant after covering row i and column j. C<sub>ij</sub> = (-1)<sup>i+j</sup> M<sub>ij</sub> adds the checkerboard sign.</dd></div>
+    <div><dt>Singular matrix</dt><dd>A square matrix with det = 0. It has no inverse.</dd></div>
+    <div><dt>Pivot</dt><dd>The first non-zero entry of a row in row echelon form.</dd></div>
+    <div><dt>Rank, rank(A)</dt><dd>The number of pivots, which equals the number of independent rows and the number of independent columns.</dd></div>
+    <div><dt>Null space, N(A)</dt><dd>All vectors x with Ax = 0.</dd></div>
+    <div><dt>Nullity</dt><dd>The dimension of the null space: nullity(A) = n - rank(A) for n columns.</dd></div>
+    <div><dt>Linearly independent</dt><dd>A list of vectors where no vector is a mix of the others.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Determinant by cofactor expansion">
+  <h2>The determinant by cofactor expansion</h2>
+  <p>For a 2 x 2 matrix, det = ad - bc. For larger matrices, expand along a row: multiply each entry of that row by its cofactor and add.</p>
+  <div class="formula">det(A) = a<sub>11</sub>C<sub>11</sub> + a<sub>12</sub>C<sub>12</sub> + a<sub>13</sub>C<sub>13</sub></div>
+  <p>Take C = [[1, 2, 3], [0, 1, 4], [5, 6, 0]]. Row 1 is (1, 2, 3).</p>
+  <ol>
+    <li><strong>Entry 1.</strong> Cover row 1 and column 1: [[1, 4], [6, 0]] has det 0 - 24 = -24. The sign is +, so the term is 1 x (-24) = -24.</li>
+    <li><strong>Entry 2.</strong> Cover row 1 and column 2: [[0, 4], [5, 0]] has det -20. The sign is -, so the cofactor is +20. The term is 2 x 20 = 40.</li>
+    <li><strong>Entry 3.</strong> Cover row 1 and column 3: [[0, 1], [5, 6]] has det -5. The sign is +, so the term is 3 x (-5) = -15.</li>
+    <li><strong>Add.</strong> -24 + 40 - 15 = 1. So det(C) = 1.</li>
+  </ol>
+  <p>The Python block repeats this arithmetic.</p>
+  <pre class="code" data-lang="python"><code>def minor(M, i, j):
+    return [row[:j] + row[j + 1:] for k, row in enumerate(M) if k != i]
+
+def det(M):
+    if len(M) == 1:
+        return M[0][0]
+    return sum((-1) ** j * M[0][j] * det(minor(M, 0, j)) for j in range(len(M)))
+
+C = [[1, 2, 3], [0, 1, 4], [5, 6, 0]]
+terms = [(-1) ** j * C[0][j] * det(minor(C, 0, j)) for j in range(3)]
+print("expansion along row 1 terms:", terms)
+print("det C =", det(C))</code></pre>
+  <pre class="output">expansion along row 1 terms: [-24, 40, -15]
+det C = 1</pre>
+  <div class="note tip"><p><span class="t">Tip</span>Expand along the row or column with the most zeros. Zero entries contribute nothing.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>The signs alternate across the row: plus, minus, plus. Using one sign for every term is a common error.</p></div>
+  <details class="check"><summary>What is det of [[2, 0, 0], [5, 3, 0], [7, 1, 4]]?</summary><div class="ans"><p>Expand along row 1: 2 x det([[3, 0], [1, 4]]) = 2 x 12 = 24. (It is triangular, so the diagonal product 2 x 3 x 4 = 24 agrees.)</p></div></details>
+  <details class="check"><summary>What is the sign of the cofactor in row 3, column 2?</summary><div class="ans"><p>i + j = 5 is odd, so the sign is -.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Properties of the determinant">
+  <h2>Properties of the determinant</h2>
+  <p>These properties let you simplify a matrix before computing, which GATE questions reward.</p>
+  <ul>
+    <li><strong>Swapping two rows</strong> changes the sign of the determinant.</li>
+    <li><strong>Scaling one row by c</strong> multiplies the determinant by c.</li>
+    <li><strong>Adding a multiple of one row to another</strong> leaves the determinant unchanged. Row elimination uses only this move.</li>
+  </ul>
+  <p>A triangular matrix has determinant equal to the product of its diagonal. The most important product rule is det(AB) = det(A) det(B). Determinants multiply, and they do not add: det(A + B) is usually not det(A) + det(B). Also det(A<sup>T</sup>) = det(A), and det(A<sup>-1</sup>) = 1 / det(A).</p>
+  <p>Check with A = [[2, 1], [1, 3]] and B = [[1, 2], [0, 1]]. Here AB = [[2, 5], [1, 5]], with det(A) = 5, det(B) = 1, and det(AB) = 5. The Python block confirms this.</p>
+  <pre class="code" data-lang="python"><code>def matmul(X, Y):
+    n, k, m = len(X), len(Y), len(Y[0])
+    return [[sum(X[i][t] * Y[t][j] for t in range(k)) for j in range(m)] for i in range(n)]
+
+def transpose(M):
+    return [list(col) for col in zip(*M)]
+
+def det2(M):
+    return M[0][0] * M[1][1] - M[0][1] * M[1][0]
+
+A = [[2, 1], [1, 3]]
+B = [[1, 2], [0, 1]]
+AB = matmul(A, B)
+print("AB =", AB)
+print("det(A) =", det2(A))
+print("det(B) =", det2(B))
+print("det(AB) =", det2(AB))
+print("det(A) x det(B) =", det2(A) * det2(B))
+print("det(A^T) =", det2(transpose(A)))</code></pre>
+  <pre class="output">AB = [[2, 5], [1, 5]]
+det(A) = 5
+det(B) = 1
+det(AB) = 5
+det(A) x det(B) = 5
+det(A^T) = 5</pre>
+  <h3>Singular or not</h3>
+  <p>A square matrix is singular (no inverse) exactly when its determinant is 0. The matrix [[1, 2], [2, 4]] has det 0, since its second column is twice its first. The picture shows it collapsing the square onto a line. Drag the columns and watch.</p>
+  <div class="viz" data-viz="transform" data-m="1,2,2,4"></div>
+  <p>Compare the invertible matrix [[2, 1], [1, 3]], with det 5. Its square never collapses.</p>
+  <div class="viz" data-viz="transform" data-m="2,1,1,3"></div>
+  <div class="note key"><p><span class="t">Key idea</span>A row swap flips the sign of the determinant. This is the reason a row-swapped matrix has the negative determinant, as in the verified PYQ below.</p></div>
+  <details class="check"><summary>If det(A) = 4 for a 3 x 3 matrix, what is det(2A)?</summary><div class="ans"><p>Each of the 3 rows is doubled, so det(2A) = 2<sup>3</sup> x 4 = 32.</p></div></details>
+  <details class="check"><summary>For which k is [[1, 2], [2, k]] singular?</summary><div class="ans"><p>det = k - 4, which is 0 when k = 4.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Rank from pivots">
+  <h2>Rank: counting pivots after row reduction</h2>
+  <p>The rank counts how many genuinely new directions the rows contribute. Take D = [[1, 2, 3], [2, 4, 6], [1, 1, 1]]. Row 2 is twice row 1, so it adds nothing new.</p>
+  <ol>
+    <li><strong>Clear column 1.</strong> Row 2 becomes row 2 - 2 x row 1 = (0, 0, 0). Row 3 becomes row 3 - row 1 = (0, -1, -2).</li>
+    <li><strong>Swap rows 2 and 3.</strong> This gives [[1, 2, 3], [0, -1, -2], [0, 0, 0]]. Rank does not depend on the row order.</li>
+    <li><strong>Count pivots.</strong> The pivots are 1 and -1. Row 3 has no pivot. So rank(D) = 2.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>Rank = number of pivots in row echelon form. It equals the number of independent rows and the number of independent columns.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Count pivots, not non-zero entries. A matrix can have many non-zero entries and still have a small rank.</p></div>
+  <details class="check"><summary>What is the rank of the identity I<sub>3</sub>?</summary><div class="ans"><p>Three pivots, so rank 3.</p></div></details>
+  <details class="check"><summary>What is the rank of [[2, 4], [1, 2]]?</summary><div class="ans"><p>Row 2 is half of row 1, so there is one pivot and the rank is 1.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Null space and nullity">
+  <h2>Null space and nullity: the directions that vanish</h2>
+  <p>The null space N(A) is the set of all x with Ax = 0. It always contains the zero vector and is a subspace. Its dimension, the nullity, counts the independent directions that the matrix destroys.</p>
+  <p>For D above, reduce to [[1, 2, 3], [0, -1, -2], [0, 0, 0]]. Row 2 gives x<sub>2</sub> = -2x<sub>3</sub>. Row 1 then gives x<sub>1</sub> = x<sub>3</sub>. The variable x<sub>3</sub> is a <strong>free variable</strong>, so the solutions are t (1, -2, 1). The nullity is 1. Check: D (1, -2, 1) = (1 - 4 + 3, 2 - 8 + 6, 1 - 2 + 1) = (0, 0, 0).</p>
+  <p>The Python block checks the rank, the nullity, and this null vector.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def rank(M):
+    A = [[F(x) for x in row] for row in M]
+    rows, cols = len(A), len(A[0])
+    r = 0
+    for c in range(cols):
+        p = None
+        for i in range(r, rows):
+            if A[i][c] != 0:
+                p = i
+                break
+        if p is None:
+            continue
+        A[r], A[p] = A[p], A[r]
+        for i in range(rows):
+            if i != r and A[i][c] != 0:
+                f = A[i][c] / A[r][c]
+                A[i] = [A[i][k] - f * A[r][k] for k in range(cols)]
+        r += 1
+    return r
+
+D = [[1, 2, 3], [2, 4, 6], [1, 1, 1]]
+r = rank(D)
+print("rank of D =", r)
+print("nullity of D =", len(D[0]) - r)
+x = [1, -2, 1]
+print("D x =", [sum(D[i][j] * x[j] for j in range(3)) for i in range(3)])</code></pre>
+  <pre class="output">rank of D = 2
+nullity of D = 1
+D x = [0, 0, 0]</pre>
+  <details class="check"><summary>What is the null space of I<sub>3</sub>?</summary><div class="ans"><p>Only the zero vector, since Ix = 0 forces x = 0. The nullity is 0.</p></div></details>
+  <details class="check"><summary>Is (2, 2, 2) in the null space of D?</summary><div class="ans"><p>No. D (2, 2, 2) = (12, 24, 6), which is not zero.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Rank-nullity and invertibility">
+  <h2>The rank-nullity theorem and invertibility</h2>
+  <div class="formula">rank(A) + nullity(A) = number of columns of A</div>
+  <p>Every column either adds a new output direction (rank) or depends on earlier columns (nullity). For D, rank 2 + nullity 1 = 3 columns. For a 4 x 6 matrix of rank 4, the nullity is 2, even without computing the null space.</p>
+  <p>For a square n x n matrix, these four statements are equivalent: det(A) is not 0; rank(A) = n; nullity(A) = 0; and A is invertible. You only need to check one of them.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a square matrix, one check settles invertibility. Compute the determinant, or count the pivots, and the other statements follow.</p></div>
+  <details class="check"><summary>A 5 x 3 matrix has rank 3. What is its nullity?</summary><div class="ans"><p>Nullity = 3 - 3 = 0. Ax = 0 has only the zero solution.</p></div></details>
+  <details class="check"><summary>A 3 x 3 matrix has nullity 1. Is it invertible?</summary><div class="ans"><p>No. Its rank is 2, so its determinant is 0.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>det [[a, b], [c, d]] = ad - bc</td><td>Determinant of 2 x 2</td><td>Quick checks</td></tr>
+      <tr><td>det(A) = sum of a<sub>1j</sub>C<sub>1j</sub> over j</td><td>Cofactor expansion along row 1</td><td>3 x 3 and bigger</td></tr>
+      <tr><td>Swap rows: det changes sign</td><td>Row swap</td><td>Comparing matrices</td></tr>
+      <tr><td>Add a row multiple: det unchanged</td><td>Elimination</td><td>Simplifying</td></tr>
+      <tr><td>det(AB) = det(A) det(B)</td><td>Products multiply</td><td>Products</td></tr>
+      <tr><td>det(cA) = c<sup>n</sup> det(A) for n x n</td><td>Scaling the whole matrix</td><td>Scaling questions</td></tr>
+      <tr><td>rank(A) = number of pivots</td><td>Rank by row reduction</td><td>Independent rows</td></tr>
+      <tr><td>nullity(A) = n - rank(A)</td><td>Dimension of the null space</td><td>Counting free variables</td></tr>
+      <tr><td>rank(A) + nullity(A) = n</td><td>Rank-nullity theorem</td><td>Connecting the two</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Problems 1 to 7 are original GATE-style problems. Problems 8 to 10 are real past questions from GATE papers, rewritten in this format and marked as verified PYQs.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Determinant of a triangular matrix</h3>
+    <div class="statement"><p>Find the determinant of A = [[2, 5, 7], [0, 3, 1], [0, 0, 4]].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One number.</li>
+      <li><strong>Which idea applies.</strong> A triangular matrix has determinant equal to the product of its diagonal.</li>
+      <li><strong>Work it out.</strong> 2 x 3 x 4 = 24.</li>
+      <li><strong>Check.</strong> Expanding along column 1 gives 2 x det([[3, 1], [0, 4]]) = 2 x 12 = 24.</li>
+    </ol>
+    <p class="cx">Answer: 24.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Properties of a determinant (MSQ)</h3>
+    <div class="statement"><p>A is a 3 x 3 matrix with det(A) = 4. Select all true statements.</p>
+    <p>(A) det(2A) = 8<br>(B) det(A<sup>T</sup>) = 4<br>(C) det(A<sup>-1</sup>) = 1/4<br>(D) det(A + A) = 4</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test four statements.</li>
+      <li><strong>Which idea applies.</strong> det(cA) = c<sup>n</sup> det(A), det(A<sup>T</sup>) = det(A), and det(A<sup>-1</sup>) = 1/det(A).</li>
+      <li><strong>Work it out.</strong> (A) det(2A) = 32, so false. (B) true. (C) true. (D) A + A = 2A has determinant 32, so false.</li>
+      <li><strong>Check.</strong> The trap in (A) and (D) is forgetting the power 3.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Nullity of a rank-2 matrix (NAT)</h3>
+    <div class="statement"><p>M = [[1, 2, 3, 4], [2, 4, 6, 8], [1, 1, 1, 1]]. Find the nullity of M. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One number.</li>
+      <li><strong>Which idea applies.</strong> Nullity = number of columns - rank.</li>
+      <li><strong>Work it out.</strong> Row 2 is twice row 1, so the rank is 2. M has 4 columns, so nullity = 4 - 2 = 2.</li>
+      <li><strong>Check.</strong> Solving Mx = 0 leaves two free variables.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>The value that makes a matrix singular (NAT)</h3>
+    <div class="statement"><p>For what value of k is the matrix [[1, 2], [2, k]] singular? Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The k that makes det = 0.</li>
+      <li><strong>Which idea applies.</strong> det = ad - bc.</li>
+      <li><strong>Work it out.</strong> det = k - 4, so k = 4.</li>
+      <li><strong>Check.</strong> With k = 4 the second row is twice the first.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>What rank 2 tells you about a 3 x 3 matrix (MSQ)</h3>
+    <div class="statement"><p>A is a 3 x 3 matrix with rank 2. Select all true statements.</p>
+    <p>(A) det(A) = 0<br>(B) nullity(A) = 1<br>(C) the columns of A are linearly independent<br>(D) Ax = 0 has only the zero solution</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts follow from rank 2.</li>
+      <li><strong>Which idea applies.</strong> Rank below n means singular, and nullity = n - rank.</li>
+      <li><strong>Work it out.</strong> (A) true. (B) true, nullity 1. (C) false, only two columns are independent. (D) false, since nullity 1 gives non-zero solutions.</li>
+      <li><strong>Check.</strong> Rank plus nullity = 2 + 1 = 3.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>A parameter that drops the rank (NAT)</h3>
+    <div class="statement"><p>Let A = [[1, 1, 1], [1, 2, 3], [1, 3, a]]. Find the value of a for which the rank of A is 2. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The a that makes the rank drop from 3 to 2.</li>
+      <li><strong>Which idea applies.</strong> The rank drops below 3 exactly when det(A) = 0.</li>
+      <li><strong>Work it out.</strong> Expanding along row 1: det = (2a - 9) - (a - 3) + (3 - 2) = a - 5. So a = 5.</li>
+      <li><strong>Check.</strong> With a = 5, row 2 minus row 1 is (0, 1, 2), and row 3 minus row 1 is (0, 2, 4), which is twice that. So the rows are dependent and the rank is 2.</li>
+    </ol>
+    <p class="cx">Answer: 5.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Rank, nullity and solutions for a wide matrix (MSQ)</h3>
+    <div class="statement"><p>A is a 4 x 6 matrix with rank 4. Select all true statements.</p>
+    <p>(A) The nullity of A is 2<br>(B) Ax = 0 has a non-zero solution<br>(C) The 6 columns of A are linearly independent<br>(D) Ax = b has a solution for every b in R<sup>4</sup></p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test four statements about a wide matrix.</li>
+      <li><strong>Which idea applies.</strong> Rank-nullity: rank + nullity = 6. Rank 4 equals the number of rows.</li>
+      <li><strong>Work it out.</strong> (A) true, nullity = 2. (B) true. (C) false, six vectors in R<sup>4</sup> cannot be independent. (D) true, since the column space is all of R<sup>4</sup>.</li>
+      <li><strong>Check.</strong> More vectors than dimensions always gives dependence.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>GATE CSE 2023 memory-based question (verified PYQ): row swap and determinant</h3>
+    <div class="statement"><p>Let A = [[1, 2, 3, 4], [4, 1, 2, 3], [3, 4, 1, 2], [2, 3, 4, 1]] and B = [[3, 4, 1, 2], [4, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 1]]. Which is TRUE?</p>
+    <p>(A) det(A) = det(B)<br>(B) det(B) = -det(A)<br>(C) det(A) = 0<br>(D) det(AB) = det(A) + det(B)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The true statement.</li>
+      <li><strong>Which idea applies.</strong> Compare the rows: a row swap flips the sign, and determinants multiply.</li>
+      <li><strong>Work it out.</strong> Row 1 of B is row 3 of A, and row 3 of B is row 1 of A, with the rest unchanged. So B is A with one swap, and det(B) = -det(A). (C) is false since det(A) = -160 is not 0. (D) is false since determinants multiply.</li>
+      <li><strong>Check.</strong> The Python block computes both determinants.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def minor(M, i, j):
+    return [row[:j] + row[j + 1:] for k, row in enumerate(M) if k != i]
+
+def det(M):
+    if len(M) == 1:
+        return M[0][0]
+    return sum((-1) ** j * M[0][j] * det(minor(M, 0, j)) for j in range(len(M)))
+
+A = [[1, 2, 3, 4], [4, 1, 2, 3], [3, 4, 1, 2], [2, 3, 4, 1]]
+B = [[3, 4, 1, 2], [4, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 1]]
+print("det(A) =", det(A))
+print("det(B) =", det(B))</code></pre>
+    <pre class="output">det(A) = -160
+det(B) = 160</pre>
+    <p class="cx">Answer: (B). This is a verified PYQ from GATE CSE 2023, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>GATE CSE 2020 Q27 (verified PYQ): which rank and determinant rules hold? (MSQ)</h3>
+    <div class="statement"><p>Let A and B be n x n real matrices. Select all true statements.</p>
+    <p>(I) rank(AB) = rank(A) x rank(B)<br>(II) det(AB) = det(A) x det(B)<br>(III) rank(A + B) is at most rank(A) + rank(B)<br>(IV) det(A + B) is at most det(A) + det(B)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test four rules.</li>
+      <li><strong>Which idea applies.</strong> The determinant product rule is exact. Rank of a product is at most the smaller rank. Rank of a sum is at most the sum of ranks.</li>
+      <li><strong>Work it out.</strong> (I) false: A = B = I<sub>3</sub> gives rank 3, but 3 x 3 = 9. (II) true. (III) true, since the columns of A + B are sums of columns of A and of B. (IV) false: A = B = I<sub>2</sub> gives det(2I<sub>2</sub>) = 4, but 1 + 1 = 2.</li>
+      <li><strong>Check.</strong> Identity matrices are the quickest counterexamples.</li>
+    </ol>
+    <p class="cx">Answer: (II) and (III). This is a verified PYQ from GATE CSE 2020, Q27, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>GATE CSE 2021 Set 2 Q24 (verified PYQ): rank from the null space (NAT)</h3>
+    <div class="statement"><p>P is a 4 x 5 matrix such that every solution of Px = 0 is a scalar multiple of (2, 5, 4, 3, 1). Find the rank of P. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rank of P.</li>
+      <li><strong>Which idea applies.</strong> The null space is a line, so its dimension is 1. Rank-nullity applies.</li>
+      <li><strong>Work it out.</strong> Rank = 5 - 1 = 4.</li>
+      <li><strong>Check.</strong> Rank 4 is at most the number of rows, 4.</li>
+    </ol>
+    <p class="cx">Answer: 4. This is a verified PYQ from GATE CSE 2021 Set 2, Q24, rewritten into the format of this page.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Rank of an outer product sum (NAT, 1 mark)</h3>
+    <div class="statement"><p>Let u = (1, 2, 3), v = (2, 4, 6) and w = (1, 0, 1). Find the rank of M = uuᵀ + vvᵀ + wwᵀ.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rank of a sum of three rank-one matrices.</li>
+      <li><strong>Which idea applies.</strong> The column space of M is spanned by u, v and w (M is a Gram-type sum of positive semidefinite pieces), so rank(M) = dim span{u, v, w}.</li>
+      <li><strong>Work it out.</strong> v = 2u, so the span is span{u, w}. u and w are not parallel, so the rank is 2.</li>
+      <li><strong>Check.</strong> The code computes the rank by exact row reduction.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+vs = [(1, 2, 3), (2, 4, 6), (1, 0, 1)]
+M = [[F(sum(v[i] * v[j] for v in vs)) for j in range(3)] for i in range(3)]
+rank, r = 0, 0
+for c in range(3):
+    p = next((i for i in range(r, 3) if M[i][c] != 0), None)
+    if p is None:
+        continue
+    M[r], M[p] = M[p], M[r]
+    for i in range(r + 1, 3):
+        M[i] = [a - M[i][c] / M[r][c] * b for a, b in zip(M[i], M[r])]
+    r += 1
+print("rank =", r)
+</code></pre>
+    <pre class="output">rank = 2</pre>
+    <p class="cx">Answer: 2.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Nullity of a product (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A is 5 × 3 with rank 3 and B is 3 × 4 with rank 2. Which are TRUE? (A) rank(AB) = 2. (B) nullity(AB) = 2. (C) nullity(B) = 1. (D) AB has a nonzero null vector.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Rank and nullity of B and AB.</li>
+      <li><strong>Which idea applies.</strong> A has full column rank, so Ax = 0 only for x = 0. Hence ABx = 0 exactly when Bx = 0. Rank-nullity: rank + nullity = number of columns.</li>
+      <li><strong>Work it out.</strong> Null(AB) = Null(B), so rank(AB) = rank(B) = 2. True. nullity(AB) = 4 − 2 = 2. True. nullity(B) = 4 − 2 = 2, not 1. False. A nullity of 2 means nonzero null vectors exist. True.</li>
+      <li><strong>Check.</strong> Columns of AB: 4. Rank 2 plus nullity 2 gives 4.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Determinant with a parameter (NAT, 2 marks)</h3>
+    <div class="statement"><p>For A = [[1, 1, 1], [1, k, 1], [1, 1, k²]], find the sum of all real k for which rank(A) is less than 3.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Values of k that make det(A) = 0, then their sum.</li>
+      <li><strong>Which idea applies.</strong> Subtract row 1 from rows 2 and 3 to get an upper triangular form.</li>
+      <li><strong>Work it out.</strong> Rows become (1, 1, 1), (0, k − 1, 0), (0, 0, k² − 1). det = (k − 1)(k² − 1) = (k − 1)²(k + 1). Distinct roots are k = 1 and k = −1, so the sum is 0.</li>
+      <li><strong>Check.</strong> The code scans integer k from −5 to 5 for a zero determinant.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def det3(m):
+    a, b, c = m
+    return a[0]*(b[1]*c[2]-b[2]*c[1]) - a[1]*(b[0]*c[2]-b[2]*c[0]) + a[2]*(b[0]*c[1]-b[1]*c[0])
+print([k for k in range(-5, 6) if det3([[1, 1, 1], [1, k, 1], [1, 1, k * k]]) == 0])
+</code></pre>
+    <pre class="output">[-1, 1]</pre>
+    <p class="cx">Answer: 0 (the values are k = 1 and k = −1).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Determinant</dt><dd>A number that measures area scaling. For 2 x 2, ad - bc.</dd></div>
+    <div><dt>Minor</dt><dd>The determinant after covering one row and one column.</dd></div>
+    <div><dt>Cofactor</dt><dd>A minor with the checkerboard sign (-1)<sup>i+j</sup>.</dd></div>
+    <div><dt>Cofactor expansion</dt><dd>Determinant by adding entry times cofactor across one row.</dd></div>
+    <div><dt>Row swap</dt><dd>Changes the sign of the determinant.</dd></div>
+    <div><dt>Adding a row multiple</dt><dd>Leaves the determinant unchanged.</dd></div>
+    <div><dt>Triangular determinant</dt><dd>The product of the diagonal entries.</dd></div>
+    <div><dt>Product rule</dt><dd>det(AB) = det(A) det(B). Determinants multiply, not add.</dd></div>
+    <div><dt>Singular</dt><dd>det = 0. The matrix has no inverse.</dd></div>
+    <div><dt>Pivot</dt><dd>The first non-zero entry of a row in staircase form.</dd></div>
+    <div><dt>Rank</dt><dd>The number of pivots.</dd></div>
+    <div><dt>Null space</dt><dd>All x with Ax = 0.</dd></div>
+    <div><dt>Nullity</dt><dd>The dimension of the null space, which is n minus the rank.</dd></div>
+    <div><dt>Free variable</dt><dd>A variable not fixed by the pivots. The number of free variables is the nullity.</dd></div>
+    <div><dt>Rank-nullity theorem</dt><dd>rank + nullity = number of columns.</dd></div>
+      <div><dt>Cofactor expansion along any line</dt><dd>The same method works along any row or column, with the same checkerboard signs.</dd></div>
+    <div><dt>Non-trivial null vector</dt><dd>A non-zero x with Ax = 0. It exists exactly when the matrix is singular.</dd></div>
+</dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Determinant zero means singular: the matrix squashes space flat and has no inverse.</li>
+    <li>A row swap flips the sign of the determinant. Adding a multiple of one row changes nothing.</li>
+    <li>det(AB) = det(A) det(B). Never write det(A + B) = det(A) + det(B).</li>
+    <li>Rank equals the number of pivots. Count pivots, not non-zero entries.</li>
+    <li>Rank plus nullity equals the number of columns.</li>
+    <li>For a square matrix, invertible, det non-zero, rank n and nullity 0 go together.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 4?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 4 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-003.html"><small>Previous, topic 3</small>Matrices: operations, projection matrix</a><a class="next" href="gate-005.html"><small>Next, topic 5</small>Systems of linear equations and solutions</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

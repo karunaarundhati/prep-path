@@ -1,0 +1,590 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 97: Multiple linear regression</title><meta name="description" content="Multiple linear regression predicts one number from several inputs at once. You will learn the model, how the best coefficients are found with matrices, how to measure fit with R squared and adjusted R squared, and the assumptions behind the method."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g97" data-key="g97" data-noun="topic" data-num="97" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Multiple linear regression</h1>
+<p class="lede">Multiple linear regression predicts one number from several inputs at once. You will learn the model, how the best coefficients are found with matrices, how to measure fit with R squared and adjusted R squared, and the assumptions behind the method.</p>
+<div class="station"><b>97</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>The model with many inputs</li><li>Least squares in matrix form</li><li>R squared and adjusted R squared</li><li>Multicollinearity</li><li>Assumptions of linear regression</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine you want to guess the price of a second-hand car. One clue is its age. You could draw a straight line through many cars and read the price from the line. That is <em>simple</em> linear regression. But a real car price depends on many things at once: age, mileage, engine size and condition. Multiple linear regression lets you use all of these clues together in one straight-line rule.</p>
+  <p>Think of a recipe. A cake's sweetness might depend on the spoons of sugar, the spoons of honey and the amount of fruit. Each ingredient adds its own share to the final taste. Multiple regression says: take each input, multiply it by a weight that says how strongly it matters, add the results together, and you get a prediction. The job of the learning algorithm is to find the best weights from the data.</p>
+  <p>Why does this matter for GATE? Multiple linear regression is the first real model in the Machine Learning part of the Data Science and AI paper (DA). It appears in questions about writing the model, computing coefficients with the normal equations, reading R squared, spotting multicollinearity, and checking the assumptions. The Robotics and Automation paper (RA) uses the same ideas when it fits a line or a plane to measured data.</p>
+  <p>You do not need to know any advanced maths to start. You need three things: the idea of a weighted sum, a little matrix multiplication, and patience with symbols. Each of these is explained below, one small step at a time.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read these first. Every term is used again later on the page.</p>
+  <dl>
+    <div><dt>Input or feature</dt><dd>A measured clue that goes into the model, such as the age of a car. Precisely: an independent variable x<sub>j</sub>.</dd></div>
+    <div><dt>Output or target</dt><dd>The number we want to predict, such as the price of a car. Precisely: the dependent variable y.</dd></div>
+    <div><dt>Coefficient or weight</dt><dd>A number that says how much one input moves the output. Precisely: β<sub>j</sub>, the slope for input x<sub>j</sub>.</dd></div>
+    <div><dt>Intercept</dt><dd>The prediction when all inputs are zero. Precisely: β<sub>0</sub>, the constant term.</dd></div>
+    <div><dt>Error or residual</dt><dd>The gap between the real output and the predicted output. Precisely: for one data point, residual = y minus ŷ, where ŷ is the predicted value.</dd></div>
+    <div><dt>Least squares</dt><dd>A rule for choosing the weights: pick the weights that make the sum of squared residuals as small as possible.</dd></div>
+    <div><dt>Matrix X</dt><dd>A table with one row per data point and one column per input, with an extra column of 1s for the intercept. Precisely: an m by (n+1) matrix.</dd></div>
+    <div><dt>Transpose X<sup>T</sup></dt><dd>The same table with rows and columns swapped. The row 1 2 3 becomes the column 1, 2, 3.</dd></div>
+    <div><dt>Normal equations</dt><dd>The set of equations X<sup>T</sup>Xβ = X<sup>T</sup>y that the best weights must satisfy.</dd></div>
+    <div><dt>Sum of squares total SST</dt><dd>How much the real outputs spread around their average. Precisely: SST = Σ(y<sub>i</sub> minus ȳ) squared.</dd></div>
+    <div><dt>Sum of squares residual SSR</dt><dd>How much the predictions miss. Precisely: SSR = Σ(y<sub>i</sub> minus ŷ<sub>i</sub>) squared.</dd></div>
+    <div><dt>R squared</dt><dd>The share of the spread that the model explains, between 0 and 1 on training data with an intercept. Precisely: R² = 1 minus SSR/SST.</dd></div>
+    <div><dt>Adjusted R squared</dt><dd>R squared corrected for the number of inputs, so that adding useless inputs does not look good. Precisely: 1 minus (1 minus R²)(m minus 1)/(m minus n minus 1).</dd></div>
+    <div><dt>Multicollinearity</dt><dd>Two or more inputs that carry almost the same information, which makes the weights unstable.</dd></div>
+    <div><dt>Variance inflation factor VIF</dt><dd>A score for how badly one input is explained by the others. Precisely: VIF<sub>j</sub> = 1/(1 minus R<sub>j</sub>²), where R<sub>j</sub>² comes from regressing x<sub>j</sub> on the other inputs.</dd></div>
+    <div><dt>Homoscedasticity</dt><dd>The spread of the errors stays about the same for every prediction. The opposite is heteroscedasticity.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The model with many inputs">
+  <h2>The model with many inputs</h2>
+  <h3>Step 1: start from the simple case</h3>
+  <p>In simple linear regression we have one input x and one output y. The model is a straight line: y = β<sub>0</sub> + β<sub>1</sub>x. Here β<sub>0</sub> is the intercept (where the line crosses the vertical axis) and β<sub>1</sub> is the slope (how much y goes up when x goes up by one).</p>
+  <h3>Step 2: add more inputs</h3>
+  <p>Now suppose we have n inputs, x<sub>1</sub>, x<sub>2</sub>, up to x<sub>n</sub>. The model becomes:</p>
+  <div class="formula">y = β<sub>0</sub> + β<sub>1</sub>x<sub>1</sub> + β<sub>2</sub>x<sub>2</sub> + ... + β<sub>n</sub>x<sub>n</sub> + ε</div>
+  <p>Read it symbol by symbol. y is the output we predict. x<sub>1</sub> to x<sub>n</sub> are the inputs. β<sub>0</sub> to β<sub>n</sub> are the coefficients the algorithm must learn. The three dots mean "the same pattern continues". The letter ε (epsilon) is the part of y that the model cannot explain, the random noise.</p>
+  <p>In practice we never see the true β values. We have data: m rows, each with its inputs and its known output. We use the data to estimate the β values. The estimates are written with hats, β̂, or simply β when the context is clear.</p>
+  <h3>Step 3: a tiny example with numbers</h3>
+  <p>Suppose a model is ŷ = 2 + 3x<sub>1</sub> minus x<sub>2</sub>. Here β<sub>0</sub> = 2, β<sub>1</sub> = 3 and β<sub>2</sub> = minus 1. Predict y when x<sub>1</sub> = 4 and x<sub>2</sub> = 1.</p>
+  <ol>
+    <li><strong>Start with the intercept.</strong> The sum starts at 2.</li>
+    <li><strong>Add the first input term.</strong> 3 times 4 is 12. The sum is 2 + 12 = 14.</li>
+    <li><strong>Add the second input term.</strong> minus 1 times 1 is minus 1. The sum is 14 minus 1 = 13.</li>
+    <li><strong>Read the answer.</strong> The predicted output is 13.</li>
+  </ol>
+  <div class="note tip"><p><span class="t">Tip</span>The hat on ŷ means "predicted". The letter y without a hat means "the real measured value". Keeping these apart stops many mistakes.</p></div>
+  <h3>Step 4: the meaning of a coefficient</h3>
+  <p>Each coefficient answers this question: if this one input goes up by 1 and all the other inputs stay exactly the same, how much does the prediction change? For β<sub>1</sub> = 3, a rise of 1 in x<sub>1</sub> adds 3 to the prediction when x<sub>2</sub> is held fixed. The phrase "holding the other inputs fixed" is the most important idea in this topic.</p>
+  <div class="note trap"><p><span class="t">Trap</span>A coefficient is not a fixed fact about the world. It depends on which other inputs are in the model. Adding or removing an input can change every other coefficient.</p></div>
+  <h3>Step 5: the matrix form</h3>
+  <p>Writing every data point out by hand is slow. Matrices pack all the data into one compact statement. We stack the data into a table called X. Each row is one data point. The first column is always 1, so that the intercept β<sub>0</sub> multiplies a 1. The other columns are the inputs.</p>
+  <pre class="code" data-lang="text"><code>X (m rows, n+1 columns)      y (m rows)     β (n+1 rows)
+
+[ 1  x11  x12  ... x1n ]     [ y1 ]         [ β0 ]
+[ 1  x21  x22  ... x2n ]     [ y2 ]         [ β1 ]
+[ :   :    :        :  ]     [ :  ]         [ :  ]
+[ 1  xm1  xm2  ... xmn ]     [ ym ]         [ βn ]</code></pre>
+  <p>With this layout the whole model for all m points is written in one line: y = Xβ + ε. The product Xβ means: for each row of X, multiply its entries by the matching entries of β, and add them up. This gives one predicted value per row.</p>
+  <div class="formula">ŷ = Xβ</div>
+  <p>Let us check this on the one-row example. The row of X is [1, 4, 1] (the 1 for the intercept, then x<sub>1</sub> = 4 and x<sub>2</sub> = 1). The vector β is [2, 3, minus 1]. The product is 1 times 2, plus 4 times 3, plus 1 times minus 1, which is 2 + 12 minus 1 = 13. It matches Step 3.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Matrix form does not change the model. It is only a neat way to write the same weighted sum for every data point at once. That neatness is what lets us solve for β in one go.</p></div>
+  <h3>Worked check in Python</h3>
+  <p>The next code runs the same row calculation with a small loop. Read it carefully, because the same pattern appears in the matrix formulas.</p>
+  <pre class="code" data-lang="python"><code>beta = [2, 3, -1]      # intercept, weight of x1, weight of x2
+row = [1, 4, 1]       # the 1 for the intercept, then x1 = 4 and x2 = 1
+prediction = sum(b * x for b, x in zip(beta, row))
+print("predicted y =", prediction)</code></pre>
+  <pre class="output">predicted y = 13</pre>
+  <details class="check"><summary>Question: why is the first column of X always 1?</summary><div class="ans"><p>Because the intercept β<sub>0</sub> has no input of its own. Multiplying it by 1 keeps it unchanged, so the same matrix product handles the intercept and the slopes together.</p></div></details>
+  <details class="check"><summary>Question: a model has 3 inputs. How many columns does X have?</summary><div class="ans"><p>Four. One column of 1s for the intercept plus one column for each of the three inputs.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Least squares in matrix form">
+  <h2>Least squares in matrix form</h2>
+  <h3>Why we need a rule</h3>
+  <p>Suppose you try several possible sets of weights. Each set gives a different prediction for every data point. We need one rule that says which set is best. The usual rule is <strong>least squares</strong>: measure the residual for each point, square it so that positive and negative misses do not cancel, add up the squares, and choose the weights that make this total smallest.</p>
+  <p>The squaring step is worth a moment. If one prediction is 2 too high and another is 2 too low, plain adding gives zero, which hides the error. Squaring gives 4 and 4, which adds to 8. So squares measure how wrong the model really is.</p>
+  <div class="formula">SSR(β) = Σ (y<sub>i</sub> minus ŷ<sub>i</sub>)² = (y minus Xβ)<sup>T</sup>(y minus Xβ)</div>
+  <p>Read it symbol by symbol. The Σ (capital sigma) means "add up over all data points i". The vector y minus Xβ holds all the residuals at once. The small T means transpose, which turns a column into a row so that the product of the vector with itself gives the sum of squares.</p>
+  <h3>Step 1: the idea of the minimum</h3>
+  <p>A cup of water at the bottom of a bowl is at its lowest point. If you tilt the bowl slightly in any direction, the water rises. At the lowest point the slope is flat in every direction. Least squares works the same way. The best β is where the slope of SSR, in every direction of β, is flat. Setting the slope to zero gives the <strong>normal equations</strong>.</p>
+  <div class="formula">X<sup>T</sup>X β = X<sup>T</sup>y</div>
+  <p>Here X<sup>T</sup>X is a square matrix, and X<sup>T</sup>y is a column of numbers. The unknown is β. If X<sup>T</sup>X has an inverse, we can multiply both sides by it to get the solution.</p>
+  <div class="formula">β = (X<sup>T</sup>X)<sup>-1</sup> X<sup>T</sup>y</div>
+  <p>The power -1 means "the inverse". The inverse of a matrix plays the role of dividing by a number. Just as 6 divided by 3 is the same as 6 times one third, a matrix equation with an inverse can be solved by multiplying by the inverse.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The inverse exists only when X<sup>T</sup>X is invertible, which means its determinant is not zero. If one input is an exact copy of another, or a perfect mix of others, X<sup>T</sup>X is singular and the formula breaks. This is the extreme case of multicollinearity, explained later.</p></div>
+  <h3>Step 2: a worked example with four data points</h3>
+  <p>We use two inputs, x<sub>1</sub> and x<sub>2</sub>, and four data points. The table of data is:</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Point</th><th>x<sub>1</sub></th><th>x<sub>2</sub></th><th>y</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>1</td><td>2</td><td>3</td></tr>
+      <tr><td>2</td><td>2</td><td>1</td><td>7</td></tr>
+      <tr><td>3</td><td>3</td><td>4</td><td>8</td></tr>
+      <tr><td>4</td><td>4</td><td>3</td><td>10</td></tr>
+    </tbody>
+  </table></div>
+  <p>The matrix X has four rows, each starting with 1. So X is 4 by 3 and y is 4 by 1.</p>
+  <pre class="code" data-lang="text"><code>X = [ 1 1 2 ]        y = [ 3 ]
+    [ 1 2 1 ]            [ 7 ]
+    [ 1 3 4 ]            [ 8 ]
+    [ 1 4 3 ]            [ 10 ]</code></pre>
+  <h3>Step 3: build X<sup>T</sup>X</h3>
+  <p>X<sup>T</sup> has three rows, one for each column of X. The entry in row i and column j of X<sup>T</sup>X is the sum of the products of column i and column j of X. Let us compute each entry.</p>
+  <ul>
+    <li>Row 1 with row 1: the column of 1s times itself gives 1 + 1 + 1 + 1 = 4.</li>
+    <li>The column of 1s with the x<sub>1</sub> column: 1 + 2 + 3 + 4 = 10.</li>
+    <li>The column of 1s with the x<sub>2</sub> column: 2 + 1 + 4 + 3 = 10.</li>
+    <li>The x<sub>1</sub> column with itself: 1 + 4 + 9 + 16 = 30.</li>
+    <li>The x<sub>1</sub> column with the x<sub>2</sub> column: 1×2 + 2×1 + 3×4 + 4×3 = 2 + 2 + 12 + 12 = 28.</li>
+    <li>The x<sub>2</sub> column with itself: 4 + 1 + 16 + 9 = 30.</li>
+  </ul>
+  <pre class="code" data-lang="text"><code>X^T X = [ 4   10  10 ]
+        [ 10  30  28 ]
+        [ 10  28  30 ]</code></pre>
+  <h3>Step 4: build X<sup>T</sup>y</h3>
+  <p>Now multiply each column of X by y and add up the products.</p>
+  <ul>
+    <li>The column of 1s with y: 3 + 7 + 8 + 10 = 28.</li>
+    <li>The x<sub>1</sub> column with y: 1×3 + 2×7 + 3×8 + 4×10 = 3 + 14 + 24 + 40 = 81.</li>
+    <li>The x<sub>2</sub> column with y: 2×3 + 1×7 + 4×8 + 3×10 = 6 + 7 + 32 + 30 = 75.</li>
+  </ul>
+  <pre class="code" data-lang="text"><code>X^T y = [ 28 ]
+        [ 81 ]
+        [ 75 ]</code></pre>
+  <h3>Step 5: solve the three equations</h3>
+  <p>The normal equations now read as three simple equations in three unknowns β<sub>0</sub>, β<sub>1</sub> and β<sub>2</sub>.</p>
+  <pre class="code" data-lang="text"><code>4 b0 + 10 b1 + 10 b2 = 28
+10 b0 + 30 b1 + 28 b2 = 81
+10 b0 + 28 b1 + 30 b2 = 75</code></pre>
+  <p>Solve by elimination. First, multiply the first equation by 2.5 so that its first term is 10 b0. That gives 10 b0 + 25 b1 + 25 b2 = 70. Subtract this from the second equation: 5 b1 + 3 b2 = 11. Subtract it from the third equation: 3 b1 + 5 b2 = 5.</p>
+  <p>Now solve the two-variable pair. Multiply the first new equation by 3 and the second by 5: 15 b1 + 9 b2 = 33 and 15 b1 + 25 b2 = 25. Subtract the first from the second: 16 b2 = minus 8, so b2 = minus 1/2. Put b2 back into 5 b1 + 3 b2 = 11: 5 b1 minus 1.5 = 11, so 5 b1 = 12.5 and b1 = 2.5. Finally, put both into 4 b0 + 10 b1 + 10 b2 = 28: 4 b0 + 25 minus 5 = 28, so 4 b0 = 8 and b0 = 2.</p>
+  <div class="formula">β = (2, 5/2, minus 1/2)</div>
+  <p>So the fitted model is ŷ = 2 + 2.5 x<sub>1</sub> minus 0.5 x<sub>2</sub>. In real life you would let a computer solve the system, but it is good to know what it is doing. The code below checks the answer with exact fractions, so that no rounding can hide a mistake.</p>
+  <h3>Step 6: check the fitted values and residuals</h3>
+  <p>Put each row of X into the model. For point 1, the prediction is 2 + 2.5×1 minus 0.5×2 = 2 + 2.5 minus 1 = 3.5. For point 2, it is 2 + 5 minus 0.5 = 6.5. For point 3, it is 2 + 7.5 minus 2 = 7.5. For point 4, it is 2 + 10 minus 1.5 = 10.5. The residuals are y minus ŷ: minus 0.5, plus 0.5, plus 0.5 and minus 0.5. They add to zero, which is always true for least squares with an intercept.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+X = [[1, 1, 2], [1, 2, 1], [1, 3, 4], [1, 4, 3]]
+y = [3, 7, 8, 10]
+
+def transpose(M):
+    return [list(col) for col in zip(*M)]
+
+def matmul(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(len(B)))
+             for j in range(len(B[0]))] for i in range(len(A))]
+
+def solve(A, b):
+    # Gauss-Jordan elimination with exact fractions
+    n = len(A)
+    M = [[F(v) for v in A[i]] + [F(b[i])] for i in range(n)]
+    for c in range(n):
+        p = next(r for r in range(c, n) if M[r][c] != 0)
+        M[c], M[p] = M[p], M[c]
+        M[c] = [v / M[c][c] for v in M[c]]
+        for r in range(n):
+            if r != c and M[r][c] != 0:
+                M[r] = [a - M[r][c] * v for a, v in zip(M[r], M[c])]
+    return [M[i][n] for i in range(n)]
+
+Xt = transpose(X)
+XtX = matmul(Xt, X)
+Xty = [sum(Xt[i][k] * y[k] for k in range(4)) for i in range(3)]
+print("X^T X =", XtX)
+print("X^T y =", Xty)
+beta = solve(XtX, Xty)
+print("beta  =", [str(v) for v in beta])
+print("sum of residuals =", sum(y[i] - sum(X[i][j] * beta[j] for j in range(3)) for i in range(4)))</code></pre>
+  <pre class="output">X^T X = [[4, 10, 10], [10, 30, 28], [10, 28, 30]]
+X^T y = [28, 81, 75]
+beta  = ['2', '5/2', '-1/2']
+sum of residuals = 0</pre>
+  <details class="check"><summary>Question: why do the residuals add to zero?</summary><div class="ans"><p>Because the intercept term is in the model. The normal equations include the row of 1s in X, and that row says the residuals must sum to zero. Without an intercept, this need not hold.</p></div></details>
+  <details class="check"><summary>Question: what does the solution β = (2, 5/2, minus 1/2) tell you about x<sub>2</sub>?</summary><div class="ans"><p>Holding x<sub>1</sub> fixed, each extra unit of x<sub>2</sub> lowers the prediction by half a unit. The negative sign says the two directions pull in opposite ways.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="R squared and adjusted R squared">
+  <h2>R squared and adjusted R squared</h2>
+  <h3>The question R squared answers</h3>
+  <p>Once you have a model, you need a score. How good is it? Imagine you know only the average price of all cars. Your best guess for every car is that average. That guess has some total error. Now imagine your model. Its predictions should be closer to the real prices. R squared measures how much of the original error the model removed.</p>
+  <p>Two sums do the work. The first is <strong>SST</strong>, the total spread of the real y values around their average ȳ. It is the error of the "always guess the average" rule.</p>
+  <div class="formula">SST = Σ (y<sub>i</sub> minus ȳ)²</div>
+  <p>The second is <strong>SSR</strong>, the leftover spread of the residuals, the errors of the model.</p>
+  <div class="formula">SSR = Σ (y<sub>i</sub> minus ŷ<sub>i</sub>)²</div>
+  <p>R squared is then:</p>
+  <div class="formula">R² = 1 minus SSR/SST</div>
+  <p>If the model is perfect, SSR is 0 and R² is 1. If the model is no better than guessing the average, SSR equals SST and R² is 0. For a least squares model with an intercept, R² always lies between 0 and 1 on the training data.</p>
+  <h3>Worked example with the four points</h3>
+  <p>Use the same four points as before, with y = 3, 7, 8, 10. The mean is ȳ = (3 + 7 + 8 + 10)/4 = 28/4 = 7.</p>
+  <ol>
+    <li><strong>Find SST.</strong> The deviations from 7 are minus 4, 0, 1 and 3. Their squares are 16, 0, 1 and 9. Add them: SST = 26.</li>
+    <li><strong>Find the fitted values.</strong> From the earlier work, ŷ = 3.5, 6.5, 7.5 and 10.5.</li>
+    <li><strong>Find the residuals.</strong> y minus ŷ gives minus 0.5, plus 0.5, plus 0.5 and minus 0.5.</li>
+    <li><strong>Find SSR.</strong> The squares are 0.25, 0.25, 0.25 and 0.25. Add them: SSR = 1.</li>
+    <li><strong>Find R squared.</strong> R² = 1 minus 1/26 = 25/26, about 0.9615. The model explains about 96 percent of the spread.</li>
+  </ol>
+  <div class="note key"><p><span class="t">Key idea</span>R squared is a fraction of the original error that was removed. It is not the chance that the model is right, and it is not a measure of whether the model is correct for new data.</p></div>
+  <h3>Why adding inputs always raises R squared</h3>
+  <p>Here is a surprising fact. If you add any input to a least squares model, even a column of random noise, SSR cannot go up. The old model is still available as a special case (the new weight is set to zero), so the best fit can only get better or stay the same. Therefore R squared can only go up or stay the same when you add inputs. A model with 50 random inputs can show a high R squared just by chance.</p>
+  <p>This is why we need a corrected score. That score is adjusted R squared.</p>
+  <div class="formula">R²<sub>adj</sub> = 1 minus (1 minus R²)(m minus 1)/(m minus n minus 1)</div>
+  <p>Read the symbols. m is the number of data points. n is the number of inputs, not counting the intercept. The fraction (m minus 1)/(m minus n minus 1) is a penalty. It gets bigger when you use more inputs compared with the number of points, so the score goes down unless the new input really helps.</p>
+  <h3>Worked example of adjusted R squared</h3>
+  <p>Use the four-point model. Here m = 4 and n = 2. R² = 25/26.</p>
+  <ol>
+    <li><strong>Find 1 minus R².</strong> It is 1/26.</li>
+    <li><strong>Find the penalty.</strong> (m minus 1)/(m minus n minus 1) = 3/(4 minus 2 minus 1) = 3/1 = 3.</li>
+    <li><strong>Multiply.</strong> (1/26) times 3 = 3/26.</li>
+    <li><strong>Subtract from 1.</strong> Adjusted R² = 1 minus 3/26 = 23/26, about 0.8846.</li>
+  </ol>
+  <p>The adjusted value is lower, as expected, because only 4 points are used to fit 3 numbers. The next code block checks both values with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+y = [3, 7, 8, 10]
+yhat = [F(7, 2), F(13, 2), F(15, 2), F(21, 2)]   # 3.5, 6.5, 7.5, 10.5
+
+ybar = F(sum(y), len(y))
+sst = sum((v - ybar) ** 2 for v in y)
+ssr = sum((a - b) ** 2 for a, b in zip(y, yhat))
+r2 = 1 - ssr / sst
+
+m, n = len(y), 2                      # 4 points, 2 inputs
+adj = 1 - (1 - r2) * (m - 1) / (m - n - 1)
+
+print("SST =", sst)
+print("SSR =", ssr)
+print("R squared =", r2)
+print("adjusted R squared =", adj)</code></pre>
+  <pre class="output">SST = 26
+SSR = 1
+R squared = 25/26
+adjusted R squared = 23/26</pre>
+  <details class="check"><summary>Question: an analyst adds a useless input and adjusted R squared falls. What does that tell you?</summary><div class="ans"><p>The new input did not explain enough extra spread to pay for the penalty. The model is worse in the adjusted sense, even though plain R squared could not fall.</p></div></details>
+  <details class="check"><summary>Question: can R squared be 0.99 and still be a poor model?</summary><div class="ans"><p>Yes. A high R squared on training data can come from overfitting, from too many inputs, or from a non-linear pattern the model cannot represent. Always check residual plots and new data too.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Multicollinearity">
+  <h2>Multicollinearity</h2>
+  <h3>The idea in plain words</h3>
+  <p>Suppose two friends always tell you the same weather news. One says "it is raining" and the other says "the streets are wet". Both clues carry the same information. If you try to credit each friend for your decision to take an umbrella, you cannot tell how much each one really mattered. Multicollinearity is the same problem for regression. Two or more inputs carry almost the same information, so the model cannot separate their effects.</p>
+  <h3>What goes wrong</h3>
+  <p>The coefficients become unstable. A tiny change in the data can make one coefficient jump from plus 3 to minus 4 while the predictions barely change. The model may still predict well, but each individual weight becomes hard to trust. Its standard error becomes large, and a coefficient that should matter may look insignificant.</p>
+  <p>In the extreme case, the inputs are exact copies or exact mixtures of each other. Look at the earlier matrix. If x<sub>2</sub> = 2 times x<sub>1</sub> for every row, then the column of x<sub>2</sub> is just twice the column of x<sub>1</sub>. The columns of X are then not independent. The matrix X<sup>T</sup>X has determinant 0, so it has no inverse, and the formula β = (X<sup>T</sup>X)<sup>-1</sup>X<sup>T</sup>y cannot be used.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Exact multicollinearity makes the formula impossible. Near multicollinearity does not break the formula but makes the answer unstable. Both are problems, and the second one is more common in real data.</p></div>
+  <h3>Measuring it with VIF</h3>
+  <p>To check one input x<sub>j</sub>, pretend it is the output. Regress x<sub>j</sub> on all the other inputs and find the R squared of that regression, call it R<sub>j</sub>². If the other inputs explain x<sub>j</sub> very well, R<sub>j</sub>² is close to 1. The variance inflation factor turns this into a warning score.</p>
+  <div class="formula">VIF<sub>j</sub> = 1 / (1 minus R<sub>j</sub>²)</div>
+  <p>If R<sub>j</sub>² = 0 (the other inputs say nothing about x<sub>j</sub>), VIF is 1, the best value. If R<sub>j</sub>² = 0.9, the VIF is 1/0.1 = 10. If R<sub>j</sub>² is 0.99, the VIF is 100. Many textbooks use a VIF above 5 or 10 as a warning sign. These are rules of thumb, not laws of nature.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Expect a question that gives R<sub>j</sub>² and asks for the VIF. Compute 1/(1 minus R<sub>j</sub>²) and check that a large R<sub>j</sub>² gives a large VIF.</p></div>
+  <h3>What to do about it</h3>
+  <ul>
+    <li><strong>Drop one of the copies.</strong> If two inputs carry the same information, keep the one that is easier to measure or explain.</li>
+    <li><strong>Combine them.</strong> Use an average, a total, or a ratio that represents both.</li>
+    <li><strong>Collect more varied data.</strong> More variety can separate the effects.</li>
+    <li><strong>Use regularisation.</strong> Ridge regression, the next topic, adds a penalty that keeps the weights stable even when the inputs are close copies.</li>
+  </ul>
+  <p>A useful habit: before you fit any model, look at the correlations between the inputs. A pair of inputs with correlation close to 1 or minus 1 is a warning sign.</p>
+  <details class="check"><summary>Question: a predictor has R<sub>j</sub>² = 0.75. What is its VIF?</summary><div class="ans"><p>1/(1 minus 0.75) = 1/0.25 = 4.</p></div></details>
+  <details class="check"><summary>Question: does multicollinearity make the model's predictions wrong?</summary><div class="ans"><p>Not necessarily. The predictions can stay good while the individual coefficients are unreliable. Trouble comes when you need to interpret each coefficient or test each one.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Assumptions of linear regression">
+  <h2>Assumptions of linear regression</h2>
+  <h3>Why assumptions matter</h3>
+  <p>A method works best when its conditions hold. Think of a bridge. It is designed for a certain load and certain materials. If you drive a heavy truck over it, the bridge may still stand, but your safety estimate is wrong. Linear regression has assumptions in the same way. When they hold, least squares gives the best possible answers, and the standard tests and confidence intervals are correct. When they fail, the coefficients may still be useful, but the claims you make about them may be false.</p>
+  <h3>The four main assumptions</h3>
+  <ol>
+    <li><strong>Linearity.</strong> The output is a weighted sum of the inputs plus noise. The relationship between each input and the output is a straight line when the other inputs are held fixed. If the true pattern is a curve, a straight-line model will miss it. <em>How to check:</em> plot the residuals against the predicted values. A curve in the plot means linearity fails.</li>
+    <li><strong>Independence of errors.</strong> The error for one data point does not tell you the error for another. This often fails with data collected over time, where today's error looks like yesterday's. <em>How to check:</em> plot the residuals in the order they were collected and look for runs of positive or negative values.</li>
+    <li><strong>Homoscedasticity.</strong> The spread of the errors is about the same for all predicted values. A funnel shape in the residual plot, where the spread grows as the predictions grow, is called heteroscedasticity. <em>How to check:</em> look at the same residual plot for a funnel.</li>
+    <li><strong>No perfect multicollinearity, and no strong near-copies.</strong> X<sup>T</sup>X must be invertible. Check the VIF values.</li>
+  </ol>
+  <p>For formal tests and confidence intervals, one more assumption is added. The residuals are roughly normally distributed (bell-shaped) with mean zero. This is needed for the t-tests on individual coefficients in small samples. It is not needed for the least squares estimates to be unbiased.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The word "normal" means two different things here. A normal distribution is the bell curve. The normal equations are called "normal" because the residual vector is perpendicular (at right angles, "normal") to every column of X. Read the context before you assume a bell curve.</p></div>
+  <h3>What the assumptions buy you</h3>
+  <p>The Gauss-Markov theorem says that if the errors have mean zero, constant variance and are uncorrelated, and if X has full column rank, then least squares is the best linear unbiased estimator. Best means it has the smallest variance among all unbiased estimators that are linear in y. This is a strong result, but notice the words "if". In real data the conditions are never perfect, so you check them.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Unbiased means that on average over many samples, the estimate is right. Best means it is the least spread out among the honest linear rules. Both facts depend on the assumptions above.</p></div>
+  <h3>A quick summary of what breaks when</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Assumption that fails</th><th>What still works</th><th>What goes wrong</th></tr></thead>
+    <tbody>
+      <tr><td>Linearity</td><td>Nothing reliable</td><td>Predictions are systematically off in some regions</td></tr>
+      <tr><td>Independence</td><td>Point estimates</td><td>Standard errors are too small, so results look more certain than they are</td></tr>
+      <tr><td>Homoscedasticity</td><td>Point estimates (still unbiased)</td><td>Standard errors and tests are wrong</td></tr>
+      <tr><td>No multicollinearity</td><td>Predictions</td><td>Coefficients are unstable and hard to interpret</td></tr>
+      <tr><td>Normal residuals (small samples)</td><td>Point estimates</td><td>t-tests and confidence intervals may be inaccurate</td></tr>
+    </tbody>
+  </table></div>
+  <details class="check"><summary>Question: does least squares need the errors to be normal to give unbiased coefficients?</summary><div class="ans"><p>No. Unbiasedness needs the errors to have mean zero and to be unrelated to the inputs. Normality is needed only for exact small-sample tests and intervals.</p></div></details>
+  <details class="check"><summary>Question: which plot helps you spot a curved relationship?</summary><div class="ans"><p>A plot of residuals against fitted values. A straight-line model should leave residuals that look like random scatter around zero, with no curve.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Keep this table open when you solve problems. Each row says what the formula means and when to use it.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>ŷ = β<sub>0</sub> + β<sub>1</sub>x<sub>1</sub> + ... + β<sub>n</sub>x<sub>n</sub></td><td>Predicted output from n inputs</td><td>Every multiple linear regression prediction</td></tr>
+      <tr><td>y = Xβ + ε</td><td>Matrix form of the whole data set</td><td>Writing the model for all points at once</td></tr>
+      <tr><td>SSR(β) = (y minus Xβ)<sup>T</sup>(y minus Xβ)</td><td>Sum of squared residuals, the least squares loss</td><td>Defining what "best" fit means</td></tr>
+      <tr><td>X<sup>T</sup>Xβ = X<sup>T</sup>y</td><td>Normal equations</td><td>Solving for β by hand or by elimination</td></tr>
+      <tr><td>β = (X<sup>T</sup>X)<sup>-1</sup>X<sup>T</sup>y</td><td>Closed-form least squares estimate</td><td>When X<sup>T</sup>X is invertible</td></tr>
+      <tr><td>SST = Σ(y<sub>i</sub> minus ȳ)²</td><td>Total spread of the outputs</td><td>First step of R squared</td></tr>
+      <tr><td>SSR = Σ(y<sub>i</sub> minus ŷ<sub>i</sub>)²</td><td>Spread left after the model</td><td>Second step of R squared</td></tr>
+      <tr><td>R² = 1 minus SSR/SST</td><td>Share of spread explained</td><td>Measuring training fit</td></tr>
+      <tr><td>R²<sub>adj</sub> = 1 minus (1 minus R²)(m minus 1)/(m minus n minus 1)</td><td>R squared penalised for the number of inputs</td><td>Comparing models with different numbers of inputs</td></tr>
+      <tr><td>VIF<sub>j</sub> = 1/(1 minus R<sub>j</sub>²)</td><td>How much input j is explained by the others</td><td>Checking multicollinearity</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style practice questions written for this page. They are not real past paper questions. Work each one on paper before you read the answer. For multiple select questions (MSQ) more than one option can be right. For numerical answer questions (NAT) you type a number.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Predicting with a two-input model</h3>
+    <div class="statement"><p>A model is ŷ = 4 + 3x<sub>1</sub> minus 2x<sub>2</sub>. Find ŷ when x<sub>1</sub> = 2 and x<sub>2</sub> = 1. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One predicted number for one set of inputs.</li>
+      <li><strong>Which idea applies.</strong> Plug the inputs into the weighted sum.</li>
+      <li><strong>Work it out.</strong> Start with 4. Add 3 times 2, which is 6, giving 10. Add minus 2 times 1, which is minus 2, giving 8.</li>
+      <li><strong>Check.</strong> Each term has the right sign: the weight of x<sub>2</sub> is negative, so it pulls the answer down.</li>
+    </ol>
+    <p class="cx">Answer: 8</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Facts about R squared (MSQ)</h3>
+    <div class="statement"><p>For a least squares model with an intercept, fitted on training data, which statements are true? Select all that apply.</p>
+    <p>(A) R squared cannot decrease when a new input is added.</p><p>(B) R squared can be negative.</p><p>(C) Adjusted R squared can decrease when a useless input is added.</p><p>(D) In multiple regression, R squared always equals the square of one correlation coefficient.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four facts are correct.</li>
+      <li><strong>Which idea applies.</strong> Adding inputs can only lower SSR, so plain R squared never falls. The penalty in adjusted R squared can make it fall.</li>
+      <li><strong>Work it out.</strong> (A) is true, as explained in the R squared section. (B) is false, because with an intercept on training data R squared lies between 0 and 1. (C) is true, because a useless input adds a penalty that may be larger than its small gain. (D) is false, because that shortcut works only for simple regression with one input.</li>
+      <li><strong>Check.</strong> The statements that survive are the ones about the rule that adding inputs never lowers plain R squared, and the penalty effect in the adjusted version.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Adjusted R squared from sums of squares (NAT)</h3>
+    <div class="statement"><p>A regression uses m = 20 data points and n = 3 inputs. The total sum of squares is SST = 50 and the residual sum of squares is SSR = 10. Find the adjusted R squared to four decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Adjusted R squared, not plain R squared.</li>
+      <li><strong>Which idea applies.</strong> First R squared = 1 minus SSR/SST. Then apply the penalty with m and n.</li>
+      <li><strong>Work it out.</strong> R squared = 1 minus 10/50 = 0.8. Then 1 minus R squared is 0.2. The penalty is (m minus 1)/(m minus n minus 1) = 19/16. So 0.2 times 19/16 = 3.8/16 = 0.2375. Adjusted R squared = 1 minus 0.2375 = 0.7625.</li>
+      <li><strong>Check.</strong> The adjusted value must be below 0.8, and it is.</li>
+    </ol>
+    <p class="cx">Answer: 0.7625</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Reading a solved normal equation (MCQ)</h3>
+    <div class="statement"><p>Assume the single input is centred, so that the sum of its values is 0. There are m = 2 data points. Suppose X<sup>T</sup>X = [[2, 0], [0, 4]] and X<sup>T</sup>y = [6, 8]<sup>T</sup>. Which pair (β<sub>0</sub>, β<sub>1</sub>) is the least squares solution? Select the single correct option.</p>
+    <p>(A) (3, 2) (B) (2, 3) (C) (6, 8) (D) (1.5, 2)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The β vector that solves X<sup>T</sup>Xβ = X<sup>T</sup>y.</li>
+      <li><strong>Which idea applies.</strong> β = (X<sup>T</sup>X)<sup>-1</sup>X<sup>T</sup>y. For a diagonal matrix, the inverse just takes reciprocals of the diagonal.</li>
+      <li><strong>Work it out.</strong> The inverse of [[2, 0], [0, 4]] is [[1/2, 0], [0, 1/4]]. Multiply by [6, 8]: the first entry is 6/2 = 3 and the second is 8/4 = 2. So β = (3, 2).</li>
+      <li><strong>Check.</strong> Put it back: 2×3 + 0×2 = 6 and 0×3 + 4×2 = 8. Both match X<sup>T</sup>y.</li>
+    </ol>
+    <p class="cx">Answer: (A) (3, 2)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Variance inflation factor (NAT)</h3>
+    <div class="statement"><p>A regression has four inputs. Input x<sub>1</sub> is regressed on the other three inputs, and this auxiliary regression gives R<sup>2</sup> = 0.9. Find the variance inflation factor (VIF) of x<sub>1</sub>. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The VIF for one input.</li>
+      <li><strong>Which idea applies.</strong> VIF = 1/(1 minus R<sub>j</sub>²), where R<sub>j</sub>² comes from the auxiliary regression.</li>
+      <li><strong>Work it out.</strong> 1 minus 0.9 = 0.1. Then 1/0.1 = 10.</li>
+      <li><strong>Check.</strong> A VIF of 10 is at the usual warning level, which fits an R squared of 0.9 from the other inputs.</li>
+    </ol>
+    <p class="cx">Answer: 10</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Diagnosing a residual plot (MSQ)</h3>
+    <div class="statement"><p>A residual plot for a fitted linear model shows a funnel shape. The residuals are close to zero for small predicted values and spread far from zero for large predicted values. Select all the statements that are true.</p>
+    <p>(A) The assumption of homoscedasticity is violated.</p><p>(B) The errors have larger variance for larger predicted values.</p><p>(C) The least squares coefficient estimates become biased.</p><p>(D) A transformation of the output, such as its logarithm, might help.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements match the funnel pattern.</li>
+      <li><strong>Which idea applies.</strong> A funnel means the spread of the errors changes with the prediction. That is heteroscedasticity.</li>
+      <li><strong>Work it out.</strong> (A) is true: constant spread is the homoscedastic case, and the funnel breaks it. (B) is true: that is exactly what the funnel shows. (C) is false: changing spread alone does not bias least squares coefficients, but it makes their standard errors wrong. (D) is true: many analysts use a log or square-root transform to shrink large spreads.</li>
+      <li><strong>Check.</strong> Ask which statement would be wrong if the spread were fine. Statement (C) is the one to reject. The funnel damages the standard errors, not the average value of the coefficients.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Did the new input help? (NAT)</h3>
+    <div class="statement"><p>Model 1 uses m = 30 points and n = 5 inputs, with R squared 0.80. Model 2 adds one more input, so n = 6, uses the same 30 points, and has R squared 0.82. Find the adjusted R squared of model 2 to three decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The adjusted R squared of model 2 only.</li>
+      <li><strong>Which idea applies.</strong> Use the adjusted formula with the new n.</li>
+      <li><strong>Work it out.</strong> 1 minus R squared is 0.18. The penalty is (30 minus 1)/(30 minus 6 minus 1) = 29/23. Multiply: 0.18 times 29/23 = 5.22/23, about 0.22696. Subtract from 1: about 0.77304, which rounds to 0.773.</li>
+      <li><strong>Check.</strong> Model 1 gives about 0.758, so the new input raised the adjusted score. The check code below confirms both numbers.</li>
+    </ol>
+    <p class="cx">Answer: 0.773</p>
+  </article>
+
+  <p>The code below checks the arithmetic of the problems above with exact fractions.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+# Problem 3: adjusted R squared
+sst, ssr, m, n = 50, 10, 20, 3
+r2 = 1 - F(ssr, sst)
+adj = 1 - (1 - r2) * F(m - 1, m - n - 1)
+print("P3 R squared =", r2, " adjusted =", adj, "=", round(float(adj), 4))
+
+# Problem 5: VIF
+r2_aux = F(9, 10)
+print("P5 VIF =", 1 / (1 - r2_aux))
+
+# Problem 7: model 2 adjusted R squared
+r2_m2, m, n = F(82, 100), 30, 6
+adj2 = 1 - (1 - r2_m2) * F(m - 1, m - n - 1)
+print("P7 model 2 adjusted =", round(float(adj2), 3))</code></pre>
+  <pre class="output">P3 R squared = 4/5  adjusted = 61/80 = 0.7625
+P5 VIF = 10
+P7 model 2 adjusted = 0.773</pre>
+<h3>Exam-level practice</h3>
+<p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Normal equations by hand (NAT, 2 marks)</h3>
+    <div class="statement"><p>A researcher fits a two-input linear model to data that have already been centred, so no intercept column is needed. From her data she finds the matrix X<sup>T</sup>X = [[4, 2], [2, 6]] and the vector X<sup>T</sup>y = (10, 14). Using the normal equations beta = (X<sup>T</sup>X)<sup>-1</sup> X<sup>T</sup>y, find the fitted prediction for a new point with x<sub>1</sub> = 1 and x<sub>2</sub> = 2. Give the answer to one decimal place. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One predicted value at a new point, so first find both coefficients.</li>
+      <li><strong>Which idea applies.</strong> The normal equations give the coefficients through the inverse of X<sup>T</sup>X. Then plug the new inputs into the fitted line.</li>
+      <li><strong>Work it out.</strong> The determinant is 4 times 6 minus 2 times 2, which is 20. The inverse is (1/20) times [[6, -2], [-2, 4]]. Multiply by (10, 14). The first coefficient is (60 minus 28)/20 = 32/20 = 8/5. The second is (minus 20 plus 56)/20 = 36/20 = 9/5. The prediction is 8/5 + 2 times 9/5 = 8/5 + 18/5 = 26/5 = 5.2.</li>
+      <li><strong>Check.</strong> Put the coefficients back into the first normal equation: 4 times 8/5 plus 2 times 9/5 = 32/5 + 18/5 = 10. This matches the first entry of X<sup>T</sup>y.</li>
+    </ol>
+    <p class="cx">Answer: 5.2 (beta<sub>1</sub> = 8/5 and beta<sub>2</sub> = 9/5)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Which least squares facts hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>A data scientist fits ordinary least squares models with and without an intercept. Which of the following statements are correct? Select all that apply.</p>
+    <p>(A) If one input column is an exact multiple of another input column, X<sup>T</sup>X is singular and the coefficients are not unique.</p><p>(B) Adding one more input to a least squares model never increases the residual sum of squares on the training data.</p><p>(C) When the model has an intercept, the residuals add up to zero.</p><p>(D) Ordinary least squares is biased whenever the errors are not normally distributed.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of four statements about least squares are true.</li>
+      <li><strong>Which idea applies.</strong> Singular X<sup>T</sup>X means no unique inverse. A bigger model fits the training data at least as well. The intercept forces the residuals to sum to zero. Unbiasedness does not need normal errors.</li>
+      <li><strong>Work it out.</strong> (A) is true, because a repeated direction makes the determinant of X<sup>T</sup>X equal to 0. (B) is true, because the old fit is still available inside the bigger model. (C) is true, because the normal equation for the intercept says the sum of residuals is 0. (D) is false, because unbiasedness needs zero-mean errors and the right model form, not normality.</li>
+      <li><strong>Check.</strong> Count the true statements against the rules you know. Three are true, and the only false one depends on normality, which is needed for exact small-sample tests but not for unbiasedness.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Option (D) is wrong because unbiasedness does not require normal errors.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Variance inflation and the new standard error (NAT, 2 marks)</h3>
+    <div class="statement"><p>In a study of house prices, the input floor area is strongly related to the other inputs. When floor area is regressed on all the other inputs, the auxiliary R squared is 7/8. Without any collinearity, the standard error of the floor area coefficient would be 0.40 in the units of that coefficient. Find the variance inflation factor for floor area, then find the standard error that the collinearity actually produces. Give the new standard error to two decimal places. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The new standard error, which needs the inflation factor first.</li>
+      <li><strong>Which idea applies.</strong> VIF equals 1 divided by (1 minus the auxiliary R squared). The standard error grows by the square root of the VIF.</li>
+      <li><strong>Work it out.</strong> 1 minus 7/8 is 1/8, so VIF = 1 divided by 1/8 = 8. The square root of 8 is about 2.828. Multiply: 0.40 times 2.828 = 1.131, which rounds to 1.13.</li>
+      <li><strong>Check.</strong> A VIF of 8 sits between the usual warning levels of 5 and 10, and the standard error still grows by almost three times. That matches the square root of 8 being about 2.8.</li>
+    </ol>
+    <p class="cx">Answer: 1.13 (VIF = 8)</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: The overall F statistic (NAT, 2 marks)</h3>
+    <div class="statement"><p>A regression uses m = 25 observations and k = 4 inputs, plus an intercept. The total sum of squares is SST = 200 and the residual sum of squares is SSR = 50. The overall F statistic tests whether all the slope coefficients are zero. It is given by F = (R squared / k) divided by ((1 minus R squared) / (m minus k minus 1)). Find the value of F for this model. (NAT)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The F statistic only, from the given sums of squares.</li>
+      <li><strong>Which idea applies.</strong> First get R squared from SSR and SST. Then put R squared, k and the degrees of freedom into the F formula.</li>
+      <li><strong>Work it out.</strong> R squared = 1 minus 50/200 = 3/4. The numerator is (3/4)/4 = 3/16. The denominator is (1/4)/(25 minus 4 minus 1) = (1/4)/20 = 1/80. So F = (3/16) divided by (1/80) = 3 times 80/16 = 15.</li>
+      <li><strong>Check.</strong> The adjusted R squared is 1 minus (1/4) times 24/20 = 0.7, which is a sensible value close to R squared. The F value of 15 is well above the usual critical values for 4 and 20 degrees of freedom, so the inputs jointly matter.</li>
+    </ol>
+    <p class="cx">Answer: F = 15</p>
+  </article>
+
+<p>The code below checks the exam-level numbers. Each printed line matches one step of a solution above.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+import math
+
+# Exam-level 1: normal equations without an intercept
+XtX = [[F(4), F(2)], [F(2), F(6)]]
+Xty = [F(10), F(14)]
+det = XtX[0][0] * XtX[1][1] - XtX[0][1] * XtX[1][0]
+b1 = (XtX[1][1] * Xty[0] - XtX[0][1] * Xty[1]) / det
+b2 = (XtX[0][0] * Xty[1] - XtX[1][0] * Xty[0]) / det
+pred = b1 * 1 + b2 * 2
+print("E1 det =", det, " beta1 =", b1, " beta2 =", b2, " prediction =", pred, "=", float(pred))
+
+# Exam-level 2: which least squares facts hold
+xs = [F(1), F(2), F(3), F(4)]
+ys = [F(2), F(3), F(5), F(6)]
+n = len(xs)
+mx = sum(xs) / n
+my = sum(ys) / n
+b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+a = my - b * mx
+res = [y - (a + b * x) for x, y in zip(xs, ys)]
+print("E2 residual sum =", sum(res))
+u = [1, 2, 3, 4]
+v = [2 * t for t in u]
+g11 = sum(p * p for p in u)
+g12 = sum(p * q for p, q in zip(u, v))
+g22 = sum(q * q for q in v)
+print("E2 det of X^T X for columns x and 2x =", g11 * g22 - g12 * g12)
+
+# Exam-level 3: variance inflation and the new standard error
+r2_aux = F(7, 8)
+vif = 1 / (1 - r2_aux)
+se_base = 0.40
+se_new = se_base * math.sqrt(float(vif))
+print("E3 VIF =", vif, " new standard error =", round(se_new, 2))
+
+# Exam-level 4: F statistic and adjusted R squared
+sst, ssr, m, k = 200, 50, 25, 4
+r2 = 1 - F(ssr, sst)
+F_stat = (r2 / k) / ((1 - r2) / (m - k - 1))
+adj = 1 - (1 - r2) * F(m - 1, m - k - 1)
+print("E4 R squared =", r2, " F =", F_stat, " adjusted R squared =", adj, "=", float(adj))</code></pre>
+  <pre class="output">E1 det = 20  beta1 = 8/5  beta2 = 9/5  prediction = 26/5 = 5.2
+E2 residual sum = 0
+E2 det of X^T X for columns x and 2x = 0
+E3 VIF = 8  new standard error = 1.13
+E4 R squared = 3/4  F = 15  adjusted R squared = 7/10 = 0.7</pre>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <p>Here is every key term in one line each.</p>
+  <dl>
+    <div><dt>Multiple linear regression</dt><dd>A weighted sum of several inputs plus a constant and noise, used to predict one output.</dd></div>
+    <div><dt>Coefficient β<sub>j</sub></dt><dd>How much the prediction changes for one unit of input j, with the other inputs held fixed.</dd></div>
+    <div><dt>Intercept β<sub>0</sub></dt><dd>The prediction when every input is zero.</dd></div>
+    <div><dt>Design matrix X</dt><dd>A table with a column of 1s and one column per input, one row per data point.</dd></div>
+    <div><dt>Least squares</dt><dd>Choosing the coefficients that make the sum of squared residuals as small as possible.</dd></div>
+    <div><dt>Normal equations</dt><dd>X<sup>T</sup>Xβ = X<sup>T</sup>y, the equations the best coefficients must satisfy.</dd></div>
+    <div><dt>Closed-form estimate</dt><dd>β = (X<sup>T</sup>X)<sup>-1</sup>X<sup>T</sup>y, valid when X<sup>T</sup>X is invertible.</dd></div>
+    <div><dt>Residual</dt><dd>The real output minus the predicted output for one point.</dd></div>
+    <div><dt>SST</dt><dd>Total spread of the outputs around their mean.</dd></div>
+    <div><dt>SSR</dt><dd>Spread of the residuals, what the model failed to explain.</dd></div>
+    <div><dt>R squared</dt><dd>1 minus SSR/SST, the share of spread explained on training data.</dd></div>
+    <div><dt>Adjusted R squared</dt><dd>R squared penalised for the number of inputs, which can fall when a useless input is added.</dd></div>
+    <div><dt>Multicollinearity</dt><dd>Inputs that carry nearly the same information, which makes coefficients unstable.</dd></div>
+    <div><dt>VIF</dt><dd>1/(1 minus R<sub>j</sub>²), a warning score for multicollinearity.</dd></div>
+    <div><dt>Linearity</dt><dd>The assumption that the output is a straight-line function of the inputs.</dd></div>
+    <div><dt>Homoscedasticity</dt><dd>Errors have the same spread for every prediction.</dd></div>
+    <div><dt>Heteroscedasticity</dt><dd>Errors whose spread changes with the prediction, often seen as a funnel.</dd></div>
+    <div><dt>Gauss-Markov theorem</dt><dd>Under standard assumptions, least squares is the best linear unbiased estimator.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ul>
+    <li>The model is a weighted sum. Each coefficient is the effect of its input with the others held fixed.</li>
+    <li>Least squares minimises the sum of squared residuals, and the minimum satisfies X<sup>T</sup>Xβ = X<sup>T</sup>y.</li>
+    <li>R squared = 1 minus SSR/SST. Plain R squared never falls when you add an input.</li>
+    <li>Adjusted R squared penalises extra inputs, so use it when comparing models with different numbers of inputs.</li>
+    <li>VIF = 1/(1 minus R<sub>j</sub>²). A large VIF means multicollinearity.</li>
+    <li>Check linearity and homoscedasticity with residual plots. A funnel or a curve means trouble.</li>
+    <li>With an intercept, the residuals sum to zero.</li>
+  </ul>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 97?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 97 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-096.html"><small>Previous, topic 96</small>Simple linear regression</a><a class="next" href="gate-098.html"><small>Next, topic 98</small>Ridge regression</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,631 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 90: SQL: queries, joins, aggregation</title><meta name="description" content="SQL is the everyday language for asking questions of a relational database. This topic teaches its main clauses, joins, aggregate functions and nested queries, and how to predict the output of a query, a skill GATE tests often."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g90" data-key="g90" data-noun="topic" data-num="90" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>SQL: <em>queries, joins, aggregation</em></h1>
+<p class="lede">SQL is the everyday language for asking questions of a relational database. This topic teaches its main clauses, joins, aggregate functions and nested queries, and how to predict the output of a query, a skill GATE tests often.</p>
+<div class="station"><b>90</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>SELECT, FROM, WHERE and the order of evaluation</li><li>Joins: inner, left, right, full outer, self and cross</li><li>Aggregates with GROUP BY and HAVING</li><li>Nested subqueries</li><li>Set operations: UNION, INTERSECT and EXCEPT</li><li>Predicting query output</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think of a shopping list with rules. You write "milk, from the dairy shelf, under 50 rupees, sorted by price". You do not walk the shop yourself in the query. The shop assistant reads your list and finds the items. SQL works in the same way. You write a list of rules, and the database finds the rows.</p>
+  <p>SQL stands for Structured Query Language. It is <strong>declarative</strong>, which means you describe the answer, not the steps. The most common query has three parts that you read in this order:</p>
+  <ul>
+    <li><strong>SELECT</strong> says which columns you want back.</li>
+    <li><strong>FROM</strong> says which tables to read.</li>
+    <li><strong>WHERE</strong> says which rows to keep.</li>
+  </ul>
+  <p>GATE Data Science and AI (paper DA) often gives you a few small tables and a query, and asks for the output. You must be able to read SQL slowly and carefully. You will need to know joins, the aggregate functions (COUNT, SUM, AVG, MIN, MAX), nested queries and the set operations.</p>
+  <p>We use the same three sample tables as in the relational calculus topic. You can copy the sample data into the Python checks on this page. All the outputs come from a real SQL engine, which is part of the Python standard library (sqlite3).</p>
+  <div class="tablewrap"><table>
+    <caption>Student (sid, name, dept, cgpa)</caption>
+    <thead><tr><th>sid</th><th>name</th><th>dept</th><th>cgpa</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>Asha</td><td>CS</td><td>9.1</td></tr>
+      <tr><td>102</td><td>Ravi</td><td>EE</td><td>7.8</td></tr>
+      <tr><td>103</td><td>Meena</td><td>CS</td><td>8.7</td></tr>
+      <tr><td>104</td><td>Dev</td><td>ME</td><td>6.9</td></tr>
+      <tr><td>105</td><td>Kiran</td><td>CS</td><td>8.2</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <caption>Course (cid, title, credits)</caption>
+    <thead><tr><th>cid</th><th>title</th><th>credits</th></tr></thead>
+    <tbody>
+      <tr><td>CS101</td><td>Programming</td><td>4</td></tr>
+      <tr><td>EE201</td><td>Circuits</td><td>3</td></tr>
+      <tr><td>CS301</td><td>Databases</td><td>4</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table>
+    <caption>Enrol (sid, cid, grade)</caption>
+    <thead><tr><th>sid</th><th>cid</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>101</td><td>CS101</td><td>9</td></tr>
+      <tr><td>101</td><td>CS301</td><td>8</td></tr>
+      <tr><td>102</td><td>EE201</td><td>7</td></tr>
+      <tr><td>103</td><td>CS101</td><td>10</td></tr>
+      <tr><td>103</td><td>CS301</td><td>9</td></tr>
+      <tr><td>105</td><td>CS301</td><td>6</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>A query reads like a sentence: "show these columns, from these tables, where these rules hold". Once you know which clause does what, most GATE SQL questions become simple reading exercises.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>SQL</dt><dd>The language for asking and changing data in a relational database. Plain meaning: a question language for tables.</dd></div>
+    <div><dt>Clause</dt><dd>One named part of a query, such as WHERE. Plain meaning: one section of the sentence.</dd></div>
+    <div><dt>SELECT</dt><dd>The clause that lists the output columns or expressions.</dd></div>
+    <div><dt>FROM</dt><dd>The clause that names the input tables.</dd></div>
+    <div><dt>WHERE</dt><dd>The clause that keeps only the rows where a condition is true.</dd></div>
+    <div><dt>Alias</dt><dd>A short nickname for a table or column, written after the name, such as <code>Student s</code>. Plain meaning: a short name you choose.</dd></div>
+    <div><dt>Join</dt><dd>Combining rows of two tables where a condition holds, usually equal keys. Plain meaning: putting matching records side by side.</dd></div>
+    <div><dt>Inner join</dt><dd>A join that keeps only the matched pairs.</dd></div>
+    <div><dt>Outer join</dt><dd>A join that also keeps unmatched rows, filling the missing side with NULL. The kinds are LEFT, RIGHT and FULL.</dd></div>
+    <div><dt>NULL</dt><dd>A marker that a value is missing or unknown. Plain meaning: "no value here". It is not zero and not an empty string.</dd></div>
+    <div><dt>Self join</dt><dd>A join of a table with itself, using two aliases.</dd></div>
+    <div><dt>Cross join</dt><dd>Every row of one table paired with every row of another. Plain meaning: all combinations.</dd></div>
+    <div><dt>Aggregate function</dt><dd>A function that turns many rows into one value. Examples: COUNT, SUM, AVG, MIN, MAX.</dd></div>
+    <div><dt>GROUP BY</dt><dd>The clause that splits rows into groups that share a value, so an aggregate can be computed for each group.</dd></div>
+    <div><dt>HAVING</dt><dd>A condition applied to groups, after the aggregates are computed.</dd></div>
+    <div><dt>ORDER BY</dt><dd>The clause that sorts the output rows.</dd></div>
+    <div><dt>DISTINCT</dt><dd>A keyword that removes duplicate output rows.</dd></div>
+    <div><dt>Subquery</dt><dd>A query placed inside another query, inside brackets.</dd></div>
+    <div><dt>Set operation</dt><dd>UNION, INTERSECT or EXCEPT, which combine the results of two queries as sets.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="SELECT, FROM and WHERE">
+  <h2>Concept 1: SELECT, FROM, WHERE and the order of evaluation</h2>
+  <h3>The simplest query</h3>
+  <p>To list all student names, we write:</p>
+  <pre class="code" data-lang="sql"><code>SELECT name
+FROM Student;</code></pre>
+  <p>The FROM clause says "read the Student table". The SELECT clause says "keep only the name column". The result has five rows: Asha, Ravi, Meena, Dev and Kiran.</p>
+  <h3>Adding a condition with WHERE</h3>
+  <pre class="code" data-lang="sql"><code>SELECT name, cgpa
+FROM Student
+WHERE dept = 'CS' AND cgpa &gt;= 8.5
+ORDER BY cgpa DESC;</code></pre>
+  <p>Step by step:</p>
+  <ol>
+    <li>FROM reads all five Student rows.</li>
+    <li>WHERE keeps rows where dept is CS <em>and</em> cgpa is at least 8.5. Asha (CS, 9.1) and Meena (CS, 8.7) pass. Kiran (CS, 8.2) fails. Ravi and Dev are not CS.</li>
+    <li>SELECT keeps the name and cgpa columns.</li>
+    <li>ORDER BY sorts by cgpa, from high to low (DESC means descending).</li>
+  </ol>
+  <p>The answer is Asha (9.1) then Meena (8.7).</p>
+  <h3>The order of evaluation</h3>
+  <p>The order in which you write the clauses is not the order in which they are run. For a single query block, the logical order is:</p>
+  <div class="formula">FROM, then WHERE, then GROUP BY, then HAVING, then SELECT, then DISTINCT, then ORDER BY</div>
+  <p>This matters. For example, you cannot use a column alias from SELECT inside WHERE, because WHERE runs first. The alias does not exist yet at that stage.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Writing <code>SELECT cgpa * 10 AS score FROM Student WHERE score &gt; 85</code> fails in standard SQL, because WHERE runs before SELECT creates the alias <code>score</code>. Repeat the expression in WHERE instead.</p></div>
+  <p>Here is a Python program that loads the sample tables into an in-memory SQLite database and runs two queries. Read the SQL first, then compare with the output.</p>
+  <pre class="code" data-lang="python"><code>import sqlite3
+
+db = sqlite3.connect(":memory:")
+db.executescript("""
+CREATE TABLE Student (sid INTEGER, name TEXT, dept TEXT, cgpa REAL);
+INSERT INTO Student VALUES (101,'Asha','CS',9.1),(102,'Ravi','EE',7.8),
+  (103,'Meena','CS',8.7),(104,'Dev','ME',6.9),(105,'Kiran','CS',8.2);
+CREATE TABLE Course (cid TEXT, title TEXT, credits INTEGER);
+INSERT INTO Course VALUES ('CS101','Programming',4),('EE201','Circuits',3),('CS301','Databases',4);
+CREATE TABLE Enrol (sid INTEGER, cid TEXT, grade INTEGER);
+INSERT INTO Enrol VALUES (101,'CS101',9),(101,'CS301',8),(102,'EE201',7),
+  (103,'CS101',10),(103,'CS301',9),(105,'CS301',6);
+""")
+
+q1 = "SELECT name, cgpa FROM Student WHERE dept = 'CS' AND cgpa &gt;= 8.5 ORDER BY cgpa DESC"
+print("Q1:", db.execute(q1).fetchall())
+q2 = "SELECT name FROM Student ORDER BY name"
+print("Q2:", [row[0] for row in db.execute(q2)])
+</code></pre>
+  <pre class="output">Q1: [('Asha', 9.1), ('Meena', 8.7)]
+Q2: ['Asha', 'Dev', 'Kiran', 'Meena', 'Ravi']</pre>
+  <details class="check"><summary>Question: Why does Kiran not appear in Q1?</summary><div class="ans"><p>Kiran is in CS, but his cgpa is 8.2, which is below 8.5. Both conditions joined by AND must be true.</p></div></details>
+  <details class="check"><summary>Question: What is the difference between WHERE and HAVING?</summary><div class="ans"><p>WHERE filters single rows before grouping. HAVING filters groups after the aggregates are computed.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Joins">
+  <h2>Concept 2: Joins</h2>
+  <h3>Why we join</h3>
+  <p>The student's name is in Student. The course code is in Enrol. A join puts the two side by side, using a matching condition. The most common condition compares keys: <code>s.sid = e.sid</code>.</p>
+  <h3>Inner join</h3>
+  <p>An inner join keeps only the pairs that match. Here is the join of Student and Enrol, with the rows shown by hand:</p>
+  <div class="tablewrap"><table>
+    <caption>Student JOIN Enrol ON sid (inner)</caption>
+    <thead><tr><th>name</th><th>cid</th><th>grade</th></tr></thead>
+    <tbody>
+      <tr><td>Asha</td><td>CS101</td><td>9</td></tr>
+      <tr><td>Asha</td><td>CS301</td><td>8</td></tr>
+      <tr><td>Ravi</td><td>EE201</td><td>7</td></tr>
+      <tr><td>Meena</td><td>CS101</td><td>10</td></tr>
+      <tr><td>Meena</td><td>CS301</td><td>9</td></tr>
+      <tr><td>Kiran</td><td>CS301</td><td>6</td></tr>
+    </tbody>
+  </table></div>
+  <p>Dev is missing, because Dev has no row in Enrol that matches. An inner join drops unmatched rows.</p>
+  <h3>Outer joins</h3>
+  <p>An outer join keeps unmatched rows too, and fills the missing side with NULL.</p>
+  <ul>
+    <li><strong>LEFT JOIN</strong> keeps every row of the left table. Dev is kept, with NULL for cid and grade.</li>
+    <li><strong>RIGHT JOIN</strong> keeps every row of the right table. It is the mirror image of LEFT JOIN.</li>
+    <li><strong>FULL OUTER JOIN</strong> keeps unmatched rows from both sides.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>NULL is not equal to anything, not even to another NULL. So <code>NULL = NULL</code> is not true. To test for missing values, use <code>IS NULL</code>.</p></div>
+  <h3>Self join and cross join</h3>
+  <p>A <strong>self join</strong> joins a table with itself. You need two aliases so that SQL knows which copy is which. To pair students in the same department, with the lower sid first:</p>
+  <pre class="code" data-lang="sql"><code>SELECT a.name, b.name
+FROM Student a JOIN Student b
+  ON a.dept = b.dept AND a.sid &lt; b.sid;</code></pre>
+  <p>A <strong>cross join</strong> pairs every row of one table with every row of another. Five students and three courses give 5 × 3 = 15 rows. Cross joins are rarely wanted, but they appear in GATE questions to test counting.</p>
+  <pre class="code" data-lang="python"><code>import sqlite3
+
+db = sqlite3.connect(":memory:")
+db.executescript("""
+CREATE TABLE Student (sid INTEGER, name TEXT, dept TEXT, cgpa REAL);
+INSERT INTO Student VALUES (101,'Asha','CS',9.1),(102,'Ravi','EE',7.8),
+  (103,'Meena','CS',8.7),(104,'Dev','ME',6.9),(105,'Kiran','CS',8.2);
+CREATE TABLE Course (cid TEXT, title TEXT, credits INTEGER);
+INSERT INTO Course VALUES ('CS101','Programming',4),('EE201','Circuits',3),('CS301','Databases',4);
+CREATE TABLE Enrol (sid INTEGER, cid TEXT, grade INTEGER);
+INSERT INTO Enrol VALUES (101,'CS101',9),(101,'CS301',8),(102,'EE201',7),
+  (103,'CS101',10),(103,'CS301',9),(105,'CS301',6);
+CREATE TABLE A (x INTEGER); INSERT INTO A VALUES (1),(2);
+CREATE TABLE B (y INTEGER); INSERT INTO B VALUES (2),(3);
+""")
+
+print("inner:", db.execute("SELECT s.name, e.cid FROM Student s JOIN Enrol e ON s.sid = e.sid ORDER BY s.name, e.cid").fetchall())
+print("left:", db.execute("SELECT s.name, e.cid FROM Student s LEFT JOIN Enrol e ON s.sid = e.sid ORDER BY s.name, e.cid").fetchall())
+print("A left B:", db.execute("SELECT x, y FROM A LEFT JOIN B ON x = y ORDER BY x, y").fetchall())
+print("A full B:", db.execute("SELECT x, y FROM A FULL OUTER JOIN B ON x = y ORDER BY x, y").fetchall())
+print("self:", db.execute("SELECT a.name, b.name FROM Student a JOIN Student b ON a.dept = b.dept AND a.sid &lt; b.sid ORDER BY a.sid, b.sid").fetchall())
+print("cross count:", db.execute("SELECT COUNT(*) FROM Student CROSS JOIN Course").fetchone()[0])
+</code></pre>
+  <pre class="output">inner: [('Asha', 'CS101'), ('Asha', 'CS301'), ('Kiran', 'CS301'), ('Meena', 'CS101'), ('Meena', 'CS301'), ('Ravi', 'EE201')]
+left: [('Asha', 'CS101'), ('Asha', 'CS301'), ('Dev', None), ('Kiran', 'CS301'), ('Meena', 'CS101'), ('Meena', 'CS301'), ('Ravi', 'EE201')]
+A left B: [(1, None), (2, 2)]
+A full B: [(None, 3), (1, None), (2, 2)]
+self: [('Asha', 'Meena'), ('Asha', 'Kiran'), ('Meena', 'Kiran')]
+cross count: 15</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a small pair of tables, write the join result as a list of pairs first. A LEFT join keeps every left row. Count those rows before you look at the right table.</p></div>
+  <details class="check"><summary>Question: How many rows does Student LEFT JOIN Enrol give on the sample data?</summary><div class="ans"><p>Seven. Six enrolment rows match, and Dev adds one row with NULL.</p></div></details>
+  <details class="check"><summary>Question: Why does the self join not pair a student with themselves?</summary><div class="ans"><p>The condition a.sid &lt; b.sid is never true when both aliases are the same row, so each pair appears only once and in one order.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Aggregates">
+  <h2>Concept 3: Aggregate functions, GROUP BY and HAVING</h2>
+  <h3>From many rows to one number</h3>
+  <p>An aggregate function reads a set of rows and returns one value:</p>
+  <ul>
+    <li><strong>COUNT(*)</strong> counts rows. <strong>COUNT(col)</strong> counts rows where col is not NULL.</li>
+    <li><strong>SUM(col)</strong> adds the values.</li>
+    <li><strong>AVG(col)</strong> is the sum divided by the count of non-NULL values.</li>
+    <li><strong>MIN(col)</strong> and <strong>MAX(col)</strong> give the smallest and largest value.</li>
+  </ul>
+  <p>Aggregates ignore NULL values, except COUNT(*), which counts every row. Keep that in mind.</p>
+  <h3>GROUP BY</h3>
+  <p>GROUP BY splits the rows into groups that share a value, then computes the aggregate for each group. Think of sorting students into department boxes, then counting each box.</p>
+  <pre class="code" data-lang="sql"><code>SELECT dept, COUNT(*), AVG(cgpa)
+FROM Student
+GROUP BY dept;</code></pre>
+  <p>The CS box has Asha, Meena and Kiran. Their cgpa values are 9.1, 8.7 and 8.2, so the average is (9.1 + 8.7 + 8.2) / 3 = 26.0 / 3 = 8.67 when rounded. The EE box has Ravi alone, and the ME box has Dev alone.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Every column in SELECT must either be inside an aggregate or appear in GROUP BY. Writing <code>SELECT name, COUNT(*) FROM Student GROUP BY dept</code> is an error, because a department has several names.</p></div>
+  <h3>HAVING</h3>
+  <p>WHERE cannot test an aggregate such as COUNT(*), because WHERE runs before grouping. HAVING runs after grouping, so it can:</p>
+  <pre class="code" data-lang="sql"><code>SELECT cid, COUNT(*) AS n
+FROM Enrol
+GROUP BY cid
+HAVING COUNT(*) &gt;= 2;</code></pre>
+  <p>CS101 has two enrolments, CS301 has three, and EE201 has one. HAVING keeps the groups with at least two, so the answer is CS101 and CS301.</p>
+  <pre class="code" data-lang="python"><code>import sqlite3
+
+db = sqlite3.connect(":memory:")
+db.executescript("""
+CREATE TABLE Student (sid INTEGER, name TEXT, dept TEXT, cgpa REAL);
+INSERT INTO Student VALUES (101,'Asha','CS',9.1),(102,'Ravi','EE',7.8),
+  (103,'Meena','CS',8.7),(104,'Dev','ME',6.9),(105,'Kiran','CS',8.2);
+CREATE TABLE Enrol (sid INTEGER, cid TEXT, grade INTEGER);
+INSERT INTO Enrol VALUES (101,'CS101',9),(101,'CS301',8),(102,'EE201',7),
+  (103,'CS101',10),(103,'CS301',9),(105,'CS301',6);
+""")
+
+print("by dept:", db.execute("SELECT dept, COUNT(*), ROUND(AVG(cgpa), 2) FROM Student GROUP BY dept ORDER BY dept").fetchall())
+print("having:", db.execute("SELECT cid, COUNT(*) AS n FROM Enrol GROUP BY cid HAVING COUNT(*) &gt;= 2 ORDER BY cid").fetchall())
+print("count vs count col:", db.execute("SELECT COUNT(*), COUNT(e.cid) FROM Student s LEFT JOIN Enrol e ON s.sid = e.sid").fetchone())
+</code></pre>
+  <pre class="output">by dept: [('CS', 3, 8.67), ('EE', 1, 7.8), ('ME', 1, 6.9)]
+having: [('CS101', 2), ('CS301', 3)]
+count vs count col: (7, 6)</pre>
+  <details class="check"><summary>Question: Why does COUNT(*) give 7 but COUNT(e.cid) give 6 in the last line?</summary><div class="ans"><p>COUNT(*) counts all 7 rows of the left join, including Dev's row. COUNT(e.cid) skips the NULL in Dev's row, so it counts 6.</p></div></details>
+  <details class="check"><summary>Question: Can WHERE use COUNT(*) to keep only groups with two or more rows?</summary><div class="ans"><p>No. WHERE runs before grouping, so the count does not exist yet. Use HAVING COUNT(*) &gt;= 2.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Nested subqueries">
+  <h2>Concept 4: Nested subqueries</h2>
+  <h3>A question inside a question</h3>
+  <p>A subquery is a query inside brackets. You can think of it as a helper question whose answer is used by the outer question. Read the inner query first, then the outer one.</p>
+  <h3>Subquery with IN</h3>
+  <p>"Names of students who take CS301":</p>
+  <pre class="code" data-lang="sql"><code>SELECT name
+FROM Student
+WHERE sid IN (SELECT sid FROM Enrol WHERE cid = 'CS301')
+ORDER BY name;</code></pre>
+  <p>Step by step: the inner query returns the sids 101, 103 and 105. The outer query keeps students whose sid is in that list: Asha, Kiran and Meena.</p>
+  <h3>Scalar subquery</h3>
+  <p>A subquery that returns exactly one value can be used like a number. The average cgpa of all students is 40.7 / 5 = 8.14. Students above that average are:</p>
+  <pre class="code" data-lang="sql"><code>SELECT name
+FROM Student
+WHERE cgpa &gt; (SELECT AVG(cgpa) FROM Student)
+ORDER BY name;</code></pre>
+  <p>The inner query runs once and returns 8.14. Asha (9.1), Kiran (8.2) and Meena (8.7) are above it. Ravi (7.8) and Dev (6.9) are not.</p>
+  <h3>EXISTS and NOT EXISTS</h3>
+  <p>EXISTS asks whether the inner query returns at least one row. It is the SQL form of the ∃ quantifier from the calculus topic. NOT EXISTS is the form of ∀ we used before. "Students with no enrolment":</p>
+  <pre class="code" data-lang="sql"><code>SELECT name
+FROM Student s
+WHERE NOT EXISTS (SELECT * FROM Enrol e WHERE e.sid = s.sid);</code></pre>
+  <p>Only Dev has no matching row, so the answer is Dev. The inner query refers to s.sid from the outer query, which is why it is called a <strong>correlated</strong> subquery. It is re-run for each outer row.</p>
+  <div class="note trap"><p><span class="t">Trap</span>NOT IN behaves badly when the subquery returns a NULL. If any value in the list is NULL, <code>x NOT IN (...)</code> is never true, so the query returns no rows. Prefer NOT EXISTS when NULL is possible.</p></div>
+  <details class="check"><summary>Question: What does the inner query in the IN example return?</summary><div class="ans"><p>The sids of students enrolled in CS301: 101, 103 and 105.</p></div></details>
+  <details class="check"><summary>Question: Why is NOT EXISTS usually safer than NOT IN?</summary><div class="ans"><p>NOT EXISTS checks rows one at a time and is not affected by NULL in the inner result. NOT IN returns no rows if the inner list contains a NULL.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Set operations and predicting output">
+  <h2>Concept 5: Set operations and predicting output</h2>
+  <h3>UNION, INTERSECT and EXCEPT</h3>
+  <p>Each query returns a set of rows, and set operations combine two such results. Both queries must have the same number of columns, with compatible types.</p>
+  <ul>
+    <li><strong>UNION</strong> gives all rows from either query, with duplicates removed.</li>
+    <li><strong>UNION ALL</strong> gives all rows from either query, keeping duplicates.</li>
+    <li><strong>INTERSECT</strong> gives rows that appear in both.</li>
+    <li><strong>EXCEPT</strong> gives rows in the first query that are not in the second.</li>
+  </ul>
+  <p>Use the Enrol table. Query X is "course ids with grade at least 9" and query Y is "course ids that student 101 takes". X returns CS101, CS101 and CS301. Y returns CS101 and CS301.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Operation</th><th>Result</th><th>Rows</th></tr></thead>
+    <tbody>
+      <tr><td>X UNION Y</td><td>CS101, CS301</td><td>2</td></tr>
+      <tr><td>X UNION ALL Y</td><td>CS101, CS101, CS301, CS101, CS301</td><td>5</td></tr>
+      <tr><td>X INTERSECT Y</td><td>CS101, CS301</td><td>2</td></tr>
+      <tr><td>All cids EXCEPT cids with grade below 8</td><td>CS101</td><td>1</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>UNION and INTERSECT remove duplicates. UNION ALL keeps them, so it is faster and counts every row.</p></div>
+  <h3>Predicting the output, step by step</h3>
+  <p>Use the clause order from Concept 1 and follow these steps for any single query block:</p>
+  <ol>
+    <li>Write down the tables in FROM, and the join rows they produce.</li>
+    <li>Apply WHERE and keep only the rows that pass.</li>
+    <li>Group the rows with GROUP BY, if present, and compute the aggregates.</li>
+    <li>Apply HAVING to the groups.</li>
+    <li>Keep the SELECT columns and compute any expressions.</li>
+    <li>Remove duplicates if DISTINCT is written.</li>
+    <li>Sort with ORDER BY.</li>
+  </ol>
+  <p>Here is the full program, with the set operations checked.</p>
+  <pre class="code" data-lang="python"><code>import sqlite3
+
+db = sqlite3.connect(":memory:")
+db.executescript("""
+CREATE TABLE Student (sid INTEGER, name TEXT, dept TEXT, cgpa REAL);
+INSERT INTO Student VALUES (101,'Asha','CS',9.1),(102,'Ravi','EE',7.8),
+  (103,'Meena','CS',8.7),(104,'Dev','ME',6.9),(105,'Kiran','CS',8.2);
+CREATE TABLE Enrol (sid INTEGER, cid TEXT, grade INTEGER);
+INSERT INTO Enrol VALUES (101,'CS101',9),(101,'CS301',8),(102,'EE201',7),
+  (103,'CS101',10),(103,'CS301',9),(105,'CS301',6);
+""")
+
+print("in CS301:", db.execute("SELECT name FROM Student WHERE sid IN (SELECT sid FROM Enrol WHERE cid = 'CS301') ORDER BY name").fetchall())
+print("above average:", db.execute("SELECT name FROM Student WHERE cgpa &gt; (SELECT AVG(cgpa) FROM Student) ORDER BY name").fetchall())
+print("no enrolment:", db.execute("SELECT name FROM Student s WHERE NOT EXISTS (SELECT * FROM Enrol e WHERE e.sid = s.sid)").fetchall())
+print("UNION:", db.execute("SELECT cid FROM Enrol WHERE grade &gt;= 9 UNION SELECT cid FROM Enrol WHERE sid = 101 ORDER BY cid").fetchall())
+print("UNION ALL count:", db.execute("SELECT COUNT(*) FROM (SELECT cid FROM Enrol WHERE grade &gt;= 9 UNION ALL SELECT cid FROM Enrol WHERE sid = 101)").fetchone()[0])
+print("INTERSECT:", db.execute("SELECT cid FROM Enrol WHERE grade &gt;= 9 INTERSECT SELECT cid FROM Enrol WHERE sid = 101 ORDER BY cid").fetchall())
+print("EXCEPT:", db.execute("SELECT cid FROM Enrol EXCEPT SELECT cid FROM Enrol WHERE grade &lt; 8 ORDER BY cid").fetchall())
+</code></pre>
+  <pre class="output">in CS301: [('Asha',), ('Kiran',), ('Meena',)]
+above average: [('Asha',), ('Kiran',), ('Meena',)]
+no enrolment: [('Dev',)]
+UNION: [('CS101',), ('CS301',)]
+UNION ALL count: 5
+INTERSECT: [('CS101',), ('CS301',)]
+EXCEPT: [('CS101',)]</pre>
+  <details class="check"><summary>Question: How many rows does X UNION ALL Y return if X has 3 rows and Y has 2 rows?</summary><div class="ans"><p>Five. UNION ALL keeps every row from both queries, including duplicates.</p></div></details>
+  <details class="check"><summary>Question: Which operation would you use to find courses that student 101 does not take?</summary><div class="ans"><p>EXCEPT, applied to all course ids minus the course ids of student 101. Read it as "in the first set but not in the second".</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Pattern</th><th>What it does</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td><code>SELECT ... FROM ... WHERE ...</code></td><td>Pick columns from rows that pass a rule</td><td>Every query</td></tr>
+      <tr><td><code>JOIN ... ON a.k = b.k</code></td><td>Keep matched pairs only</td><td>Combining two tables</td></tr>
+      <tr><td><code>LEFT JOIN</code></td><td>Keep every left row, NULL where no match</td><td>"All students, even those with no enrolments"</td></tr>
+      <tr><td><code>CROSS JOIN</code></td><td>All pairs, m × n rows</td><td>Counting combinations</td></tr>
+      <tr><td><code>GROUP BY x</code></td><td>One output row per distinct x</td><td>Summaries per group</td></tr>
+      <tr><td><code>HAVING cond</code></td><td>Filter groups after aggregates</td><td>"Groups with at least two rows"</td></tr>
+      <tr><td><code>COUNT(*)</code> vs <code>COUNT(col)</code></td><td>All rows vs non-NULL values</td><td>Counting with missing values</td></tr>
+      <tr><td><code>x IN (SELECT ...)</code></td><td>x is one of the inner results</td><td>Membership test</td></tr>
+      <tr><td><code>NOT EXISTS (SELECT ...)</code></td><td>No matching inner row</td><td>Rows with no partner, the ∀ form</td></tr>
+      <tr><td><code>UNION / INTERSECT / EXCEPT</code></td><td>Set combination, duplicates removed</td><td>Combining or comparing query results</td></tr>
+      <tr><td><code>UNION ALL</code></td><td>Set combination, duplicates kept</td><td>When counting every row</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not past exam questions. Use the sample tables from the top of this page.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>High grades</h3>
+    <div class="statement"><p>How many rows does <code>SELECT * FROM Enrol WHERE grade &gt;= 9</code> return?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A row count.</li>
+      <li><strong>Which idea applies.</strong> A WHERE filter with a comparison.</li>
+      <li><strong>Work it out.</strong> The grades are 9, 8, 7, 10, 9 and 6. Those at least 9 are 9, 10 and 9.</li>
+      <li><strong>Check.</strong> Three values, three rows.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>First name after sorting</h3>
+    <div class="statement"><p>What is the first name in the output of <code>SELECT name FROM Student WHERE dept = 'CS' ORDER BY cgpa</code>?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first output row after ascending sort.</li>
+      <li><strong>Which idea applies.</strong> WHERE first, then ORDER BY, which sorts from low to high by default.</li>
+      <li><strong>Work it out.</strong> The CS students are Asha (9.1), Meena (8.7) and Kiran (8.2). The lowest cgpa is Kiran's 8.2.</li>
+      <li><strong>Check.</strong> Ascending order puts the smallest value first.</li>
+    </ol>
+    <p class="cx">Answer: Kiran.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about a left join</h3>
+    <div class="statement"><p>Select all that apply. For <code>Student s LEFT JOIN Enrol e ON s.sid = e.sid</code>:</p>
+      <p>(A) The result has 7 rows.</p>
+      <p>(B) Dev appears with NULL as the cid.</p>
+      <p>(C) Ravi appears exactly once.</p>
+      <p>(D) Adding <code>WHERE e.grade &gt; 5</code> leaves 7 rows.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> A left join keeps all left rows. A WHERE on the right table removes NULL rows.</li>
+      <li><strong>Work it out.</strong> (A) Six matched rows plus Dev makes 7. True. (B) True. (C) Ravi has one enrolment, so one row. True. (D) Dev's grade is NULL, so NULL &gt; 5 is not true and Dev is removed. The result has 6 rows. False.</li>
+      <li><strong>Check.</strong> Count the rows: Asha 2, Meena 2, Kiran 1, Ravi 1, Dev 1 gives 7 before the WHERE.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Distinct course count</h3>
+    <div class="statement"><p>Give the value returned by <code>SELECT COUNT(DISTINCT cid) FROM Enrol</code>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of different course ids that appear in Enrol.</li>
+      <li><strong>Which idea applies.</strong> DISTINCT removes repeated values before counting.</li>
+      <li><strong>Work it out.</strong> The cid values are CS101, CS301, EE201, CS101, CS301 and CS301. The distinct values are CS101, CS301 and EE201.</li>
+      <li><strong>Check.</strong> Six rows, but only three different courses.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Credits for student 101</h3>
+    <div class="statement"><p>What value does <code>SELECT SUM(c.credits) FROM Course c JOIN Enrol e ON c.cid = e.cid WHERE e.sid = 101</code> return?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total credits of the courses taken by student 101.</li>
+      <li><strong>Which idea applies.</strong> Join on cid, filter by sid, then add.</li>
+      <li><strong>Work it out.</strong> Student 101 takes CS101 (4 credits) and CS301 (4 credits). 4 + 4 = 8.</li>
+      <li><strong>Check.</strong> Only two enrolment rows match sid 101, so only two credit values are added.</li>
+    </ol>
+    <p class="cx">Answer: 8.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>LEFT JOIN with a WHERE trap</h3>
+    <div class="statement"><p>What does this query return?</p>
+      <pre class="code" data-lang="sql"><code>SELECT s.name
+FROM Student s LEFT JOIN Enrol e ON s.sid = e.sid
+WHERE e.cid = 'CS301'
+ORDER BY s.name;</code></pre>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The names in the output.</li>
+      <li><strong>Which idea applies.</strong> The LEFT JOIN creates rows with NULL for Dev, but WHERE on the right table then removes NULL rows, so the outer join behaves like an inner join here.</li>
+      <li><strong>Work it out.</strong> Rows with cid CS301 are Asha, Meena and Kiran. Dev's cid is NULL, so Dev is removed.</li>
+      <li><strong>Check.</strong> Three names, sorted alphabetically.</li>
+    </ol>
+    <p class="cx">Answer: Asha, Kiran, Meena.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Students with no enrolment</h3>
+    <div class="statement"><p>Which student is returned by <code>SELECT name FROM Student WHERE sid NOT IN (SELECT sid FROM Enrol)</code>?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The names of students whose sid is not in the Enrol list.</li>
+      <li><strong>Which idea applies.</strong> A NOT IN subquery. It is safe here because the inner list has no NULL.</li>
+      <li><strong>Work it out.</strong> Enrol contains sids 101, 102, 103 and 105. Students 104 (Dev) is not in that list.</li>
+      <li><strong>Check.</strong> Five students, four enrolled, one left over.</li>
+    </ol>
+    <p class="cx">Answer: Dev.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which queries return Ravi</h3>
+    <div class="statement"><p>Select all that apply. Which queries return Ravi?</p>
+      <p>(A) <code>SELECT name FROM Student WHERE sid IN (SELECT sid FROM Enrol WHERE grade &lt; 8)</code></p>
+      <p>(B) <code>SELECT name FROM Student s WHERE EXISTS (SELECT * FROM Enrol e WHERE e.sid = s.sid AND e.cid = 'EE201')</code></p>
+      <p>(C) <code>SELECT name FROM Student WHERE cgpa &lt; 8</code></p>
+      <p>(D) <code>SELECT name FROM Student WHERE dept = 'EE' INTERSECT SELECT name FROM Student WHERE cgpa &gt; 9</code></p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four queries include Ravi in their output.</li>
+      <li><strong>Which idea applies.</strong> Evaluate each subquery or set operation separately.</li>
+      <li><strong>Work it out.</strong> (A) Enrol grades below 8 belong to sid 102 (Ravi, grade 7) and sid 105 (Kiran, grade 6). Ravi is returned. (B) Ravi has an EE201 row, so EXISTS is true. Ravi is returned. (C) Ravi's cgpa is 7.8, below 8. Ravi is returned. (D) The first part gives Ravi, and the second part gives Asha only. INTERSECT leaves nothing, so Ravi is not returned.</li>
+      <li><strong>Check.</strong> Three queries include Ravi, and the INTERSECT query has an empty result.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: a filter inside LEFT JOIN ON (NAT, 2 marks)</h3>
+    <div class="statement"><p>Dept(did, name) has three rows: (1, Sales), (2, Research) and (3, HR). Emp(eid, did, salary) has five rows: (10, 1, 50), (11, 1, 30), (12, 2, 45), (13, 2, 44) and (14, 2, 20). The query is <code>SELECT d.name, COUNT(e.eid) FROM Dept d LEFT JOIN Emp e ON e.did = d.did AND e.salary &gt; 40 GROUP BY d.name</code>. Add up the COUNT values over all output rows and give the total as a whole number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sum of the COUNT column.</li>
+      <li><strong>Which idea applies.</strong> A LEFT JOIN keeps every department even when nothing matches. A condition inside ON only removes matches. The same condition in WHERE would also remove the unmatched departments.</li>
+      <li><strong>Work it out.</strong> Sales: eid 10 (salary 50) matches, eid 11 (salary 30) does not, so COUNT is 1. Research: salaries 45 and 44 match, 20 does not, so COUNT is 2. HR has no match, so its padded row has a NULL eid, and COUNT ignores NULL, giving 0.</li>
+      <li><strong>Check.</strong> 1 + 2 + 0 = 3, and all three departments appear in the output.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+    <pre class="code" data-lang="python"><code>dept=[(1,'Sales'),(2,'Research'),(3,'HR')]
+emp=[(10,1,50),(11,1,30),(12,2,45),(13,2,44),(14,2,20)]
+counts={}
+for did,dname in dept:
+    matched=[e for e in emp if e[1]==did and e[2]&gt;40]
+    counts[dname]=len(matched)
+print(counts)
+print(sum(counts.values()))</code></pre>
+    <pre class="output">{'Sales': 1, 'Research': 2, 'HR': 0}
+3</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: NULL and three-valued logic (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Student(name, grade) has four rows: (Asha, A), (Ravi, B), (Meena, NULL) and (Dev, C). Three queries are run. Q1 is <code>WHERE grade &lt;&gt; 'A'</code>. Q2 is <code>WHERE NOT (grade = 'A')</code>. Q3 is <code>WHERE grade &lt;&gt; 'A' OR grade IS NULL</code>. Select all that apply. Which of these statements are true?</p>
+      <p>(A) Q1 returns Ravi and Dev only.</p>
+      <p>(B) Q2 returns Meena.</p>
+      <p>(C) Q3 returns the same rows as Q1.</p>
+      <p>(D) Q1 and Q2 return the same rows.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements are true.</li>
+      <li><strong>Which idea applies.</strong> Three-valued logic. A comparison with NULL gives UNKNOWN, and WHERE keeps only the rows that are TRUE.</li>
+      <li><strong>Work it out.</strong> Q1: Asha fails, Ravi and Dev pass, and Meena is UNKNOWN, so she is dropped. Q2: NOT applied to UNKNOWN is still UNKNOWN, so Meena is dropped again and the answer is Ravi and Dev. Q3 adds Meena through IS NULL, giving Ravi, Meena and Dev.</li>
+      <li><strong>Check.</strong> Q1 and Q2 match, and Q3 has one extra row. So (A) and (D) are true, and (B) and (C) are false.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D). Why the others fail: (B) NOT of an unknown value is still unknown, so Meena is not returned; (C) Q3 adds Meena through IS NULL, so its rows differ from Q1.</p>
+    <pre class="code" data-lang="python"><code>rows=[('Asha','A'),('Ravi','B'),('Meena',None),('Dev','C')]
+def neq(g): return None if g is None else g!='A'
+def not_eq(g): return None if g is None else not (g=='A')
+q1=[n for n,g in rows if neq(g) is True]
+q2=[n for n,g in rows if not_eq(g) is True]
+q3=[n for n,g in rows if neq(g) is True or g is None]
+print(q1)
+print(q2)
+print(q3)</code></pre>
+    <pre class="output">['Ravi', 'Dev']
+['Ravi', 'Dev']
+['Ravi', 'Meena', 'Dev']</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: HAVING after a WHERE filter (NAT, 2 marks)</h3>
+    <div class="statement"><p>Emp(eid, dept, salary, age) has seven rows: (1, CS, 50, 30), (2, CS, 35, 45), (3, EE, 42, 28), (4, ME, 60, 50), (5, EE, 28, 33), (6, CS, 44, 38) and (7, ME, 40, 26). The query is <code>SELECT dept FROM Emp WHERE age &gt;= 30 GROUP BY dept HAVING AVG(salary) &gt; 40</code>. How many rows does the query return?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of output rows, one per department that survives.</li>
+      <li><strong>Which idea applies.</strong> WHERE filters single rows before grouping. HAVING filters whole groups after the averages are computed.</li>
+      <li><strong>Work it out.</strong> Rows with age 30 or more are 1, 2, 4, 5 and 6. CS has salaries 50, 35 and 44, with an average of 43, so it passes. EE has only 28, with an average of 28, so it fails. ME has only 60, with an average of 60, so it passes.</li>
+      <li><strong>Check.</strong> Rows 3 and 7 were removed by WHERE before grouping. Two departments remain.</li>
+    </ol>
+    <p class="cx">Answer: 2 (CS and ME).</p>
+    <pre class="code" data-lang="python"><code>emp=[(1,'CS',50,30),(2,'CS',35,45),(3,'EE',42,28),(4,'ME',60,50),(5,'EE',28,33),(6,'CS',44,38),(7,'ME',40,26)]
+groups={}
+for eid,dept,sal,age in emp:
+    if age&gt;=30:
+        groups.setdefault(dept,[]).append(sal)
+res=[d for d in groups if sum(groups[d])/len(groups[d])&gt;40]
+print(groups)
+print(sorted(res))
+print(len(res))</code></pre>
+    <pre class="output">{'CS': [50, 35, 44], 'ME': [60], 'EE': [28]}
+['CS', 'ME']
+2</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: UNION ALL keeps duplicates (NAT, 2 marks)</h3>
+    <div class="statement"><p>Table A has the single column x with values 1, 2, 2 and 3. Table B has the single column x with values 2, 3, 3 and 4. The query is <code>SELECT x FROM (SELECT x FROM A UNION ALL SELECT x FROM B) u GROUP BY x HAVING COUNT(*) &gt; 1</code>. How many rows does the query return?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of groups whose count is above 1.</li>
+      <li><strong>Which idea applies.</strong> UNION ALL keeps duplicates, unlike UNION, so all 8 values are present. GROUP BY then counts each value.</li>
+      <li><strong>Work it out.</strong> The value 1 appears once, 2 appears three times, 3 appears three times, and 4 appears once. The groups with a count above 1 are 2 and 3.</li>
+      <li><strong>Check.</strong> The counts add to 8: 1 + 3 + 3 + 1 = 8. A plain UNION would remove duplicates first, so every count would be 1 and no rows would return.</li>
+    </ol>
+    <p class="cx">Answer: 2 (the groups for 2 and 3).</p>
+    <pre class="code" data-lang="python"><code>from collections import Counter
+A=[1,2,2,3]
+B=[2,3,3,4]
+c=Counter(A+B)
+print(sorted(c.items()))
+print(sum(1 for v in c.values() if v&gt;1))</code></pre>
+    <pre class="output">[(1, 1), (2, 3), (3, 3), (4, 1)]
+2</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>SQL</dt><dd>The declarative language for asking questions of a relational database.</dd></div>
+    <div><dt>SELECT</dt><dd>Lists the output columns or expressions.</dd></div>
+    <div><dt>FROM</dt><dd>Names the input tables.</dd></div>
+    <div><dt>WHERE</dt><dd>Keeps rows where a condition is true, before grouping.</dd></div>
+    <div><dt>Alias</dt><dd>A short name given to a table or column for reading and self joins.</dd></div>
+    <div><dt>Inner join</dt><dd>Keeps only matched pairs.</dd></div>
+    <div><dt>LEFT JOIN</dt><dd>Keeps every left row, with NULL where there is no match.</dd></div>
+    <div><dt>FULL OUTER JOIN</dt><dd>Keeps unmatched rows from both sides, with NULL on the missing side.</dd></div>
+    <div><dt>Self join</dt><dd>A table joined with itself, using two aliases.</dd></div>
+    <div><dt>Cross join</dt><dd>All pairs of rows, giving m × n rows.</dd></div>
+    <div><dt>NULL</dt><dd>A missing value. Not equal to anything, tested with IS NULL.</dd></div>
+    <div><dt>Aggregate function</dt><dd>A function that turns many rows into one value: COUNT, SUM, AVG, MIN or MAX.</dd></div>
+    <div><dt>GROUP BY</dt><dd>Splits rows into groups for aggregates.</dd></div>
+    <div><dt>HAVING</dt><dd>Filters groups after the aggregates are computed.</dd></div>
+    <div><dt>ORDER BY</dt><dd>Sorts the output rows.</dd></div>
+    <div><dt>DISTINCT</dt><dd>Removes duplicate output rows.</dd></div>
+    <div><dt>Subquery</dt><dd>A query inside brackets, used by an outer query.</dd></div>
+    <div><dt>Correlated subquery</dt><dd>A subquery that refers to a column of the outer query and is re-run for each outer row.</dd></div>
+    <div><dt>IN</dt><dd>Tests whether a value appears in a subquery result.</dd></div>
+    <div><dt>EXISTS and NOT EXISTS</dt><dd>Test whether a subquery returns at least one row, or none.</dd></div>
+    <div><dt>UNION</dt><dd>Combines two results and removes duplicates.</dd></div>
+    <div><dt>UNION ALL</dt><dd>Combines two results and keeps duplicates.</dd></div>
+    <div><dt>INTERSECT</dt><dd>Keeps rows that appear in both results.</dd></div>
+    <div><dt>EXCEPT</dt><dd>Keeps rows of the first result that are not in the second.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Read a query in clause order: FROM, WHERE, GROUP BY, HAVING, SELECT, DISTINCT, ORDER BY.</li>
+    <li>An outer join keeps unmatched rows. A WHERE on the outer side can undo that.</li>
+    <li>WHERE cannot test an aggregate. HAVING can.</li>
+    <li>COUNT(*) counts rows. COUNT(col) skips NULL values.</li>
+    <li>Prefer NOT EXISTS over NOT IN when NULL may be present.</li>
+    <li>UNION and INTERSECT remove duplicates. UNION ALL keeps them.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 90?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 90 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-089.html"><small>Previous, topic 89</small>Tuple calculus</a><a class="next" href="gate-091.html"><small>Next, topic 91</small>Normal forms (1NF-BCNF)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

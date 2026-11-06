@@ -1,0 +1,465 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 61: Solving linear & non-linear algebraic equations numerically</title><meta name="description" content="Many equations cannot be solved neatly with a formula, so engineers find answers by repeating a simple step until the answer is good enough. This page covers three root-finding methods (bisection, Newton-Raphson and regula falsi), how fast each one converges, and two iterative methods (Jacobi and Gauss-Seidel) for systems of linear equations."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g61" data-key="g61" data-noun="topic" data-num="61" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Solving linear &amp; non-linear algebraic equations numerically</h1>
+<p class="lede">Many equations cannot be solved neatly with a formula, so engineers find answers by repeating a simple step until the answer is good enough. This page covers three root-finding methods (bisection, Newton-Raphson and regula falsi), how fast each one converges, and two iterative methods (Jacobi and Gauss-Seidel) for systems of linear equations.</p>
+<div class="station"><b>61</b><span>Unit 5 · Numerical methods · Paper RA · New concept</span></div>
+<ul class="topics"><li>Roots and iteration</li><li>Bisection method</li><li>Newton-Raphson method</li><li>Regula falsi (false position) method</li><li>Convergence rates compared</li><li>Jacobi and Gauss-Seidel for linear systems</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Some equations are easy. The equation 2x + 6 = 0 gives x = -3 in one step. But many equations in engineering have no neat formula, such as cos x = x. We can search for the answer instead. Start with a guess, check how wrong it is, improve it, and repeat. Each pass is called an <strong>iteration</strong>.</p>
+  <p>Think of a game of "higher or lower". Someone picks a whole number from 1 to 100. You guess 50, and they say "higher". You guess 75, and they say "lower". Each answer cuts the range of possibilities in half. The bisection method plays exactly this game.</p>
+  <p>Root-finding methods differ in two ways: how safe they are, and how fast the guess improves. This topic compares them so you can choose wisely.</p>
+  <p><strong>Why this matters for GATE.</strong> The Robotics and Automation paper uses numerical methods for equations that arise in kinematics and control. Questions often ask for two or three iterations by hand, a convergence rate, or the method that is guaranteed to work. Each is a short calculation once you know the formulas.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now. Return to it when a word is unfamiliar.</p>
+  <dl>
+    <div><dt>Root</dt><dd>A value x where f(x) = 0. The root of x - 3 is 3.</dd></div>
+    <div><dt>Iteration</dt><dd>One pass of a repeated rule. The result of one pass becomes the input to the next.</dd></div>
+    <div><dt>Continuous function</dt><dd>A function whose graph has no sudden jumps or gaps. You can draw it without lifting your pen.</dd></div>
+    <div><dt>Bracket</dt><dd>An interval [a, b] where f(a) and f(b) have opposite signs, so the graph must cross zero between them.</dd></div>
+    <div><dt>Derivative f'(x)</dt><dd>The slope of the graph at x. The derivative of x<sup>2</sup> is 2x.</dd></div>
+    <div><dt>Tangent line</dt><dd>The straight line that touches the graph at a point and has the same slope there.</dd></div>
+    <div><dt>Secant line</dt><dd>A straight line through two points on the graph.</dd></div>
+    <div><dt>Error</dt><dd>The difference between the current iterate and the true root, written e<sub>n</sub> = x<sub>n</sub> - r.</dd></div>
+    <div><dt>Tolerance</dt><dd>A small number, such as 10<sup>-6</sup>, that tells the method when to stop.</dd></div>
+    <div><dt>Linear convergence</dt><dd>The error shrinks by a fixed fraction each step.</dd></div>
+    <div><dt>Quadratic convergence</dt><dd>The error at the next step is about a constant times the square of the current error. Correct digits roughly double each step.</dd></div>
+    <div><dt>Linear system</dt><dd>Several equations with several unknowns, where each unknown appears only to the first power, such as 4x + y = 9.</dd></div>
+    <div><dt>Diagonally dominant</dt><dd>In each row of the system, the diagonal coefficient is larger in size than the sum of the other coefficients in that row.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Bisection method">
+  <h2>Step 1: The bisection method</h2>
+  <h3>The idea</h3>
+  <p>Bisection uses one fact from calculus, the <strong>intermediate value theorem</strong>. If f is continuous and f(a) and f(b) have opposite signs, the graph must cross zero somewhere between a and b. You do not need to know where. Bisection checks the midpoint m = (a + b)/2. If f(m) has the same sign as f(b), the root lies between a and m. Otherwise it lies between m and b. The new bracket is always half as wide.</p>
+
+  <h3>Procedure</h3>
+  <ol>
+    <li>Choose a bracket [a, b] where f(a) and f(b) have opposite signs.</li>
+    <li>Compute the midpoint m = (a + b)/2.</li>
+    <li>If f(a) and f(m) have opposite signs, set b = m. Otherwise set a = m.</li>
+    <li>Repeat until the bracket is narrower than the tolerance.</li>
+  </ol>
+
+  <h3>Worked example 1: the square root of 2 by hand</h3>
+  <p>Find the root of f(x) = x<sup>2</sup> - 2 in [1, 2]. The true answer is √2, about 1.41421.</p>
+  <ol>
+    <li><strong>Check the bracket.</strong> f(1) = -1 is negative and f(2) = 2 is positive. So a root lies in [1, 2].</li>
+    <li><strong>Iteration 1.</strong> m = 1.5, and f(1.5) = 2.25 - 2 = 0.25 is positive. The sign matches f(2), so the new bracket is [1, 1.5].</li>
+    <li><strong>Iteration 2.</strong> m = 1.25, and f(1.25) = 1.5625 - 2 = -0.4375 is negative. The sign matches f(1), so the new bracket is [1.25, 1.5].</li>
+    <li><strong>Iteration 3.</strong> m = 1.375, and f(1.375) = 1.890625 - 2 = -0.109375 is negative. The new bracket is [1.375, 1.5].</li>
+    <li><strong>Iteration 4.</strong> m = 1.4375, and f(1.4375) = 2.06640625 - 2 = 0.06640625 is positive. The new bracket is [1.375, 1.4375].</li>
+    <li><strong>Result.</strong> The bracket has width 0.0625 and contains √2. The midpoint 1.40625 is within 0.0625 of the true root.</li>
+  </ol>
+
+  <h3>How many steps do we need?</h3>
+  <p>After n steps the bracket has width (b - a)/2<sup>n</sup>. To make it at most a tolerance ε, you need:</p>
+  <div class="formula">n ≥ log<sub>2</sub>((b - a)/ε)</div>
+  <p>Here log<sub>2</sub> is the logarithm to base 2. For the square-root example, b - a = 1 and ε = 10<sup>-6</sup>, so n ≥ log<sub>2</sub>(10<sup>6</sup>), which is about 19.93. Rounding up gives 20 steps. The program counts them.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+def f(x):
+    return x * x - 2
+
+a, b = 1.0, 2.0
+steps = 0
+while b - a &gt; 1e-6:
+    m = (a + b) / 2
+    if f(a) * f(m) &lt; 0:
+        b = m
+    else:
+        a = m
+    steps += 1
+
+print("steps:", steps)
+print("formula gives:", math.ceil(math.log2(1 / 1e-6)))
+print("midpoint within 1e-6 of sqrt(2):", abs((a + b) / 2 - math.sqrt(2)) &lt; 1e-6)</code></pre>
+  <pre class="output">steps: 20
+formula gives: 20
+midpoint within 1e-6 of sqrt(2): True</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Bisection needs a sign change. A double root, such as f(x) = (x - 1)<sup>2</sup>, does not change sign at x = 1, so bisection cannot bracket it.</p></div>
+
+  <details class="check"><summary>Question: The starting width is 4. How wide is the bracket after 5 steps?</summary><div class="ans"><p>The width halves each step, so it is 4/2<sup>5</sup> = 4/32 = 0.125.</p></div></details>
+  <details class="check"><summary>Question: Why does bisection need f(a) and f(b) to have opposite signs?</summary><div class="ans"><p>Because of the intermediate value theorem. For a continuous function, opposite signs at the ends guarantee a root between them.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Newton-Raphson method">
+  <h2>Step 2: The Newton-Raphson method</h2>
+  <h3>The idea: follow the tangent</h3>
+  <p>Picture a hill and a sea level. You stand at a point, look at the slope under your feet, and follow it down to where it reaches sea level. Newton's method does the same with a graph. At the current guess x<sub>n</sub>, draw the tangent line. Where this straight line crosses the x-axis is the next guess x<sub>n+1</sub>.</p>
+  <div class="formula">x<sub>n+1</sub> = x<sub>n</sub> - f(x<sub>n</sub>)/f'(x<sub>n</sub>)</div>
+  <p>Here f(x<sub>n</sub>) is the function value at the guess and f'(x<sub>n</sub>) is the slope there. The tangent line is y = f(x<sub>n</sub>) + f'(x<sub>n</sub>)(x - x<sub>n</sub>). Setting y = 0 and solving for x gives the formula.</p>
+
+  <h3>Worked example 2: the square root of 2 by Newton</h3>
+  <p>Use f(x) = x<sup>2</sup> - 2, so f'(x) = 2x. Start at x<sub>0</sub> = 1.5.</p>
+  <ol>
+    <li><strong>Step 1.</strong> f(1.5) = 0.25 and f'(1.5) = 3. So x<sub>1</sub> = 1.5 - 0.25/3 = 17/12, about 1.41667.</li>
+    <li><strong>Step 2.</strong> f(17/12) = 289/144 - 2 = 1/144 and f'(17/12) = 17/6. So x<sub>2</sub> = 17/12 - (1/144)/(17/6) = 577/408, about 1.414216.</li>
+    <li><strong>Compare.</strong> The true value is √2 = 1.4142136. The error falls from about 0.0025 to about 0.0000021 in one step.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+def f(x):
+    return x * x - 2
+
+def df(x):
+    return 2 * x
+
+x = Fraction(3, 2)
+for k in range(1, 3):
+    x = x - f(x) / df(x)
+    print("x", k, "=", x, "=", round(float(x), 6))</code></pre>
+  <pre class="output">x 1 = 17/12 = 1.416667
+x 2 = 577/408 = 1.414216</pre>
+
+  <h3>Why Newton is so fast</h3>
+  <p>The error falls from 0.0025 to 0.0000021. The new error is roughly the square of the old one, times a constant. This is <strong>quadratic convergence</strong>:</p>
+  <div class="formula">e<sub>n+1</sub> ≈ C · e<sub>n</sub><sup>2</sup>, where C = f''(r)/(2f'(r)) and r is the root</div>
+  <p>If the error is 0.01, the next is about 0.0001, and then about 10<sup>-8</sup>. The number of correct digits doubles each step. Bisection, by contrast, gains about one binary digit per step.</p>
+
+  <h3>When Newton fails</h3>
+  <p>Newton needs f' to be non-zero near the iterates and a start reasonably close to the root. Take f(x) = x<sup>3</sup> - 2x + 2 and start at x<sub>0</sub> = 0. Then x<sub>1</sub> = 0 - 2/(-2) = 1. At x = 1, f(1) = 1 and f'(1) = 1, so x<sub>2</sub> = 1 - 1/1 = 0. The guesses bounce between 0 and 1 forever.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Newton can cycle or diverge from a poor start. Bisection never does this. When a question asks which method is guaranteed to converge, the answer is bisection (or regula falsi), not Newton.</p></div>
+
+  <details class="check"><summary>Question: Apply one Newton step to f(x) = x<sup>2</sup> - 4 from x<sub>0</sub> = 3. What is x<sub>1</sub>?</summary><div class="ans"><p>f(3) = 5 and f'(3) = 6. So x<sub>1</sub> = 3 - 5/6 = 13/6, about 2.1667.</p></div></details>
+  <details class="check"><summary>Question: Write the Newton iteration formula.</summary><div class="ans"><p>x<sub>n+1</sub> = x<sub>n</sub> - f(x<sub>n</sub>)/f'(x<sub>n</sub>). Write it down before you calculate.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Regula falsi method">
+  <h2>Step 3: The regula falsi (false position) method</h2>
+  <h3>The idea: join the two ends</h3>
+  <p>Regula falsi keeps the safety of bisection but makes a smarter guess. Instead of the midpoint, it draws the secant line joining (a, f(a)) and (b, f(b)). The guess is where this line crosses the x-axis:</p>
+  <div class="formula">x = (a·f(b) - b·f(a)) / (f(b) - f(a))</div>
+  <p>The new point replaces whichever end has the same sign as f(x), so the sign change is kept. If the graph is nearly straight in the bracket, the guess is very close to the root.</p>
+
+  <h3>Worked example 3: the square root of 2 again</h3>
+  <p>Use f(x) = x<sup>2</sup> - 2 on [1, 2], where f(1) = -1 and f(2) = 2.</p>
+  <ol>
+    <li><strong>Step 1.</strong> x = (1 × 2 - 2 × (-1))/(2 - (-1)) = 4/3, about 1.3333. Then f(4/3) = 16/9 - 2 = -2/9, which is negative. Its sign matches f(1), so the new bracket is [4/3, 2].</li>
+    <li><strong>Step 2.</strong> With a = 4/3, f(a) = -2/9, b = 2 and f(b) = 2, we get x = (8/3 + 4/9)/(20/9) = 28/20 = 7/5 = 1.4.</li>
+    <li><strong>Compare.</strong> f(7/5) = -1/25 = -0.04, so the guess 1.4 is already close to √2.</li>
+  </ol>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+def f(x):
+    return x * x - 2
+
+a, b = Fraction(1), Fraction(2)
+for k in range(1, 3):
+    x = (a * f(b) - b * f(a)) / (f(b) - f(a))
+    print("step", k, "x =", x, "f(x) =", f(x), "=", float(f(x)))
+    if f(a) * f(x) &lt; 0:
+        b = x
+    else:
+        a = x</code></pre>
+  <pre class="output">step 1 x = 4/3 f(x) = -2/9 = -0.2222222222222222
+step 2 x = 7/5 f(x) = -1/25 = -0.04</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Regula falsi can be slow. On a curved graph, one end of the bracket may stay fixed for many steps while the other moves in. Check the iterates rather than assuming they improve fast.</p></div>
+
+  <details class="check"><summary>Question: Which line does regula falsi use to pick the next guess?</summary><div class="ans"><p>The secant through the two endpoints of the current bracket. The next guess is where it crosses the x-axis.</p></div></details>
+  <details class="check"><summary>Question: What is the first regula falsi guess for f(x) = x<sup>2</sup> - 2 on [1, 2]?</summary><div class="ans"><p>x = 4/3, about 1.3333.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Convergence rates compared">
+  <h2>Step 4: Convergence rates compared</h2>
+  <h3>How to measure speed</h3>
+  <p>We compare methods by how the error changes from one step to the next:</p>
+  <ul>
+    <li><strong>Bisection</strong> halves the error bound each step. This is linear convergence with ratio 1/2.</li>
+    <li><strong>Regula falsi</strong> usually converges linearly, often faster than bisection, but one end can stay fixed, so its rate can be poor.</li>
+    <li><strong>Newton</strong> squares the error each step. This is quadratic convergence, the fastest of the three once the guess is close.</li>
+  </ul>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Method</th><th>Convergence</th><th>Needs</th><th>Always safe?</th></tr></thead>
+    <tbody>
+      <tr><td>Bisection</td><td>Linear, error halves each step</td><td>A sign change</td><td>Yes</td></tr>
+      <tr><td>Regula falsi</td><td>Usually linear, can be slow</td><td>A sign change</td><td>Yes</td></tr>
+      <tr><td>Newton-Raphson</td><td>Quadratic near the root</td><td>f' and a good start</td><td>No</td></tr>
+    </tbody>
+  </table></div>
+  <p>For the square root of 2 to within 10<sup>-8</sup>, bisection on [1, 2] needs 26 steps, while Newton from 1.5 needs only 3. The extra cost of Newton is computing f', and its risk is a poor start.</p>
+
+  <details class="check"><summary>Question: Bisection needs about 26 steps to reach 10<sup>-8</sup>. Roughly how many for 10<sup>-16</sup>?</summary><div class="ans"><p>About 53. Each factor of 10<sup>8</sup> needs about 26.6 more halvings, since log<sub>2</sub>(10<sup>8</sup>) is about 26.6. So 26 + 27 = 53 steps.</p></div></details>
+  <details class="check"><summary>Question: Which method gives a safe first estimate, and which one polishes it quickly?</summary><div class="ans"><p>Bisection gives the safe first estimate, because a sign change guarantees it. Newton then polishes the estimate quickly, because it converges quadratically near the root.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Jacobi and Gauss-Seidel">
+  <h2>Step 5: Jacobi and Gauss-Seidel for linear systems</h2>
+  <h3>The problem</h3>
+  <p>Engineering problems often give several equations at once, such as 4x + y = 9 and x + 3y = 7. For very large systems, iterative methods are cheaper than elimination. Each one repeats a simple update until the values settle.</p>
+
+  <h3>Jacobi method</h3>
+  <p>Rearrange each equation to solve for one unknown: x = (9 - y)/4 and y = (7 - x)/3. Start from x = 0 and y = 0. Each step uses only the old values:</p>
+  <div class="formula">x<sub>k+1</sub> = (9 - y<sub>k</sub>)/4, y<sub>k+1</sub> = (7 - x<sub>k</sub>)/3</div>
+
+  <h3>Gauss-Seidel method</h3>
+  <p>Gauss-Seidel uses each new value as soon as it exists:</p>
+  <div class="formula">x<sub>k+1</sub> = (9 - y<sub>k</sub>)/4, y<sub>k+1</sub> = (7 - x<sub>k+1</sub>)/3</div>
+  <p>Notice that y<sub>k+1</sub> uses the newest x. This extra information usually makes the method faster.</p>
+
+  <h3>Worked example 4: two steps by hand</h3>
+  <p>The exact answer is x = 20/11, about 1.8182, and y = 19/11, about 1.7273.</p>
+  <ol>
+    <li><strong>Jacobi, step 1.</strong> x<sub>1</sub> = 9/4 = 2.25 and y<sub>1</sub> = 7/3 = 2.3333.</li>
+    <li><strong>Jacobi, step 2.</strong> x<sub>2</sub> = (9 - 2.3333)/4 = 1.6667 and y<sub>2</sub> = (7 - 2.25)/3 = 1.5833.</li>
+    <li><strong>Gauss-Seidel, step 1.</strong> x<sub>1</sub> = 2.25, then y<sub>1</sub> = (7 - 2.25)/3 = 1.5833.</li>
+    <li><strong>Gauss-Seidel, step 2.</strong> x<sub>2</sub> = (9 - 1.5833)/4 = 1.8542, then y<sub>2</sub> = (7 - 1.8542)/3 = 1.7153.</li>
+    <li><strong>Compare.</strong> After two steps Gauss-Seidel is at (1.8542, 1.7153), much closer to the exact answer than Jacobi's (1.6667, 1.5833).</li>
+  </ol>
+
+  <h3>When does it converge?</h3>
+  <p>Both methods converge when the system is <strong>diagonally dominant</strong>. In each equation, the diagonal coefficient must be larger in size than the sum of the other coefficients. Here 4 &gt; 1 and 3 &gt; 1, so both methods converge.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>In Gauss-Seidel, use the newest values. If you use old values, you have Jacobi again and lose the speed-up.</p></div>
+
+  <details class="check"><summary>Question: Is 2x + 5y = 1 with 3x + y = 4 ready for Jacobi as written?</summary><div class="ans"><p>No. In the first row 2 is smaller than 5, and in the second row 1 is smaller than 3. Rearrange so that each diagonal entry is the largest in its row, and check dominance again.</p></div></details>
+  <details class="check"><summary>Question: In Gauss-Seidel, which values compute y<sub>k+1</sub>?</summary><div class="ans"><p>The newest value x<sub>k+1</sub>, computed in the same step, together with the update formula for y.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>m = (a + b)/2</td><td>Midpoint of the bracket</td><td>Bisection step</td></tr>
+      <tr><td>n ≥ log<sub>2</sub>((b - a)/ε)</td><td>Bisection steps for tolerance ε</td><td>Counting steps in advance</td></tr>
+      <tr><td>x<sub>n+1</sub> = x<sub>n</sub> - f(x<sub>n</sub>)/f'(x<sub>n</sub>)</td><td>Newton-Raphson iteration</td><td>When f' is easy and the start is close</td></tr>
+      <tr><td>e<sub>n+1</sub> ≈ C e<sub>n</sub><sup>2</sup></td><td>Quadratic convergence</td><td>Explaining Newton's speed</td></tr>
+      <tr><td>x = (a f(b) - b f(a))/(f(b) - f(a))</td><td>Regula falsi guess</td><td>Where the secant crosses the axis</td></tr>
+      <tr><td>x<sub>k+1</sub> = (b<sub>1</sub> - a<sub>12</sub>y<sub>k</sub>)/a<sub>11</sub> (Jacobi, two unknowns)</td><td>Jacobi update using old values</td><td>Solving Ax = b iteratively</td></tr>
+      <tr><td>Gauss-Seidel: same, with newest values</td><td>Faster version of Jacobi</td><td>Diagonally dominant systems</td></tr>
+      <tr><td>|a<sub>ii</sub>| &gt; Σ<sub>j≠i</sub> |a<sub>ij</sub>|</td><td>Diagonal dominance</td><td>Guarantees convergence</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the style of GATE questions. They are not past exam questions. Try each one on paper before you read the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>First bisection midpoint</h3>
+    <div class="statement"><p>Let f(x) = x<sup>3</sup> - 2 on the bracket [1, 2]. What is the midpoint used in the first step of bisection? (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first midpoint.</li>
+      <li><strong>Which idea applies.</strong> m = (a + b)/2.</li>
+      <li><strong>Work it out.</strong> m = (1 + 2)/2 = 1.5.</li>
+      <li><strong>Check.</strong> f(1) = -1 and f(2) = 6 have opposite signs, so the bracket is valid, and 1.5 lies inside it.</li>
+    </ol>
+    <p class="cx">Answer: 1.5.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Properties of bisection</h3>
+    <div class="statement"><p>Select all the statements about the bisection method that are true.</p>
+    <p>(A) It needs f(a) and f(b) to have opposite signs at the start.<br>
+    (B) Each step halves the width of the bracket.<br>
+    (C) It always converges faster than Newton-Raphson.<br>
+    (D) It needs f to be continuous on the bracket.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements describe bisection correctly.</li>
+      <li><strong>Which idea applies.</strong> The sign-change requirement, the halving rule, and the speed comparison.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) False, because Newton is usually much faster near the root. (D) True, since the intermediate value theorem needs continuity.</li>
+      <li><strong>Check.</strong> Worked example 2 showed Newton finishing in 3 steps where bisection needed 26.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Two Newton steps for a square root</h3>
+    <div class="statement"><p>Use Newton-Raphson on f(x) = x<sup>2</sup> - 3 starting at x<sub>0</sub> = 2. Find x<sub>2</sub>, rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The second iterate.</li>
+      <li><strong>Which idea applies.</strong> x<sub>n+1</sub> = x<sub>n</sub> - (x<sub>n</sub><sup>2</sup> - 3)/(2x<sub>n</sub>).</li>
+      <li><strong>Work it out.</strong> Step 1: f(2) = 1 and f'(2) = 4, so x<sub>1</sub> = 2 - 1/4 = 7/4. Step 2: f(7/4) = 1/16 and f'(7/4) = 7/2, so x<sub>2</sub> = 7/4 - (1/16)/(7/2) = 97/56, about 1.7321.</li>
+      <li><strong>Check.</strong> The program repeats the two steps with exact fractions.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+x = Fraction(2)
+for k in range(2):
+    x = x - (x * x - 3) / (2 * x)
+print(x, round(float(x), 4))</code></pre>
+    <pre class="output">97/56 1.7321</pre>
+    <p class="cx">Answer: x<sub>2</sub> = 97/56, which is 1.7321 to four decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>First regula falsi guess</h3>
+    <div class="statement"><p>Use regula falsi on f(x) = x<sup>2</sup> - 2 with the bracket [1, 2]. Find the first guess x<sub>1</sub>, rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first regula falsi guess.</li>
+      <li><strong>Which idea applies.</strong> x = (a f(b) - b f(a))/(f(b) - f(a)).</li>
+      <li><strong>Work it out.</strong> f(1) = -1 and f(2) = 2, so x = (2 + 2)/(2 + 1) = 4/3, about 1.3333.</li>
+      <li><strong>Check.</strong> f(4/3) = -2/9 has the same sign as f(1), so the bracket becomes [4/3, 2] and the sign change is kept.</li>
+    </ol>
+    <p class="cx">Answer: x<sub>1</sub> = 4/3, which is 1.3333 to four decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about the system are true?</h3>
+    <div class="statement"><p>Consider the system 3x + y = 5 and x + 2y = 5, solved iteratively from x = 0, y = 0. Select all that apply.</p>
+    <p>(A) The coefficient matrix is diagonally dominant.<br>
+    (B) Both Jacobi and Gauss-Seidel converge to the solution.<br>
+    (C) Gauss-Seidel uses the newest x when it computes y, so its iterates can differ from Jacobi's in the same step.<br>
+    (D) Gauss-Seidel always needs more iterations than Jacobi.</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Diagonal dominance, its convergence guarantee, and the difference between the two update rules.</li>
+      <li><strong>Work it out.</strong> (A) 3 &gt; 1 and 2 &gt; 1. True. (B) Dominance guarantees convergence. True. (C) Jacobi gives y<sub>1</sub> = 5/2 = 2.5, but Gauss-Seidel gives y<sub>1</sub> = (5 - 5/3)/2 = 5/3 after x<sub>1</sub> = 5/3. True. (D) Gauss-Seidel is usually faster, so this is false.</li>
+      <li><strong>Check.</strong> The step-1 values in (C) differ between the two methods, as claimed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Newton's method on cosine</h3>
+    <div class="statement"><p>Use Newton-Raphson on f(x) = cos x - x with starting value x<sub>0</sub> = 1. Find x<sub>2</sub>, rounded to four decimal places. (Answer type: NAT, a decimal.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The second iterate.</li>
+      <li><strong>Which idea applies.</strong> f'(x) = -sin x - 1 and the Newton formula.</li>
+      <li><strong>Work it out.</strong> At x<sub>0</sub> = 1: cos 1 is about 0.5403 and sin 1 is about 0.8415. So f(1) is about -0.4597 and f'(1) is about -1.8415, giving x<sub>1</sub> = about 0.7504. At 0.7504: cos is about 0.7314 and sin is about 0.6818, so f is about -0.0189 and f' is about -1.6819. Then x<sub>2</sub> = 0.7504 - (-0.0189)/(-1.6819), about 0.7391.</li>
+      <li><strong>Check.</strong> The true root is about 0.73909. The program computes two steps at full precision.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+
+def f(x):
+    return math.cos(x) - x
+
+def df(x):
+    return -math.sin(x) - 1
+
+x = 1.0
+for k in range(2):
+    x = x - f(x) / df(x)
+print(round(x, 4))</code></pre>
+    <pre class="output">0.7391</pre>
+    <p class="cx">Answer: x<sub>2</sub> is about 0.7391 to four decimal places.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Where a Newton method can go wrong</h3>
+    <div class="statement"><p>Let f(x) = x<sup>3</sup> - 2x + 2. Select all that apply.</p>
+    <p>(A) Newton-Raphson from x<sub>0</sub> = 0 gives x<sub>1</sub> = 1.<br>
+    (B) Newton-Raphson from x<sub>0</sub> = 0 gives x<sub>2</sub> = 0.<br>
+    (C) Newton-Raphson from x<sub>0</sub> = 0 converges to a root of f.<br>
+    (D) Bisection can be started on the bracket [-3, 0].</p>
+    <p>Answer type: MSQ, select all that apply.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Compute the Newton steps, then check the signs at the ends of the proposed bracket.</li>
+      <li><strong>Work it out.</strong> At x = 0, f = 2 and f' = -2, so x<sub>1</sub> = 1. At x = 1, f = 1 and f' = 1, so x<sub>2</sub> = 0. So (A) and (B) are true, and the iterates cycle, so (C) is false. For (D), f(-3) = -19 and f(0) = 2 have opposite signs, so (D) is true.</li>
+      <li><strong>Check.</strong> The program prints the two end values of the bracket.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def f(x):
+    return x**3 - 2*x + 2
+
+print(f(-3), f(0))</code></pre>
+    <pre class="output">-19 2</pre>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Newton-Raphson iteration (NAT, 2 marks)</h3>
+    <div class="statement"><p>Apply Newton-Raphson to f(x) = x³ − 2x − 5 starting at x<sub>0</sub> = 2. Find x<sub>2</sub>, correct to 4 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The second Newton iterate.</li>
+      <li><strong>Which idea applies.</strong> x<sub>n+1</sub> = x<sub>n</sub> − f(x<sub>n</sub>)/f′(x<sub>n</sub>), with f′ = 3x² − 2.</li>
+      <li><strong>Work it out.</strong> x<sub>1</sub> = 2 − (−1)/10 = 2.1. f(2.1) = 0.061, f′(2.1) = 11.23. x<sub>2</sub> = 2.1 − 0.00543 = 2.0946.</li>
+      <li><strong>Check.</strong> The code prints both iterates.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>f = lambda x: x ** 3 - 2 * x - 5
+d = lambda x: 3 * x ** 2 - 2
+x = 2.0
+for i in range(2):
+    x = x - f(x) / d(x)
+    print("x%d = %.4f" % (i + 1, x))
+</code></pre>
+    <pre class="output">x1 = 2.1000
+x2 = 2.0946</pre>
+    <p class="cx">Answer: 2.0946.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Bisection steps (NAT, 1 mark)</h3>
+    <div class="statement"><p>Bisection starts on [1, 2]. What is the smallest number of iterations that guarantees an interval of width less than 10<sup>−3</sup>?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of halvings needed.</li>
+      <li><strong>Which idea applies.</strong> After n steps the width is 1/2<sup>n</sup>.</li>
+      <li><strong>Work it out.</strong> 2<sup>10</sup> = 1024 &gt; 1000, and 2<sup>9</sup> = 512 is not enough. So n = 10.</li>
+      <li><strong>Check.</strong> 1/1024 ≈ 0.00098 is below 0.001.</li>
+    </ol>
+    <p class="cx">Answer: 10.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Convergence order (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE? (A) Newton-Raphson converges quadratically to a simple root. (B) Bisection converges linearly. (C) The secant method has order about 1.618. (D) Newton-Raphson always converges for any starting point.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Facts about root-finding methods.</li>
+      <li><strong>Which idea applies.</strong> Each method's error obeys e<sub>n+1</sub> ≈ Ce<sub>n</sub><sup>p</sup> for its order p.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) The error bound halves each step. True. (C) The golden ratio. True. (D) It can diverge or cycle, for example from a point where f′ is near 0. False.</li>
+      <li><strong>Check.</strong> For f(x) = x³ − 2x + 2 from x<sub>0</sub> = 0, Newton cycles between 0 and 1.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Root</dt><dd>A value x where f(x) = 0.</dd></div>
+    <div><dt>Iteration</dt><dd>A repeated step in which each result becomes the next input.</dd></div>
+    <div><dt>Intermediate value theorem</dt><dd>For a continuous f, a sign change on [a, b] guarantees a root inside.</dd></div>
+    <div><dt>Bracket</dt><dd>An interval whose endpoints give function values with opposite signs.</dd></div>
+    <div><dt>Bisection</dt><dd>Halve the bracket each step, keeping the half with the sign change. Linear and always safe.</dd></div>
+    <div><dt>Newton-Raphson</dt><dd>Follow the tangent line to the next guess. Quadratic near the root, but can cycle from a poor start.</dd></div>
+    <div><dt>Regula falsi</dt><dd>Use the secant through the bracket ends to find the next guess. Always safe, but can be slow.</dd></div>
+    <div><dt>Linear convergence</dt><dd>The error shrinks by a fixed fraction each step.</dd></div>
+    <div><dt>Quadratic convergence</dt><dd>The error at the next step is about a constant times the square of the current error.</dd></div>
+    <div><dt>Tolerance</dt><dd>The accuracy target that tells an iterative method when to stop.</dd></div>
+    <div><dt>Linear system</dt><dd>Several equations in several unknowns, each appearing to the first power.</dd></div>
+    <div><dt>Jacobi method</dt><dd>Solve each unknown from the old values of the others, then repeat.</dd></div>
+    <div><dt>Gauss-Seidel method</dt><dd>Like Jacobi, but use each new value immediately in the same step.</dd></div>
+    <div><dt>Diagonally dominant</dt><dd>Each diagonal entry is larger in size than the sum of the other entries in its row.</dd></div>
+    <div><dt>Secant line</dt><dd>A straight line through two points on a graph.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Bisection needs a sign change, and it is guaranteed to converge.</li>
+    <li>The number of bisection steps for tolerance ε is at least log<sub>2</sub>((b - a)/ε).</li>
+    <li>The Newton formula is x<sub>n+1</sub> = x<sub>n</sub> - f(x<sub>n</sub>)/f'(x<sub>n</sub>).</li>
+    <li>Newton is fast near the root, but it can cycle from a poor start.</li>
+    <li>Regula falsi uses the straight line through the bracket ends.</li>
+    <li>Check diagonal dominance before Jacobi or Gauss-Seidel, and use the newest values in Gauss-Seidel.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 61?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 61 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-060.html"><small>Previous, topic 60</small>Fourier Series</a><a class="next" href="gate-062.html"><small>Next, topic 62</small>Finite differences</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

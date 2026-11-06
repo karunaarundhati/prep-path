@@ -1,0 +1,412 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 7: LU Decomposition</title><meta name="description" content="LU decomposition writes a matrix as a product of a lower triangular matrix L and an upper triangular matrix U. It is Gaussian elimination, saved in a form you can reuse. Once A = LU is known, every system Ax = b is solved by two easy triangular steps, which is why it appears in GATE questions and in real numerical software."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g7" data-key="g7" data-noun="topic" data-num="7" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>LU Decomposition</h1>
+<p class="lede">LU decomposition writes a matrix as a product of a lower triangular matrix L and an upper triangular matrix U. It is Gaussian elimination, saved in a form you can reuse. Once A = LU is known, every system Ax = b is solved by two easy triangular steps, which is why it appears in GATE questions and in real numerical software.</p>
+<div class="station"><b>7</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>Triangular matrices: the easy shapes</li><li>What A = LU means, in words and in numbers</li><li>Building L and U from the elimination multipliers</li><li>Solving Ax = b with L and U: two easy steps</li><li>When LU fails and how row swaps repair it (PA = LU)</li><li>Solved GATE-style problems, including two verified PYQs</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you must solve the same puzzle again and again with different totals. Doing the full elimination each time is wasteful. A smarter plan is to do the hard work once, save the steps, and reuse them. <strong>LU decomposition</strong> is that saved plan. It breaks the matrix A into two simpler matrices: L, which is lower triangular (zeros above the diagonal), and U, which is upper triangular (zeros below the diagonal). Their product is A. Triangular systems are easy to solve, so once you have L and U, each new system takes only a few quick steps.</p>
+  <p>Think of a recipe written as a list of simple steps. The cook can make the dish for a new guest by following the list again. L and U are that list for a matrix.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Lower triangular matrix (L)</dt><dd>A square matrix with zeros above the diagonal.</dd></div>
+    <div><dt>Upper triangular matrix (U)</dt><dd>A square matrix with zeros below the diagonal.</dd></div>
+    <div><dt>Doolittle form</dt><dd>The LU form where L has 1s on its diagonal. L holds the multipliers.</dd></div>
+    <div><dt>Crout form</dt><dd>The LU form where U has 1s on its diagonal. L holds the pivots.</dd></div>
+    <div><dt>LU decomposition</dt><dd>Writing a square matrix as A = LU.</dd></div>
+    <div><dt>Permutation matrix (P)</dt><dd>A matrix made by reordering the rows of the identity. Multiplying by P swaps rows.</dd></div>
+    <div><dt>Multiplier</dt><dd>The number used to clear an entry during elimination. Multipliers become the entries of L.</dd></div>
+    <div><dt>Forward and back substitution</dt><dd>Solving a lower triangular system from the top, and an upper triangular system from the bottom.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Triangular matrices">
+  <h2>Triangular matrices: the easy shapes</h2>
+  <p>Consider the upper triangular system 2x + y + z = 4, y + z = 2, and 2z = 2. The last equation gives z = 1. The middle gives y = 1. The top gives x = 1. Each answer uses only answers already found. This is <strong>back substitution</strong>. The matrix U = [[2, 1, 1], [0, 1, 1], [0, 0, 2]] is upper triangular.</p>
+  <p>A lower triangular system is solved the other way, from the top row down, by <strong>forward substitution</strong>. For y<sub>1</sub> = 4, 2y<sub>1</sub> + y<sub>2</sub> = 10, and 4y<sub>1</sub> + 3y<sub>2</sub> + y<sub>3</sub> = 24, we get y<sub>2</sub> = 2 and y<sub>3</sub> = 2. The matrix L = [[1, 0, 0], [2, 1, 0], [4, 3, 1]] is lower triangular.</p>
+  <div class="note key"><p><span class="t">Key idea</span>A triangular system is easy to solve, as long as the diagonal entries are not 0. Each row has only one new unknown.</p></div>
+  <details class="check"><summary>Solve the upper triangular system 3x + 2y = 8 and 4y = 4.</summary><div class="ans"><p>y = 1, then 3x = 6, so x = 2.</p></div></details>
+  <details class="check"><summary>What is the determinant of [[2, 5, 7], [0, 3, 1], [0, 0, 4]]?</summary><div class="ans"><p>The product of the diagonal, 2 x 3 x 4 = 24.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="What A = LU means">
+  <h2>What A = LU means, in words and in numbers</h2>
+  <p>The statement A = LU means that A equals the product of L and U. For A = [[2, 1], [6, 4]], the decomposition with 1s on L's diagonal is:</p>
+  <pre class="code" data-lang="text"><code>A = [ 2  1 ] = [ 1  0 ] [ 2  1 ]
+    [ 6  4 ]   [ 3  1 ] [ 0  1 ]</code></pre>
+  <p>Check each entry. Entry (1,1): 1 x 2 = 2. Entry (1,2): 1 x 1 = 1. Entry (2,1): 3 x 2 = 6. Entry (2,2): 3 x 1 + 1 x 1 = 4. All four match.</p>
+  <p>Since A x = L (U x), applying A is the same as applying U first and then L. The first picture shows L, a vertical shear with 3 in its bottom-left corner. Drag the column arrows and watch the grid lean.</p>
+  <div class="viz" data-viz="transform" data-m="1,0,3,1"></div>
+  <p>The second picture shows U, a stretch combined with a horizontal shear. Drag its columns and notice that the bottom edge of the grid stays on the horizontal axis, even though it is stretched.</p>
+  <div class="viz" data-viz="transform" data-m="2,1,0,1"></div>
+  <div class="note trap"><p><span class="t">Trap</span>The order matters. A = LU means U is applied first, then L. Writing A = UL gives a different matrix.</p></div>
+  <details class="check"><summary>If L = [[1, 0], [2, 1]] and U = [[3, 1], [0, 2]], what is entry (2,2) of LU?</summary><div class="ans"><p>Row 2 of L is (2, 1) and column 2 of U is (1, 2). So 2 x 1 + 1 x 2 = 4.</p></div></details>
+  <details class="check"><summary>Why must U be upper triangular?</summary><div class="ans"><p>Because U is what remains after elimination, which clears the entries below each pivot.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Building L and U from the multipliers">
+  <h2>Building L and U from the elimination multipliers</h2>
+  <p>Run Gaussian elimination on A, ignoring the right-hand side. U is the final staircase. L has the multiplier used to clear entry (i, k) in position (i, k), with 1s on its diagonal. In short, <strong>the multipliers are the entries of L</strong>.</p>
+  <h3>A worked example</h3>
+  <p>Take A = [[2, 1, 1], [4, 3, 3], [8, 7, 9]].</p>
+  <ol>
+    <li><strong>Column 1.</strong> The pivot is 2. The multiplier for row 2 is 4/2 = 2, and for row 3 is 8/2 = 4. Row 2 becomes (0, 1, 1). Row 3 becomes (0, 3, 5).</li>
+    <li><strong>Column 2.</strong> The pivot is 1. The multiplier for row 3 is 3/1 = 3. Row 3 becomes (0, 0, 2).</li>
+    <li><strong>Collect.</strong> U = [[2, 1, 1], [0, 1, 1], [0, 0, 2]] and L = [[1, 0, 0], [2, 1, 0], [4, 3, 1]].</li>
+    <li><strong>Check.</strong> Row 3 of LU is 4 (2, 1, 1) + 3 (0, 1, 1) + 1 (0, 0, 2) = (8, 7, 9), which is row 3 of A.</li>
+  </ol>
+  <p>The Python block builds L and U this way with exact fractions, then solves a system with them.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def lu(A):
+    n = len(A)
+    L = [[F(0)] * n for _ in range(n)]
+    U = [[F(x) for x in row] for row in A]
+    for i in range(n):
+        L[i][i] = F(1)
+    for k in range(n):
+        for i in range(k + 1, n):
+            m = U[i][k] / U[k][k]
+            L[i][k] = m
+            U[i] = [U[i][j] - m * U[k][j] for j in range(n)]
+    return L, U
+
+def solve_lu(L, U, b):
+    n = len(b)
+    y = [F(0)] * n
+    for i in range(n):
+        y[i] = (F(b[i]) - sum(L[i][j] * y[j] for j in range(i))) / L[i][i]
+    x = [F(0)] * n
+    for i in range(n - 1, -1, -1):
+        x[i] = (y[i] - sum(U[i][j] * x[j] for j in range(i + 1, n))) / U[i][i]
+    return y, x
+
+A = [[2, 1, 1], [4, 3, 3], [8, 7, 9]]
+L, U = lu(A)
+print("L =")
+for row in L:
+    print([str(v) for v in row])
+print("U =")
+for row in U:
+    print([str(v) for v in row])
+y, x = solve_lu(L, U, [4, 10, 24])
+print("y =", [str(v) for v in y])
+print("x =", [str(v) for v in x])</code></pre>
+  <pre class="output">L =
+['1', '0', '0']
+['2', '1', '0']
+['4', '3', '1']
+U =
+['2', '1', '1']
+['0', '1', '1']
+['0', '0', '2']
+y = ['4', '2', '2']
+x = ['1', '1', '1']</pre>
+  <div class="note key"><p><span class="t">Key idea</span>The factorisation is built once, at the cost of the elimination. Each new right-hand side then needs only two triangular solves.</p></div>
+  <div class="note tip"><p><span class="t">Tip</span>Check L and U by multiplying them back. If the product is not A, one multiplier or one entry of U is wrong.</p></div>
+  <details class="check"><summary>For A = [[3, 1], [6, 4]], what multiplier clears the 6?</summary><div class="ans"><p>6/3 = 2, so L<sub>21</sub> = 2. Row 2 becomes (0, 2), so U<sub>22</sub> = 2.</p></div></details>
+  <details class="check"><summary>Why does the multiplier go into L and not into U?</summary><div class="ans"><p>L records the row operations applied to A, and U is the result of those operations.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Solving Ax = b with L and U">
+  <h2>Solving Ax = b with L and U: two easy steps</h2>
+  <p>Because A = LU, the equation Ax = b becomes L(Ux) = b. Let y = Ux. Then solve two triangular systems:</p>
+  <ol>
+    <li><strong>Forward substitution.</strong> Solve Ly = b, from the top row down.</li>
+    <li><strong>Back substitution.</strong> Solve Ux = y, from the bottom row up.</li>
+  </ol>
+  <div class="formula">Ax = b  becomes  L(Ux) = b,  so first Ly = b, then Ux = y</div>
+  <p>With the same A and L, U from the previous section, and b = (4, 10, 24): forward substitution gives y = (4, 2, 2), and back substitution gives x = (1, 1, 1). Check: (2 + 1 + 1, 4 + 3 + 3, 8 + 7 + 9) = (4, 10, 24).</p>
+  <div class="note key"><p><span class="t">Key idea</span>Building L and U costs most of the work, growing like n cubed. Each triangular solve grows like n squared. So for many right-hand sides, factor once and solve many times.</p></div>
+  <div class="note trap"><p><span class="t">Trap</span>Use L in step one and U in step two. Solving Ux = b directly is wrong, because b is not y.</p></div>
+  <details class="check"><summary>With L = [[1, 0], [3, 1]], U = [[2, 1], [0, 1]] and b = (3, 10), what is y?</summary><div class="ans"><p>y<sub>1</sub> = 3, and 9 + y<sub>2</sub> = 10, so y = (3, 1).</p></div></details>
+  <details class="check"><summary>Continue: solve Ux = y with U = [[2, 1], [0, 1]] and y = (3, 1).</summary><div class="ans"><p>x<sub>2</sub> = 1 and 2x<sub>1</sub> + 1 = 3, so x = (1, 1). Check: [[2, 1], [6, 4]] (1, 1) = (3, 10).</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="When LU fails and PA = LU">
+  <h2>When LU fails, and how row swaps repair it</h2>
+  <p>Try to factor A = [[0, 1], [1, 0]]. Its top-left entry is 0, so the first pivot is zero, and no LU decomposition without row swaps exists. Yet the matrix is invertible, with determinant -1. The problem is only the order of the rows.</p>
+  <p>Use a permutation matrix P to reorder the rows first. Here P = [[0, 1], [1, 0]] gives PA = I, and I = LU with L = I and U = I. So PA = LU holds.</p>
+  <div class="formula">PA = LU, where P records the row swaps</div>
+  <p>In practice, partial pivoting chooses P during elimination, which keeps the factorisation stable. Without row swaps, LU exists when every pivot is non-zero. With row swaps, PA = LU exists for every invertible matrix. The determinant then picks up a sign for each swap.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Do not assume every matrix has an LU decomposition. A zero pivot means you need P, or the matrix is singular.</p></div>
+  <details class="check"><summary>Does [[1, 2], [2, 4]] have an LU decomposition without swaps?</summary><div class="ans"><p>Yes. L = [[1, 0], [2, 1]] and U = [[1, 2], [0, 0]]. The matrix is singular, so U has a zero pivot.</p></div></details>
+  <details class="check"><summary>What is det(P) when exactly one row swap is made?</summary><div class="ans"><p>One swap changes the sign, so det(P) = -1.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or rule</th><th>What it means</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>A = LU</td><td>LU decomposition</td><td>Factoring a square matrix</td></tr>
+      <tr><td>L<sub>ik</sub> = multiplier used to clear entry (i, k)</td><td>Entries of L come from elimination</td><td>Building L</td></tr>
+      <tr><td>Ly = b, then Ux = y</td><td>Two triangular solves</td><td>Solving Ax = b</td></tr>
+      <tr><td>PA = LU</td><td>LU with row swaps recorded in P</td><td>Zero pivots</td></tr>
+      <tr><td>det(A) = (product of diagonal of U) x (sign of P)</td><td>Determinant from LU, when L has 1s on its diagonal</td><td>Fast determinant check</td></tr>
+      <tr><td>det(L) = 1 for a unit lower triangular L</td><td>Determinant of the lower factor</td><td>Simplifying</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Problems 1 to 7 are original GATE-style problems. Problems 8 and 9 are real past questions from GATE papers, rewritten in this format and marked as verified PYQs.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>LU of a 2 x 2 matrix</h3>
+    <div class="statement"><p>Find L (with 1s on its diagonal) and U so that A = LU, where A = [[3, 1], [6, 4]].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> L and U.</li>
+      <li><strong>Which idea applies.</strong> The multiplier goes into L, and the result goes into U.</li>
+      <li><strong>Work it out.</strong> The multiplier is 6/3 = 2. Row 2 becomes (0, 4 - 2) = (0, 2). So L = [[1, 0], [2, 1]] and U = [[3, 1], [0, 2]].</li>
+      <li><strong>Check.</strong> Entry (2,2) of LU is 2 x 1 + 1 x 2 = 4, as required.</li>
+    </ol>
+    <p class="cx">Answer: L = [[1, 0], [2, 1]] and U = [[3, 1], [0, 2]].</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>True statements about LU (MSQ)</h3>
+    <div class="statement"><p>Select all true statements.</p>
+    <p>(A) In the Doolittle form, L has 1s on its diagonal.<br>(B) U is upper triangular.<br>(C) Every invertible matrix has an LU decomposition without row swaps.<br>(D) If A = LU with L having 1s on its diagonal, then det(A) equals the product of the diagonal of U.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test four facts.</li>
+      <li><strong>Which idea applies.</strong> The Doolittle form, the shape of U, and the determinant of a product.</li>
+      <li><strong>Work it out.</strong> (A) true, by definition. (B) true. (C) false: [[0, 1], [1, 0]] is invertible but has no such LU. (D) true, since det(L) = 1.</li>
+      <li><strong>Check.</strong> The counterexample in (C) is the matrix from the PA = LU section.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Solve a system using LU (NAT)</h3>
+    <div class="statement"><p>Let A = [[2, 1], [4, 5]] and b = (4, 14). Use A = LU, with L having 1s on its diagonal, to solve Ax = b. Find x<sub>1</sub>. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The first entry of x.</li>
+      <li><strong>Which idea applies.</strong> Factor, then solve Ly = b and Ux = y.</li>
+      <li><strong>Work it out.</strong> The multiplier is 2, so L = [[1, 0], [2, 1]] and U = [[2, 1], [0, 3]]. Forward: y<sub>1</sub> = 4 and 8 + y<sub>2</sub> = 14, so y<sub>2</sub> = 6. Back: 3x<sub>2</sub> = 6, so x<sub>2</sub> = 2, and 2x<sub>1</sub> + 2 = 4, so x<sub>1</sub> = 1.</li>
+      <li><strong>Check.</strong> A (1, 2) = (2 + 2, 4 + 10) = (4, 14).</li>
+    </ol>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Determinant from LU (NAT)</h3>
+    <div class="statement"><p>Let A = [[2, 1, 1], [4, 3, 3], [8, 7, 9]], whose LU decomposition is given in the guide. Find det(A). Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One number.</li>
+      <li><strong>Which idea applies.</strong> det(A) = det(L) x det(U), and det(L) = 1.</li>
+      <li><strong>Work it out.</strong> The diagonal of U is 2, 1, 2, so det(A) = 4.</li>
+      <li><strong>Check.</strong> Expanding along row 1: 2 (27 - 21) - (36 - 24) + (28 - 24) = 12 - 12 + 4 = 4.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Facts about a matrix with no LU without swaps (MSQ)</h3>
+    <div class="statement"><p>Let A = [[0, 1], [1, 0]]. Select all true statements.</p>
+    <p>(A) A has an LU decomposition with no row swaps.<br>(B) There is a permutation matrix P with PA = LU.<br>(C) det(A) = -1.<br>(D) A is upper triangular.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test four facts.</li>
+      <li><strong>Which idea applies.</strong> The first pivot is 0, so a row swap is needed.</li>
+      <li><strong>Work it out.</strong> (A) false. (B) true: P = [[0, 1], [1, 0]] gives PA = I. (C) true: 0 x 0 - 1 x 1 = -1. (D) false.</li>
+      <li><strong>Check.</strong> These match the PA = LU section.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Determinant and factors (MSQ)</h3>
+    <div class="statement"><p>A is a 3 x 3 matrix with A = LU, where L has 1s on its diagonal and the diagonal of U is (2, 5, 7). Select all true statements.</p>
+    <p>(A) det(U) = 70<br>(B) det(L) = 70<br>(C) det(A) = det(L) x det(U)<br>(D) If U had diagonal (2, 0, 7), then A would be invertible</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Test four facts about determinants of the factors.</li>
+      <li><strong>Which idea applies.</strong> A triangular determinant is the product of its diagonal.</li>
+      <li><strong>Work it out.</strong> (A) true, 2 x 5 x 7 = 70. (B) false, det(L) = 1. (C) true, the product rule. (D) false, a zero on the diagonal of U makes det(A) = 0.</li>
+      <li><strong>Check.</strong> From (A) and (C), det(A) = 1 x 70 = 70.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Sum of the multipliers (NAT)</h3>
+    <div class="statement"><p>Let A = [[1, 1, -2], [1, 3, -1], [2, 1, -5]]. Run elimination, and let m<sub>21</sub>, m<sub>31</sub> and m<sub>32</sub> be the multipliers used to clear entries (2,1), (3,1) and (3,2). Find m<sub>21</sub> + m<sub>31</sub> + m<sub>32</sub>. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The sum of the multipliers.</li>
+      <li><strong>Which idea applies.</strong> The multipliers are the entries of L below its diagonal.</li>
+      <li><strong>Work it out.</strong> m<sub>21</sub> = 1 and m<sub>31</sub> = 2. Row 2 becomes (0, 2, 1) and row 3 becomes (0, -1, -1). Then m<sub>32</sub> = -1/2. The sum is 1 + 2 - 1/2 = 5/2.</li>
+      <li><strong>Check.</strong> These are the L entries of the verified PYQ below, which uses this matrix.</li>
+    </ol>
+    <p class="cx">Answer: 5/2 (that is, 2.5).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>GATE CSE 2015 Set 1 (verified PYQ): an entry of L with a unit diagonal in U (NAT)</h3>
+    <div class="statement"><p>In the LU decomposition of [[2, 2], [4, 9]], the diagonal entries of U are both 1. Find l<sub>22</sub>, the lower diagonal entry of L. Give a single number.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> l<sub>22</sub>.</li>
+      <li><strong>Which idea applies.</strong> With U having 1s on its diagonal (Crout form), L carries the pivots. Multiply L and U and match entries.</li>
+      <li><strong>Work it out.</strong> l<sub>11</sub> = 2 and l<sub>11</sub> u<sub>12</sub> = 2, so u<sub>12</sub> = 1. Also l<sub>21</sub> = 4. Then l<sub>21</sub> u<sub>12</sub> + l<sub>22</sub> = 9 gives 4 + l<sub>22</sub> = 9, so l<sub>22</sub> = 5.</li>
+      <li><strong>Check.</strong> L = [[2, 0], [4, 5]] and U = [[1, 1], [0, 1]] multiply to [[2, 2], [4, 9]].</li>
+    </ol>
+    <p class="cx">Answer: 5. This is a verified PYQ from GATE CSE 2015 Set 1, rewritten into the format of this page.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>GATE CSE 2022 Q35 (verified PYQ): entries of L and U and a solution (NAT)</h3>
+    <div class="statement"><p>Solve x<sub>1</sub> + x<sub>2</sub> - 2x<sub>3</sub> = 4, x<sub>1</sub> + 3x<sub>2</sub> - x<sub>3</sub> = 7, and 2x<sub>1</sub> + x<sub>2</sub> - 5x<sub>3</sub> = 7 by LU decomposition, where L is lower triangular with 1s on its diagonal and U is upper triangular. Find L<sub>32</sub>, U<sub>33</sub> and x<sub>1</sub>, as three numbers.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One entry of L, one entry of U, and one unknown.</li>
+      <li><strong>Which idea applies.</strong> Elimination records the multipliers in L and leaves U. Then solve Ly = b and Ux = y.</li>
+      <li><strong>Work it out.</strong> Multipliers m<sub>21</sub> = 1 and m<sub>31</sub> = 2. Row 2 becomes (0, 2, 1) and row 3 becomes (0, -1, -1). Then m<sub>32</sub> = -1/2, and row 3 becomes (0, 0, -1/2), so U<sub>33</sub> = -1/2. Forward: y = (4, 3, 1/2). Back: x<sub>3</sub> = -1, x<sub>2</sub> = 2, and x<sub>1</sub> = 0.</li>
+      <li><strong>Check.</strong> (0, 2, -1) satisfies all three original equations. The Python block repeats the factorisation with exact fractions.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def lu(A):
+    n = len(A)
+    L = [[F(0)] * n for _ in range(n)]
+    U = [[F(x) for x in row] for row in A]
+    for i in range(n):
+        L[i][i] = F(1)
+    for k in range(n):
+        for i in range(k + 1, n):
+            m = U[i][k] / U[k][k]
+            L[i][k] = m
+            U[i] = [U[i][j] - m * U[k][j] for j in range(n)]
+    return L, U
+
+def solve_lu(L, U, b):
+    n = len(b)
+    y = [F(0)] * n
+    for i in range(n):
+        y[i] = (F(b[i]) - sum(L[i][j] * y[j] for j in range(i))) / L[i][i]
+    x = [F(0)] * n
+    for i in range(n - 1, -1, -1):
+        x[i] = (y[i] - sum(U[i][j] * x[j] for j in range(i + 1, n))) / U[i][i]
+    return y, x
+
+A = [[1, 1, -2], [1, 3, -1], [2, 1, -5]]
+L, U = lu(A)
+y, x = solve_lu(L, U, [4, 7, 7])
+print("L32 =", str(L[2][1]))
+print("U33 =", str(U[2][2]))
+print("x1 =", str(x[0]))
+print("x =", [str(v) for v in x])</code></pre>
+    <pre class="output">L32 = -1/2
+U33 = -1/2
+x1 = 0
+x = ['0', '2', '-1']</pre>
+    <p class="cx">Answer: L<sub>32</sub> = -1/2, U<sub>33</sub> = -1/2, x<sub>1</sub> = 0. This is a verified PYQ from GATE CSE 2022 Q35, rewritten into the format of this page.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Doolittle entry (NAT, 2 marks)</h3>
+    <div class="statement"><p>A = [[2, 1, 1], [4, 3, 3], [8, 7, 9]] = LU with L unit lower triangular. Find u<sub>33</sub>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The last pivot of U.</li>
+      <li><strong>Which idea applies.</strong> The product of the diagonal of U equals det(A), since det(L) = 1.</li>
+      <li><strong>Work it out.</strong> Elimination: l<sub>21</sub> = 2, row 2 becomes (0, 1, 1). l<sub>31</sub> = 4, row 3 becomes (0, 3, 5). l<sub>32</sub> = 3, row 3 becomes (0, 0, 2). So u<sub>33</sub> = 2.</li>
+      <li><strong>Check.</strong> det(A) = 2 · 1 · 2 = 4. The code confirms with the Doolittle loop.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>A = [[2, 1, 1], [4, 3, 3], [8, 7, 9]]
+n = 3
+L = [[float(i == j) for j in range(n)] for i in range(n)]
+U = [[0.0] * n for _ in range(n)]
+for i in range(n):
+    for j in range(i, n):
+        U[i][j] = A[i][j] - sum(L[i][k] * U[k][j] for k in range(i))
+    for j in range(i + 1, n):
+        L[j][i] = (A[j][i] - sum(L[j][k] * U[k][i] for k in range(i))) / U[i][i]
+print("L =", L)
+print("U =", U)
+</code></pre>
+    <pre class="output">L = [[1.0, 0.0, 0.0], [2.0, 1.0, 0.0], [4.0, 3.0, 1.0]]
+U = [[2, 1, 1], [0.0, 1.0, 1.0], [0.0, 0.0, 2.0]]</pre>
+    <p class="cx">Answer: u<sub>33</sub> = 2.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: When LU fails (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which statements about LU decomposition without row exchanges are TRUE? (A) It exists if all leading principal minors are nonzero. (B) [[0, 1], [1, 0]] has such an LU. (C) Partial pivoting gives PA = LU for any square A. (D) If A = LU with unit L, then det(A) is the product of diagonal entries of U.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Conditions for and consequences of LU.</li>
+      <li><strong>Which idea applies.</strong> Pivots are ratios of leading principal minors. A zero first pivot breaks plain elimination.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) The first pivot is 0, so no LU without a swap. False. (C) True: with row swaps, every square matrix (even singular) has PA = LU. (D) det L = 1, so det A = det U. True.</li>
+      <li><strong>Check.</strong> For [[0, 1], [1, 0]], swapping rows gives I = LU with L = U = I.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Cholesky factor (NAT, 2 marks)</h3>
+    <div class="statement"><p>A = [[4, 2], [2, 5]] = LLᵀ with L lower triangular and positive diagonal. Find l<sub>22</sub>.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The second diagonal entry of the Cholesky factor.</li>
+      <li><strong>Which idea applies.</strong> l<sub>11</sub> = √a<sub>11</sub>, l<sub>21</sub> = a<sub>21</sub>/l<sub>11</sub>, l<sub>22</sub> = √(a<sub>22</sub> − l<sub>21</sub>²).</li>
+      <li><strong>Work it out.</strong> l<sub>11</sub> = 2, l<sub>21</sub> = 1, l<sub>22</sub> = √(5 − 1) = 2.</li>
+      <li><strong>Check.</strong> LLᵀ = [[4, 2], [2, 1 + 4]] = A.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+l11 = math.sqrt(4); l21 = 2 / l11; l22 = math.sqrt(5 - l21 ** 2)
+print(l11, l21, l22)
+</code></pre>
+    <pre class="output">2.0 1.0 2.0</pre>
+    <p class="cx">Answer: 2.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Lower triangular L</dt><dd>Zeros above the diagonal. Holds the multipliers.</dd></div>
+    <div><dt>Upper triangular U</dt><dd>Zeros below the diagonal. Holds the staircase after elimination.</dd></div>
+    <div><dt>LU decomposition</dt><dd>A = LU, a product of a lower and an upper triangular matrix.</dd></div>
+    <div><dt>Doolittle form</dt><dd>L has 1s on its diagonal.</dd></div>
+    <div><dt>Crout form</dt><dd>U has 1s on its diagonal.</dd></div>
+    <div><dt>Multiplier</dt><dd>The number used to clear an entry. It becomes an entry of L.</dd></div>
+    <div><dt>Forward substitution</dt><dd>Solve Ly = b from the top row downward.</dd></div>
+    <div><dt>Back substitution</dt><dd>Solve Ux = y from the bottom row upward.</dd></div>
+    <div><dt>Solving with LU</dt><dd>Solve Ly = b, then Ux = y. The answer is x.</dd></div>
+    <div><dt>Permutation matrix P</dt><dd>Records the row swaps. PA = LU always works for invertible A.</dd></div>
+    <div><dt>Determinant from LU</dt><dd>Product of the diagonal of U, times the sign of P.</dd></div>
+    <div><dt>Zero pivot</dt><dd>A reason for a row swap, and a reason plain LU fails.</dd></div>
+    <div><dt>Efficiency</dt><dd>Factor once, then each new right-hand side needs two triangular solves.</dd></div>
+      <div><dt>Unit lower triangular</dt><dd>A lower triangular matrix with 1s on its diagonal.</dd></div>
+    <div><dt>Efficient reuse</dt><dd>Once A = LU is known, each new right-hand side needs only two triangular solves.</dd></div>
+</dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>The multipliers from elimination are exactly the entries of L below its diagonal.</li>
+    <li>U is the staircase left after elimination.</li>
+    <li>To solve Ax = b with A = LU, solve Ly = b first, then Ux = y.</li>
+    <li>Check LU by multiplying it back. It must give A.</li>
+    <li>The determinant is the product of the diagonal of U (for a unit diagonal L), with a sign change for each row swap.</li>
+    <li>A zero pivot means you need a row swap, PA = LU.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 7?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 7 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-006.html"><small>Previous, topic 6</small>Gaussian elimination</a><a class="next" href="gate-008.html"><small>Next, topic 8</small>Vector space and subspaces</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

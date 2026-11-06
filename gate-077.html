@@ -1,0 +1,418 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 77: Functions, arrays, dict, strings (recap)</title><meta name="description" content="This quick recap revises four Python tools that every robotics program uses: functions that take inputs and return results, lists (arrays) read by position and slices, dictionaries that map names to values, and strings that hold messages from sensors. Work through the short examples, then try the GATE-style trace problems."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g77" data-key="g77" data-noun="topic" data-num="77" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Functions, arrays, dict, strings (recap)</h1>
+<p class="lede">This quick recap revises four Python tools that every robotics program uses: functions that take inputs and return results, lists (arrays) read by position and slices, dictionaries that map names to values, and strings that hold messages from sensors. Work through the short examples, then try the GATE-style trace problems.</p>
+<div class="station"><b>77</b><span>Unit 6 · Programming and data structures · Paper RA · Quick Recap</span></div>
+<ul class="topics"><li>Functions: parameters, defaults and return</li><li>Lists: indexing and slicing</li><li>Dictionaries: key and value operations</li><li>Strings: methods and slicing</li><li>Sensor message parsing</li><li>Aliasing traps</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>A robot arm reads a joint angle, stores it in a list, looks up the calibration for each joint in a dictionary, and turns a text message from a sensor into numbers. Each step uses one of four Python tools. This page is a fast refresher on those tools, with the traps that GATE trace questions like to test.</p>
+  <p>GATE expects you to read a short program and say what it prints. You do not need to memorise every method. You do need to know how indexing starts at 0, how a slice stops one step before its end, and what changes in place and what makes a copy.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Lists and dictionaries change in place. Strings never change: every string method returns a new string.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Function</dt><dd>A named block of code you can call with inputs. Precisely: defined with <code>def</code>, and it sends back a value with <code>return</code>.</dd></div>
+    <div><dt>Parameter and argument</dt><dd>A parameter is the name in the definition. An argument is the value passed in the call.</dd></div>
+    <div><dt>Default value</dt><dd>A value used when the caller leaves an argument out. Precisely: written as <code>name=value</code> in the definition.</dd></div>
+    <div><dt>List (array)</dt><dd>An ordered collection, indexed from 0. Precisely: a mutable sequence written with square brackets.</dd></div>
+    <div><dt>Index</dt><dd>The position of an item. Precisely: the first item has index 0, and a negative index counts from the end, with -1 for the last item.</dd></div>
+    <div><dt>Slice</dt><dd>A piece of a list or string. Precisely: <code>a[start:stop:step]</code> includes start and excludes stop.</dd></div>
+    <div><dt>Dictionary</dt><dd>A mapping from keys to values. Precisely: written with braces, with keys that must be immutable (such as numbers, strings or tuples).</dd></div>
+    <div><dt>Mutable and immutable</dt><dd>Mutable objects change in place (lists, dictionaries). Immutable objects never change (strings, numbers, tuples).</dd></div>
+    <div><dt>Alias</dt><dd>Two names that refer to the same object. Precisely: <code>b = a</code> makes b an alias of a.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Functions">
+  <h2>Functions: inputs, defaults and return</h2>
+  <p>A function is a recipe with a name. You define it once and call it many times. The inputs are the parameters, and <code>return</code> sends a result back to the caller. A function with no return statement gives back the special value <code>None</code>.</p>
+  <p>Default values let a caller skip an argument. In the call <code>area(5)</code> below, the height is taken from the default, 2. You can also pass arguments by name, so the order does not matter.</p>
+  <pre class="code" data-lang="python"><code>def area(width, height=2):
+    return width * height
+
+print(area(5))
+print(area(5, 3))
+print(area(height=4, width=1))</code></pre>
+  <pre class="output">10
+15
+4</pre>
+  <div class="note trap"><p><span class="t">Trap</span>A function prints nothing unless you call <code>print</code> inside it, and a <code>return</code> value is not printed automatically. If a question shows a call without print, the result is hidden.</p></div>
+  <details class="check"><summary>What does area(3) return?</summary><div class="ans"><p>6, because the default height 2 is used: 3 x 2 = 6.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Lists">
+  <h2>Lists: indexing, slicing and changing in place</h2>
+  <p>A list holds items in order. Index 0 is the first item. A slice <code>a[start:stop]</code> takes items from start up to, but not including, stop. Leaving start or stop out means "from the beginning" or "to the end". A third number gives the step.</p>
+  <p>Take the list a = [10, 20, 30, 40, 50]. Then a[1:4] is [20, 30, 40] (indices 1, 2 and 3). a[-1] is 50. a[::2] takes every second item, giving [10, 30, 50].</p>
+  <p>Lists are mutable. The method <code>append</code> adds an item to the end of the same list. An assignment <code>b = a</code> does not copy the list, it creates a second name for it. A slice <code>a[:]</code> makes a real copy.</p>
+  <pre class="code" data-lang="python"><code>a = [10, 20, 30, 40, 50]
+print(a[1:4])
+print(a[-1])
+print(a[::2])
+a.append(60)
+b = a
+c = a[:]
+b.append(70)
+print(len(a), len(c))</code></pre>
+  <pre class="output">[20, 30, 40]
+50
+[10, 30, 50]
+7 6</pre>
+  <div class="note tip"><p><span class="t">Tip</span>To count items in a slice, subtract start from stop. a[1:4] has 4 - 1 = 3 items.</p></div>
+  <details class="check"><summary>What is a[2:] for a = [5, 6, 7, 8]?</summary><div class="ans"><p>[7, 8]. The slice starts at index 2 and runs to the end.</p></div></details>
+  <details class="check"><summary>After c = a[:], does appending to a change c?</summary><div class="ans"><p>No. The slice made a new list, so c is an independent copy.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Dictionaries">
+  <h2>Dictionaries: keys, values and lookups</h2>
+  <p>A dictionary is like a labelled drawer cabinet. The key is the label, and the value is what is inside. You look up a value by its key, not by a position. Adding a new key with <code>d[key] = value</code> creates the entry, and assigning to an existing key replaces its value.</p>
+  <p>Three operations cover most questions. <code>d.get(key, default)</code> returns the value, or the default if the key is missing, without an error. <code>key in d</code> tests whether a key exists and gives True or False. <code>d.items()</code> gives the (key, value) pairs.</p>
+  <pre class="code" data-lang="python"><code>sensor = {"temp": 21, "hum": 40}
+sensor["press"] = 1013
+print(sensor.get("temp"), sensor.get("wind", "none"))
+print("hum" in sensor)
+for key, value in sensor.items():
+    print(key, value)</code></pre>
+  <pre class="output">21 none
+True
+temp 21
+hum 40
+press 1013</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Reading <code>d[key]</code> for a missing key raises a KeyError, which stops the program. Use <code>get</code> when a key may be missing.</p></div>
+  <details class="check"><summary>What does d.get("x") return if "x" is not a key?</summary><div class="ans"><p>None. With no default given, get returns None rather than raising an error.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Strings">
+  <h2>Strings: methods and slices</h2>
+  <p>A string is a sequence of characters, and it is immutable. Indexing and slicing work exactly as they do for lists. The methods <code>split</code>, <code>join</code>, <code>upper</code>, <code>strip</code>, <code>replace</code> and <code>find</code> each return a new string or a number. They never change the original.</p>
+  <ul>
+    <li><code>split(",")</code> cuts the string at each comma and returns a list.</li>
+    <li><code>"-".join(list)</code> glues the list items together with "-" between them.</li>
+    <li><code>strip()</code> removes spaces at both ends.</li>
+    <li><code>find(x)</code> returns the index of the first x, or -1 if x is not present.</li>
+  </ul>
+  <pre class="code" data-lang="python"><code>msg = "X:12,Y:-3,Z:7"
+parts = msg.split(",")
+print(parts)
+print(parts[1].split(":")[1].upper())
+print(msg[0:3], msg[-1])
+print("-".join(["a", "b", "c"]), "  pad ".strip())</code></pre>
+  <pre class="output">['X:12', 'Y:-3', 'Z:7']
+-3
+X:1 7
+a-b-c pad</pre>
+  <details class="check"><summary>What does "robot".find("t") return?</summary><div class="ans"><p>4. The letters are r(0), o(1), b(2), o(3), t(4).</p></div></details>
+  <details class="check"><summary>Does s.upper() change s?</summary><div class="ans"><p>No. It returns a new uppercase string. To keep it, write s = s.upper().</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Sensor messages">
+  <h2>Putting it together: parsing a sensor message</h2>
+  <p>A typical robot sensor sends a message such as "X:12,Y:-3,Z:7". To use it, split on the commas, split each piece on the colon, convert the number text with <code>int</code>, and store the result in a dictionary keyed by the axis name. The dictionary comprehension below does all of this in one line.</p>
+  <pre class="code" data-lang="python"><code>msg = "X:12,Y:-3,Z:7"
+vals = {p.split(":")[0]: int(p.split(":")[1]) for p in msg.split(",")}
+print(vals)
+print(vals["Y"] + vals["Z"])</code></pre>
+  <pre class="output">{'X': 12, 'Y': -3, 'Z': 7}
+4</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Strings from sensors are text. "12" is not a number until you call int on it. Adding two strings joins them, so "1" + "2" gives "12", not 3.</p></div>
+  <details class="check"><summary>What is "1" + "2" in Python?</summary><div class="ans"><p>The string "12". Converting with int first would give the number 3.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Aliasing">
+  <h2>Aliasing traps</h2>
+  <p>When two names point at one list, a change through one name shows up through the other. This is the most common source of wrong answers in trace questions. A slice or a copy breaks the link. The nested list trap is even sneakier: <code>[[0] * 2] * 2</code> makes two references to one inner list, so changing one row changes both.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Write <code>[[0] * 2 for _ in range(2)]</code> for a grid of independent rows. The version with * on the outside shares the rows.</p></div>
+  <details class="check"><summary>After b = a and b.append(4), what is a?</summary><div class="ans"><p>a has the 4 too, because a and b are two names for the same list.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Operation</th><th>Example</th><th>Result or effect</th></tr></thead>
+    <tbody>
+      <tr><td>Index</td><td>a[0], a[-1]</td><td>First item, last item</td></tr>
+      <tr><td>Slice</td><td>a[1:4], a[::2]</td><td>Items 1 to 3; every second item</td></tr>
+      <tr><td>Append (in place)</td><td>a.append(x)</td><td>Adds x to the end of a</td></tr>
+      <tr><td>Copy</td><td>c = a[:]</td><td>New list, independent of a</td></tr>
+      <tr><td>Dictionary get</td><td>d.get(k, 0)</td><td>Value of k, or 0 if missing</td></tr>
+      <tr><td>Membership</td><td>k in d</td><td>True if k is a key</td></tr>
+      <tr><td>String split and join</td><td>s.split(","), "-".join(t)</td><td>List of parts; joined string</td></tr>
+      <tr><td>String find</td><td>s.find("x")</td><td>Index of x, or -1</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Slices of a list</h3>
+    <div class="statement"><p>What does this program print?</p>
+<pre class="code" data-lang="python"><code>a = [3, 6, 9, 12, 15]
+print(a[2:], a[-2:], a[::-1][0])</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Three values printed on one line.</li>
+      <li><strong>Which idea applies.</strong> Slices start at the start index and stop before the stop index. A negative step walks backwards.</li>
+      <li><strong>Work it out.</strong> a[2:] starts at index 2 (value 9) and runs to the end: [9, 12, 15]. a[-2:] is the last two items: [12, 15]. a[::-1] reverses the list, so its first item is 15.</li>
+      <li><strong>Check.</strong> The reversed list starts with the last item of a, which is 15. This matches a[-1].</li>
+    </ol>
+    <p class="cx">Answer: [9, 12, 15] [12, 15] 15</p>
+    <pre class="code" data-lang="python"><code>a = [3, 6, 9, 12, 15]
+print(a[2:], a[-2:], a[::-1][0])</code></pre>
+    <pre class="output">[9, 12, 15] [12, 15] 15</pre>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>A function that prints and returns</h3>
+    <div class="statement"><p>What does this program print?</p>
+<pre class="code" data-lang="python"><code>def f(x):
+    print("inside", x)
+    return x * 2
+
+y = f(4) + 1
+print(y)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Everything printed, in order.</li>
+      <li><strong>Which idea applies.</strong> The function prints when it runs, then returns a value that is used in the expression.</li>
+      <li><strong>Work it out.</strong> f(4) runs first and prints "inside 4". It returns 8. Then 8 + 1 = 9 is stored in y, and print(y) shows 9.</li>
+      <li><strong>Check.</strong> Only two lines appear: the one from inside the function, then the final value.</li>
+    </ol>
+    <p class="cx">Answer: "inside 4", then 9.</p>
+    <pre class="code" data-lang="python"><code>def f(x):
+    print("inside", x)
+    return x * 2
+
+y = f(4) + 1
+print(y)</code></pre>
+    <pre class="output">inside 4
+9</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) s[0] = "x" works when s is a string.</li><li>(B) list.append changes the list in place.</li><li>(C) A list can be used as a dictionary key.</li><li>(D) "abc".upper() returns a new string and leaves "abc" unchanged.</li><li>(E) a[1:1] is always an empty list.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims are true.</li>
+      <li><strong>Which idea applies.</strong> Strings are immutable, lists are mutable, and dictionary keys must be immutable.</li>
+      <li><strong>Work it out.</strong> (A) False, strings cannot be changed by item assignment. (B) True. (C) False, a list is mutable, so it cannot be a key. (D) True. (E) True, a slice from 1 to 1 includes nothing.</li>
+      <li><strong>Check.</strong> Test (A) mentally: assigning to an index of a string raises a TypeError, so it does not work.</li>
+    </ol>
+    <p class="cx">Answer: (B), (D) and (E).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Default arguments and dictionary lookups</h3>
+    <div class="statement"><p>What does this program print?</p>
+<pre class="code" data-lang="python"><code>def greet(name, greeting="Hi"):
+    return greeting + ", " + name
+
+stock = {"arm": 3}
+stock["gripper"] = stock.get("gripper", 0) + 2
+print(greet("Ana"), greet("Bo", "Hello"))
+print(sorted(stock.items()))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two printed lines.</li>
+      <li><strong>Which idea applies.</strong> Missing arguments use defaults. get returns a default for a missing key. sorted orders the pairs.</li>
+      <li><strong>Work it out.</strong> greet("Ana") uses greeting "Hi", giving "Hi, Ana". greet("Bo", "Hello") gives "Hello, Bo". print puts a space between them. The gripper key is missing, so get returns 0, and 0 + 2 = 2 is stored. The items are ("arm", 3) and ("gripper", 2), already in sorted order.</li>
+      <li><strong>Check.</strong> Each printed line has the right number of items: two strings on the first, and a list of two pairs on the second.</li>
+    </ol>
+    <p class="cx">Answer: "Hi, Ana Hello, Bo" on the first line, then [('arm', 3), ('gripper', 2)].</p>
+    <pre class="code" data-lang="python"><code>def greet(name, greeting="Hi"):
+    return greeting + ", " + name
+
+stock = {"arm": 3}
+stock["gripper"] = stock.get("gripper", 0) + 2
+print(greet("Ana"), greet("Bo", "Hello"))
+print(sorted(stock.items()))</code></pre>
+    <pre class="output">Hi, Ana Hello, Bo
+[('arm', 3), ('gripper', 2)]</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Parsing a sensor message</h3>
+    <div class="statement"><p>What does this program print?</p>
+<pre class="code" data-lang="python"><code>msg = "X:12,Y:-3,Z:7"
+vals = {p.split(":")[0]: int(p.split(":")[1]) for p in msg.split(",")}
+print(vals)
+print(vals["Y"] + vals["Z"])</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The dictionary and the sum of two values.</li>
+      <li><strong>Which idea applies.</strong> Split on commas, split each piece on the colon, convert with int, and build the dictionary.</li>
+      <li><strong>Work it out.</strong> The pieces are "X:12", "Y:-3" and "Z:7". The keys are X, Y, Z and the values are 12, -3 and 7. Then -3 + 7 = 4.</li>
+      <li><strong>Check.</strong> The dictionary has three keys, one per piece, so nothing was lost.</li>
+    </ol>
+    <p class="cx">Answer: {'X': 12, 'Y': -3, 'Z': 7}, then 4.</p>
+    <pre class="code" data-lang="python"><code>msg = "X:12,Y:-3,Z:7"
+vals = {p.split(":")[0]: int(p.split(":")[1]) for p in msg.split(",")}
+print(vals)
+print(vals["Y"] + vals["Z"])</code></pre>
+    <pre class="output">{'X': 12, 'Y': -3, 'Z': 7}
+4</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>How many cells hold 9?</h3>
+    <div class="statement"><p>After this program runs, how many of the four cells of grid hold the value 9?</p>
+<pre class="code" data-lang="python"><code>grid = [[0] * 2] * 2
+grid[0][1] = 9
+print(grid)
+a = [1, 2, 3]
+b = a
+c = a[:]
+b.append(4)
+c.append(5)
+print(a, c)</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count of cells equal to 9 in the grid.</li>
+      <li><strong>Which idea applies.</strong> [[0] * 2] * 2 gives two references to the same inner list. b = a is an alias, and a[:] is a copy.</li>
+      <li><strong>Work it out.</strong> grid[0][1] = 9 changes the shared inner list. Both rows are that list, so row 0 and row 1 both show 0, 9. That gives two cells with 9. For the second part, b.append(4) changes a, so a is [1, 2, 3, 4]. c was copied before, so c.append(5) gives [1, 2, 3, 5].</li>
+      <li><strong>Check.</strong> The printed grid shows [[0, 9], [0, 9]], with 9 in two places. The printed a and c confirm the alias and the copy.</li>
+    </ol>
+    <p class="cx">Answer: 2 cells hold 9. The program prints [[0, 9], [0, 9]], then [1, 2, 3, 4] [1, 2, 3, 5].</p>
+    <pre class="code" data-lang="python"><code>grid = [[0] * 2] * 2
+grid[0][1] = 9
+print(grid)
+a = [1, 2, 3]
+b = a
+c = a[:]
+b.append(4)
+c.append(5)
+print(a, c)</code></pre>
+    <pre class="output">[[0, 9], [0, 9]]
+[1, 2, 3, 4] [1, 2, 3, 5]</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Strings are immutable</h3>
+    <div class="statement"><p>What does this program print?</p>
+<pre class="code" data-lang="python"><code>s = "robot arm"
+t = s.replace("arm", "hand").upper()
+print(s)
+print(t, t.find("H"), len(t))</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The original s, then t, its index of "H", and its length.</li>
+      <li><strong>Which idea applies.</strong> Methods return new strings. Strings never change in place.</li>
+      <li><strong>Work it out.</strong> s is unchanged: "robot arm". replace gives "robot hand", and upper gives "ROBOT HAND". The letter H is at index 6 (R0 O1 B2 O3 T4 space5 H6). The length is 10, counting the space.</li>
+      <li><strong>Check.</strong> Count the characters of "ROBOT HAND": 5 letters, 1 space, 4 letters, total 10.</li>
+    </ol>
+    <p class="cx">Answer: "robot arm", then "ROBOT HAND 6 10".</p>
+    <pre class="code" data-lang="python"><code>s = "robot arm"
+t = s.replace("arm", "hand").upper()
+print(s)
+print(t, t.find("H"), len(t))</code></pre>
+    <pre class="output">robot arm
+ROBOT HAND 6 10</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about these tools are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) Writing [x] * n for a list x creates n references to one object.</li><li>(B) A tuple is immutable.</li><li>(C) A dictionary key must be immutable.</li><li>(D) The slice "abc"[5:] raises an IndexError.</li><li>(E) A default list argument, such as def f(x=[]), is a new empty list on every call.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims are true.</li>
+      <li><strong>Which idea applies.</strong> Shared references, immutability, and when default values are created.</li>
+      <li><strong>Work it out.</strong> (A) True, the same object appears n times. (B) True. (C) True. (D) False, a slice past the end gives an empty string. (E) False, the default list is created once, when the function is defined, and every call shares it.</li>
+      <li><strong>Check.</strong> The code below shows the empty slice for (D).</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+    <pre class="code" data-lang="python"><code>print(repr("abc"[5:]))</code></pre>
+    <pre class="output">''</pre>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: String slicing (NAT, 2 marks)</h3>
+    <div class="statement"><p>s = "GATEDATA2026". What does print(s[::-3]) output?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Every third character from the end.</li>
+      <li><strong>Which idea applies.</strong> A negative step starts at the last index and moves left.</li>
+      <li><strong>Work it out.</strong> Indices 11, 8, 5, 2: '6', '2', 'A', 'T'. Output "62AT".</li>
+      <li><strong>Check.</strong> The code prints it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>s = "GATEDATA2026"
+print(s[::-3])
+</code></pre>
+    <pre class="output">62AT</pre>
+    <p class="cx">Answer: 62AT.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Dictionary update (NAT, 2 marks)</h3>
+    <div class="statement"><p>d = {}; for w in "the cat and the hat and the bat".split(): d[w] = d.get(w, 0) + 1. What is d["the"] * len(d)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A frequency times the number of distinct words.</li>
+      <li><strong>Which idea applies.</strong> get with a default counts occurrences.</li>
+      <li><strong>Work it out.</strong> "the" appears 3 times. Distinct words: the, cat, and, hat, bat = 5. Product 15.</li>
+      <li><strong>Check.</strong> The code runs it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>d = {}
+for w in "the cat and the hat and the bat".split(): d[w] = d.get(w, 0) + 1
+print(d, d["the"] * len(d))
+</code></pre>
+    <pre class="output">{'the': 3, 'cat': 1, 'and': 2, 'hat': 1, 'bat': 1} 15</pre>
+    <p class="cx">Answer: 15.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: List aliasing (MCQ, 2 marks)</h3>
+    <div class="statement"><p>a = [[0] * 2] * 3; a[0][0] = 1; print(a). The output is (A) [[1, 0], [0, 0], [0, 0]] (B) [[1, 0], [1, 0], [1, 0]] (C) [[1, 1], [1, 1], [1, 1]] (D) Error</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The effect of repeating a list reference.</li>
+      <li><strong>Which idea applies.</strong> * 3 copies the reference, so all rows are the same list.</li>
+      <li><strong>Work it out.</strong> Changing a[0][0] changes every row.</li>
+      <li><strong>Check.</strong> Use [[0] * 2 for _ in range(3)] to get separate rows.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>a = [[0] * 2] * 3; a[0][0] = 1; print(a)
+</code></pre>
+    <pre class="output">[[1, 0], [1, 0], [1, 0]]</pre>
+    <p class="cx">Answer: (B).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>def</dt><dd>Keyword that defines a function.</dd></div>
+    <div><dt>return</dt><dd>Sends a value back to the caller. Without it, the result is None.</dd></div>
+    <div><dt>Default argument</dt><dd>A value used when the caller leaves that argument out.</dd></div>
+    <div><dt>Index</dt><dd>A position in a list or string, starting at 0.</dd></div>
+    <div><dt>Slice</dt><dd>a[start:stop:step]. Includes start, excludes stop.</dd></div>
+    <div><dt>append</dt><dd>Adds an item to the end of a list, in place.</dd></div>
+    <div><dt>Alias</dt><dd>Two names for the same object. Changes show through both.</dd></div>
+    <div><dt>Copy</dt><dd>A new, independent object, such as a[:] for a list.</dd></div>
+    <div><dt>Dictionary</dt><dd>A mapping from immutable keys to values.</dd></div>
+    <div><dt>get</dt><dd>Looks up a key and returns a default instead of an error.</dd></div>
+    <div><dt>String method</dt><dd>Returns a new string. Strings never change in place.</dd></div>
+    <div><dt>split and join</dt><dd>split cuts a string into a list. join glues list items into a string.</dd></div>
+    <div><dt>find</dt><dd>Returns the index of the first match, or -1 if there is none.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Indexing starts at 0, and a slice excludes its stop index.</li>
+    <li>Lists and dictionaries change in place. Strings do not.</li>
+    <li>Two names for one list share changes. A slice a[:] makes a copy.</li>
+    <li>Sensor text must be converted with int before it is used as a number.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 77?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 77 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-076.html"><small>Previous, topic 76</small>Shortest path algorithms</a><a class="next" href="gate-078.html"><small>Next, topic 78</small>Flowcharts &amp; pseudocode (recap)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

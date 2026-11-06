@@ -1,0 +1,408 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 84: Graph (recap)</title><meta name="description" content="A graph is a set of points joined by lines, such as cities and roads or people and friendships. This quick recap covers how graphs are stored, the two ways of walking through them (breadth first and depth first), and the difference between weighted and unweighted graphs, all of which GATE asks about."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g84" data-key="g84" data-noun="topic" data-num="84" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Graph (recap)</h1>
+<p class="lede">A graph is a set of points joined by lines, such as cities and roads or people and friendships. This quick recap covers how graphs are stored, the two ways of walking through them (breadth first and depth first), and the difference between weighted and unweighted graphs, all of which GATE asks about.</p>
+<div class="station"><b>84</b><span>Unit 6 · Programming and data structures · Paper RA · Quick Recap</span></div>
+<ul class="topics"><li>Vertices and edges</li><li>Storing a graph</li><li>Breadth first search (BFS)</li><li>Depth first search (DFS)</li><li>Weighted and unweighted graphs</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a map with five towns and some roads between them. Each town is a point, and each road is a line joining two points. Mathematicians call the points <strong>vertices</strong> and the lines <strong>edges</strong>. Together they form a <strong>graph</strong>.</p>
+  <p>Graphs are everywhere. A social network is a graph where people are vertices and friendships are edges. A computer network is a graph where machines are vertices and cables are edges. A web page with links is also a graph.</p>
+  <p>Once a problem is a graph, many questions become one of two things. Can I reach this vertex from that one? What is the shortest way to get there? To answer such questions we need a way to store the graph, and a systematic way to visit its vertices. Those are the two ideas on this page.</p>
+  <p>Why this matters for GATE: graph questions appear in the data structures and algorithms parts of GATE DA and RA. Typical questions ask for the order of a BFS or DFS, the space needed to store a graph, or the number of edges in a graph with a given degree pattern.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Vertex</dt><dd>A point in a graph. Also called a node.</dd></div>
+    <div><dt>Edge</dt><dd>A connection between two vertices.</dd></div>
+    <div><dt>Undirected</dt><dd>Edges have no direction. An edge between A and B lets you go both ways.</dd></div>
+    <div><dt>Directed</dt><dd>Edges have a direction, written as A to B, and you can only follow them forward.</dd></div>
+    <div><dt>Degree</dt><dd>The number of edges touching a vertex. In an undirected graph, degree counts all its neighbours.</dd></div>
+    <div><dt>Neighbour</dt><dd>A vertex joined to another by one edge.</dd></div>
+    <div><dt>Path</dt><dd>A sequence of vertices where each consecutive pair is joined by an edge. Its length is the number of edges in it.</dd></div>
+    <div><dt>Weighted graph</dt><dd>A graph where each edge has a number, called its weight, such as a distance or a cost.</dd></div>
+    <div><dt>Unweighted graph</dt><dd>A graph where every edge counts the same, so only the number of edges matters.</dd></div>
+    <div><dt>Queue</dt><dd>A line where the first item in is the first item out (first in, first out).</dd></div>
+    <div><dt>Stack</dt><dd>A pile where the last item in is the first item out (last in, first out).</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Storing a graph">
+  <h2>Storing a graph</h2>
+  <p>There are two common ways to store a graph. Both must answer the question "who is joined to whom?", but they do it in different ways.</p>
+  <p><strong>Adjacency list.</strong> For each vertex, keep a list of its neighbours. Take the triangle with vertices A, B and C, where every pair is joined. Its adjacency list is:</p>
+  <div class="formula">A: B, C</div>
+  <div class="formula">B: A, C</div>
+  <div class="formula">C: A, B</div>
+  <p><strong>Adjacency matrix.</strong> Make a square table with one row and one column for each vertex. Put a 1 where two vertices are joined and a 0 where they are not. For the same triangle:</p>
+  <pre class="code" data-lang="text"><code>      A  B  C
+  A [ 0  1  1 ]
+  B [ 1  0  1 ]
+  C [ 1  1  0 ]</code></pre>
+  <p>The matrix is symmetric for an undirected graph. Each edge fills two cells, one above the diagonal and one below it, so the total number of 1s is twice the number of edges.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The list uses space about V + E for V vertices and E edges. The matrix uses V × V cells, whatever the number of edges. So a list is better when the graph is sparse, meaning it has few edges.</p></div>
+  <p>Here is a computation with the matrix. We count the edges and the degree of each vertex. Each row sum is a degree, and the total of all cells divided by 2 is the number of edges.</p>
+  <pre class="code" data-lang="python"><code>matrix = [
+    [0, 1, 1],
+    [1, 0, 1],
+    [1, 1, 0],
+]
+edges = sum(sum(row) for row in matrix) // 2
+print("edges:", edges)
+for i, row in enumerate(matrix):
+    print("vertex", i, "degree", sum(row))</code></pre>
+  <pre class="output">edges: 3
+vertex 0 degree 2
+vertex 1 degree 2
+vertex 2 degree 2</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Do not divide by 2 for a directed graph. A directed edge fills only one cell, so the number of 1s equals the number of edges.</p></div>
+  <details class="check"><summary>Which storage is better for a graph with 1000 vertices and only 1500 edges?</summary><div class="ans"><p>The adjacency list. It needs about 1000 + 1500 units of space. The matrix needs 1000 × 1000 cells, most of them 0.</p></div></details>
+  <details class="check"><summary>In an adjacency matrix, how do you check whether there is an edge between A and C?</summary><div class="ans"><p>Look up the cell in row A and column C. It takes one step, so the check is O(1).</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="BFS">
+  <h2>Breadth first search (BFS)</h2>
+  <p>Breadth first search explores a graph in rings. It first visits the start vertex, then all of its neighbours, then all the neighbours of those, and so on. It uses a <strong>queue</strong>, so the vertices are handled in the order they were found.</p>
+  <p>Everyday analogy: a ripple on a pond. The ripple reaches every point at distance 1 before any point at distance 2. That is why BFS gives the shortest number of edges from the start to each vertex in an unweighted graph.</p>
+  <p>The graph below is used on this page. It has six vertices. A is joined to B and C. B is joined to D. C is joined to D and E. D is joined to F. E is joined to F.</p>
+  <pre class="code" data-lang="python"><code>from collections import deque
+
+graph = {
+    "A": ["B", "C"],
+    "B": ["D"],
+    "C": ["D", "E"],
+    "D": ["F"],
+    "E": ["F"],
+    "F": [],
+}
+
+def bfs(start):
+    seen = [start]
+    queue = deque([start])
+    order = []
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        for nb in graph[node]:
+            if nb not in seen:
+                seen.append(nb)
+                queue.append(nb)
+    return order
+
+print("BFS:", bfs("A"))</code></pre>
+  <pre class="output">BFS: ['A', 'B', 'C', 'D', 'E', 'F']</pre>
+  <p>Follow the queue. Start with A in the queue. Take A out and add its neighbours B and C. Take B out and add D. Take C out. D is already seen, so only E is added. Take D out and add F. Take E out. F is already seen. Take F out. The order of removal is the BFS order.</p>
+  <div class="note tip"><p><span class="t">Tip</span>Mark a vertex as seen when you put it in the queue, not when you take it out. Otherwise the same vertex can be queued many times.</p></div>
+  <details class="check"><summary>In BFS, which vertex is removed from the queue right after B?</summary><div class="ans"><p>C. Both B and C were added from A, and they leave the queue in the order they were added.</p></div></details>
+  <details class="check"><summary>Does BFS find the shortest path, counted in edges, from A to F?</summary><div class="ans"><p>Yes, for an unweighted graph. F is first reached from D at distance 3, and no shorter path exists. The path is A, B, D, F.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="DFS">
+  <h2>Depth first search (DFS)</h2>
+  <p>Depth first search goes as far as it can down one path before backtracking. It is like exploring a maze: you follow one corridor until it ends, then go back to the last junction and try the next corridor. DFS uses a <strong>stack</strong>, often the call stack of recursion.</p>
+  <p>The code below uses recursion. The function marks the current vertex as seen, records it, and then calls itself on each unseen neighbour.</p>
+  <pre class="code" data-lang="python"><code>graph = {
+    "A": ["B", "C"],
+    "B": ["D"],
+    "C": ["D", "E"],
+    "D": ["F"],
+    "E": ["F"],
+    "F": [],
+}
+
+def dfs(node, seen, order):
+    seen.add(node)
+    order.append(node)
+    for nb in graph[node]:
+        if nb not in seen:
+            dfs(nb, seen, order)
+    return order
+
+print("DFS:", dfs("A", set(), []))</code></pre>
+  <pre class="output">DFS: ['A', 'B', 'D', 'F', 'C', 'E']</pre>
+  <p>Trace it. Start at A and record it. Go to its first neighbour B, record it. From B go to D, record it. From D go to F, record it. F has no neighbours, so go back. D and B are finished. Back at A, try the next neighbour C, record it. C's neighbour D is seen, so try E, record it. E's neighbour F is seen. Done.</p>
+  <p>BFS and DFS visit the same set of vertices here, but in different orders. BFS went A, B, C, D, E, F. DFS went A, B, D, F, C, E.</p>
+  <div class="note trap"><p><span class="t">Trap</span>DFS does not give shortest paths in general. In the walk above, F was reached through A, B, D, which is 3 edges, but the order in which DFS finds vertices has no link to distance.</p></div>
+  <details class="check"><summary>What data structure does the recursive DFS use to remember where to return to?</summary><div class="ans"><p>The call stack. Each pending call waits for the calls it made to finish.</p></div></details>
+  <details class="check"><summary>In DFS from A, why is C not visited from B?</summary><div class="ans"><p>B is joined only to D. C is not a neighbour of B, so DFS reaches C only when it returns to A.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Weighted and unweighted">
+  <h2>Weighted and unweighted graphs</h2>
+  <p>In an unweighted graph every edge counts as one step. The shortest path is the one with the fewest edges, and BFS finds it. In a weighted graph each edge has a number, such as a distance in kilometres. The shortest path is the one with the smallest total weight, and the path with the fewest edges may be more expensive.</p>
+  <p>Here is an example. Vertices A, B and C have three edges: A to B with weight 10, A to C with weight 1, and C to B with weight 1. BFS looks only at the number of edges. From A it reaches B directly in one edge, so it uses the weight-10 edge. The route through C has two edges and total weight 2, which is cheaper.</p>
+  <pre class="code" data-lang="python"><code>weights = {("A", "B"): 10, ("A", "C"): 1, ("C", "B"): 1}
+print(weights[("A", "B")])
+print(min(weights[("A", "B")], weights[("A", "C")] + weights[("C", "B")]))</code></pre>
+  <pre class="output">10
+2</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>BFS gives the shortest path only when every edge has the same weight. For weighted graphs the question is a different algorithm, which is outside this recap.</p></div>
+  <details class="check"><summary>Does BFS find the minimum total weight path in the example above?</summary><div class="ans"><p>No. It finds the path with the fewest edges, which is A to B with weight 10. The cheaper path A to C to B has weight 2.</p></div></details>
+  <details class="check"><summary>What is the difference between a weighted and an unweighted graph in one sentence?</summary><div class="ans"><p>In a weighted graph each edge has a number that counts toward the path cost, while in an unweighted graph every edge counts the same.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Quantity</th><th>Rule</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Adjacency list space</td><td>V + E</td><td>Sparse graphs</td></tr>
+      <tr><td>Adjacency matrix space</td><td>V × V</td><td>Dense graphs, quick edge checks</td></tr>
+      <tr><td>Undirected edges from matrix</td><td>(sum of all cells) / 2</td><td>Counting edges</td></tr>
+      <tr><td>Degree of a vertex</td><td>Row sum (matrix) or list length (list)</td><td>Degree questions</td></tr>
+      <tr><td>Maximum edges, undirected, V vertices</td><td>V(V - 1) / 2</td><td>Complete graph counts</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not real past questions. Use the graph on this page, or draw your own, before you check with code.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Ones in a matrix</h3>
+    <div class="statement"><p>An undirected graph has 4 vertices and 5 edges. Its adjacency matrix is stored in full. How many entries of the matrix are 1? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The count of 1s in the whole matrix.</li>
+      <li><strong>Which idea applies.</strong> Each undirected edge fills two cells, one above and one below the diagonal.</li>
+      <li><strong>Work it out.</strong> Each of the 5 edges gives 2 ones, so 5 times 2 is 10.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>edges = 5
+print(2 * edges)</code></pre>
+    <pre class="output">10</pre>
+    <p class="cx">Answer: 10.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>BFS from another start</h3>
+    <div class="statement"><p>The code below stores a graph as lists of neighbours, exactly as written: A has B and C, B has D, C has D and E, D has F, and E has F. What is the BFS order when the search starts at D?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The BFS order starting at D.</li>
+      <li><strong>Which idea applies.</strong> Start with D in the queue, then add neighbours in the order they are listed.</li>
+      <li><strong>Work it out.</strong> Start with D in the queue. Remove D and record it. Its list is only F, so F is added. Remove F and record it. F has an empty list. The queue is empty, so the order is D, F.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+graph = {
+    "A": ["B", "C"],
+    "B": ["D"],
+    "C": ["D", "E"],
+    "D": ["F"],
+    "E": ["F"],
+    "F": [],
+}
+
+def bfs(start):
+    seen = [start]
+    queue = deque([start])
+    order = []
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        for nb in graph[node]:
+            if nb not in seen:
+                seen.append(nb)
+                queue.append(nb)
+    return order
+
+print(bfs("D"))</code></pre>
+    <pre class="output">['D', 'F']</pre>
+    <p class="cx">Answer: D, F.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Select all true statements about BFS and DFS</h3>
+    <div class="statement"><p>Select all that apply.</p>
+    <ul>
+      <li>(A) BFS uses a queue.</li>
+      <li>(B) DFS uses a stack, either explicit or through recursion.</li>
+      <li>(C) On an unweighted graph, BFS finds a shortest path counted in edges.</li>
+      <li>(D) DFS always finds a shortest path counted in edges.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> The data structure behind each search, and the ring idea of BFS.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) True, because BFS reaches each vertex at its minimum edge distance first. (D) False. The DFS route to F in the example went through 3 edges, but DFS does not check distances, so it can take a long route.</li>
+      <li><strong>Check.</strong> The reasoning above is enough. No code is needed.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Position of a vertex in DFS</h3>
+    <div class="statement"><p>Run DFS from A on the six-vertex graph of this page, with neighbours in the listed order. At which position in the DFS order is E visited? Count A as position 1. This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The position number of E in the DFS order.</li>
+      <li><strong>Which idea applies.</strong> DFS records each vertex when it is first entered.</li>
+      <li><strong>Work it out.</strong> The DFS order is A, B, D, F, C, E. E is the sixth vertex in this list.</li>
+      <li><strong>Check.</strong> Run the code below, which finds the position of E.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>order = ["A", "B", "D", "F", "C", "E"]
+print(order.index("E") + 1)</code></pre>
+    <pre class="output">6</pre>
+    <p class="cx">Answer: 6.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Shortest total weight</h3>
+    <div class="statement"><p>Vertices A, B and C have edges A to B with weight 10, A to C with weight 1, and C to B with weight 1. What is the total weight of the cheapest path from A to B? This is a NAT question.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest total weight of any path from A to B.</li>
+      <li><strong>Which idea applies.</strong> In a weighted graph, add the weights along each path and compare the totals.</li>
+      <li><strong>Work it out.</strong> The direct path A to B costs 10. The path A to C to B costs 1 + 1 = 2. The smaller total is 2.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>direct = 10
+via_c = 1 + 1
+print(min(direct, via_c))</code></pre>
+    <pre class="output">2</pre>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Pops and longest queue in BFS</h3>
+    <div class="statement"><p>Run BFS from A on the six-vertex graph of this page. Count how many vertices are taken out of the queue, and find the largest number of items the queue holds at any moment, counting after each addition. The answer is two numbers. Give them in that order.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of removals, then the largest queue length.</li>
+      <li><strong>Which idea applies.</strong> Trace the queue step by step, adding unseen neighbours and removing the front.</li>
+      <li><strong>Work it out.</strong> Start: [A]. Remove A, add B and C: [B, C], length 2. Remove B, add D: [C, D], length 2. Remove C, add E: [D, E], length 2. Remove D, add F: [E, F], length 2. Remove E, add nothing: [F], length 1. Remove F: [], length 0. There are 6 removals, and the largest length is 2.</li>
+      <li><strong>Check.</strong> Run the code below.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>from collections import deque
+
+graph = {
+    "A": ["B", "C"],
+    "B": ["D"],
+    "C": ["D", "E"],
+    "D": ["F"],
+    "E": ["F"],
+    "F": [],
+}
+
+queue = deque(["A"])
+seen = {"A"}
+pops = 0
+longest = 1
+while queue:
+    node = queue.popleft()
+    pops = pops + 1
+    for nb in graph[node]:
+        if nb not in seen:
+            seen.add(nb)
+            queue.append(nb)
+    longest = max(longest, len(queue))
+print(pops, longest)</code></pre>
+    <pre class="output">6 2</pre>
+    <p class="cx">Answer: 6 and 2.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Select all true statements about storage and checks</h3>
+    <div class="statement"><p>Select all that apply to a graph with V vertices and E edges.</p>
+    <ul>
+      <li>(A) For a sparse graph, an adjacency list uses less space than an adjacency matrix.</li>
+      <li>(B) In an adjacency matrix, checking whether an edge exists takes O(1) time.</li>
+      <li>(C) In an adjacency matrix, listing all neighbours of one vertex takes O(V) time.</li>
+      <li>(D) An adjacency list always uses more space than an adjacency matrix.</li>
+    </ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true.</li>
+      <li><strong>Which idea applies.</strong> Space is V + E for a list and V × V for a matrix. Each operation has a cost that depends on the layout.</li>
+      <li><strong>Work it out.</strong> (A) True, because V + E is much less than V × V when E is small. (B) True, one cell lookup. (C) True, one row must be scanned, which has V cells. (D) False. In a simple graph, E is at most V(V - 1)/2, so V + E is at most V + V(V - 1)/2. This is never more than V × V. For example, with V = 3 the list needs at most 3 + 3 = 6 units, and the matrix needs 9.</li>
+      <li><strong>Check.</strong> Take V = 2. A simple graph has at most 1 edge, so the list needs at most 2 + 1 = 3 units, while the matrix needs 4. The list is never the larger one here.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Handshake lemma (NAT, 1 mark)</h3>
+    <div class="statement"><p>A simple graph has degrees 3, 3, 2, 2, 2, 4. How many edges does it have?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The edge count.</li>
+      <li><strong>Which idea applies.</strong> The sum of degrees equals twice the number of edges.</li>
+      <li><strong>Work it out.</strong> Sum = 16, so 8 edges.</li>
+      <li><strong>Check.</strong> The sum is even, so such a graph can exist.</li>
+    </ol>
+    <p class="cx">Answer: 8.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Adjacency matrix power (NAT, 2 marks)</h3>
+    <div class="statement"><p>For the cycle graph C<sub>4</sub> with vertices 1-2-3-4-1, how many walks of length 3 go from vertex 1 to vertex 2?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> An entry of A³.</li>
+      <li><strong>Which idea applies.</strong> (A<sup>k</sup>)<sub>ij</sub> counts walks of length k.</li>
+      <li><strong>Work it out.</strong> A³ entry (1, 2) = 4.</li>
+      <li><strong>Check.</strong> The code computes A³.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>A = [[0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0]]
+mul = lambda X, Y: [[sum(X[i][k] * Y[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
+print(mul(mul(A, A), A)[0][1])
+</code></pre>
+    <pre class="output">4</pre>
+    <p class="cx">Answer: 4.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Tree facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Which are TRUE for a connected simple graph G with n vertices? (A) If G has n − 1 edges, G is a tree. (B) A tree with n ≥ 2 has at least two leaves. (C) Adding any edge to a tree makes exactly one cycle. (D) K<sub>4</sub> has 4 spanning trees.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Basic graph facts.</li>
+      <li><strong>Which idea applies.</strong> Cayley's formula: K<sub>n</sub> has n<sup>n−2</sup> spanning trees.</li>
+      <li><strong>Work it out.</strong> (A) Connected with n − 1 edges means acyclic. True. (B) True. (C) True. (D) 4<sup>2</sup> = 16. False.</li>
+      <li><strong>Check.</strong> (D) undercounts badly.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Vertex</dt><dd>A point in a graph.</dd></div>
+    <div><dt>Edge</dt><dd>A connection between two vertices.</dd></div>
+    <div><dt>Directed graph</dt><dd>Edges go one way only.</dd></div>
+    <div><dt>Undirected graph</dt><dd>Edges go both ways.</dd></div>
+    <div><dt>Degree</dt><dd>The number of edges touching a vertex.</dd></div>
+    <div><dt>Adjacency list</dt><dd>For each vertex, a list of its neighbours. Space V + E.</dd></div>
+    <div><dt>Adjacency matrix</dt><dd>A V by V table of 0 and 1. Space V × V.</dd></div>
+    <div><dt>BFS</dt><dd>Visits vertices in rings using a queue.</dd></div>
+    <div><dt>DFS</dt><dd>Goes deep first using a stack or recursion.</dd></div>
+    <div><dt>Shortest path (unweighted)</dt><dd>The path with the fewest edges, found by BFS.</dd></div>
+    <div><dt>Weighted graph</dt><dd>Each edge has a number that adds to the path cost.</dd></div>
+    <div><dt>Unweighted graph</dt><dd>Every edge counts the same.</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ul>
+    <li>Use an adjacency list for sparse graphs and a matrix for quick edge checks.</li>
+    <li>In an undirected matrix, each edge gives two 1s.</li>
+    <li>BFS uses a queue and visits by distance rings.</li>
+    <li>DFS uses a stack or recursion and goes deep first.</li>
+    <li>BFS gives shortest paths only when edges are unweighted.</li>
+    <li>Mark a vertex as seen when you enqueue or push it.</li>
+  </ul>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 84?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 84 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-083.html"><small>Previous, topic 83</small>Linked list (recap)</a><a class="next" href="gate-085.html"><small>Next, topic 85</small>Stack &amp; queue (recap)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

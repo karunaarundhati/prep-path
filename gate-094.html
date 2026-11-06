@@ -1,0 +1,409 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 94: Concept hierarchies & measures</title><meta name="description" content="A concept hierarchy tells a warehouse how detail rolls up, for example from city to state to country. Measures are the numbers being summarized, and their type decides whether a total can be built from smaller totals. GATE asks both ideas as conceptual questions."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g94" data-key="g94" data-noun="topic" data-num="94" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Concept hierarchies &amp; measures</h1>
+<p class="lede">A concept hierarchy tells a warehouse how detail rolls up, for example from city to state to country. Measures are the numbers being summarized, and their type decides whether a total can be built from smaller totals. GATE asks both ideas as conceptual questions.</p>
+<div class="station"><b>94</b><span>Unit 7 · Databases and warehousing · Paper DA · New concept</span></div>
+<ul class="topics"><li>Concept hierarchies and their types</li><li>Roll-up and drill-down along a hierarchy</li><li>Base and derived measures</li><li>Distributive, algebraic and holistic measures</li><li>Computing measures in an OLAP setting</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Think about how you read a map of your country. At the top you see the whole country. Zoom in and you see states. Zoom in again and you see cities, then streets. Each level is a summary of the level below it. The levels are arranged in a chain from general to detailed.</p>
+  <p>A data warehouse uses the same idea. A <strong>concept hierarchy</strong> is the chain of levels that a dimension can be viewed at, such as street, city, state and country. When an analyst moves up the chain, the totals become coarser. When the analyst moves down, the totals become finer. The previous topic introduced roll-up and drill-down. This topic explains the chain itself, and then the <strong>measures</strong> that are summed along it.</p>
+  <p>The second idea is just as important. Not every number can be added up in the same way. Dollars can be summed across cities. An average cannot be summed, but it can be rebuilt from a sum and a count. A median cannot be rebuilt from partial medians at all. GATE asks you to tell these apart.</p>
+  <p>Here is the sample data for this page. Each row is one sales record with a location and a dollar amount.</p>
+  <div class="tablewrap"><table>
+    <caption>Sales (city, state, country, dollars)</caption>
+    <thead><tr><th>city</th><th>state</th><th>country</th><th>dollars</th></tr></thead>
+    <tbody>
+      <tr><td>Pune</td><td>Maharashtra</td><td>India</td><td>5000</td></tr>
+      <tr><td>Pune</td><td>Maharashtra</td><td>India</td><td>900</td></tr>
+      <tr><td>Delhi</td><td>Delhi</td><td>India</td><td>2000</td></tr>
+      <tr><td>Dhaka</td><td>Dhaka Division</td><td>Bangladesh</td><td>2600</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>A concept hierarchy says how to group detail into totals. A measure type says whether those totals can be computed from smaller totals.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Concept hierarchy</dt><dd>An ordering of the values of an attribute from detailed to general. Plain meaning: a chain of levels. Precise definition: a sequence of mappings from low-level concepts to higher-level concepts.</dd></div>
+    <div><dt>Level</dt><dd>One position in a hierarchy, such as city or country.</dd></div>
+    <div><dt>Schema hierarchy</dt><dd>A hierarchy given by the attributes of a table, such as day, month, quarter, year.</dd></div>
+    <div><dt>Set-grouping hierarchy</dt><dd>A hierarchy made by grouping values into named sets, such as ages 0 to 17 as "child". Plain meaning: named bins.</dd></div>
+    <div><dt>Roll-up</dt><dd>Moving up a concept hierarchy to coarser totals.</dd></div>
+    <div><dt>Drill-down</dt><dd>Moving down a concept hierarchy to finer detail.</dd></div>
+    <div><dt>Base measure</dt><dd>A measure stored directly in the data, such as dollars sold. Plain meaning: a number that was recorded.</dd></div>
+    <div><dt>Derived measure</dt><dd>A measure computed from other measures with a formula, such as profit = dollars - cost. Plain meaning: a number worked out from others.</dd></div>
+    <div><dt>Distributive measure</dt><dd>A measure where the aggregate of a whole equals the same function applied to the aggregates of its parts. Examples: SUM, COUNT, MIN, MAX.</dd></div>
+    <div><dt>Algebraic measure</dt><dd>A measure that can be computed from a fixed number of distributive values. Example: AVG = SUM / COUNT.</dd></div>
+    <div><dt>Holistic measure</dt><dd>A measure that cannot be computed from a fixed-size summary of the parts, so the whole set is needed. Examples: MEDIAN, MODE.</dd></div>
+    <div><dt>Partial result</dt><dd>An aggregate computed on one part of the data, which can be combined with other parts.</dd></div>
+    <div><dt>Aggregate</dt><dd>A value computed over a set of rows, such as a sum or an average.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Concept hierarchies">
+  <h2>Concept 1: Concept hierarchies and their types</h2>
+  <h3>A chain from detail to summary</h3>
+  <p>For the location dimension, the hierarchy is: city, then state, then country. Each city belongs to exactly one state, and each state belongs to exactly one country. Written as a chain:</p>
+  <div class="formula">city → state → country</div>
+  <p>Read the arrow as "rolls up to". A city rolls up to its state, and a state rolls up to its country. The top level, country, has the fewest values. The bottom level, city, has the most.</p>
+  <p>The same idea works for time. A common chain is day → month → quarter → year. A week is not in that chain, because a week can cross a month boundary. That point matters in GATE questions, and we return to it below.</p>
+  <h3>Types of hierarchy</h3>
+  <ul>
+    <li><strong>Schema hierarchy.</strong> The levels are attributes of a table, and their order is given by the schema. Location (street, city, state, country) and time (day, month, quarter, year) are both schema hierarchies.</li>
+    <li><strong>Set-grouping hierarchy.</strong> The levels are sets of values that someone has chosen. For example, ages 0 to 17 form "child", 18 to 64 form "adult", and 65 and above form "senior". The grouping is a choice, not a fact of the schema.</li>
+    <li><strong>Operation-derived and rule-based hierarchies.</strong> These are created by an operation or by a set of rules. They appear less often in GATE questions.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>A hierarchy must be a chain of many-to-one mappings. Each lower value maps to exactly one higher value. If one city belonged to two states, the chain would not be a valid hierarchy for roll-up.</p></div>
+  <details class="check"><summary>Question: Is the chain day, week, month a valid time hierarchy?</summary><div class="ans"><p>Not as a simple chain. A week can span two months, so a week does not map to exactly one month. Day, month, quarter, year is the standard chain.</p></div></details>
+  <details class="check"><summary>Question: Ages grouped into child, adult and senior, chosen by the analyst. Which type of hierarchy is this?</summary><div class="ans"><p>A set-grouping hierarchy.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Roll-up and drill-down along a hierarchy">
+  <h2>Concept 2: Roll-up and drill-down along a hierarchy</h2>
+  <h3>Rolling up</h3>
+  <p>Roll-up computes totals at a higher level. Using the sample data, the dollars at city level are:</p>
+  <ul>
+    <li>Pune: 5000 + 900 = 5900</li>
+    <li>Delhi: 2000</li>
+    <li>Dhaka: 2600</li>
+  </ul>
+  <p>Rolling up to state gives Maharashtra 5900, Delhi 2000 and Dhaka Division 2600. Rolling up to country gives India 5900 + 2000 = 7900 and Bangladesh 2600.</p>
+  <p>Notice that each total is built from the one below it. The country total is the sum of the state totals, and the state total is the sum of the city totals. This is possible because dollars is a distributive measure, which we study in the next concept.</p>
+  <h3>Drilling down</h3>
+  <p>Drill-down goes the other way. Starting from India at 7900, drilling down to state shows Maharashtra and Delhi. Drilling down to city shows Pune and Delhi. Drill-down needs the detailed rows to be available, because the totals alone cannot reveal the split. In a warehouse, detailed rows are often stored, or the totals are precomputed at every level.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Roll-up is correct only when the measure can be combined. Dollars can be combined. A median cannot, so rolling up a median needs the detail rows.</p></div>
+  <details class="check"><summary>Question: Using the sample data, what is the Maharashtra total?</summary><div class="ans"><p>5000 + 900 = 5900, which is the sum of the Pune rows.</p></div></details>
+  <details class="check"><summary>Question: Why can a country total be built from state totals for dollars?</summary><div class="ans"><p>Because dollars is distributive. The sum over all states equals the sum over all rows, so partial sums combine exactly.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Base, derived, distributive, algebraic and holistic measures">
+  <h2>Concept 3: Base and derived measures, and the three aggregate types</h2>
+  <h3>Base and derived measures</h3>
+  <p>A <strong>base measure</strong> is stored in the data as recorded: dollars sold, units sold. A <strong>derived measure</strong> is computed from base measures with a formula. Profit is a common example:</p>
+  <div class="formula">profit = dollars_sold - cost</div>
+  <p>The symbols mean: dollars_sold is the sales amount, cost is the amount paid for the goods, and profit is their difference. If a sale has dollars 2000 and cost 1500, its profit is 2000 - 1500 = 500.</p>
+  <p>A derived measure needs care when rolled up. Profit can be summed across rows, because it is a difference that is computed row by row. A ratio such as profit margin = profit / dollars_sold cannot be summed. It must be recomputed from the summed profit and the summed dollars.</p>
+  <h3>Distributive measures</h3>
+  <p>An aggregate function is <strong>distributive</strong> when the aggregate of the whole equals the same function applied to the aggregates of its parts. SUM is the standard example. The total of all rows equals the total of the group totals. The same holds for COUNT (add the group counts), MIN (take the smallest of the group minimums) and MAX.</p>
+  <p>Check with numbers. For the group [1, 2, 3] and the group [4, 100], the sums are 6 and 104. The sum of the two group sums is 110, which equals the sum of all five values. So SUM is distributive.</p>
+  <h3>Algebraic measures</h3>
+  <p>An aggregate is <strong>algebraic</strong> when it can be computed from a fixed number of distributive values. The average is the standard example:</p>
+  <div class="formula">AVG = SUM / COUNT</div>
+  <p>For each group, we keep two numbers: its sum and its count. The overall average is the total of the sums divided by the total of the counts. The number of values we keep does not grow with the size of the group. Standard deviation and the minimum N largest values are other algebraic measures.</p>
+  <h3>Holistic measures</h3>
+  <p>An aggregate is <strong>holistic</strong> when no fixed-size summary of a group can give the result for the whole. MEDIAN is the standard example. To find the median, we need to know the order of the values, and a summary such as the group median does not carry that information. MODE is also holistic.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The median of group medians is generally not the median of the whole set. Students often expect it to work, because it works for sums. It does not.</p></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Measure type</th><th>Examples</th><th>Partial result needed</th><th>Can roll up from parts?</th></tr></thead>
+    <tbody>
+      <tr><td>Distributive</td><td>SUM, COUNT, MIN, MAX</td><td>The same aggregate of each part</td><td>Yes, directly</td></tr>
+      <tr><td>Algebraic</td><td>AVG, standard deviation</td><td>A fixed set of distributive values, such as sum and count</td><td>Yes, with the extra values</td></tr>
+      <tr><td>Holistic</td><td>MEDIAN, MODE</td><td>The whole set, or a large summary</td><td>No</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>A classic question gives an aggregate and asks for its type. Ask one question: can I combine partial results with a fixed amount of information? If yes for every part, the measure is distributive or algebraic. If no, it is holistic.</p></div>
+  <details class="check"><summary>Question: Which type is MAX?</summary><div class="ans"><p>Distributive. The maximum of all values equals the maximum of the group maximums.</p></div></details>
+  <details class="check"><summary>Question: Why is AVG algebraic and not distributive?</summary><div class="ans"><p>The average of group averages is generally not the overall average, unless the groups have equal size. But AVG can be rebuilt from SUM and COUNT, which are distributive, so it is algebraic.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Computing measures in OLAP">
+  <h2>Concept 4: Computing measures in an OLAP setting</h2>
+  <h3>Storing partial results</h3>
+  <p>A warehouse does not usually store every average as a single number. It stores the sum and the count for each cell of the cube. When an analyst rolls up from city to country, the system adds the sums and adds the counts, then divides. This is how algebraic measures are computed efficiently.</p>
+  <p>For a holistic measure such as MEDIAN, the warehouse must go back to the detailed values for each roll-up, or store a large summary. This is more expensive, and it is one reason that many warehouses favour distributive and algebraic measures.</p>
+  <h3>A small program</h3>
+  <p>The program below shows the three types on the same numbers. Two groups are used, and the results are combined in two ways.</p>
+  <pre class="code" data-lang="python"><code>import statistics
+
+group_a = [1, 2, 3]
+group_b = [4, 100]
+all_values = group_a + group_b
+
+# Distributive: SUM of parts gives SUM of the whole
+sum_a, sum_b = sum(group_a), sum(group_b)
+print("SUM from parts:", sum_a + sum_b, "direct:", sum(all_values))
+
+# Algebraic: AVG from the stored sums and counts
+total_count = len(group_a) + len(group_b)
+print("AVG from sums and counts:", (sum_a + sum_b) / total_count, "direct:", sum(all_values) / len(all_values))
+
+# Holistic: MEDIAN of partial medians is not the median
+print("MEDIAN direct:", statistics.median(all_values))
+print("median of partial medians:", statistics.median([statistics.median(group_a), statistics.median(group_b)]))
+</code></pre>
+  <pre class="output">SUM from parts: 110 direct: 110
+AVG from sums and counts: 22.0 direct: 22.0
+MEDIAN direct: 3
+median of partial medians: 27.0</pre>
+  <div class="note tip"><p><span class="t">Tip</span>When a question gives a holistic measure and asks for a roll-up, look for the detailed rows in the question. If they are not given, the answer is that the roll-up cannot be computed from the totals alone.</p></div>
+  <details class="check"><summary>Question: The output shows 27.0 for the median of partial medians. What is the correct overall median?</summary><div class="ans"><p>3. The sorted values are 1, 2, 3, 4, 100, and the middle one is 3. The partial medians lose this information.</p></div></details>
+  <details class="check"><summary>Question: To roll up an average from city to country, what must be stored for each city?</summary><div class="ans"><p>The sum of the dollars and the count of the sales for that city. Then the country sum and country count are added up, and the average is their ratio.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Idea or formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>city → state → country</td><td>Detail rolls up to summary</td><td>Location hierarchy</td></tr>
+      <tr><td>day → month → quarter → year</td><td>Time hierarchy</td><td>Time dimension</td></tr>
+      <tr><td>profit = dollars_sold - cost</td><td>A derived base-level formula</td><td>Derived measure per row</td></tr>
+      <tr><td>SUM(whole) = SUM(SUM(part_1), ..., SUM(part_k))</td><td>Distributive property</td><td>Roll-up of SUM, COUNT, MIN, MAX</td></tr>
+      <tr><td>AVG = SUM / COUNT</td><td>Algebraic measure from two distributive values</td><td>Roll-up of averages</td></tr>
+      <tr><td>MEDIAN of parts is not the MEDIAN of the whole</td><td>Holistic measure</td><td>Needs detail rows</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Classify four aggregates</h3>
+    <div class="statement"><p>Classify each of SUM, MAX, AVG and MEDIAN as distributive, algebraic or holistic.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The type of each aggregate.</li>
+      <li><strong>Which idea applies.</strong> Can the whole be built from parts with a fixed amount of information?</li>
+      <li><strong>Work it out.</strong> SUM of parts gives the whole, so it is distributive. MAX of parts gives the whole, so it is distributive. AVG needs SUM and COUNT, which are distributive, so it is algebraic. MEDIAN needs the whole set, so it is holistic.</li>
+      <li><strong>Check.</strong> One of each type appears, which matches the three categories.</li>
+    </ol>
+    <p class="cx">Answer: SUM distributive, MAX distributive, AVG algebraic, MEDIAN holistic.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Levels in a chain</h3>
+    <div class="statement"><p>How many levels does the location hierarchy street, city, state, country have, counting every level?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> A count of levels.</li>
+      <li><strong>Which idea applies.</strong> Each named attribute in the chain is one level.</li>
+      <li><strong>Work it out.</strong> Street, city, state and country are four names, so four levels.</li>
+      <li><strong>Check.</strong> The question says counting every level, so the top level is included.</li>
+    </ol>
+    <p class="cx">Answer: 4.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Base or derived</h3>
+    <div class="statement"><p>Select all that apply. Which of these measures are derived?</p>
+      <p>(A) units_sold, as recorded at the till</p>
+      <p>(B) dollars_sold, as recorded at the till</p>
+      <p>(C) profit = dollars_sold - cost</p>
+      <p>(D) margin = profit / dollars_sold</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which measures are computed from others.</li>
+      <li><strong>Which idea applies.</strong> A derived measure is computed by a formula from base measures.</li>
+      <li><strong>Work it out.</strong> (A) and (B) are recorded, so they are base. (C) is a formula on dollars and cost, so it is derived. (D) is a formula on profit and dollars, so it is derived.</li>
+      <li><strong>Check.</strong> Two recorded measures and two formulas.</li>
+    </ol>
+    <p class="cx">Answer: (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Median of the whole set</h3>
+    <div class="statement"><p>Give the median of the values 1, 2, 3, 4 and 100.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The median of five values.</li>
+      <li><strong>Which idea applies.</strong> The median is the middle value after sorting.</li>
+      <li><strong>Work it out.</strong> The values are already sorted. The middle one, which is the third, is 3.</li>
+      <li><strong>Check.</strong> There are two values below 3 and two above, so 3 is the middle.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which roll-ups are safe</h3>
+    <div class="statement"><p>Select all that apply. Which roll-ups can be computed exactly from partial results stored for each city?</p>
+      <p>(A) total dollars per country</p>
+      <p>(B) minimum dollars per country</p>
+      <p>(C) median dollars per country</p>
+      <p>(D) average dollars per country, using stored sums and counts</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which roll-ups work from partial results.</li>
+      <li><strong>Which idea applies.</strong> Distributive and algebraic measures roll up from partial results. Holistic measures do not.</li>
+      <li><strong>Work it out.</strong> (A) SUM is distributive, so it is safe. (B) MIN is distributive, so it is safe. (C) MEDIAN is holistic, so it is not safe. (D) AVG from stored sums and counts is algebraic, so it is safe.</li>
+      <li><strong>Check.</strong> Only the median is excluded.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Average from partial results</h3>
+    <div class="statement"><p>Two quarters have stored pairs (sum of dollars, count of sales): Q1 has (7900, 3) and Q2 has (6550, 3). What is the average dollars per sale over both quarters, to the nearest whole number?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> An average over six sales, built from stored pairs.</li>
+      <li><strong>Which idea applies.</strong> AVG = SUM / COUNT, with both parts added across the partial results.</li>
+      <li><strong>Work it out.</strong> Total sum is 7900 + 6550 = 14450. Total count is 3 + 3 = 6. The average is 14450 / 6 = 2408.33, which rounds to 2408.</li>
+      <li><strong>Check.</strong> Here the counts are equal, so the average of the two quarter averages would also give 2408.33. In general it does not, when the counts differ. Using total sums and total counts is always correct.</li>
+    </ol>
+    <p class="cx">Answer: 2408.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about holistic measures</h3>
+    <div class="statement"><p>Select all that apply. Which statements are true?</p>
+      <p>(A) A holistic measure can be rolled up from a fixed-size summary of each part.</p>
+      <p>(B) MODE is a holistic measure.</p>
+      <p>(C) Rolling up a holistic measure usually needs the detailed rows.</p>
+      <p>(D) MIN is a holistic measure.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The definition of holistic and its examples.</li>
+      <li><strong>Which idea applies.</strong> Holistic means no fixed-size summary gives the whole.</li>
+      <li><strong>Work it out.</strong> (A) False, that is the definition of algebraic or distributive. (B) True. (C) True, the detail rows are needed. (D) False, MIN is distributive.</li>
+      <li><strong>Check.</strong> The two true statements are the definition example and the consequence.</li>
+    </ol>
+    <p class="cx">Answer: (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Name the hierarchy type</h3>
+    <div class="statement"><p>An analyst groups monthly incomes into "low" (below 20000), "middle" (20000 to 80000) and "high" (above 80000), choosing the cut-off values. Which type of concept hierarchy is this?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The hierarchy type.</li>
+      <li><strong>Which idea applies.</strong> A set-grouping hierarchy groups values into named sets. A schema hierarchy uses existing attributes.</li>
+      <li><strong>Work it out.</strong> The values are grouped into named sets, with cut-offs chosen by the analyst, and no attribute of the schema is involved.</li>
+      <li><strong>Check.</strong> If the schema already had an income band column, it would be a schema hierarchy instead.</li>
+    </ol>
+    <p class="cx">Answer: set-grouping hierarchy.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: average from stored sums and counts (NAT, 2 marks)</h3>
+    <div class="statement"><p>A sales cube is stored in two partitions. Partition 1 has total sales of 120 over 6 transactions. Partition 2 has total sales of 90 over 4 transactions. The measure is average sale amount. The cube engine stores the sum and the count of each partition, and it combines them to answer for the whole cube. What is the average sale over the whole cube?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The average over both partitions together.</li>
+      <li><strong>Which idea applies.</strong> Average is an algebraic measure. It is combined from stored sums and counts, not from the averages themselves.</li>
+      <li><strong>Work it out.</strong> The partition averages are 120 / 6 = 20 and 90 / 4 = 22.5. Averaging these gives 21.25, which is wrong because the partitions have different counts. Combined properly, the total is 210 over 10 transactions, which gives 21.0.</li>
+      <li><strong>Check.</strong> The answer is a weighted average of 20 and 22.5, weighted by the counts 6 and 4: (6 × 20 + 4 × 22.5) / 10 = 21.</li>
+    </ol>
+    <p class="cx">Answer: 21.0.</p>
+    <pre class="code" data-lang="python"><code>sums=[120,90]
+counts=[6,4]
+naive=[s/c for s,c in zip(sums,counts)]
+print(naive, sum(naive)/len(naive))
+print(sum(sums)/sum(counts))</code></pre>
+    <pre class="output">[20.0, 22.5] 21.25
+21.0</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: distributive, algebraic and holistic measures (MSQ, 2 marks)</h3>
+    <div class="statement"><p>The five values [1, 2, 3, 4, 10] are split into two parts, [1, 2] and [3, 4, 10]. Each part is aggregated separately, and the part results are then combined to test a claim. Select all that apply. Which claims about these measures are correct?</p>
+      <p>(A) Sum is distributive: the sum of the part sums equals the sum of all the values.</p>
+      <p>(B) Average is distributive: the average of the two part averages equals the overall average.</p>
+      <p>(C) Median is holistic: the median of the part medians is not always the true median.</p>
+      <p>(D) Min is distributive: the min of the part mins equals the overall min.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which claims hold for these measures.</li>
+      <li><strong>Which idea applies.</strong> A distributive measure gives the same answer when the parts are combined. An algebraic measure needs a few stored values, such as sum and count. A holistic measure cannot be combined from part results.</li>
+      <li><strong>Work it out.</strong> The part sums are 3 and 17, which add to 20, the sum of all values, so (A) holds. The part mins are 1 and 3, and the min of those is 1, the overall min, so (D) holds. The part averages are 1.5 and 5.67. Their average is 3.58, not the overall average of 4, so (B) fails. The part medians are 1.5 and 4, whose median is 2.75, not the true median of 3, so (C) holds.</li>
+      <li><strong>Check.</strong> The parts have different sizes, so averaging the averages gives each value the wrong weight, which is why (B) fails.</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D). Why (B) fails: average is algebraic, not distributive, so the part averages must be weighted by their counts.</p>
+    <pre class="code" data-lang="python"><code>import statistics
+data=[1,2,3,4,10]
+left=data[:2]; right=data[2:]
+print(sum(left)+sum(right)==sum(data))
+print(min(min(left),min(right))==min(data))
+avg_of_avgs=(sum(left)/len(left)+sum(right)/len(right))/2
+print(avg_of_avgs==sum(data)/len(data))
+print(statistics.median(data)==statistics.median([statistics.median(left),statistics.median(right)]))</code></pre>
+    <pre class="output">True
+True
+False
+False</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: cells across a concept hierarchy (NAT, 2 marks)</h3>
+    <div class="statement"><p>A location hierarchy has 4 cities. The cities roll up to 2 states, and the states roll up to 1 country. A cube has 9 products. Count the total number of cells across three cuboids: one at city level, one at state level and one at country level. Each cell is one member at that level paired with one product.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The total number of cells in the three cuboids.</li>
+      <li><strong>Which idea applies.</strong> Each cuboid has one cell per member of its level for each product. Higher levels have fewer members.</li>
+      <li><strong>Work it out.</strong> City level: 4 × 9 = 36. State level: 2 × 9 = 18. Country level: 1 × 9 = 9. Total: 36 + 18 + 9 = 63.</li>
+      <li><strong>Check.</strong> The counts shrink as you roll up, 36 then 18 then 9, which matches the hierarchy.</li>
+    </ol>
+    <p class="cx">Answer: 63 cells.</p>
+    <pre class="code" data-lang="python"><code>cities=4; states=2; countries=1; products=9
+cells={'city':cities*products,'state':states*products,'country':countries*products}
+print(cells)
+print(sum(cells.values()))</code></pre>
+    <pre class="output">{'city': 36, 'state': 18, 'country': 9}
+63</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: combined average to two decimals (NAT, 2 marks)</h3>
+    <div class="statement"><p>Two monthly partitions of a sales cube have total sales of 500 over 50 transactions and total sales of 300 over 25 transactions. Combine the stored sums and counts to find the average sale over the whole cube, rounded to two decimal places. Do not average the two partition averages, because the partitions hold different numbers of rows.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The overall average, to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> Average is algebraic, so add the sums and add the counts first.</li>
+      <li><strong>Work it out.</strong> Total sales: 500 + 300 = 800. Total count: 50 + 25 = 75. Average: 800 / 75 = 10.6666..., which rounds to 10.67.</li>
+      <li><strong>Check.</strong> The answer lies between the partition averages of 10 and 12, and it is nearer 10 because partition 1 has more transactions.</li>
+    </ol>
+    <p class="cx">Answer: 10.67.</p>
+    <pre class="code" data-lang="python"><code>s=800; c=75
+print(round(s/c,2))</code></pre>
+    <pre class="output">10.67</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Concept hierarchy</dt><dd>An ordering of attribute values from detailed to general.</dd></div>
+    <div><dt>Level</dt><dd>One position in a concept hierarchy.</dd></div>
+    <div><dt>Schema hierarchy</dt><dd>A hierarchy given by attributes of a table, such as day, month, quarter, year.</dd></div>
+    <div><dt>Set-grouping hierarchy</dt><dd>A hierarchy made by grouping values into named sets.</dd></div>
+    <div><dt>Many-to-one mapping</dt><dd>Each lower value maps to exactly one higher value in a valid hierarchy.</dd></div>
+    <div><dt>Roll-up</dt><dd>Move up a hierarchy to coarser totals.</dd></div>
+    <div><dt>Drill-down</dt><dd>Move down a hierarchy to finer detail.</dd></div>
+    <div><dt>Base measure</dt><dd>A measure stored as recorded in the data.</dd></div>
+    <div><dt>Derived measure</dt><dd>A measure computed from others with a formula.</dd></div>
+    <div><dt>Distributive measure</dt><dd>The aggregate of the whole equals the function applied to the parts. Examples: SUM, COUNT, MIN, MAX.</dd></div>
+    <div><dt>Algebraic measure</dt><dd>Computed from a fixed number of distributive values. Example: AVG.</dd></div>
+    <div><dt>Holistic measure</dt><dd>Needs the whole set or a large summary. Examples: MEDIAN, MODE.</dd></div>
+    <div><dt>Partial result</dt><dd>An aggregate of one part, stored so that parts can be combined.</dd></div>
+    <div><dt>Roll-up of AVG</dt><dd>Add the stored sums and counts, then divide.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>A concept hierarchy is a chain of many-to-one mappings, from detailed to general.</li>
+    <li>Base measures are recorded. Derived measures are computed with a formula.</li>
+    <li>SUM, COUNT, MIN and MAX are distributive.</li>
+    <li>AVG is algebraic, because it is SUM divided by COUNT.</li>
+    <li>MEDIAN and MODE are holistic, so their roll-up needs the detail rows.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 94?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 94 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-093.html"><small>Previous, topic 93</small>Data warehouse modelling: schema types</a><a class="next" href="gate-095.html"><small>Next, topic 95</small>Data transformation: normalization, discretization, sampling, compression</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

@@ -1,0 +1,399 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 48: t-test</title><meta name="description" content="The t-test is the everyday hypothesis test for means when the population standard deviation is unknown, which is almost always. It comes in three forms: one sample, two independent samples, and paired samples. GATE DA expects you to choose the right form, compute the statistic, and read the decision."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g48" data-key="g48" data-noun="topic" data-num="48" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>t-test</h1>
+<p class="lede">The t-test is the everyday hypothesis test for means when the population standard deviation is unknown, which is almost always. It comes in three forms: one sample, two independent samples, and paired samples. GATE DA expects you to choose the right form, compute the statistic, and read the decision.</p>
+<div class="station"><b>48</b><span>Unit 3 · Probability and statistics · Paper DA · New concept</span></div>
+<ul class="topics"><li>When to use a t-test instead of a z-test</li><li>One-sample t-test</li><li>Two-sample t-test for independent groups</li><li>Paired t-test and choosing the right form</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>In the z-test topic you tested a mean when the population standard deviation sigma was known. In practice sigma is almost never known. You estimate it from the sample, using the sample standard deviation s. The t-test does exactly what the z-test does, but it uses s and the t-distribution, so it correctly allows for the extra uncertainty.</p>
+  <p>There are three common questions a t-test answers. Is one group's mean equal to a target value? Do two independent groups have the same mean? Do two measurements on the same subjects, such as before and after, differ on average? Each question has its own formula, but the logic is the same: compare the observed difference with its standard error, then judge that ratio against the t-distribution.</p>
+  <p>GATE DA asks for the statistic, the degrees of freedom, and the decision. This page shows each step with small numbers, and it checks every number with a short Python program.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Each entry gives the plain meaning first and the precise definition second.</p>
+  <dl>
+    <div><dt>One-sample t-test</dt><dd>A test of whether one population mean equals a value mu0, with sigma unknown.</dd></div>
+    <div><dt>Two-sample t-test</dt><dd>A test of whether two independent population means are equal.</dd></div>
+    <div><dt>Paired t-test</dt><dd>A test on the differences between matched measurements, such as before and after on the same person.</dd></div>
+    <div><dt>Pooled variance</dt><dd>A combined estimate of the common variance from two samples, weighted by degrees of freedom.</dd></div>
+    <div><dt>Standard error of a difference</dt><dd>The standard deviation of the difference between two sample means, estimated from the pooled variance.</dd></div>
+    <div><dt>Degrees of freedom</dt><dd>n - 1 for one sample, n1 + n2 - 2 for two independent samples, and n - 1 for paired differences.</dd></div>
+    <div><dt>Independent samples</dt><dd>Two samples where the observations in one group have no link to those in the other.</dd></div>
+    <div><dt>Matched pairs</dt><dd>Two measurements linked to the same unit, so they are not independent.</dd></div>
+    <div><dt>Two-tailed test</dt><dd>A test where H1 says the parameter differs in either direction.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="When to use a t-test">
+  <h2>When to use a t-test instead of a z-test</h2>
+  <h3>Recap of the choice</h3>
+  <p>The z-test needs the population standard deviation sigma. Once sigma is replaced by the sample SD s, the test statistic no longer follows the normal distribution exactly. It follows the t-distribution, which has heavier tails. The fewer the data, the heavier the tails, and the larger the critical value.</p>
+  <ul>
+    <li><strong>Sigma known, mean test:</strong> z-test.</li>
+    <li><strong>Sigma unknown, one mean, or a difference of two means, or paired differences:</strong> t-test.</li>
+    <li><strong>Large sample:</strong> z and t give nearly the same answer, so either is acceptable in practice.</li>
+  </ul>
+
+  <div class="note key"><p><span class="t">Key idea</span>A t-test is a z-test with the unknown sigma replaced by the sample SD, and with the t-distribution used for the critical value.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>Students often use sigma from a textbook as if it were known. If the question does not give the population SD, use the t-test with the sample SD.</p></div>
+
+  <details class="check"><summary>Self-check: n = 40 and sigma unknown. Can you still use the t-test?</summary><div class="ans"><p>Yes. The t-test works for any sample size. For large n, the t critical values are close to the normal ones, so the decision is nearly the same.</p></div></details>
+  <details class="check"><summary>Self-check: which test is appropriate for comparing the same 10 students before and after training?</summary><div class="ans"><p>A paired t-test, because each student's before and after scores are linked.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="One-sample t-test">
+  <h2>One-sample t-test</h2>
+  <h3>The statistic</h3>
+  <p>Test H0: mu = mu0 against a chosen H1. The t statistic is:</p>
+  <div class="formula">t = (x-bar - mu0) / (s / square root of n), with df = n - 1</div>
+  <p>Symbols: x-bar is the sample mean, mu0 is the value in H0, s is the sample standard deviation, and n is the sample size. The denominator s / square root of n is the estimated standard error.</p>
+
+  <h3>Worked example</h3>
+  <p>A bakery claims each loaf weighs 10 units on average. A quality officer weighs 6 loaves: 8, 10, 12, 9, 13 and 10. Test H0: mu = 10 against H1: mu is not equal to 10, at the 5 per cent level.</p>
+  <p>Step 1: the sample mean is (8 + 10 + 12 + 9 + 13 + 10) / 6 = 62 / 6 = 10.333.</p>
+  <p>Step 2: the deviations from 10.333 are -2.333, -0.333, 1.667, -1.333, 2.667 and -0.333. Their squares are 5.444, 0.111, 2.778, 1.778, 7.111 and 0.111, which add to 17.333.</p>
+  <p>Step 3: the sample variance is s squared = 17.333 / 5 = 3.4667, so s = 1.8619.</p>
+  <p>Step 4: the standard error is s / square root of 6 = 1.8619 / 2.4495 = 0.7601. Then t = (10.333 - 10) / 0.7601 = 0.4385, with df = 5.</p>
+  <p>Step 5: the two-sided 5 per cent critical value for df = 5 is 2.571. Since 0.42 is well inside that range, we fail to reject H0. The data do not show that the average weight differs from 10.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Use s with n - 1 in the denominator, not sigma with n. The sample variance divides by n - 1.</p></div>
+
+  <details class="check"><summary>Self-check: mean = 25, mu0 = 20, s = 5 and n = 25. Find t.</summary><div class="ans"><p>SE = 5 / 5 = 1. t = (25 - 20) / 1 = 5. With df = 24, the two-sided 5 per cent critical value is about 2.064, so reject H0.</p></div></details>
+  <details class="check"><summary>Self-check: a one-sample test has n = 9. What is the df?</summary><div class="ans"><p>df = 9 - 1 = 8.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Two-sample t-test">
+  <h2>Two-sample t-test for independent groups</h2>
+  <h3>The idea</h3>
+  <p>Now compare two independent groups, such as students taught by two methods. The question is whether the means differ. The difference of the sample means is the estimate, and its standard error combines the two groups' variability. If we assume both populations share the same variance, we can pool the two sample variances:</p>
+  <div class="formula">sp squared = ((n1 - 1) s1 squared + (n2 - 1) s2 squared) / (n1 + n2 - 2)</div>
+  <div class="formula">t = (x1-bar - x2-bar) / (sp times square root of (1/n1 + 1/n2)), with df = n1 + n2 - 2</div>
+  <p>Symbols: x1-bar and x2-bar are the two sample means, s1 and s2 are their SDs, n1 and n2 are the sizes, and sp is the pooled SD. The pooled variance is a weighted average of the two variances, with weights equal to their degrees of freedom.</p>
+
+  <h3>Worked example</h3>
+  <p>Group 1 has scores 20, 22, 24 and 26. Group 2 has scores 18, 19, 21, 23 and 22. Test whether the two means are equal.</p>
+  <p>Step 1: the means are 23 for group 1 (sum 92 over 4) and 20.6 for group 2 (sum 103 over 5).</p>
+  <p>Step 2: the sample variances are 6.6667 for group 1 and 4.3 for group 2.</p>
+  <p>Step 3: the pooled variance is ((4 - 1) times 6.6667 + (5 - 1) times 4.3) / (4 + 5 - 2) = (20 + 17.2) / 7 = 5.3143.</p>
+  <p>Step 4: the standard error of the difference is sqrt(5.3143 times (1/4 + 1/5)) = sqrt(5.3143 times 0.45) = sqrt(2.3914) = 1.5464.</p>
+  <p>Step 5: t = (23 - 20.6) / 1.5464 = 2.4 / 1.5464 = 1.552, with df = 7.</p>
+  <p>Step 6: the two-sided 5 per cent critical value for df = 7 is 2.365. Since 1.552 is smaller, we fail to reject equal means.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>The numerator is the difference of means, and the denominator is the standard error of that difference. Both groups contribute to the denominator, which is why both sample sizes appear in it.</p></div>
+
+  <div class="note trap"><p><span class="t">Trap</span>The degrees of freedom are n1 + n2 - 2, not n1 + n2 - 1 and not n - 1 for one group.</p></div>
+
+  <details class="check"><summary>Self-check: n1 = 10 and n2 = 12. What is the df for the pooled two-sample t-test?</summary><div class="ans"><p>df = 10 + 12 - 2 = 20.</p></div></details>
+  <details class="check"><summary>Self-check: if both samples have the same variance 4, what is the pooled variance?</summary><div class="ans"><p>It is also 4, because a weighted average of equal numbers is that number.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Paired t-test">
+  <h2>Paired t-test and choosing the right form</h2>
+  <h3>Why pairing helps</h3>
+  <p>Suppose the same five people are measured before and after a training programme. Their scores vary a lot from person to person, so a two-sample test would be swamped by that variation. A paired test removes it: take each person's difference, then test whether the mean difference is zero.</p>
+  <div class="formula">d = after minus before; t = d-bar / (s_d / square root of n), with df = n - 1</div>
+  <p>Symbols: d-bar is the mean of the differences, s_d is their sample SD, and n is the number of pairs.</p>
+
+  <h3>Worked example</h3>
+  <p>Before: 60, 62, 58, 65, 61. After: 64, 63, 60, 70, 66. The differences are 4, 1, 2, 5 and 5.</p>
+  <p>Step 1: the mean difference is (4 + 1 + 2 + 5 + 5) / 5 = 17 / 5 = 3.4.</p>
+  <p>Step 2: the deviations from 3.4 are 0.6, -2.4, -1.4, 1.6 and 1.6. Their squares are 0.36, 5.76, 1.96, 2.56 and 2.56, which add to 13.2.</p>
+  <p>Step 3: s_d = sqrt(13.2 / 4) = sqrt(3.3) = 1.8166.</p>
+  <p>Step 4: t = 3.4 / (1.8166 / square root of 5) = 3.4 / 0.8124 = 4.185, with df = 4.</p>
+  <p>Step 5: the two-sided 5 per cent critical value for df = 4 is 2.776. Since 4.185 is larger, reject H0 that the mean difference is zero. The training appears to raise scores.</p>
+
+  <div class="note trap"><p><span class="t">Trap</span>Do not use a two-sample test on paired data. The pairs are linked, so the observations are not independent, and the two-sample formula gives the wrong standard error.</p></div>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>Read the question for the word "same" or "matched". If the same units are measured twice, or the units are matched on a factor, use the paired test.</p></div>
+
+  <h3>Choosing the right form</h3>
+  <div class="tablewrap"><table><thead><tr><th>Situation</th><th>Test</th><th>df</th></tr></thead><tbody>
+    <tr><td>One group compared with a target mean</td><td>One-sample t</td><td>n - 1</td></tr>
+    <tr><td>Two independent groups, equal variances assumed</td><td>Two-sample pooled t</td><td>n1 + n2 - 2</td></tr>
+    <tr><td>Same units measured twice, or matched pairs</td><td>Paired t</td><td>n - 1 for the differences</td></tr>
+    <tr><td>Sigma known and a single mean</td><td>z-test</td><td>not applicable</td></tr>
+  </tbody></table></div>
+
+  <details class="check"><summary>Self-check: 12 patients are measured on a drug and on a placebo at different times. Which test?</summary><div class="ans"><p>A paired t-test, because the same patients appear in both conditions, so the measurements are linked. The df is 11.</p></div></details>
+  <details class="check"><summary>Self-check: two different schools each give one test. Which test?</summary><div class="ans"><p>A two-sample t-test, since the groups are independent.</p></div></details>
+
+  <h3>A Python check</h3>
+  <p>This program computes the one-sample, two-sample pooled and paired t statistics for the examples above. The one-sample example uses the data 8, 10, 12, 9, 13, 10 and tests mu0 = 10.</p>
+  <pre class="code" data-lang="python"><code>import statistics as st
+import math
+
+# one-sample: H0 mu = 10
+a = [8, 10, 12, 9, 13, 10]
+n = len(a)
+xbar = st.mean(a)
+s = st.stdev(a)
+t1 = (xbar - 10) / (s / math.sqrt(n))
+print(f"one-sample: n = {n}, mean = {xbar}, s = {round(s, 4)}, t = {round(t1, 4)}, df = {n - 1}")
+
+# two-sample pooled
+g1 = [20, 22, 24, 26]
+g2 = [18, 19, 21, 23, 22]
+n1, n2 = len(g1), len(g2)
+m1, m2 = st.mean(g1), st.mean(g2)
+v1, v2 = st.variance(g1), st.variance(g2)
+sp2 = ((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2)
+t2 = (m1 - m2) / math.sqrt(sp2 * (1 / n1 + 1 / n2))
+print(f"two-sample: means = {m1}, {m2}, variances = {v1}, {v2}, pooled = {sp2}, t = {round(t2, 4)}, df = {n1 + n2 - 2}")
+
+# paired
+before = [60, 62, 58, 65, 61]
+after = [64, 63, 60, 70, 66]
+d = [y - x for x, y in zip(before, after)]
+dbar = st.mean(d)
+sd = st.stdev(d)
+t3 = dbar / (sd / math.sqrt(len(d)))
+print(f"paired: differences = {d}, mean d = {dbar}, s_d = {round(sd, 4)}, t = {round(t3, 4)}, df = {len(d) - 1}")
+</code></pre>
+  <pre class="output">one-sample: n = 6, mean = 10.333333333333334, s = 1.8619, t = 0.4385, df = 5
+two-sample: means = 23, 20.6, variances = 6.666666666666667, 4.3, pooled = 5.314285714285715, t = 1.552, df = 7
+paired: differences = [4, 1, 2, 5, 5], mean d = 3.4, s_d = 1.8166, t = 4.1851, df = 4</pre>
+  <p>The one-sample t is about 0.44, which is small, so the mean is not significantly different from 10. The paired t is about 4.19, which is large, so the training difference is significant at the 5 per cent level.</p>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table><thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead><tbody>
+    <tr><td>t = (x-bar - mu0) / (s / square root of n), df = n - 1</td><td>One-sample t statistic</td><td>One mean, sigma unknown</td></tr>
+    <tr><td>sp squared = ((n1 - 1) s1 squared + (n2 - 1) s2 squared) / (n1 + n2 - 2)</td><td>Pooled variance</td><td>Two independent groups</td></tr>
+    <tr><td>t = (x1-bar - x2-bar) / (sp times square root of (1/n1 + 1/n2)), df = n1 + n2 - 2</td><td>Two-sample pooled t statistic</td><td>Two independent means</td></tr>
+    <tr><td>t = d-bar / (s_d / square root of n), df = n - 1</td><td>Paired t statistic</td><td>Matched or repeated measures</td></tr>
+    <tr><td>Two-sided 5 per cent critical values: df 4 gives 2.776, df 5 gives 2.571, df 7 gives 2.365</td><td>Table lookups</td><td>Deciding the test</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These are original, GATE-style exercises written for practice. They are not past exam questions. Try each one on paper before reading the answer.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Degrees of freedom for one sample</h3>
+    <div class="statement"><p>A one-sample t-test uses n = 15 observations. What are the degrees of freedom?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The df for one sample.</li>
+      <li><strong>Which idea applies.</strong> One-sample df = n - 1.</li>
+      <li><strong>Work it out.</strong> df = 15 - 1 = 14.</li>
+      <li><strong>Check.</strong> df is one less than the sample size.</li>
+    </ol>
+    <p class="cx">Answer: 14</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Which test for matched data?</h3>
+    <div class="statement"><p>Eight machines are each measured with two different sensors. Which test compares the mean reading of the two sensors?</p><ul><li>(A) One-sample z-test</li><li>(B) Two-sample pooled t-test</li><li>(C) Paired t-test</li><li>(D) One-sample t-test against zero</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The right test for the same machines measured twice.</li>
+      <li><strong>Which idea applies.</strong> Matched measurements on the same units call for the paired test.</li>
+      <li><strong>Work it out.</strong> Each machine gives a linked pair, so the paired t-test with df = 7 is appropriate.</li>
+      <li><strong>Check.</strong> Option (D) tests the differences against zero, which is what the paired test does, but it is not named as a paired test. The standard answer is (C).</li>
+    </ol>
+    <p class="cx">Answer: (C)</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Pooled two-sample statistic</h3>
+    <div class="statement"><p>Two independent groups each have n = 9. Their means are 50 and 46. The pooled variance is 16. Find the two-sample t statistic. (Give a decimal to 3 places.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The pooled t.</li>
+      <li><strong>Which idea applies.</strong> t = (x1-bar - x2-bar) / (sp times square root of (1/n1 + 1/n2)).</li>
+      <li><strong>Work it out.</strong> sp = 4. The standard error is 4 times square root of (1/9 + 1/9) = 4 times square root of 0.2222 = 4 times 0.4714 = 1.8856. Then t = (50 - 46) / 1.8856 = 2.121.</li>
+      <li><strong>Check.</strong> df = 9 + 9 - 2 = 16, and the two-sided 5 per cent critical value is 2.120, so the result is just significant.</li>
+    </ol>
+    <p class="cx">Answer: 2.121</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Paired statistic</h3>
+    <div class="statement"><p>Sixteen pairs have mean difference 2 and sample SD of the differences 4. Find the paired t statistic. (Give a whole number.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The paired t.</li>
+      <li><strong>Which idea applies.</strong> t = d-bar / (s_d / square root of n).</li>
+      <li><strong>Work it out.</strong> SE = 4 / 4 = 1. t = 2 / 1 = 2.</li>
+      <li><strong>Check.</strong> df = 15, so this t is compared with 2.131 at the two-sided 5 per cent level.</li>
+    </ol>
+    <p class="cx">Answer: 2</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about t-tests are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) The paired t-test on n pairs has n - 1 degrees of freedom.</li><li>(B) The pooled two-sample t-test has n1 + n2 - 2 degrees of freedom.</li><li>(C) A two-sample test is always correct for matched data.</li><li>(D) The one-sample t-test requires sigma to be known.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Judge each statement.</li>
+      <li><strong>Which idea applies.</strong> The df rules and the purpose of pairing.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) False: matched data need the paired test. (D) False: sigma is unknown in the t-test.</li>
+      <li><strong>Check.</strong> The two false statements are the ones that reverse the core idea of the t-test.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B). Select all that apply.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Confidence limit from a one-sample t</h3>
+    <div class="statement"><p>A sample of n = 16 has mean 21 and sample SD 4. The two-sided 5 per cent t critical value for df = 15 is 2.131. Find the lower limit of the 95 per cent confidence interval for the population mean. (Give a decimal to 3 places.)</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The lower end of a t interval.</li>
+      <li><strong>Which idea applies.</strong> x-bar minus t times s / square root of n.</li>
+      <li><strong>Work it out.</strong> SE = 4 / 4 = 1. Margin = 2.131 times 1 = 2.131. Lower limit = 21 - 2.131 = 18.869.</li>
+      <li><strong>Check.</strong> The interval is centred on 21 and has half-width 2.131. A test of mu0 = 18 would be rejected at 5 per cent, because 18 lies outside the interval.</li>
+    </ol>
+    <p class="cx">Answer: 18.869</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about test choice are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) With n = 5 and sigma unknown, using the z critical value 1.96 instead of the t critical value 2.776 makes the test too liberal.</li><li>(B) A paired test on 10 pairs has 9 degrees of freedom.</li><li>(C) A two-sample test with n1 = 5 and n2 = 7 has 10 degrees of freedom.</li><li>(D) A two-sample test with n1 = 5 and n2 = 7 has 11 degrees of freedom.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are correct about test choice and df.</li>
+      <li><strong>Which idea applies.</strong> The critical value for z is smaller than for t at small df, and the df rules for each test.</li>
+      <li><strong>Work it out.</strong> (A) True: 1.96 is smaller than 2.776, so z rejects too easily. (B) True: 10 - 1 = 9. (C) True: 5 + 7 - 2 = 10. (D) False: that is 11 minus 1, not the pooled rule.</li>
+      <li><strong>Check.</strong> The critical value 2.776 is the df 4 value from the table, which is the right one for n = 5.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C). Select all that apply.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Paired t statistic (NAT, 2 marks)</h3>
+    <div class="statement"><p>Eight students take a reading test before and after a training course. The change in each student's score (after minus before) is 2, 3, -1, 4, 2, 0, 3 and 1. Assume the differences are roughly normal. Test H0: the mean change is 0 against H1: the mean change is greater than 0, using a paired t-test. Find the t statistic to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The t statistic for the paired differences.</li>
+      <li><strong>Which idea applies.</strong> A paired t-test works on the differences, with t = mean difference / (s / square root of n) and n - 1 degrees of freedom.</li>
+      <li><strong>Work it out.</strong> The differences add to 14, so the mean change is 14 / 8 = 1.75. Their squared deviations add to 19.5, so s = square root of (19.5 / 7) = 1.669. The standard error is 1.669 / square root of 8 = 0.5901. Then t = 1.75 / 0.5901 = 2.97, with 7 degrees of freedom.</li>
+      <li><strong>Check.</strong> The one-sided 5 percent critical value for 7 degrees of freedom is 1.895. Since 2.97 is larger, H0 would be rejected, which matches the clearly positive average change.</li>
+    </ol>
+    <p class="cx">Answer: t = 2.97</p>
+    <pre class="code" data-lang="python"><code>import math, statistics as st
+d = [2, 3, -1, 4, 2, 0, 3, 1]
+n = len(d)
+dbar = st.mean(d)
+s = st.stdev(d)
+t = dbar / (s / math.sqrt(n))
+print(f"mean change = {dbar}")
+print(f"sample SD of changes = {round(s, 3)}")
+print(f"df = {n - 1}")
+print(f"t = {round(t, 2)}")</code></pre>
+    <pre class="output">mean change = 1.75
+sample SD of changes = 1.669
+df = 7
+t = 2.97</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Welch t statistic and df (NAT, 2 marks)</h3>
+    <div class="statement"><p>Two independent groups of plants are grown with different fertilisers. Group A has 10 plants with mean height 24 cm and sample standard deviation 3 cm. Group B has 12 plants with mean height 20 cm and sample standard deviation 4 cm. Do not assume equal variances. Compute the Welch two-sample t statistic for H0: the two population means are equal, to 2 decimal places. Then find the Welch degrees of freedom to 1 decimal place, and use the t statistic as the answer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Welch t statistic, plus its degrees of freedom as a check.</li>
+      <li><strong>Which idea applies.</strong> The Welch test uses separate variances: SE = square root of (sA^2 / nA + sB^2 / nB), and the Welch df formula.</li>
+      <li><strong>Work it out.</strong> vA = 3^2 / 10 = 0.9 and vB = 4^2 / 12 = 1.333. So SE = square root of 2.233 = 1.494, and t = (24 - 20) / 1.494 = 2.68. The df is (2.233)^2 / (0.9^2 / 9 + 1.333^2 / 11) = 4.988 / 0.2516 = 19.8.</li>
+      <li><strong>Check.</strong> Welch df lies between the smaller group's n - 1 = 9 and the total n - 2 = 20, which is what it should do.</li>
+    </ol>
+    <p class="cx">Answer: t = 2.68 (Welch df = 19.8)</p>
+    <pre class="code" data-lang="python"><code>import math
+nA, mA, sA = 10, 24, 3
+nB, mB, sB = 12, 20, 4
+vA, vB = sA ** 2 / nA, sB ** 2 / nB
+t = (mA - mB) / math.sqrt(vA + vB)
+df = (vA + vB) ** 2 / (vA ** 2 / (nA - 1) + vB ** 2 / (nB - 1))
+print(f"t = {round(t, 2)}")
+print(f"Welch df = {round(df, 1)}")</code></pre>
+    <pre class="output">t = 2.68
+Welch df = 19.8</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Which t-test statements hold (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Select all that apply. These statements concern the choice and the mechanics of t-tests and z-tests.</p><ul><li>(A) In a paired t-test the degrees of freedom are n - 1, where n is the number of pairs.</li><li>(B) The Welch two-sample t-test assumes the two population variances are equal.</li><li>(C) A one-sample t-test should be used when the population standard deviation is known.</li><li>(D) For the same sample standard deviation, a larger sample size gives a smaller standard error of the mean.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about t-tests are correct.</li>
+      <li><strong>Which idea applies.</strong> A paired test reduces to a one-sample test on differences. Welch avoids the equal-variance assumption. The t-test is for unknown sigma.</li>
+      <li><strong>Work it out.</strong> (A) True: after taking differences, there are n differences and n - 1 degrees of freedom. (B) False: Welch is designed for unequal variances. (C) False: a known sigma calls for the z-test. (D) True: the standard error is s / square root of n, which falls as n grows.</li>
+      <li><strong>Check.</strong> The Python block shows the standard error halving when n goes from 4 to 16 with s fixed at 4.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D). Select all that apply.</p>
+    <pre class="code" data-lang="python"><code>import math
+s = 4
+for n in (4, 16):
+    print(f"n = {n}, standard error = {s / math.sqrt(n)}")</code></pre>
+    <pre class="output">n = 4, standard error = 2.0
+n = 16, standard error = 1.0</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: Lower limit after a one-sample t-test (NAT, 2 marks)</h3>
+    <div class="statement"><p>A sample of 9 measurements has mean 105 and sample standard deviation 6. Assume the measurements are roughly normal. The two-sided 5 percent critical t value for 8 degrees of freedom is 2.306. Test H0: mu = 100 against H1: mu is not equal to 100. Then find the lower limit of the 95 percent confidence interval for mu, to 3 decimal places, and state whether H0 is rejected.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The t statistic, the decision, and the lower confidence limit.</li>
+      <li><strong>Which idea applies.</strong> The one-sample t-test and the t confidence interval use the same standard error.</li>
+      <li><strong>Work it out.</strong> The standard error is 6 / 3 = 2. The t statistic is (105 - 100) / 2 = 2.5. Since 2.5 is larger than 2.306, H0 is rejected. The interval is 105 plus or minus 2.306 times 2 = 105 plus or minus 4.612, so the lower limit is 100.388.</li>
+      <li><strong>Check.</strong> The interval (100.388, 109.612) does not contain 100, which agrees with the test rejecting H0.</li>
+    </ol>
+    <p class="cx">Answer: lower limit 100.388 (H0 is rejected, since 2.5 is larger than 2.306)</p>
+    <pre class="code" data-lang="python"><code>import math
+n, xbar, s, mu0, tc = 9, 105, 6, 100, 2.306
+se = s / math.sqrt(n)
+t = (xbar - mu0) / se
+print(f"t = {round(t, 3)}")
+print(f"95% CI = {round(xbar - tc * se, 3)} to {round(xbar + tc * se, 3)}")
+print(f"reject mu = 100 at 5%? {abs(t) &gt; tc}")</code></pre>
+    <pre class="output">t = 2.5
+95% CI = 100.388 to 109.612
+reject mu = 100 at 5%? True</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>One-sample t</dt><dd>(x-bar - mu0) / (s / square root of n), df = n - 1.</dd></div>
+    <div><dt>Pooled variance</dt><dd>Weighted average of two sample variances, with df weights.</dd></div>
+    <div><dt>Two-sample t</dt><dd>Difference of means over the pooled standard error, df = n1 + n2 - 2.</dd></div>
+    <div><dt>Paired t</dt><dd>Mean of the differences over their standard error, df = n - 1.</dd></div>
+    <div><dt>Matched data</dt><dd>Use the paired test, not the two-sample test.</dd></div>
+    <div><dt>Independent groups</dt><dd>Use the two-sample test.</dd></div>
+    <div><dt>Sigma unknown</dt><dd>Use t, not z.</dd></div>
+    <div><dt>Two-sided 5 per cent cut-off</dt><dd>2.776 for df 4, 2.571 for df 5, 2.365 for df 7.</dd></div>
+    <div><dt>Standard error</dt><dd>s / square root of n for one mean.</dd></div>
+    <div><dt>Confidence interval</dt><dd>Estimate plus or minus t times the standard error.</dd></div>
+    <div><dt>Decision rule</dt><dd>Reject H0 when |t| is greater than the critical value.</dd></div>
+    <div><dt>Degrees of freedom</dt><dd>Controls the t critical value. Check which rule applies.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Use t when sigma is unknown, which is nearly always.</li>
+    <li>One sample: df = n - 1.</li>
+    <li>Two independent samples: df = n1 + n2 - 2, using a pooled variance.</li>
+    <li>Matched or repeated measures on the same units: paired t on the differences.</li>
+    <li>Compare |t| with the t critical value at the right df.</li>
+    <li>Check the decision against the confidence interval.</li>
+  </ol>
+</section>
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 48?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 48 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-047.html"><small>Previous, topic 47</small>z-test</a><a class="next" href="gate-049.html"><small>Next, topic 49</small>Chi-squared test</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

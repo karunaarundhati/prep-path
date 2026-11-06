@@ -1,0 +1,457 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 21: Optimization involving a single variable</title><meta name="description" content="Optimisation means choosing the best option, such as the smallest cost or the largest area. Most word problems can be turned into one function of one variable, and then the derivative tools from the previous topics find the answer. The same idea, finding where the slope is zero, trains machine learning models."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g21" data-key="g21" data-noun="topic" data-num="21" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Optimization involving a single variable</h1>
+<p class="lede">Optimisation means choosing the best option, such as the smallest cost or the largest area. Most word problems can be turned into one function of one variable, and then the derivative tools from the previous topics find the answer. The same idea, finding where the slope is zero, trains machine learning models.</p>
+<div class="station"><b>21</b><span>Unit 2 · Calculus and optimisation · Paper DA · New concept</span></div>
+<ul class="topics"><li>Turning a word problem into a function</li><li>Interior and boundary optima</li><li>Unconstrained minimum of a cost function</li><li>A design problem with a surface area</li><li>Loss minimisation and the zero-gradient condition</li><li>Gradient descent in one variable</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+
+  <p>Suppose you are building a rectangular garden and you have 20 metres of fencing. Should the garden be long and thin, or nearly square? You want the largest area you can enclose. This is an <strong>optimisation</strong> problem: you have a quantity you want to make as large or as small as possible, and some rules limit your choices.</p>
+
+  <p>The trick is simple to state. Choose one changing quantity, call it x, and write the thing you care about as a function of x. Then find the best value of that function. Once the problem is a function of one variable, the tools from the earlier topics apply. Find the critical points, test them, and check the ends of the allowed range.</p>
+
+  <p>Why does this matter for GATE? Many numerical questions describe a cost, a profit, a distance or an error in words. The skill is translating the words into a formula. The same idea also sits behind machine learning, where a model is trained by making a loss function as small as possible.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+
+  <p>Each term has a plain meaning first, then a precise definition.</p>
+
+  <dl>
+    <div><dt>Objective function</dt><dd>Plain meaning: the quantity you want to make as large or small as possible. Precise definition: a function f(x) that is to be maximised or minimised.</dd></div>
+    <div><dt>Constraint</dt><dd>Plain meaning: a rule that limits the choices, such as a fixed amount of fencing. Precise definition: an equation or inequality that the variables must satisfy.</dd></div>
+    <div><dt>Feasible domain</dt><dd>Plain meaning: the set of values that make sense for the problem. Precise definition: the set of x values allowed by the constraints, such as x greater than 0.</dd></div>
+    <div><dt>Interior optimum</dt><dd>Plain meaning: the best point lies strictly inside the allowed range. Precise definition: a maximum or minimum at a point c with a less than c less than b, found from f'(c) = 0.</dd></div>
+    <div><dt>Boundary optimum</dt><dd>Plain meaning: the best point sits at an end of the allowed range. Precise definition: a maximum or minimum at an endpoint of the domain.</dd></div>
+    <div><dt>Loss function</dt><dd>Plain meaning: a score that measures how wrong a model is, where smaller is better. Precise definition: a function L(w) of the model parameter w that machine learning training tries to minimise.</dd></div>
+    <div><dt>Gradient</dt><dd>Plain meaning: the slope of the loss, which tells you which way is uphill. Precise definition: in one variable, the derivative L'(w).</dd></div>
+    <div><dt>Learning rate (step size)</dt><dd>Plain meaning: how big a step to take downhill. Precise definition: a positive number alpha used in the update w minus alpha times L'(w).</dd></div>
+  </dl>
+
+  <div class="note tip"><p><span class="t">Tip</span>Before you differentiate, write down the domain. A length cannot be negative, and a side cannot be zero, so the domain is often x greater than 0. Ignoring it is a common reason for a wrong answer.</p></div>
+</section>
+
+<section class="unit" id="c1" data-title="Turning a word problem into a function">
+  <h2>Turning a word problem into a function</h2>
+
+  <p>Follow four steps. They work for almost every optimisation question.</p>
+  <ol>
+    <li><strong>Name the variables.</strong> Give a letter to each unknown length, number or quantity.</li>
+    <li><strong>Write the quantity to optimise.</strong> This is the objective, such as area, cost or volume.</li>
+    <li><strong>Use the constraint to remove extra variables.</strong> Solve the constraint for one variable and substitute, so only one variable is left.</li>
+    <li><strong>State the domain.</strong> Note which values of the variable make sense.</li>
+  </ol>
+
+  <p><strong>Worked example.</strong> You have 20 metres of fencing to make a rectangle. Find the side lengths that give the largest area.</p>
+  <ol>
+    <li><strong>Step 1, variables.</strong> Let the sides be x and y metres.</li>
+    <li><strong>Step 2, objective.</strong> The area is A = x times y.</li>
+    <li><strong>Step 3, constraint.</strong> The perimeter is 2x plus 2y = 20, so y = 10 minus x. Substitute: A(x) = x(10 minus x) = 10x minus x squared.</li>
+    <li><strong>Step 4, domain.</strong> Both sides must be positive, so 0 less than x less than 10.</li>
+  </ol>
+
+  <p>The next program tries whole-number side lengths to see the pattern before we use calculus.</p>
+
+  <pre class="code" data-lang="python"><code>def area(x):
+    return x * (10 - x)
+
+best = max(range(0, 11), key=area)
+print("best side x =", best, "area =", area(best))</code></pre>
+  <pre class="output">best side x = 5 area = 25</pre>
+
+  <p>The calculus confirms it. A'(x) = 10 minus 2x, which is 0 at x = 5. Since A''(x) = minus 2 is negative, x = 5 is a maximum. The square of side 5 gives area 25.</p>
+
+  <div class="note key"><p><span class="t">Key idea</span>When two variables are linked by a constraint, use the constraint to write one variable in terms of the other. Then the problem has one variable and the usual derivative tools apply.</p></div>
+
+  <details class="check"><summary>Quick check: two positive numbers add up to 12. What is the largest possible product?</summary><div class="ans"><p>Let them be x and 12 minus x. The product is P(x) = 12x minus x squared. P'(x) = 12 minus 2x = 0 gives x = 6. The other number is also 6, and the product is 36.</p></div></details>
+
+  <details class="check"><summary>Quick check: why must the domain be stated for the fencing problem?</summary><div class="ans"><p>A side length cannot be zero or negative. If you forget the domain, you might pick x = 0 or x = 10 as an optimum, which gives a degenerate rectangle with zero area.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Interior and boundary optima">
+  <h2>Interior and boundary optima</h2>
+
+  <p>Sometimes the best value is inside the allowed range, and sometimes it sits at an end. This matters when the domain is a closed interval [a, b]. The best value is either:</p>
+  <ul>
+    <li>an <strong>interior optimum</strong>: a critical point c inside (a, b), where f'(c) = 0 or f' does not exist; or</li>
+    <li>a <strong>boundary optimum</strong>: one of the endpoints a or b.</li>
+  </ul>
+
+  <p>The safe method is the same as before. Compare the values at all candidates and pick the largest for a maximum or the smallest for a minimum.</p>
+
+  <p><strong>Worked example.</strong> Let f(x) = x squared minus 4x on [0, 5].</p>
+  <ol>
+    <li><strong>Step 1, interior candidate.</strong> f'(x) = 2x minus 4 = 0 gives x = 2, which lies inside [0, 5].</li>
+    <li><strong>Step 2, boundary candidates.</strong> The endpoints are 0 and 5.</li>
+    <li><strong>Step 3, values.</strong> f(2) = 4 minus 8 = minus 4. f(0) = 0. f(5) = 25 minus 20 = 5.</li>
+    <li><strong>Step 4, compare.</strong> The minimum is minus 4 at the interior point x = 2. The maximum is 5 at the boundary point x = 5.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>def f(x):
+    return x * x - 4 * x
+
+for x in [0, 2, 5]:
+    print("x =", x, "f(x) =", f(x))</code></pre>
+  <pre class="output">x = 0 f(x) = 0
+x = 2 f(x) = -4
+x = 5 f(x) = 5</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>The derivative test finds interior points only. If the best answer is at an endpoint, f' is not zero there, and you will miss it unless you check the endpoints separately.</p></div>
+
+  <details class="check"><summary>Quick check: for f(x) = x squared on [1, 4], where is the maximum?</summary><div class="ans"><p>The only critical point is x = 0, which is outside [1, 4]. The best value is at an endpoint. f(1) = 1 and f(4) = 16, so the maximum is 16 at x = 4.</p></div></details>
+
+  <details class="check"><summary>Quick check: a function on [0, 5] has a critical point at x = 2 and f(2) is the smallest value. Is it the global minimum?</summary><div class="ans"><p>Only if the endpoint values are not smaller. Compare f(0) and f(5) as well. In the example above, f(2) = minus 4 is the smallest, so yes.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Unconstrained minimum of a cost function">
+  <h2>Unconstrained minimum of a cost function</h2>
+
+  <p>Some problems have no closed interval, only the rule that x is positive. This is called an unconstrained problem on that domain. Here the function often goes to infinity at the ends, which forces a minimum to exist somewhere in the middle.</p>
+
+  <p><strong>Worked example.</strong> A factory has a cost per unit of C(x) = x plus 100/x for x greater than 0, where x is the number of units in a batch. Find the batch size that gives the smallest cost per unit.</p>
+  <ol>
+    <li><strong>Step 1, derivative.</strong> C'(x) = 1 minus 100/x squared.</li>
+    <li><strong>Step 2, critical point.</strong> Setting C'(x) = 0 gives x squared = 100, so x = 10, since x must be positive.</li>
+    <li><strong>Step 3, test.</strong> C''(x) = 200/x cubed, which is positive for x greater than 0. So x = 10 is a minimum.</li>
+    <li><strong>Step 4, value.</strong> C(10) = 10 plus 10 = 20.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>def cost(x):
+    return x + 100 / x
+
+for x in [5, 10, 20]:
+    print("x =", x, "cost =", cost(x))</code></pre>
+  <pre class="output">x = 5 cost = 25.0
+x = 10 cost = 20.0
+x = 20 cost = 25.0</pre>
+
+  <div class="note interview"><p><span class="t">GATE loves this</span>The pattern "a term that grows with x plus a term that shrinks with x" almost always has a minimum. Setting the derivative to zero balances the two effects.</p></div>
+
+  <details class="check"><summary>Quick check: is the cost function C(x) = x plus 100/x concave up or down at x = 10?</summary><div class="ans"><p>C''(x) = 200/x cubed, which is positive at x = 10. So the curve is concave up there, which confirms a minimum.</p></div></details>
+
+  <details class="check"><summary>Quick check: why does the minimum exist even though there is no closed interval?</summary><div class="ans"><p>As x goes to 0, 100/x goes to infinity. As x goes to infinity, x goes to infinity. So the cost is large at both ends, and the smallest value must occur somewhere in between.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="A design problem with a surface area">
+  <h2>A design problem with a surface area</h2>
+
+  <p>Packaging questions often ask for the least material for a fixed volume. Here is a classic setup.</p>
+
+  <p><strong>Worked example.</strong> An open-top box has a square base of side x and height h. Its volume is 32 cubic units. Find the value of x that gives the smallest surface area of material (the base plus four sides, with no lid).</p>
+  <ol>
+    <li><strong>Step 1, variables.</strong> Base side x, height h.</li>
+    <li><strong>Step 2, constraint.</strong> Volume x squared times h = 32, so h = 32/x squared.</li>
+    <li><strong>Step 3, objective.</strong> Surface area S = x squared (base) plus 4xh (four sides). Substituting h gives S(x) = x squared plus 4x times 32/x squared, which simplifies to S(x) = x squared plus 128/x.</li>
+    <li><strong>Step 4, derivative.</strong> S'(x) = 2x minus 128/x squared. Setting this to zero gives 2x cubed = 128, so x cubed = 64 and x = 4.</li>
+    <li><strong>Step 5, check.</strong> S''(x) = 2 plus 256/x cubed, which is positive for x greater than 0. So x = 4 is a minimum. Then h = 32/16 = 2, and the surface area is 16 plus 32 = 48.</li>
+  </ol>
+
+  <pre class="code" data-lang="python"><code>def surf(x):
+    return x * x + 128 / x
+
+for x in [2, 3, 4, 5, 6]:
+    print("side x =", x, "surface =", round(surf(x), 2))</code></pre>
+  <pre class="output">side x = 2 surface = 68.0
+side x = 3 surface = 51.67
+side x = 4 surface = 48.0
+side x = 5 surface = 50.6
+side x = 6 surface = 57.33</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>Substitute the constraint before differentiating. If you differentiate the surface area with two variables, you make the problem harder, and the result is easy to get wrong.</p></div>
+
+  <details class="check"><summary>Quick check: in the box problem, what is the height at the optimum?</summary><div class="ans"><p>h = 32/x squared = 32/16 = 2. The optimal box is 4 by 4 by 2.</p></div></details>
+
+  <details class="check"><summary>Quick check: why is the base term x squared and not 2x squared?</summary><div class="ans"><p>The box is open at the top, so there is only one base. A closed box would have two square faces, and then the surface area would change.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Loss minimisation and the zero-gradient condition">
+  <h2>Loss minimisation and the zero-gradient condition</h2>
+
+  <p>In machine learning, a model has a parameter w, such as a weight that scales an input. A loss function L(w) measures how wrong the model is for a given w. Training means finding the w that makes the loss as small as possible. That is exactly a minimisation problem, so the same derivative tools apply.</p>
+
+  <p>The <strong>zero-gradient condition</strong> says that a smooth minimum must have L'(w) = 0. The gradient is the slope, and at the bottom of a valley the slope is flat. Then the second derivative test confirms that it is a valley and not a peak.</p>
+
+  <p><strong>Worked example.</strong> Let L(w) = (w minus 3) squared plus 1.</p>
+  <ol>
+    <li><strong>Step 1, gradient.</strong> L'(w) = 2(w minus 3).</li>
+    <li><strong>Step 2, zero gradient.</strong> Setting L'(w) = 0 gives w = 3.</li>
+    <li><strong>Step 3, check.</strong> L''(w) = 2, which is positive. So w = 3 is a minimum, with loss L(3) = 1.</li>
+  </ol>
+
+  <div class="note key"><p><span class="t">Key idea</span>Minimising a loss means finding where the gradient is zero and the second derivative is positive. In practice, the exact zero is often hard to find, so the next section uses small steps instead.</p></div>
+
+  <details class="check"><summary>Quick check: for L(w) = (w minus 3) squared plus 1, is the loss ever lower than 1?</summary><div class="ans"><p>No. A square is never negative, so (w minus 3) squared is at least 0, and the loss is at least 1. The value 1 is reached only at w = 3.</p></div></details>
+
+  <details class="check"><summary>Quick check: what does a zero gradient at a point of a loss curve mean?</summary><div class="ans"><p>The slope is flat there. It could be a minimum, a maximum or a flat turning point, so the second derivative or a sign check is needed to decide.</p></div></details>
+</section>
+
+<section class="unit" id="c6" data-title="Gradient descent in one variable">
+  <h2>Gradient descent in one variable</h2>
+
+  <p>Solving L'(w) = 0 exactly is not always possible, and real models have many parameters. A simple method is gradient descent. Imagine a ball on a hillside. It rolls downhill, and each step is proportional to how steep the hill is at its current position.</p>
+
+  <div class="formula">w_new = w_old minus alpha times L'(w_old)</div>
+
+  <p>Each symbol means:</p>
+  <ul>
+    <li><strong>w_old</strong> is the current guess for the parameter.</li>
+    <li><strong>L'(w_old)</strong> is the gradient at that guess. If it is positive, the loss rises to the right, so we step left.</li>
+    <li><strong>alpha</strong> is the learning rate, a small positive number that controls the step size.</li>
+    <li><strong>w_new</strong> is the updated guess.</li>
+  </ul>
+
+  <p>Let us take two steps for L(w) = (w minus 3) squared plus 1, starting at w = 0, with alpha = 0.1.</p>
+  <ol>
+    <li><strong>Step 1.</strong> L'(0) = 2(0 minus 3) = minus 6. Then w = 0 minus 0.1 times (minus 6) = 0.6.</li>
+    <li><strong>Step 2.</strong> L'(0.6) = 2(0.6 minus 3) = minus 4.8. Then w = 0.6 minus 0.1 times (minus 4.8) = 1.08.</li>
+  </ol>
+
+  <p>Each step moves closer to the true minimum at w = 3. The program below repeats the steps and prints the loss, which falls with each step.</p>
+
+  <pre class="code" data-lang="python"><code>def loss(w):
+    return (w - 3) ** 2 + 1
+
+def slope(w):
+    return 2 * (w - 3)
+
+w = 0.0
+step = 0.1
+for i in range(2):
+    w = w - step * slope(w)
+    print("step", i + 1, "w =", round(w, 4), "loss =", round(loss(w), 4))</code></pre>
+  <pre class="output">step 1 w = 0.6 loss = 6.76
+step 2 w = 1.08 loss = 4.6864</pre>
+
+  <div class="note trap"><p><span class="t">Trap</span>A learning rate that is too large can overshoot the minimum and make the loss grow. A learning rate that is too small makes progress very slow. Choosing alpha is a practical skill, not part of the formula.</p></div>
+
+  <details class="check"><summary>Quick check: at the minimum w = 3, what does one step of gradient descent do?</summary><div class="ans"><p>The gradient is 0 there, so the update is w minus alpha times 0 = w. The parameter does not change, which is the sign that training has converged.</p></div></details>
+
+  <details class="check"><summary>Quick check: if the gradient is negative, which way does the update move w?</summary><div class="ans"><p>The update is w minus alpha times a negative number, which is larger than w. So w moves to the right, which is downhill for a loss that falls as w increases.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or method</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>Use the constraint to write the objective as f(x)</td><td>One variable left</td><td>Every word problem</td></tr>
+      <tr><td>Solve f'(x) = 0 for critical points</td><td>Candidate optima</td><td>Interior optima</td></tr>
+      <tr><td>On [a, b], compare f(a), f(b) and f(c)</td><td>Interior and boundary candidates</td><td>Closed interval problems</td></tr>
+      <tr><td>f''(c) &gt; 0 at a critical point</td><td>Local minimum</td><td>Confirming a minimum</td></tr>
+      <tr><td>Box with volume V and open top: S = x squared plus 4xV/x squared</td><td>Surface area after substitution</td><td>Design problems</td></tr>
+      <tr><td>L'(w) = 0 and L''(w) &gt; 0</td><td>Minimum of a loss</td><td>Model training</td></tr>
+      <tr><td>w_new = w_old minus alpha L'(w_old)</td><td>Gradient descent step</td><td>Approximate training</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note tip"><p><span class="t">Tip</span>Write the domain next to the objective function. Forgetting it is the most common error in word problems.</p></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>GATE questions, solved</h2>
+  <p>This set covers one-variable optimisation: finding the largest or smallest value of a function, including values at the ends of an interval.</p>
+
+  <h3>Real past GATE questions</h3>
+
+  <article class="problem" data-level="medium">
+    <h3>GATE EE 2014 Set 2 · Q28 (verified PYQ)</h3>
+    <div class="statement"><p>The minimum value of the function f(x) = x<sup>3</sup> - 3x<sup>2</sup> - 24x + 100 in the interval [-3, 3] is: (A) 20, (B) 28, (C) 16, (D) 32.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest value of f on the closed interval [-3, 3], which includes both ends.</li>
+      <li><strong>Which idea applies.</strong> Find the critical points where f'(x) = 0, keep only those inside the interval, then compare their values with the two endpoint values.</li>
+      <li><strong>Work it out.</strong> f'(x) = 3x<sup>2</sup> - 6x - 24 = 3(x - 4)(x + 2). So the critical points are x = 4 and x = -2. Only x = -2 lies inside [-3, 3]; x = 4 is outside. Now evaluate the candidates: f(-3) = -27 - 27 + 72 + 100 = 118. f(-2) = -8 - 12 + 48 + 100 = 128. f(3) = 27 - 27 - 72 + 100 = 28. The smallest of 118, 128 and 28 is 28, at x = 3.</li>
+      <li><strong>Check.</strong> The point x = -2 gives the largest value, 128, so it is a local maximum, which fits the sign change of f' there. The minimum value 28 matches option (B).</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>def f(x):
+    return x**3 - 3*x**2 - 24*x + 100
+
+candidates = {"x = -3": -3, "x = -2": -2, "x = 3": 3}
+for name, x in candidates.items():
+    print(name, "f =", f(x))
+best = min(candidates.values(), key=f)
+print("minimum on [-3, 3] is", f(best), "at x =", best)</code></pre>
+    <pre class="output">x = -3 f = 118
+x = -2 f = 128
+x = 3 f = 28
+minimum on [-3, 3] is 28 at x = 3</pre>
+
+    <p class="cx">Answer: (B) 28</p>
+    <p><a href="https://byjus.com/question-answer/the-minimum-value-of-the-function-f-x-x-3-3x-2-24x-100-in">Source</a></p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: open box cost (NAT, 2 marks)</h3>
+    <div class="statement"><p>An open-top tank has a square base of side x metres and height h metres. Its volume must be exactly 32 cubic metres. The base is made of a material that costs 3 units per square metre, and the four vertical walls cost 1 unit per square metre. The top is open, so there is no lid. Find the least possible total cost of the material. Give your answer correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The minimum of a total cost, given a fixed volume.</li>
+      <li><strong>Which idea applies.</strong> Use the volume constraint to write h in terms of x, so the cost depends on x alone. Then find the critical point.</li>
+      <li><strong>Work it out.</strong> Volume: x<sup>2</sup>h = 32, so h = 32/x<sup>2</sup>. Base cost: 3x<sup>2</sup>. Walls have area 4xh = 128/x, cost 128/x. Total cost C(x) = 3x<sup>2</sup> + 128/x. Then C'(x) = 6x - 128/x<sup>2</sup>. Setting C'(x) = 0 gives 6x<sup>3</sup> = 128, so x<sup>3</sup> = 64/3 and x = (64/3)<sup>1/3</sup>, which is about 2.7734. Substituting gives C = about 69.23.</li>
+      <li><strong>Check.</strong> C'(x) is negative for small x and positive for large x, so this critical point is a minimum. The Python block below confirms the value.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>def cost(x):
+    return 3 * x * x + 128 / x
+
+x_star = (64 / 3) ** (1 / 3)
+print("x* =", round(x_star, 4))
+print("minimum cost =", round(cost(x_star), 2))</code></pre>
+    <pre class="output">x* = 2.7734
+minimum cost = 69.23</pre>
+
+    <p class="cx">Answer: 69.23</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: global extremes on a closed interval (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Let f(x) = x<sup>3</sup> - 6x<sup>2</sup> + 9x + 2 on the closed interval [0, 5]. Select all that apply: (A) the global maximum of f on [0, 5] is 22; (B) the global maximum is attained at an interior point of the interval; (C) the global minimum of f on [0, 5] is 2; (D) x = 1 is a local minimum of f. Choose all the statements that are true.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four statements about the extreme values of f on [0, 5] are true.</li>
+      <li><strong>Which idea applies.</strong> On a closed interval, the extremes are at critical points inside the interval or at the endpoints. Test each candidate value, and use the second derivative to name the type of critical point.</li>
+      <li><strong>Work it out.</strong> f'(x) = 3x<sup>2</sup> - 12x + 9 = 3(x - 1)(x - 3), so the critical points are x = 1 and x = 3. The values are f(0) = 2, f(1) = 6, f(3) = 2, and f(5) = 22. The largest is 22 at the endpoint x = 5, so (A) is true and (B) is false. The smallest is 2, reached at both x = 0 and x = 3, so (C) is true. For (D), f''(x) = 6x - 12 and f''(1) = -6 is negative, so x = 1 is a local maximum, and (D) is false.</li>
+      <li><strong>Check.</strong> The Python block below lists all four candidate values, so the maximum and minimum can be read off directly.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>def f(x):
+    return x**3 - 6*x**2 + 9*x + 2
+
+for x in [0, 1, 3, 5]:
+    print("x =", x, "f =", f(x))
+print("max =", max(f(x) for x in [0, 1, 3, 5]))
+print("min =", min(f(x) for x in [0, 1, 3, 5]))</code></pre>
+    <pre class="output">x = 0 f = 2
+x = 1 f = 6
+x = 3 f = 2
+x = 5 f = 22
+max = 22
+min = 2</pre>
+
+    <p class="cx">Answer: (A) and (C) are true. (B) and (D) are false.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: fixing a parameter from a known maximum (MCQ, 2 marks)</h3>
+    <div class="statement"><p>Consider f(x) = x<sup>3</sup> - 3x + k on the closed interval [-2, 2], where k is a constant. Suppose the global maximum of f on this interval equals 10. What is the global minimum of f on the same interval? (A) 2, (B) 4, (C) 6, (D) 8. Work out the critical points, compare the endpoint values with the critical values, and use the given maximum to find k before you read off the minimum.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The smallest value of f on [-2, 2], given that its largest value is 10. The constant k is unknown.</li>
+      <li><strong>Which idea applies.</strong> Find the critical points, evaluate f at all candidates as an expression in k, then use the given maximum to solve for k.</li>
+      <li><strong>Work it out.</strong> f'(x) = 3x<sup>2</sup> - 3 = 0 gives x = -1 and x = 1, both inside the interval. Candidates: f(-2) = -8 + 6 + k = k - 2, f(-1) = -1 + 3 + k = k + 2, f(1) = 1 - 3 + k = k - 2, f(2) = 8 - 6 + k = k + 2. The largest value is k + 2 = 10, so k = 8. Then the values are 6, 10, 6, 10, and the smallest is 6. The answer is (C).</li>
+      <li><strong>Check.</strong> With k = 8 the largest of the four values is 10, as required. The smallest is k - 2 = 6, which is option (C). The options 2, 4 and 8 do not appear among the computed values.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>k = 8
+
+def f(x):
+    return x**3 - 3*x + k
+
+points = [-2, -1, 1, 2]
+values = [f(x) for x in points]
+for x, v in zip(points, values):
+    print("x =", x, "f =", v)
+print("max =", max(values), "min =", min(values))</code></pre>
+    <pre class="output">x = -2 f = 6
+x = -1 f = 10
+x = 1 f = 6
+x = 2 f = 10
+max = 10 min = 6</pre>
+
+    <p class="cx">Answer: (C) 6</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 4: gradient descent with a learning rate (NAT, 2 marks)</h3>
+    <div class="statement"><p>A machine learning model has one weight w and a loss L(w) = w<sup>2</sup> - 4w + 9. Gradient descent updates the weight by w_new = w_old - alpha times L'(w_old), where alpha = 0.2 is the learning rate. The starting weight is w = 5. Apply the update rule three times, and find the value of w after the third update. Give your answer correct to 2 decimal places. Note that the minimum of L is at w = 2, so the weight should move towards 2 as the steps continue.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The weight after three gradient descent steps, to 2 decimal places.</li>
+      <li><strong>Which idea applies.</strong> Compute the derivative L'(w) first, then simplify the update rule into the form w_new = a w_old + b.</li>
+      <li><strong>Work it out.</strong> L'(w) = 2w - 4. The update is w_new = w_old - 0.2(2w_old - 4) = 0.6 w_old + 0.8. Step 1: w = 0.6 times 5 + 0.8 = 3.8. Step 2: w = 0.6 times 3.8 + 0.8 = 3.08. Step 3: w = 0.6 times 3.08 + 0.8 = 2.648. Rounded to 2 decimal places, this is 2.65.</li>
+      <li><strong>Check.</strong> The weight is falling from 5 towards the minimum at 2. Each step closes about 40 percent of the remaining gap, since 1 minus 0.6 is 0.4. The gap to 2 goes 3, 1.8, 1.08, 0.648, multiplying by 0.6 each step, which matches the update rule.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>alpha = 0.2
+w = 5.0
+for step in range(1, 4):
+    grad = 2 * w - 4
+    w = w - alpha * grad
+    print("step", step, "w =", round(w, 4))
+print("after 3 steps, to 2 dp:", round(w, 2))</code></pre>
+    <pre class="output">step 1 w = 3.8
+step 2 w = 3.08
+step 3 w = 2.648
+after 3 steps, to 2 dp: 2.65</pre>
+
+    <p class="cx">Answer: 2.65</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 5: rectangle under a parabola with a width limit (NAT, 2 marks)</h3>
+    <div class="statement"><p>A rectangle is drawn with its base on the x-axis, centred on the y-axis, and its top two corners on the curve y = 12 - x<sup>2</sup>. The rectangle has half-width x, so its corners are (-x, 0), (x, 0), (-x, y) and (x, y) with y = 12 - x<sup>2</sup>. The design rules say the half-width x must be at least 2.5 and at most 3. Find the largest possible area of the rectangle, in square units. Give your answer correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The maximum area of a rectangle when x is restricted to the closed interval [2.5, 3].</li>
+      <li><strong>Which idea applies.</strong> Write the area as one function of x. Find the critical point, but only use it if it lies inside the allowed interval. Otherwise compare the two endpoints.</li>
+      <li><strong>Work it out.</strong> The width is 2x and the height is y = 12 - x<sup>2</sup>, so A(x) = 2x(12 - x<sup>2</sup>) = 24x - 2x<sup>3</sup>. Then A'(x) = 24 - 6x<sup>2</sup>, which is zero at x = 2. But x = 2 is outside [2.5, 3]. On this interval A'(x) is negative, so A is decreasing and the maximum is at the left end, x = 2.5. A(2.5) = 5 times (12 - 6.25) = 5 times 5.75 = 28.75.</li>
+      <li><strong>Check.</strong> A(3) = 6 times 3 = 18, which is smaller than 28.75. The point x = 2 would give 32, but it is not allowed, which is the trap in this problem.</li>
+    </ol>
+
+    <pre class="code" data-lang="python"><code>def area(x):
+    return 2 * x * (12 - x * x)
+
+for x in [2.5, 3.0]:
+    print("x =", x, "area =", area(x))
+print("largest allowed area =", max(area(2.5), area(3.0)))</code></pre>
+    <pre class="output">x = 2.5 area = 28.75
+x = 3.0 area = 18.0
+largest allowed area = 28.75</pre>
+
+    <p class="cx">Answer: 28.75</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+
+  <dl>
+    <div><dt>Objective function</dt><dd>Plain meaning: the quantity to make as large or small as possible. Precise definition: the function f(x) to be optimised.</dd></div>
+    <div><dt>Constraint</dt><dd>Plain meaning: a rule on the variables. Precise definition: an equation linking the variables, used to remove one of them.</dd></div>
+    <div><dt>Feasible domain</dt><dd>Plain meaning: the values that make sense. Precise definition: the set of x allowed by the problem.</dd></div>
+    <div><dt>Interior optimum</dt><dd>Plain meaning: the best point inside the range. Precise definition: a critical point c strictly inside the interval.</dd></div>
+    <div><dt>Boundary optimum</dt><dd>Plain meaning: the best point at an end. Precise definition: a maximum or minimum at an endpoint of the domain.</dd></div>
+    <div><dt>Unconstrained problem</dt><dd>Plain meaning: no closed interval, only a natural domain such as x greater than 0. Precise definition: optimisation over an open domain, where the minimum or maximum is found from critical points.</dd></div>
+    <div><dt>Loss function</dt><dd>Plain meaning: a score of how wrong a model is. Precise definition: a function L(w) of the parameter, minimised during training.</dd></div>
+    <div><dt>Zero-gradient condition</dt><dd>Plain meaning: the bottom of a valley is flat. Precise definition: a smooth minimum w satisfies L'(w) = 0.</dd></div>
+    <div><dt>Learning rate</dt><dd>Plain meaning: the step size. Precise definition: a positive number alpha in the update w minus alpha L'(w).</dd></div>
+    <div><dt>Gradient descent</dt><dd>Plain meaning: move downhill in small steps. Precise definition: repeated updates w_new = w_old minus alpha L'(w_old).</dd></div>
+  </dl>
+
+  <h3>Remember these</h3>
+  <ol>
+    <li>Turn the words into one objective function and one variable.</li>
+    <li>Always state the domain before differentiating.</li>
+    <li>On a closed interval, check the endpoints as well as the critical points.</li>
+    <li>Substitute the constraint before you differentiate.</li>
+    <li>A minimum of a loss has zero slope and positive second derivative.</li>
+    <li>Gradient descent moves against the slope, with a step size alpha.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 21?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 21 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-020.html"><small>Previous, topic 20</small>Maxima and minima</a><a class="next" href="gate-022.html"><small>Next, topic 22</small>Definite and improper integrals</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

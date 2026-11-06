@@ -1,0 +1,376 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 16: Singular Value Decomposition (SVD)</title><meta name="description" content="The singular value decomposition (SVD) breaks any matrix, even a rectangular one, into a rotation, a stretch and another rotation. It gives the rank, the best low-rank approximation and the pseudo-inverse, and it sits behind principal component analysis in data science."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g16" data-key="g16" data-noun="topic" data-num="16" data-track="programming">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Singular Value Decomposition (SVD)</h1>
+<p class="lede">The singular value decomposition (SVD) breaks any matrix, even a rectangular one, into a rotation, a stretch and another rotation. It gives the rank, the best low-rank approximation and the pseudo-inverse, and it sits behind principal component analysis in data science.</p>
+<div class="station"><b>16</b><span>Unit 1 · Linear algebra · Paper DA · New concept</span></div>
+<ul class="topics"><li>What the SVD says</li><li>Singular values and how to compute them</li><li>Rank and low-rank approximation</li><li>The pseudo-inverse</li><li>SVD in data science: PCA</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Take a ball made of rubber and push it through a matrix. The ball turns into an ellipse, or in higher dimensions an ellipsoid. Every matrix does this, even one that is not square. The SVD tells you exactly how it happens. First the matrix rotates the ball. Then it stretches the ball along the coordinate axes by some amounts. Then it rotates again.</p>
+  <p>The stretch amounts are the <strong>singular values</strong>. The directions of stretch are the <strong>singular vectors</strong>. Every matrix has them, which makes the SVD more general than eigenvalues. Eigenvalues need a square matrix, and even then they can be complex or missing. Singular values always exist and are always non-negative real numbers.</p>
+  <p>Why does GATE care? The SVD is the tool behind rank, pseudo-inverses, compression of images and data, and principal component analysis. GATE DA questions often test its basic properties, and a few facts from this page answer many of them.</p>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Singular value</dt><dd>A non-negative number σ<sub>i</sub> that measures how much a matrix stretches in one direction. Precise: σ<sub>i</sub> = √λ<sub>i</sub>, where λ<sub>i</sub> are the eigenvalues of AᵀA.</dd></div>
+    <div><dt>Orthogonal matrix</dt><dd>A square matrix Q with QᵀQ = I. It is a rotation or reflection.</dd></div>
+    <div><dt>Left singular vector</dt><dd>A column u<sub>i</sub> of U in A = UΣVᵀ. It lives in the output space.</dd></div>
+    <div><dt>Right singular vector</dt><dd>A column v<sub>i</sub> of V in A = UΣVᵀ. It lives in the input space.</dd></div>
+    <div><dt>Diagonal matrix Σ</dt><dd>A rectangular matrix with the singular values on its main diagonal and zeros elsewhere.</dd></div>
+    <div><dt>Rank</dt><dd>The number of non-zero singular values.</dd></div>
+    <div><dt>Low-rank approximation</dt><dd>A matrix with fewer non-zero singular values that is as close as possible to A.</dd></div>
+    <div><dt>Frobenius norm</dt><dd>The square root of the sum of all squared entries. Its square equals the sum of squared singular values.</dd></div>
+    <div><dt>Pseudo-inverse</dt><dd>A matrix A⁺ that acts like an inverse even when A is not square or not invertible.</dd></div>
+    <div><dt>Principal component analysis (PCA)</dt><dd>A method that finds the directions of largest variance in data, using the SVD of the centred data matrix.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="What the SVD says">
+  <h2>Step 1: What the SVD says</h2>
+  <p>For any real m × n matrix A there are matrices U (m × m, orthogonal), Σ (m × n, diagonal) and V (n × n, orthogonal) such that:</p>
+  <div class="formula">A = UΣVᵀ</div>
+  <p>Read it from right to left as a sequence of actions on a vector x:</p>
+  <ol>
+    <li><strong>Vᵀ</strong> rotates (or reflects) the input space, so that the right singular vectors line up with the coordinate axes.</li>
+    <li><strong>Σ</strong> stretches each coordinate by its singular value σ<sub>i</sub>, and drops or adds dimensions if the matrix is not square.</li>
+    <li><strong>U</strong> rotates (or reflects) the result into the output space.</li>
+  </ol>
+  <p>By convention, the singular values are sorted from largest to smallest: σ<sub>1</sub> ≥ σ<sub>2</sub> ≥ ... ≥ 0.</p>
+  <p><strong>Worked example.</strong> Let A = [[3, 4], [0, 0]]. This matrix is 2 × 2 but has a zero row, so it squashes the plane onto a line.</p>
+  <ol>
+    <li>Compute AᵀA = [[9, 12], [12, 16]]. Its eigenvalues are 25 and 0 (its trace is 25, and its determinant is 144 − 144 = 0).</li>
+    <li>The singular values are σ<sub>1</sub> = √25 = 5 and σ<sub>2</sub> = √0 = 0.</li>
+    <li>The right singular vectors are eigenvectors of AᵀA. For 25: v<sub>1</sub> = (3/5, 4/5). For 0: v<sub>2</sub> = (4/5, −3/5). These are orthonormal.</li>
+    <li>The left singular vector is u<sub>1</sub> = Av<sub>1</sub>/σ<sub>1</sub> = (3·3/5 + 4·4/5, 0)/5 = (5, 0)/5 = (1, 0). Choose u<sub>2</sub> = (0, 1).</li>
+    <li>So U = I, Σ = [[5, 0], [0, 0]], and V has columns v<sub>1</sub> and v<sub>2</sub>.</li>
+    <li>Check: UΣVᵀ = Σ Vᵀ = [[5·3/5, 5·4/5], [0, 0]] = [[3, 4], [0, 0]], which is A. Correct.</li>
+  </ol>
+  <p>Look at the picture. It shows a 2 × 2 matrix acting on the grid. The grid is squashed and sheared, and the stretch directions are the ones along which the picture changes length most. Try to find the direction that gets stretched the most.</p>
+  <div class="viz" data-viz="transform" data-m="1,1,0,1"></div>
+  <div class="note key"><p><span class="t">Key idea</span>Every matrix has an SVD. The singular values are the lengths of the axes of the ellipse that the unit ball turns into.</p></div>
+  <details class="check"><summary>Question: in the example, what is the largest stretch factor of A?</summary><div class="ans"><p>5, which is σ<sub>1</sub>. Among all unit vectors x, ‖Ax‖ is largest for x = v<sub>1</sub>.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Singular values and how to compute them">
+  <h2>Step 2: Singular values and how to compute them</h2>
+  <p>The singular values come from the symmetric matrix AᵀA (or AAᵀ). Substitute A = UΣVᵀ:</p>
+  <div class="formula">AᵀA = VΣᵀΣVᵀ</div>
+  <p>This is an eigendecomposition of AᵀA, because V is orthogonal and ΣᵀΣ is diagonal with entries σ<sub>i</sub>². So:</p>
+  <div class="formula">The singular values of A are the square roots of the eigenvalues of AᵀA.</div>
+  <p>Because AᵀA is symmetric and positive semidefinite, its eigenvalues are real and non-negative, so the square roots always exist. The method for computing is therefore:</p>
+  <ol>
+    <li>Form AᵀA, which is square and symmetric.</li>
+    <li>Find its eigenvalues λ<sub>i</sub> (using the trace and determinant for 2 × 2).</li>
+    <li>Take square roots: σ<sub>i</sub> = √λ<sub>i</sub>.</li>
+  </ol>
+  <p><strong>Worked example.</strong> Let A = [[1, 1], [0, 1]].</p>
+  <ol>
+    <li>Compute AᵀA = [[1, 1], [1, 2]]. (Column 1 of A is (1, 0) and column 2 is (1, 1). Their dot products give 1, 1, 2.)</li>
+    <li>Trace = 3, determinant = 2 − 1 = 1. So λ² − 3λ + 1 = 0, and λ = (3 ± √5)/2.</li>
+    <li>The two singular values are σ<sub>1</sub> = √((3 + √5)/2) and σ<sub>2</sub> = √((3 − √5)/2).</li>
+    <li>Numerically, σ<sub>1</sub> ≈ 1.618 and σ<sub>2</sub> ≈ 0.618. These are the golden ratio and its reciprocal.</li>
+  </ol>
+  <p>The code below repeats these steps and checks two facts: the product of the singular values equals |det A|, and the sum of squares equals the squared Frobenius norm.</p>
+  <pre class="code" data-lang="python"><code>import math
+
+A = [[1, 1], [0, 1]]
+AtA = [[1 * 1 + 0 * 0, 1 * 1 + 0 * 1], [1 * 1 + 1 * 0, 1 * 1 + 1 * 1]]
+print("A^T A =", AtA)
+tr = AtA[0][0] + AtA[1][1]
+det = AtA[0][0] * AtA[1][1] - AtA[0][1] * AtA[1][0]
+disc = math.sqrt(tr * tr - 4 * det)
+lam1 = (tr + disc) / 2
+lam2 = (tr - disc) / 2
+print("eigenvalues of A^T A:", round(lam1, 6), round(lam2, 6))
+s1, s2 = math.sqrt(lam1), math.sqrt(lam2)
+print("singular values:", round(s1, 6), round(s2, 6))
+print("product of singular values:", round(s1 * s2, 6))
+print("sum of squares:", round(s1 * s1 + s2 * s2, 6))</code></pre>
+  <pre class="output">A^T A = [[1, 1], [1, 2]]
+eigenvalues of A^T A: 2.618034 0.381966
+singular values: 1.618034 0.618034
+product of singular values: 1.0
+sum of squares: 3.0</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Singular values are not the eigenvalues of A. For the matrix [[0, 1], [0, 0]], the eigenvalues are both 0, but the singular value is 1. Use AᵀA, not A, to get the singular values.</p></div>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For a square matrix, the product of the singular values equals |det A|, and the sum of the squared singular values equals the sum of the squares of all entries (the squared Frobenius norm). Both are fast checks.</p></div>
+  <details class="check"><summary>Question: what are the singular values of the diagonal matrix diag(3, −4)?</summary><div class="ans"><p>3 and 4. A negative entry is removed by a sign change, so the singular values are the absolute values of the diagonal entries.</p></div></details>
+  <details class="check"><summary>Question: if a square matrix is symmetric and positive definite with eigenvalues 4 and 9, what are its singular values?</summary><div class="ans"><p>9 and 4. For such a matrix, the SVD and the eigendecomposition coincide, so the singular values equal the eigenvalues.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Rank and low-rank approximation">
+  <h2>Step 3: Rank and low-rank approximation</h2>
+  <p>The rank of A equals the number of non-zero singular values. This gives a fast way to read the rank from the SVD. A matrix with singular values 5, 2 and 0 has rank 2.</p>
+  <p>The SVD can also write A as a sum of rank-one pieces:</p>
+  <div class="formula">A = σ<sub>1</sub>u<sub>1</sub>v<sub>1</sub>ᵀ + σ<sub>2</sub>u<sub>2</sub>v<sub>2</sub>ᵀ + ... + σ<sub>r</sub>u<sub>r</sub>v<sub>r</sub>ᵀ</div>
+  <p>Each term is a rank-one matrix. The largest singular values give the largest pieces. So to approximate A with a lower rank k, keep the first k terms and drop the rest. This is the best possible rank-k approximation, in the sense of the spectral norm or the Frobenius norm (a result called the Eckart-Young theorem).</p>
+  <p><strong>Worked example.</strong> For A = [[3, 4], [0, 0]], the SVD has only one non-zero singular value, σ<sub>1</sub> = 5. So A = 5 · (1, 0)ᵀ(3/5, 4/5). Check: 5 · [[1·3/5, 1·4/5], [0, 0]] = [[3, 4], [0, 0]]. The rank-one approximation is exact, with no error.</p>
+  <p>For a matrix with several non-zero singular values, the error of the best rank-k approximation is given by the first dropped singular value. In the spectral norm, the error equals σ<sub>k+1</sub>.</p>
+  <p>The Frobenius norm gives a clean check on the sum of squares: ‖A‖<sub>F</sub>² = σ<sub>1</sub>² + σ<sub>2</sub>² + ... . For A = [[1, 1], [0, 1]] from Step 2, the entries square to 1 + 1 + 0 + 1 = 3, and the singular values square to 2.618 + 0.382 = 3. Both agree.</p>
+  <div class="note key"><p><span class="t">Key idea</span>Rank is the number of non-zero singular values. Low-rank approximation keeps the largest singular values and drops the rest.</p></div>
+  <details class="check"><summary>Question: a 4 × 3 matrix has singular values 6, 2 and 0. What is its rank, and what is the spectral-norm error of the best rank-1 approximation?</summary><div class="ans"><p>Rank 2, since two singular values are non-zero. The best rank-1 approximation drops σ<sub>2</sub> = 2, so the spectral-norm error is 2.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="The pseudo-inverse">
+  <h2>Step 4: The pseudo-inverse</h2>
+  <p>Sometimes a matrix has no inverse, because it is not square or it is singular. The pseudo-inverse A⁺ is the best substitute. It is built from the SVD by inverting the non-zero singular values and leaving zeros alone:</p>
+  <div class="formula">A⁺ = VΣ⁺Uᵀ, where Σ⁺ has entries 1/σ<sub>i</sub> for each non-zero σ<sub>i</sub>, and zeros elsewhere</div>
+  <p>The pseudo-inverse gives the least squares solution of Ax = b with the smallest possible length, x = A⁺b. It also satisfies A A⁺ A = A, which is the defining property.</p>
+  <p><strong>Worked example.</strong> For A = [[3, 4], [0, 0]], the non-zero singular value is 5, with V and U as in Step 1. So Σ⁺ = [[1/5, 0], [0, 0]], and U = I. Then A⁺ = V Σ⁺ Uᵀ. The first column of VΣ⁺ is v<sub>1</sub>/5 = (3/25, 4/25), and the second column is zero. So A⁺ = [[3/25, 0], [4/25, 0]].</p>
+  <p>The code below builds A⁺ from the SVD and checks A A⁺ A = A.</p>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction as F
+
+def matmul(A, B):
+    return [[sum(A[i][k] * B[k][j] for k in range(len(B))) for j in range(len(B[0]))] for i in range(len(A))]
+
+def transpose(A):
+    return [list(row) for row in zip(*A)]
+
+A = [[3, 4], [0, 0]]
+V = [[F(3, 5), F(4, 5)], [F(4, 5), F(-3, 5)]]
+Splus = [[F(1, 5), 0], [0, 0]]
+U = [[1, 0], [0, 1]]
+Aplus = matmul(matmul(V, Splus), transpose(U))
+print("A+ =", [[str(x) for x in row] for row in Aplus])
+print("A A+ A == A:", matmul(matmul(A, Aplus), A) == [[F(x) for x in row] for row in A])</code></pre>
+  <pre class="output">A+ = [['3/25', '0'], ['4/25', '0']]
+A A+ A == A: True</pre>
+  <div class="note trap"><p><span class="t">Trap</span>Only non-zero singular values are inverted. Dividing by zero is not allowed, and the pseudo-inverse simply leaves those directions alone.</p></div>
+  <details class="check"><summary>Question: for an invertible square matrix, what is A⁺?</summary><div class="ans"><p>A⁺ = A⁻¹. When every singular value is non-zero, inverting each one gives exactly the ordinary inverse.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="SVD in data science: PCA">
+  <h2>Step 5: SVD in data science: PCA</h2>
+  <p>Principal component analysis (PCA) is the most common use of the SVD in data science. The idea is simple. You have many data points, each with several features, and you want the few directions in which the data varies most.</p>
+  <p>Start with a data matrix X whose rows are samples. Centre it by subtracting the mean of each column (the centering matrix from the previous topic does this). Then take the SVD of the centred matrix:</p>
+  <div class="formula">X = UΣVᵀ</div>
+  <p>The columns of V are the <strong>principal directions</strong>. The first column points along the direction of largest variance. The variance along the k-th direction is σ<sub>k</sub>²/(n − 1), where n is the number of samples.</p>
+  <p>Analogy: imagine a cloud of points shaped like a long cigar. The SVD finds the long axis of the cigar first. Dropping the thin directions and keeping the long ones is how PCA compresses data while losing as little information as possible.</p>
+  <div class="note interview"><p><span class="t">GATE loves this</span>For centred data, the variance along each principal direction is σ<sup>2</sup>/(n − 1). Questions often give singular values and ask for the variance, so keep this formula handy.</p></div>
+  <details class="check"><summary>Question: why must the data be centred before PCA?</summary><div class="ans"><p>Without centring, the first singular direction points towards the mean of the data, not towards its spread. Centring removes the mean, so the SVD measures variation around it.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or fact</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>A = UΣVᵀ</td><td>Singular value decomposition.</td><td>Any real matrix.</td></tr>
+      <tr><td>σ<sub>i</sub> = √(eigenvalue of AᵀA)</td><td>Singular values.</td><td>Computing singular values by hand.</td></tr>
+      <tr><td>rank(A) = number of non-zero σ<sub>i</sub></td><td>Rank from the SVD.</td><td>Rank questions.</td></tr>
+      <tr><td>A = Σ σ<sub>i</sub>u<sub>i</sub>v<sub>i</sub>ᵀ</td><td>Sum of rank-one pieces.</td><td>Low-rank approximation.</td></tr>
+      <tr><td>‖A‖<sub>F</sub>² = Σ σ<sub>i</sub>²</td><td>Frobenius norm from singular values.</td><td>Norm questions.</td></tr>
+      <tr><td>|det A| = Π σ<sub>i</sub> (square A)</td><td>Determinant magnitude.</td><td>Quick determinant checks.</td></tr>
+      <tr><td>A⁺ = VΣ⁺Uᵀ</td><td>Pseudo-inverse.</td><td>Least squares with minimum length.</td></tr>
+      <tr><td>variance along PC k = σ<sub>k</sub>²/(n − 1)</td><td>PCA variance for centred data.</td><td>PCA questions.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>Try each problem before reading the answer. Every problem here is a GATE-style practice problem.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Singular values of a diagonal matrix</h3>
+    <div class="statement"><p>Find the singular values of D = [[2, 0], [0, 5]].</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The singular values of a diagonal matrix.</li>
+      <li><strong>Which idea applies.</strong> DᵀD is diagonal with entries d<sub>i</sub>², so its eigenvalues are the squares of the diagonal entries.</li>
+      <li><strong>Work it out.</strong> DᵀD = [[4, 0], [0, 25]], with eigenvalues 4 and 25. The singular values are √4 = 2 and √25 = 5.</li>
+      <li><strong>Check.</strong> Sorted from largest to smallest: 5 and 2. The product 10 equals |det D| = 2 · 5 = 10.</li>
+    </ol>
+    <p class="cx">Answer: 5 and 2.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Rank from singular values</h3>
+    <div class="statement"><p>A 3 × 3 real matrix has singular values 3, 0 and 0. What is its rank?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The rank.</li>
+      <li><strong>Which idea applies.</strong> Rank equals the number of non-zero singular values.</li>
+      <li><strong>Work it out.</strong> Only one singular value, 3, is non-zero.</li>
+      <li><strong>Check.</strong> A rank-one matrix has all its columns along one direction, which fits a single stretch.</li>
+    </ol>
+    <p class="cx">Answer: 1.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which SVD facts are true? (MSQ)</h3>
+    <div class="statement"><p>Let A be any real m × n matrix. Select all statements that are always true.</p><p>(A) Every singular value is non-negative. &nbsp; (B) The number of non-zero singular values equals rank(A). &nbsp; (C) The singular values of A are its eigenvalues. &nbsp; (D) The squares of the singular values are eigenvalues of AᵀA.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which general properties of singular values hold for every real matrix.</li>
+      <li><strong>Which idea applies.</strong> Singular values are square roots of eigenvalues of AᵀA, which are non-negative, and their count gives the rank.</li>
+      <li><strong>Work it out.</strong> (A) True: σ<sub>i</sub> = √λ<sub>i</sub> with λ<sub>i</sub> ≥ 0. (B) True: rank equals the number of non-zero singular values. (C) False: for [[0, 1], [0, 0]], both eigenvalues are 0 but the singular value is 1. (D) True: that is how singular values are defined.</li>
+      <li><strong>Check.</strong> The counterexample in (C) is the one used in the Trap of Step 2.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Largest singular value (NAT)</h3>
+    <div class="statement"><p>Let A = [[1, 1], [0, 1]]. Find the largest singular value of A, rounded to three decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> σ<sub>1</sub> to three decimals.</li>
+      <li><strong>Which idea applies.</strong> σ<sub>1</sub> = √(largest eigenvalue of AᵀA).</li>
+      <li><strong>Work it out.</strong> AᵀA = [[1, 1], [1, 2]], with eigenvalues (3 ± √5)/2. The largest is (3 + √5)/2 ≈ 2.618. Its square root is ≈ 1.618.</li>
+      <li><strong>Check.</strong> 1.618² ≈ 2.618, which matches the eigenvalue.</li>
+    </ol>
+    <p class="cx">Answer: 1.618.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Frobenius norm from singular values (NAT)</h3>
+    <div class="statement"><p>Let A = [[1, 1], [0, 1]]. Find the squared Frobenius norm of A, using its singular values. Give the answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> ‖A‖<sub>F</sub>².</li>
+      <li><strong>Which idea applies.</strong> ‖A‖<sub>F</sub>² equals the sum of the squared singular values.</li>
+      <li><strong>Work it out.</strong> The singular values squared are (3 + √5)/2 and (3 − √5)/2. Their sum is 3.</li>
+      <li><strong>Check.</strong> Directly, the squared entries are 1 + 1 + 0 + 1 = 3. The two methods agree.</li>
+    </ol>
+    <p class="cx">Answer: 3.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>An entry of the pseudo-inverse (NAT)</h3>
+    <div class="statement"><p>Let A = [[3, 4], [0, 0]]. Its pseudo-inverse A⁺ is computed as in Step 4. What is the entry in row 2, column 1 of A⁺? Give the answer as a fraction.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One entry of A⁺.</li>
+      <li><strong>Which idea applies.</strong> A⁺ = VΣ⁺Uᵀ, with Σ⁺ = [[1/5, 0], [0, 0]].</li>
+      <li><strong>Work it out.</strong> A⁺ = [[3/25, 0], [4/25, 0]], so the entry in row 2, column 1 is 4/25.</li>
+      <li><strong>Check.</strong> The code in Step 4 printed the same matrix, and A A⁺ A = A held.</li>
+    </ol>
+    <p class="cx">Answer: 4/25.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Reconstructing A from its SVD (NAT)</h3>
+    <div class="statement"><p>Let A = UΣVᵀ with U = I, Σ = diag(2, 1) and V = [[0, 1], [1, 0]]. What is the entry in row 1, column 2 of A? Give the answer as an integer.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Entry (1, 2) of A.</li>
+      <li><strong>Which idea applies.</strong> Since U = I, A = ΣVᵀ.</li>
+      <li><strong>Work it out.</strong> Vᵀ = V = [[0, 1], [1, 0]] (V is symmetric here). ΣVᵀ = [[2·0, 2·1], [1·1, 1·0]] = [[0, 2], [1, 0]]. The entry in row 1, column 2 is 2.</li>
+      <li><strong>Check.</strong> The singular values of this A are 2 and 1, which are the diagonal entries of Σ, as the SVD requires.</li>
+    </ol>
+    <p class="cx">Answer: 2.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Best low-rank approximation (MSQ)</h3>
+    <div class="statement"><p>A real 3 × 3 matrix A has singular values 5, 2 and 1. Select all statements that are true.</p><p>(A) The best rank-2 approximation has spectral-norm error 1. &nbsp; (B) The best rank-1 approximation has spectral-norm error 2. &nbsp; (C) The best rank-2 approximation is A minus σ<sub>3</sub>u<sub>3</sub>v<sub>3</sub>ᵀ. &nbsp; (D) ‖A‖<sub>F</sub>² = 26.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements about low-rank approximation hold.</li>
+      <li><strong>Which idea applies.</strong> The best rank-k approximation keeps the k largest singular values. Its spectral-norm error is the next singular value. The Frobenius norm squared is the sum of squared singular values.</li>
+      <li><strong>Work it out.</strong> (A) True: keeping σ<sub>1</sub> and σ<sub>2</sub> leaves error σ<sub>3</sub> = 1. (B) True: keeping σ<sub>1</sub> leaves error σ<sub>2</sub> = 2. (C) True: this removes exactly the last rank-one piece. (D) False: 5² + 2² + 1² = 25 + 4 + 1 = 30, not 26.</li>
+      <li><strong>Check.</strong> The errors shrink as the rank increases: 2 for rank 1, 1 for rank 2, and 0 for rank 3, as expected.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (C).</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Variance along a principal direction (NAT)</h3>
+    <div class="statement"><p>A centred data matrix X has n = 11 samples and singular values 6 and 2. What is the variance of the data along the first principal direction? Use the usual formula with n − 1 in the denominator. Give the answer as a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The variance along the first principal direction.</li>
+      <li><strong>Which idea applies.</strong> For centred data, the variance along direction k is σ<sub>k</sub>²/(n − 1).</li>
+      <li><strong>Work it out.</strong> σ<sub>1</sub>² = 36 and n − 1 = 10. So the variance is 36/10 = 3.6.</li>
+      <li><strong>Check.</strong> The second direction has variance 4/10 = 0.4. The first direction captures most of the variance, as expected from the larger singular value.</li>
+    </ol>
+    <p class="cx">Answer: 3.6.</p>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: Singular values of a 2 × 2 (NAT, 2 marks)</h3>
+    <div class="statement"><p>Find the largest singular value of A = [[3, 0], [4, 5]], correct to 2 decimal places.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> σ<sub>max</sub> = √(largest eigenvalue of AᵀA).</li>
+      <li><strong>Which idea applies.</strong> Singular values are square roots of eigenvalues of AᵀA.</li>
+      <li><strong>Work it out.</strong> AᵀA = [[25, 20], [20, 25]], eigenvalues 45 and 5. σ<sub>max</sub> = √45 ≈ 6.71. σ<sub>min</sub> = √5.</li>
+      <li><strong>Check.</strong> σ<sub>max</sub>σ<sub>min</sub> = √225 = 15 = |det A|.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>import math
+a, b, d = 25, 20, 25
+l1 = (a + d) / 2 + math.sqrt(((a - d) / 2) ** 2 + b * b)
+print("sigma_max = %.2f" % math.sqrt(l1))
+</code></pre>
+    <pre class="output">sigma_max = 6.71</pre>
+    <p class="cx">Answer: √45 ≈ 6.71.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Best rank-one approximation error (NAT, 2 marks)</h3>
+    <div class="statement"><p>A matrix has singular values 6, 3 and 2. Its best rank-one approximation A<sub>1</sub> (in Frobenius norm) has error ‖A − A<sub>1</sub>‖<sub>F</sub>. Find this error squared.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The squared Frobenius error of the truncated SVD.</li>
+      <li><strong>Which idea applies.</strong> Eckart-Young: the error of the best rank-k approximation is the root sum of squares of the discarded singular values.</li>
+      <li><strong>Work it out.</strong> Discarded: 3 and 2. Squared error = 9 + 4 = 13.</li>
+      <li><strong>Check.</strong> ‖A‖<sub>F</sub>² = 36 + 9 + 4 = 49, and A<sub>1</sub> keeps 36 of it.</li>
+    </ol>
+    <p class="cx">Answer: 13.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: SVD facts (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Let A = UΣVᵀ be an SVD of an m × n real matrix. Which are TRUE? (A) The number of nonzero singular values equals rank(A). (B) Columns of V are eigenvectors of AᵀA. (C) Singular values can be negative. (D) ‖A‖<sub>2</sub> is the largest singular value.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Basic properties of the SVD.</li>
+      <li><strong>Which idea applies.</strong> AᵀA = VΣᵀΣVᵀ, which is an eigendecomposition.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) True. (C) By convention they are square roots, so nonnegative. False. (D) The spectral norm equals σ<sub>1</sub>. True.</li>
+      <li><strong>Check.</strong> Any sign can be moved into U or V, which is why Σ is kept nonnegative.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D).</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Singular value decomposition</dt><dd>A = UΣVᵀ for any real matrix A.</dd></div>
+    <div><dt>Singular value</dt><dd>σ<sub>i</sub> = √λ<sub>i</sub>, where λ<sub>i</sub> are eigenvalues of AᵀA. Always non-negative.</dd></div>
+    <div><dt>Left singular vectors</dt><dd>The columns of U, in the output space.</dd></div>
+    <div><dt>Right singular vectors</dt><dd>The columns of V, in the input space.</dd></div>
+    <div><dt>Diagonal matrix Σ</dt><dd>The singular values on the diagonal, sorted from largest to smallest.</dd></div>
+    <div><dt>Rank</dt><dd>The number of non-zero singular values.</dd></div>
+    <div><dt>Rank-one piece</dt><dd>σ<sub>i</sub>u<sub>i</sub>v<sub>i</sub>ᵀ, one term of the sum that gives A.</dd></div>
+    <div><dt>Low-rank approximation</dt><dd>Keep the largest singular values and drop the rest.</dd></div>
+    <div><dt>Eckart-Young theorem</dt><dd>The truncated SVD is the best low-rank approximation.</dd></div>
+    <div><dt>Frobenius norm</dt><dd>The square root of the sum of squared entries. Its square is the sum of squared singular values.</dd></div>
+    <div><dt>Determinant link</dt><dd>For a square matrix, |det A| equals the product of the singular values.</dd></div>
+    <div><dt>Pseudo-inverse</dt><dd>A⁺ = VΣ⁺Uᵀ, which inverts only the non-zero singular values.</dd></div>
+    <div><dt>Least squares with minimum length</dt><dd>x = A⁺b is the smallest-length least squares solution.</dd></div>
+    <div><dt>Principal component analysis</dt><dd>Using the SVD of centred data to find directions of largest variance.</dd></div>
+    <div><dt>Principal direction</dt><dd>A column of V, found from the centred data matrix.</dd></div>
+    <div><dt>Variance along a principal direction</dt><dd>σ<sup>2</sup>/(n − 1) for centred data.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Every matrix has an SVD, even a rectangular one.</li>
+    <li>Singular values are square roots of eigenvalues of AᵀA, never the eigenvalues of A itself.</li>
+    <li>The number of non-zero singular values is the rank.</li>
+    <li>Keep the largest singular values to get the best low-rank approximation.</li>
+    <li>The product of the singular values equals |det A| for square A.</li>
+    <li>In PCA, the variance along a principal direction is σ²/(n − 1).</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 16?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 16 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-015.html"><small>Previous, topic 15</small>Quadratic forms</a><a class="next" href="gate-017.html"><small>Next, topic 17</small>Functions of a single variable: limits &amp; continuity</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

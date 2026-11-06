@@ -1,0 +1,505 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 73: Trees & Binary Search Trees</title><meta name="description" content="A tree is a way to store data in levels, like a family tree or the folders on your computer. A binary search tree is a tree where smaller keys sit on the left and bigger keys sit on the right, so you can find a key quickly. GATE asks you to name tree parts, trace the four traversal orders, and find the cost of searching, inserting and deleting."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g73" data-key="g73" data-noun="topic" data-num="73" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Trees &amp; Binary Search Trees</h1>
+<p class="lede">A tree is a way to store data in levels, like a family tree or the folders on your computer. A binary search tree is a tree where smaller keys sit on the left and bigger keys sit on the right, so you can find a key quickly. GATE asks you to name tree parts, trace the four traversal orders, and find the cost of searching, inserting and deleting.</p>
+<div class="station"><b>73</b><span>Unit 6 · Programming and data structures · Paper DA · New concept</span></div>
+<ul class="topics"><li>Tree words: root, leaf, depth, height</li><li>Four ways to visit every node</li><li>The binary search tree rule</li><li>Insert, search and delete</li><li>Balanced and skewed trees</li><li>Trace questions and counting facts</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Imagine a company org chart. One person sits at the top. Each person has some people who report to them, and those people have their own reports. That picture is a <strong>tree</strong>. In computer science, a tree is a set of boxes (called <strong>nodes</strong>) joined by lines (called <strong>edges</strong>). There is one top box, the <strong>root</strong>, and every other box hangs below exactly one box above it.</p>
+  <p>A <strong>binary tree</strong> is a tree where every box has at most two children, one on the left and one on the right. Why would anyone want this? Because it gives a useful middle path between two simpler ways to store a list of numbers:</p>
+  <ul>
+    <li>An <strong>array</strong> is fast to read by position, but inserting in the middle means shifting many items.</li>
+    <li>A <strong>linked list</strong> is fast to insert into, but to find a key you may have to walk through every item.</li>
+  </ul>
+  <p>A <strong>binary search tree</strong> (BST) keeps the list in a shape that lets you throw away about half of the remaining choices at each step. Think of a dictionary. You open it near the middle, see whether your word comes before or after that page, and then ignore the other half. Each step cuts the problem down. A BST does exactly that, one box at a time.</p>
+  <p>Where does this appear in GATE DA? Tree questions usually ask you to trace a traversal (the order in which you visit every box), to build a BST from a list of keys, to count comparisons during a search, or to state the time complexity of an operation. Each of these needs the vocabulary and the rules on this page, so read the terms carefully.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The cost of searching, inserting or deleting in a BST depends on the <em>height</em> of the tree, not directly on the number of keys. A short, bushy tree is fast. A tall, thin tree behaves almost like a plain list.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <p>Read this list once now and come back to it whenever a word feels unclear.</p>
+  <dl>
+    <div><dt>Node</dt><dd>A box in the tree that holds one key (one value). Precisely: a node holds a key and links to its children.</dd></div>
+    <div><dt>Edge</dt><dd>A line joining a parent node to a child node. Precisely: the pair (parent, child) is an edge.</dd></div>
+    <div><dt>Root</dt><dd>The top node, which has no parent. Precisely: the only node that is not the child of any node.</dd></div>
+    <div><dt>Parent and child</dt><dd>The node above is the parent, the node below is its child. Precisely: a node with an edge pointing down to another node is that node's parent.</dd></div>
+    <div><dt>Sibling</dt><dd>Two nodes with the same parent. Precisely: children of one node are siblings of each other.</dd></div>
+    <div><dt>Leaf</dt><dd>A node with no children at all. Precisely: a node with zero children is a leaf.</dd></div>
+    <div><dt>Depth</dt><dd>How far a node is from the root, counted in edges. Precisely: depth of the root is 0, and depth of any other node is one more than its parent's depth.</dd></div>
+    <div><dt>Level</dt><dd>All nodes with the same depth form one level. Level 0 holds the root.</dd></div>
+    <div><dt>Height</dt><dd>How deep the tree goes. Precisely: the height of a node is the number of edges on the longest path from that node down to a leaf. The height of the tree is the height of the root.</dd></div>
+    <div><dt>Binary tree</dt><dd>A tree where each node has at most two children, called left and right. Precisely: each node has zero, one or two children.</dd></div>
+    <div><dt>Full binary tree</dt><dd>Every node has either zero or two children. Precisely: no node has exactly one child.</dd></div>
+    <div><dt>Complete binary tree</dt><dd>Every level is full except possibly the last, and the last level is filled from the left. Precisely: this is the shape used by heaps on the next page.</dd></div>
+    <div><dt>Binary search tree (BST)</dt><dd>A binary tree with an ordering rule. Precisely: for every node, all keys in its left subtree are smaller and all keys in its right subtree are bigger.</dd></div>
+    <div><dt>Subtree</dt><dd>A node together with all the nodes below it. Precisely: the subtree rooted at node v contains v and all of v's descendants.</dd></div>
+    <div><dt>Traversal</dt><dd>A rule for visiting every node exactly once in some order. Precisely: the four standard traversals are inorder, preorder, postorder and level-order.</dd></div>
+    <div><dt>Inorder, preorder, postorder</dt><dd>Three depth-first orders. Precisely: they differ only in when the root is visited compared with the left and right subtrees (before, between, or after).</dd></div>
+    <div><dt>Level-order</dt><dd>Visit the tree one level at a time, from left to right. Precisely: a breadth-first traversal that uses a queue.</dd></div>
+    <div><dt>Skewed tree</dt><dd>A tree that is almost a straight chain. Precisely: every node has at most one child, so the height is close to the number of nodes.</dd></div>
+    <div><dt>Balanced tree</dt><dd>A tree whose height stays small, close to log of the number of nodes. Precisely: the two subtrees of every node differ in height by at most a small amount (for AVL trees, by at most 1).</dd></div>
+    <div><dt>Inorder successor</dt><dd>The next key in sorted order after a given node. Precisely: the smallest key in that node's right subtree.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="Tree words and sizes">
+  <h2>Tree words and how big a tree can get</h2>
+  <p>Before you can answer any question about trees, you must read the shape. Here is the tree we will use on this whole page. Call it tree T. Its keys are 8, 3, 10, 1, 6, 14, 4, 7 and 13.</p>
+  <pre class="code" data-lang="text"><code>            8            &lt;- root (level 0)
+         /     \
+        3       10          (level 1)
+       / \        \
+      1   6        14       (level 2)
+         / \      /
+        4   7    13         (level 3)</code></pre>
+  <p>Read it top to bottom. Node 8 is the root because nothing is above it. Node 3 is the left child of 8, and node 10 is the right child of 8. Nodes 1, 4, 7 and 13 have no children, so they are leaves.</p>
+  <p>To find the depth of a node, count the edges you cross going from the root down to it. Node 8 has depth 0. Node 3 has depth 1, because one edge joins it to 8. Node 6 has depth 2, because the path is 8, 3, 6. Node 4 has depth 3, because the path is 8, 3, 6, 4.</p>
+  <p>To find the height of the whole tree, look for the longest path from the root down to any leaf and count its edges. The path 8, 3, 6, 4 has 3 edges. The path 8, 10, 14, 13 also has 3 edges. Nothing is longer, so the height of T is 3.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Textbooks disagree about whether height counts edges or levels. Some say a single node has height 0 (edges), others say height 1 (levels). Always check which convention the question uses. This page counts edges unless it says otherwise.</p></div>
+  <h3>How many nodes can fit?</h3>
+  <p>A binary tree gets wider as you go down. The root is one node. Each node can have two children, so level 1 can hold at most 2 nodes, level 2 at most 4, and level 3 at most 8. In general, level k can hold at most 2<sup>k</sup> nodes.</p>
+  <p>If you add up all the levels from 0 up to height h, you get a total of 1 + 2 + 4 + ... + 2<sup>h</sup>. This sum equals 2<sup>h+1</sup> - 1. So a binary tree of height h holds at most 2<sup>h+1</sup> - 1 nodes.</p>
+  <div class="formula">max nodes at level k = 2<sup>k</sup></div>
+  <div class="formula">max nodes in a binary tree of height h = 2<sup>h+1</sup> - 1</div>
+  <p>Worked example. A binary tree has height 3. How many nodes can it have at most? Substitute h = 3: 2<sup>3+1</sup> - 1 = 2<sup>4</sup> - 1 = 16 - 1 = 15. Tree T has only 9 nodes, which is well under the limit.</p>
+  <details class="check"><summary>In tree T, what is the depth of node 13?</summary><div class="ans"><p>The path is 8, 10, 14, 13. That path has 3 edges, so the depth of node 13 is 3.</p></div></details>
+  <details class="check"><summary>Can a binary tree of height 2 hold 8 nodes?</summary><div class="ans"><p>No. The most it can hold is 2<sup>3</sup> - 1 = 7 nodes (levels 0, 1 and 2 hold 1, 2 and 4 nodes).</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Four traversals">
+  <h2>Four ways to visit every node</h2>
+  <p>A traversal is a recipe for visiting every node exactly once. Think of how you might read every room in a house. You could go room by room in one wing before moving on, or you could go floor by floor. The three depth-first orders (inorder, preorder and postorder) all use the same recipe at each node: visit the node, visit the left subtree, visit the right subtree. Only the position of "visit the node" changes.</p>
+  <ul>
+    <li><strong>Preorder</strong>: node, then left subtree, then right subtree. The root comes first. Mnemonic: "pre" means before.</li>
+    <li><strong>Inorder</strong>: left subtree, then node, then right subtree. The root sits in the middle. For a BST, this gives the keys in sorted order.</li>
+    <li><strong>Postorder</strong>: left subtree, then right subtree, then node. The root comes last. Mnemonic: "post" means after.</li>
+    <li><strong>Level-order</strong>: go level by level, from top to bottom, and from left to right within each level. This one is not recursive. It uses a queue, the same first-in, first-out line you would use at a bank.</li>
+  </ul>
+  <h3>Worked example on tree T</h3>
+  <p>Let us do inorder by hand on the subtree under node 3 first, because that is the smallest piece. The subtree under 3 has left child 1 and right subtree rooted at 6 (which has children 4 and 7). Inorder on this piece is: inorder of 1, which is just 1; then 3; then inorder of the subtree at 6, which is 4, then 6, then 7. So the piece gives 1, 3, 4, 6, 7.</p>
+  <p>Now the whole tree. Inorder of the left subtree of 8 is 1, 3, 4, 6, 7. Then comes 8. The right subtree of 8 is rooted at 10, with no left child and right child 14. Its inorder is 10, then the inorder of 14, which is 13, then 14. So the right side gives 10, 13, 14. The full inorder is 1, 3, 4, 6, 7, 8, 10, 13, 14.</p>
+  <p>Preorder starts at the root, so the first key is 8. Then we walk the left subtree in preorder: 3, then 1, then the subtree at 6 which gives 6, 4, 7. Then the right subtree: 10, 14, 13. Full preorder: 8, 3, 1, 6, 4, 7, 10, 14, 13.</p>
+  <p>Postorder puts the root last. The left subtree gives 1, 4, 7, 6, 3 and the right subtree gives 13, 14, 10. Then 8 comes last. Full postorder: 1, 4, 7, 6, 3, 13, 14, 10, 8.</p>
+  <p>Level-order reads the levels from the diagram: level 0 is 8; level 1 is 3, 10; level 2 is 1, 6, 14; level 3 is 4, 7, 13. Full level-order: 8, 3, 10, 1, 6, 14, 4, 7, 13.</p>
+  <p>Here is the same work done by a Python program. It builds the tree by inserting the keys in the order 8, 3, 10, 1, 6, 14, 4, 7, 13. You will see the BST insertion rule in the next unit. Notice that the program prints exactly what we found by hand.</p>
+  <pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, key):
+        self.key = key
+        self.left = None
+        self.right = None
+
+def insert(root, key):
+    if root is None:
+        return Node(key)
+    if key &lt; root.key:
+        root.left = insert(root.left, key)
+    elif key &gt; root.key:
+        root.right = insert(root.right, key)
+    return root
+
+def inorder(node):
+    if node is None:
+        return []
+    return inorder(node.left) + [node.key] + inorder(node.right)
+
+def preorder(node):
+    if node is None:
+        return []
+    return [node.key] + preorder(node.left) + preorder(node.right)
+
+def postorder(node):
+    if node is None:
+        return []
+    return postorder(node.left) + postorder(node.right) + [node.key]
+
+def level_order(root):
+    result = []
+    queue = [root] if root is not None else []
+    while queue:
+        node = queue.pop(0)
+        result.append(node.key)
+        if node.left is not None:
+            queue.append(node.left)
+        if node.right is not None:
+            queue.append(node.right)
+    return result
+
+root = None
+for key in [8, 3, 10, 1, 6, 14, 4, 7, 13]:
+    root = insert(root, key)
+
+print("inorder:", inorder(root))
+print("preorder:", preorder(root))
+print("postorder:", postorder(root))
+print("level order:", level_order(root))</code></pre>
+  <pre class="output">inorder: [1, 3, 4, 6, 7, 8, 10, 13, 14]
+preorder: [8, 3, 1, 6, 4, 7, 10, 14, 13]
+postorder: [1, 4, 7, 6, 3, 13, 14, 10, 8]
+level order: [8, 3, 10, 1, 6, 14, 4, 7, 13]</pre>
+  <div class="note interview"><p><span class="t">GATE loves this</span>Inorder of any BST is sorted in increasing order. This is true for every BST, whatever its shape. Many questions give you a tree and ask which traversal produces sorted output. The answer is always inorder.</p></div>
+  <details class="check"><summary>Which traversal visits the root before both subtrees?</summary><div class="ans"><p>Preorder. The root is visited first, then the left subtree, then the right subtree.</p></div></details>
+  <details class="check"><summary>What is the last key printed by postorder on any tree?</summary><div class="ans"><p>The root. In postorder the node is visited after both of its subtrees, so the root is always the last one printed.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="The BST rule and operations">
+  <h2>The BST rule, search, insert and delete</h2>
+  <p>A binary search tree follows one rule. For every node, every key in its left subtree is smaller than the node's key, and every key in its right subtree is bigger. Duplicates are usually not allowed in the basic version. Tree T is a valid BST: at node 8, the left side holds 1, 3, 4, 6, 7 (all less than 8) and the right side holds 10, 13, 14 (all greater than 8). The same check works at every other node.</p>
+  <div class="note key"><p><span class="t">Key idea</span>The BST rule means you can decide the direction at every node. If the key you want is smaller than the node, go left. If it is bigger, go right. You never need to look at the other side.</p></div>
+  <h3>Search</h3>
+  <p>To search for key x, start at the root. Compare x with the node's key. If they are equal, you found it. If x is smaller, move to the left child. If x is bigger, move to the right child. If you reach an empty spot (no child), the key is not in the tree.</p>
+  <p>Example: search for 13 in tree T. Start at 8: 13 is bigger, go right to 10. At 10: 13 is bigger, go right to 14. At 14: 13 is smaller, go left to 13. At 13: equal, found. That took 4 comparisons (8, 10, 14 and 13).</p>
+  <p>Search for 5 in tree T. Start at 8: 5 is smaller, go left to 3. At 3: 5 is bigger, go right to 6. At 6: 5 is smaller, go left to 4. At 4: 5 is bigger, go right. The right child of 4 is empty, so 5 is not in the tree. That took 4 comparisons.</p>
+  <p>The program below counts the comparisons. It uses the same insert function as before, so the tree is identical.</p>
+  <pre class="code" data-lang="python"><code>class Node:
+    def __init__(self, key):
+        self.key = key
+        self.left = None
+        self.right = None
+
+def insert(root, key):
+    if root is None:
+        return Node(key)
+    if key &lt; root.key:
+        root.left = insert(root.left, key)
+    elif key &gt; root.key:
+        root.right = insert(root.right, key)
+    return root
+
+def search(root, key):
+    steps = 0
+    node = root
+    while node is not None:
+        steps += 1
+        if key == node.key:
+            return True, steps
+        if key &lt; node.key:
+            node = node.left
+        else:
+            node = node.right
+    return False, steps
+
+root = None
+for key in [8, 3, 10, 1, 6, 14, 4, 7, 13]:
+    root = insert(root, key)
+
+print(search(root, 13))
+print(search(root, 5))</code></pre>
+  <pre class="output">(True, 4)
+(False, 4)</pre>
+  <h3>Insert</h3>
+  <p>Insertion is search that ends in an empty spot. You walk down exactly as in search. When you reach an empty child position, you put the new node there. Nothing else moves. So inserting 5 into tree T would hang a new node as the right child of 4.</p>
+  <h3>Delete</h3>
+  <p>Deletion has three cases. First search for the key. Then:</p>
+  <ol>
+    <li><strong>The node is a leaf.</strong> Remove it. Its parent's pointer becomes empty. Example: delete 13 from T, and the left child of 14 becomes empty.</li>
+    <li><strong>The node has one child.</strong> Remove the node and let its single child take its place. Example: delete 10 from T. Node 10 has only one child, 14, so 14 moves up to be the right child of 8. The node 13 stays under 14.</li>
+    <li><strong>The node has two children.</strong> Find the <em>inorder successor</em>: the smallest key in the right subtree. Copy that key into the node, then delete the successor from the right subtree (the successor has at most one child, so this is case 1 or 2). Example: delete 3 from T. Its right subtree is rooted at 6, and the smallest key there is 4. Copy 4 into the node that held 3, then delete the old 4 from below 6. The result still obeys the BST rule: 1, 4, 6, 7, 8, 10, 13, 14 in inorder.</li>
+  </ol>
+  <div class="note trap"><p><span class="t">Trap</span>In case 3, students often copy the wrong key. You may also use the inorder predecessor (the largest key in the left subtree). Both are correct. Use the one the question uses, and never forget to delete the copied node afterwards.</p></div>
+  <details class="check"><summary>Which key is the inorder successor of 6 in tree T?</summary><div class="ans"><p>The smallest key in the right subtree of 6. Node 6 has children 4 and 7, but 4 is on the left. The right subtree is just 7, so the successor is 7. (In inorder the list reads 6, 7, so 7 comes next.)</p></div></details>
+  <details class="check"><summary>When you delete a node with two children, why must you copy a key and then delete the successor?</summary><div class="ans"><p>Because the node has two subtrees, and you cannot remove it without breaking one of them. Copying the successor keeps the BST rule and leaves a node with at most one child to remove.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="Balanced and skewed trees">
+  <h2>Balanced and skewed trees: why the shape matters</h2>
+  <p>Search, insert and delete all follow one path from the root down to some node. The number of steps is the length of that path, which is at most the height h of the tree. So each of these operations costs O(h) time.</p>
+  <p>Now the shape decides everything. Insert the sorted keys 1, 2, 3, 4, 5 into an empty BST. Each new key is bigger than all the ones before it, so it always goes right. The result is a chain: 1 at the root, 2 to its right, and so on down to 5. The height is 4 and the tree is <strong>skewed</strong>. Searching for 5 takes 5 comparisons, the same as scanning a plain list.</p>
+  <p>Now insert the keys 3, 1, 4, 2, 5 in that order. The root is 3. Then 1 goes left, 4 goes right, 2 goes right of 1, and 5 goes right of 4. The height is 2 and the tree is much shorter. Searching for 5 takes 3 comparisons.</p>
+  <div class="formula">search, insert, delete cost = O(h), where h = height of the tree</div>
+  <p>For a tree that stays <strong>balanced</strong>, the height is about log<sub>2</sub> n, where n is the number of keys. For n = 1,000,000 keys, log<sub>2</sub> n is about 20. So a balanced BST needs only about 20 comparisons for a million keys. For a skewed tree, the height is n - 1, so searching a million keys could take a million steps.</p>
+  <div class="formula">balanced tree: h = O(log n), so operations take O(log n)</div>
+  <div class="formula">skewed tree: h = n - 1, so operations take O(n)</div>
+  <div class="note trap"><p><span class="t">Trap</span>The O(log n) cost is the best case and the typical case for random insertions, not the worst case. The worst case for a plain BST is O(n), when the input is sorted and the tree becomes a chain. Many GATE options say "O(log n) in the worst case". That is false for an ordinary BST.</p></div>
+  <p>Self-balancing trees such as AVL trees and red-black trees use small rotations after each change to keep the height at O(log n) in the worst case.</p>
+  <details class="check"><summary>Why does inserting sorted keys produce a skewed tree?</summary><div class="ans"><p>Each new key is bigger than every key already in the tree, so at every node the rule sends it right. The tree becomes one long chain going right.</p></div></details>
+  <details class="check"><summary>What is the worst-case time to search an ordinary BST with n keys?</summary><div class="ans"><p>O(n). The search can visit every node if the tree is a chain, so its cost equals the height, which is n - 1 in the worst case.</p></div></details>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <p>Use this table as a quick reminder. Each row says when to use the formula.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula or fact</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>depth(root) = 0</td><td>Edges from the root to the node</td><td>Locating a node</td></tr>
+      <tr><td>height of tree = longest root-to-leaf path in edges</td><td>How tall the tree is</td><td>Any cost question</td></tr>
+      <tr><td>max nodes at level k = 2<sup>k</sup></td><td>Width of one level</td><td>Counting nodes per level</td></tr>
+      <tr><td>max nodes of height h = 2<sup>h+1</sup> - 1</td><td>Capacity of a binary tree</td><td>Upper bound on nodes</td></tr>
+      <tr><td>BST search, insert, delete = O(h)</td><td>Cost follows the path length</td><td>Time complexity questions</td></tr>
+      <tr><td>balanced BST: O(log n)</td><td>Height is about log<sub>2</sub> n</td><td>Best and typical case</td></tr>
+      <tr><td>skewed BST: O(n)</td><td>Height is n - 1</td><td>Worst case for a plain BST</td></tr>
+      <tr><td>Catalan number C<sub>n</sub> = (2n choose n) / (n + 1)</td><td>Number of different BST shapes for n keys</td><td>Counting distinct BSTs</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original GATE-style questions written for practice. They are not past exam questions. Try each one on paper before you read the answer. Use tree T from this page unless the problem gives its own tree.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Depth and height of tree T</h3>
+    <div class="statement"><p>In tree T (root 8), what is the depth of node 4, and what is the height of the whole tree? Use edges as the unit.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two numbers: the depth of one node and the height of the tree.</li>
+      <li><strong>Which idea applies.</strong> Depth counts edges from the root down to the node. Height is the longest such path from the root to any leaf.</li>
+      <li><strong>Work it out.</strong> The path from 8 to 4 is 8, 3, 6, 4. It has 3 edges, so depth(4) = 3. The longest root-to-leaf path is 8, 3, 6, 4 or 8, 10, 14, 13. Both have 3 edges, so the height is 3.</li>
+      <li><strong>Check.</strong> The levels of T are 0, 1, 2 and 3. The deepest level is 3, which matches the height.</li>
+    </ol>
+    <p class="cx">Answer: depth of node 4 is 3. Height of the tree is 3.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Traversals of a small tree</h3>
+    <div class="statement"><p>A binary tree has root 50. Its left child is 30 and its right child is 70. Node 30 has children 20 (left) and 40 (right). Node 70 and nodes 20 and 40 are leaves. Write the preorder and the postorder of this tree.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two orders: preorder and postorder.</li>
+      <li><strong>Which idea applies.</strong> Preorder visits the node, then left, then right. Postorder visits left, then right, then the node.</li>
+      <li><strong>Work it out.</strong> Preorder: 50 first. Then the left subtree at 30 in preorder is 30, 20, 40. Then 70. So 50, 30, 20, 40, 70. Postorder: left subtree at 30 in postorder is 20, 40, 30. Then the right subtree 70. Then 50. So 20, 40, 30, 70, 50.</li>
+      <li><strong>Check.</strong> Each list has 5 entries, one per node, and the root is first in preorder and last in postorder.</li>
+    </ol>
+    <p class="cx">Answer: preorder is 50, 30, 20, 40, 70. Postorder is 20, 40, 30, 70, 50.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Which statements about tree capacity are true?</h3>
+    <div class="statement"><p>Select all that apply. Consider binary trees with the root at level 0.</p><ul><li>(A) Level 3 can hold at most 8 nodes.</li><li>(B) A binary tree of height 3 can hold at most 15 nodes.</li><li>(C) A binary tree of height 3 must have at least 4 leaves.</li><li>(D) A binary tree with 7 nodes can have height 2.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the four options are true. More than one may be true.</li>
+      <li><strong>Which idea applies.</strong> Level k holds at most 2<sup>k</sup> nodes. A tree of height h holds at most 2<sup>h+1</sup> - 1 nodes.</li>
+      <li><strong>Work it out.</strong> (A) 2<sup>3</sup> = 8, so true. (B) 2<sup>4</sup> - 1 = 15, so true. (C) A chain of 4 nodes has height 3 and only one leaf, so the claim is false. (D) A perfect tree with levels 0, 1 and 2 has 1 + 2 + 4 = 7 nodes and height 2, so true.</li>
+      <li><strong>Check.</strong> Option C fails because a chain is allowed. Ask yourself whether you can make a counterexample. You can, so C is false.</li>
+    </ol>
+    <p class="cx">Answer: (A), (B) and (D). Option (C) is false.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>What does this program print?</h3>
+    <div class="statement"><p>Trace the program. Note that each node is a list of three items: [key, left, right].</p>
+<pre class="code" data-lang="python"><code>def insert(node, key):
+    if node is None:
+        return [key, None, None]
+    if key &lt; node[0]:
+        node[1] = insert(node[1], key)
+    else:
+        node[2] = insert(node[2], key)
+    return node
+
+def inorder(node):
+    if node is None:
+        return []
+    return inorder(node[1]) + [node[0]] + inorder(node[2])
+
+root = None
+for k in [5, 2, 8, 1, 9, 3]:
+    root = insert(root, k)
+print(inorder(root))
+print(root[0], root[1][0], root[2][0])</code></pre></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two printed lines: the inorder list, and the keys of the root and its two children.</li>
+      <li><strong>Which idea applies.</strong> Inserting builds a BST in which smaller keys go left. Inorder of a BST is sorted.</li>
+      <li><strong>Work it out.</strong> Insert 5 (root). Insert 2 goes left. Insert 8 goes right. Insert 1 goes left of 2. Insert 9 goes right of 8. Insert 3 goes right of 2. Inorder is then 1, 2, 3, 5, 8, 9. The root is 5, its left child is 2 and its right child is 8.</li>
+      <li><strong>Check.</strong> The inorder list has 6 keys and is sorted, as a BST must give. The root's children are the keys 2 and 8, which are on the correct sides of 5.</li>
+    </ol>
+    <p class="cx">Answer: the first line prints [1, 2, 3, 5, 8, 9]. The second line prints 5 2 8.</p>
+    <pre class="code" data-lang="python"><code>def insert(node, key):
+    if node is None:
+        return [key, None, None]
+    if key &lt; node[0]:
+        node[1] = insert(node[1], key)
+    else:
+        node[2] = insert(node[2], key)
+    return node
+
+def inorder(node):
+    if node is None:
+        return []
+    return inorder(node[1]) + [node[0]] + inorder(node[2])
+
+root = None
+for k in [5, 2, 8, 1, 9, 3]:
+    root = insert(root, k)
+print(inorder(root))
+print(root[0], root[1][0], root[2][0])</code></pre>
+    <pre class="output">[1, 2, 3, 5, 8, 9]
+5 2 8</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Comparisons during a search</h3>
+    <div class="statement"><p>In tree T (root 8, as on this page), how many key comparisons does a standard BST search make when it looks for 13, counting the comparison that finds 13?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The number of comparisons, including the final one that succeeds.</li>
+      <li><strong>Which idea applies.</strong> At each visited node, compare the key with the node. Stop when equal.</li>
+      <li><strong>Work it out.</strong> Compare with 8 (13 is bigger, go right). Compare with 10 (bigger, go right). Compare with 14 (smaller, go left). Compare with 13 (equal, stop). That is 4 comparisons.</li>
+      <li><strong>Check.</strong> The number of comparisons equals the number of nodes on the path, here 8, 10, 14 and 13. The depth of 13 is 3, and depth plus 1 gives 4.</li>
+    </ol>
+    <p class="cx">Answer: 4 comparisons.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Two insertion orders, two shapes</h3>
+    <div class="statement"><p>Insert the keys 1, 2, 3, 4, 5 into an empty BST in that order. Call this tree P. Then insert the same five keys in the order 3, 1, 4, 2, 5 into a second empty BST. Call this tree Q. Find the height (in edges) of P and of Q, and the number of comparisons needed to search for 5 in each.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Two heights and two comparison counts.</li>
+      <li><strong>Which idea applies.</strong> The order of insertion sets the shape. Sorted input gives a chain. Search cost equals the path length.</li>
+      <li><strong>Work it out.</strong> P: each key goes right of the previous one, so the chain is 1, 2, 3, 4, 5 going right. Height 4. Searching for 5 visits 1, 2, 3, 4, 5, which is 5 comparisons. Q: root 3, left 1, right 4, then 2 goes right of 1 and 5 goes right of 4. Height is 2 (path 3, 1, 2 or 3, 4, 5). Searching for 5 visits 3, 4, 5, which is 3 comparisons.</li>
+      <li><strong>Check.</strong> Both trees hold the same five keys, so their inorder lists are both 1, 2, 3, 4, 5. Only the shape differs. The Python check below confirms the heights.</li>
+    </ol>
+    <p class="cx">Answer: P has height 4 and needs 5 comparisons for 5. Q has height 2 and needs 3 comparisons for 5.</p>
+    <pre class="code" data-lang="python"><code>def insert(node, key):
+    if node is None:
+        return [key, None, None]
+    if key &lt; node[0]:
+        node[1] = insert(node[1], key)
+    else:
+        node[2] = insert(node[2], key)
+    return node
+
+def height(node):
+    if node is None:
+        return -1
+    return 1 + max(height(node[1]), height(node[2]))
+
+for order in ([1, 2, 3, 4, 5], [3, 1, 4, 2, 5]):
+    root = None
+    for k in order:
+        root = insert(root, k)
+    print(order, "height", height(root))</code></pre>
+    <pre class="output">[1, 2, 3, 4, 5] height 4
+[3, 1, 4, 2, 5] height 2</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Which statements about BSTs and traversals are true?</h3>
+    <div class="statement"><p>Select all that apply.</p><ul><li>(A) Inorder traversal of any BST lists its keys in sorted order.</li><li>(B) Preorder traversal of any BST always lists its keys in sorted order.</li><li>(C) Searching an ordinary BST with n keys takes O(log n) time in the worst case.</li><li>(D) The number of different BST shapes that can store 3 distinct keys is 5.</li><li>(E) Postorder traversal visits the root before its children.</li></ul></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which of the five claims are true for ordinary BSTs.</li>
+      <li><strong>Which idea applies.</strong> Inorder is sorted for every BST. Preorder is not. Worst-case search is O(height), and the height can be n - 1. The number of BST shapes for n keys is the Catalan number C<sub>n</sub>.</li>
+      <li><strong>Work it out.</strong> (A) True, by the inorder rule. (B) False: tree T gives preorder 8, 3, 1, 6, which is not sorted. (C) False: a chain of n keys has height n - 1, so search takes O(n) in the worst case. (D) The Catalan number C<sub>3</sub> = (6 choose 3) / 4 = 20 / 4 = 5, so true. (E) False: postorder visits the root last.</li>
+      <li><strong>Check.</strong> Run the calculation for D in Python to be sure of the number.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (D).</p>
+    <pre class="code" data-lang="python"><code>from math import comb
+
+n = 3
+print(comb(2 * n, n) // (n + 1))</code></pre>
+    <pre class="output">5</pre>
+  </article>
+  <h3>Exam-level practice</h3>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: BST height after inserts (NAT, 2 marks)</h3>
+    <div class="statement"><p>Insert 50, 30, 70, 20, 40, 60, 80, 35, 45, 42 into an empty BST. What is the height (edges on the longest root to leaf path)?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The height of the resulting tree.</li>
+      <li><strong>Which idea applies.</strong> Trace each insert down the tree.</li>
+      <li><strong>Work it out.</strong> 42 goes 50 → 30 → 40 → 45 → left of 45. Path length 4 edges.</li>
+      <li><strong>Check.</strong> The code builds the tree.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def ins(t, k):
+    if t is None: return [k, None, None]
+    if k &lt; t[0]: t[1] = ins(t[1], k)
+    else: t[2] = ins(t[2], k)
+    return t
+def h(t): return -1 if t is None else 1 + max(h(t[1]), h(t[2]))
+t = None
+for k in (50, 30, 70, 20, 40, 60, 80, 35, 45, 42): t = ins(t, k)
+print(h(t))
+</code></pre>
+    <pre class="output">4</pre>
+    <p class="cx">Answer: 4.</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: Traversal reconstruction (MCQ, 2 marks)</h3>
+    <div class="statement"><p>A binary tree has preorder A B D E C F and inorder D B E A F C. What is its postorder? (A) D E B F C A (B) D B E F C A (C) E D B F C A (D) D E F B C A</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The postorder of the tree defined by two traversals.</li>
+      <li><strong>Which idea applies.</strong> Preorder gives the root first. Inorder splits left and right subtrees around it.</li>
+      <li><strong>Work it out.</strong> Root A. Left inorder D B E with root B (children D and E). Right inorder F C with root C and left child F. Postorder: D E B F C A.</li>
+      <li><strong>Check.</strong> The code rebuilds and prints the postorder.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>def post(pre, ino):
+    if not pre: return ""
+    r = pre[0]; i = ino.index(r)
+    return post(pre[1:i + 1], ino[:i]) + post(pre[i + 1:], ino[i + 1:]) + r
+print(post("ABDECF", "DBEAFC"))
+</code></pre>
+    <pre class="output">DEBFCA</pre>
+    <p class="cx">Answer: (A).</p>
+  </article>
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: Counting BSTs (NAT, 2 marks)</h3>
+    <div class="statement"><p>How many structurally different BSTs can store the keys 1, 2, 3, 4, 5?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The Catalan number C<sub>5</sub>.</li>
+      <li><strong>Which idea applies.</strong> Choose each key as root: C<sub>n</sub> = Σ C<sub>i</sub>C<sub>n−1−i</sub>.</li>
+      <li><strong>Work it out.</strong> C<sub>0</sub> to C<sub>5</sub>: 1, 1, 2, 5, 14, 42.</li>
+      <li><strong>Check.</strong> The code computes it.</li>
+    </ol>
+    <pre class="code" data-lang="python"><code>C = [1]
+for n in range(1, 6): C.append(sum(C[i] * C[n - 1 - i] for i in range(n)))
+print(C)
+</code></pre>
+    <pre class="output">[1, 1, 2, 5, 14, 42]</pre>
+    <p class="cx">Answer: 42.</p>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Tree</dt><dd>Nodes joined by edges, with one root at the top. Precisely: a connected structure with no cycles.</dd></div>
+    <div><dt>Root</dt><dd>The one node with no parent.</dd></div>
+    <div><dt>Leaf</dt><dd>A node with no children.</dd></div>
+    <div><dt>Depth</dt><dd>Edges from the root down to a node. The root has depth 0.</dd></div>
+    <div><dt>Height</dt><dd>Edges on the longest path from the node down to a leaf.</dd></div>
+    <div><dt>Binary tree</dt><dd>Every node has at most two children, left and right.</dd></div>
+    <div><dt>Level-order</dt><dd>Visit the tree one level at a time, using a queue.</dd></div>
+    <div><dt>Preorder</dt><dd>Node, then left subtree, then right subtree.</dd></div>
+    <div><dt>Inorder</dt><dd>Left subtree, then node, then right subtree. Sorted for a BST.</dd></div>
+    <div><dt>Postorder</dt><dd>Left subtree, then right subtree, then node.</dd></div>
+    <div><dt>BST rule</dt><dd>Left subtree keys are smaller than the node, right subtree keys are bigger.</dd></div>
+    <div><dt>Search in a BST</dt><dd>Walk from the root, going left or right by comparison, until found or empty.</dd></div>
+    <div><dt>Insert in a BST</dt><dd>Search for the key; put the new node in the empty spot where the search ends.</dd></div>
+    <div><dt>Delete in a BST</dt><dd>Leaf: remove. One child: child takes the place. Two children: copy the inorder successor, then delete it.</dd></div>
+    <div><dt>Inorder successor</dt><dd>Smallest key in the right subtree of a node.</dd></div>
+    <div><dt>Skewed tree</dt><dd>Almost a chain, so its height is close to n.</dd></div>
+    <div><dt>Balanced tree</dt><dd>Height is about log<sub>2</sub> n, so operations are fast.</dd></div>
+    <div><dt>Time of BST operations</dt><dd>O(h), where h is the height of the tree.</dd></div>
+    <div><dt>Worst case of a plain BST</dt><dd>O(n), when the input is sorted and the tree is a chain.</dd></div>
+    <div><dt>Capacity of height h</dt><dd>At most 2<sup>h+1</sup> - 1 nodes in a binary tree.</dd></div>
+    <div><dt>Catalan number</dt><dd>C<sub>n</sub> = (2n choose n) / (n + 1) counts the distinct BST shapes for n keys.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>Inorder traversal of a BST gives the keys in sorted order.</li>
+    <li>The cost of a BST operation is the height, not the number of keys.</li>
+    <li>Sorted input produces a skewed tree with height n - 1 and O(n) operations.</li>
+    <li>Always check whether height is counted in edges or in levels.</li>
+    <li>Preorder visits the root first, postorder visits it last.</li>
+    <li>Delete a node with two children by copying its inorder successor and deleting that successor.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 73?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 73 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-072.html"><small>Previous, topic 72</small>Hash Tables</a><a class="next" href="gate-074.html"><small>Next, topic 74</small>Binary heap (new)</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>

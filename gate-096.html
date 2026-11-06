@@ -1,0 +1,463 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Topic 96: Simple linear regression</title><meta name="description" content="Simple linear regression draws the straight line that best predicts one number from another, such as exam score from study hours. This topic shows how the line is found by least squares, how to read its slope and intercept, how R squared measures fit, and how to check the residuals."><meta name="theme-color" content="#0a1520"><script>try{var t=JSON.parse(localStorage.getItem("pp-theme"));if(t)document.documentElement.dataset.theme=t}catch(e){}</script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,500;0,600;0,700;1,500;1,600&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"><link rel="stylesheet" href="assets/style.css"><link rel="icon" href="assets/icon.svg"></head><body data-day="g96" data-key="g96" data-noun="topic" data-num="96" data-track="databases">
+<canvas class="contours" aria-hidden="true"></canvas><div class="veil"></div><div class="progress" aria-hidden="true"><span></span></div>
+<header class="topbar"><a class="home" href="index.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Path</a><nav class="toc" aria-label="Sections"></nav><button class="iconbtn" type="button" data-theme-toggle></button></header>
+<main class="page">
+<header class="mast">
+<h1>Simple linear regression</h1>
+<p class="lede">Simple linear regression draws the straight line that best predicts one number from another, such as exam score from study hours. This topic shows how the line is found by least squares, how to read its slope and intercept, how R squared measures fit, and how to check the residuals.</p>
+<div class="station"><b>96</b><span>Unit 8 · Machine learning · Paper DA · New concept</span></div>
+<ul class="topics"><li>The model: y = b0 + b1x + error</li><li>Least squares: finding the slope and intercept</li><li>Interpreting the coefficients</li><li>R squared and the correlation coefficient</li><li>Residuals and residual analysis</li><li>Worked regression from data points</li></ul>
+</header>
+
+
+<section class="unit" id="idea" data-title="The idea">
+  <h2>The idea in plain words</h2>
+  <p>Suppose you record, for five students, how many hours each studied and the score each got. If you plot the points, they roughly go up together, but not exactly on a line. Regression asks: if I had to draw one straight line through these points, which line would be the best? Once you have the line, you can predict the score for a student who studied 6 hours, even though nobody in your list studied exactly 6 hours.</p>
+  <p>This is <strong>simple linear regression</strong>. "Simple" means there is one input, and "linear" means the relationship is modelled as a straight line. "Regression" is the name for predicting a number from other numbers.</p>
+  <p>Regression is a core part of the machine learning unit in the Data Science and AI paper (DA). GATE questions usually give a small table of points and ask you to compute the slope, the intercept, a prediction, the R squared value or a residual. Every calculation on this page is done step by step, and then checked with a short Python program that uses exact fractions.</p>
+  <p>Here is the small dataset that we will use throughout the page. Each row is one student.</p>
+  <div class="tablewrap"><table>
+    <caption>Study data (x = hours studied, y = score out of 10)</caption>
+    <thead><tr><th>i</th><th>x (hours)</th><th>y (score)</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>1</td><td>2</td></tr>
+      <tr><td>2</td><td>2</td><td>4</td></tr>
+      <tr><td>3</td><td>3</td><td>5</td></tr>
+      <tr><td>4</td><td>4</td><td>4</td></tr>
+      <tr><td>5</td><td>5</td><td>5</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note key"><p><span class="t">Key idea</span>Regression finds the one line that makes the total squared vertical distance from the points to the line as small as possible. That line is used for prediction.</p></div>
+</section>
+
+<section class="unit" id="terms" data-title="Key terms">
+  <h2>Key terms</h2>
+  <dl>
+    <div><dt>Regression</dt><dd>Predicting a numeric value from other values. Plain meaning: finding the trend.</dd></div>
+    <div><dt>Response variable y</dt><dd>The value we want to predict, also called the dependent variable. Example: score.</dd></div>
+    <div><dt>Predictor variable x</dt><dd>The value we use to predict, also called the independent variable. Example: hours studied.</dd></div>
+    <div><dt>Intercept β0</dt><dd>The predicted value of y when x is 0. Plain meaning: where the line crosses the vertical axis.</dd></div>
+    <div><dt>Slope β1</dt><dd>How much y changes when x increases by one unit. Plain meaning: how steep the line is.</dd></div>
+    <div><dt>Error term ε</dt><dd>The part of y the line does not explain. Plain meaning: noise or unexplained variation.</dd></div>
+    <div><dt>Fitted value ŷ</dt><dd>The predicted value from the line, ŷ = β0 + β1x. Plain meaning: what the line says.</dd></div>
+    <div><dt>Residual e</dt><dd>The observed value minus the fitted value, e = y - ŷ. Plain meaning: how far a point is from the line.</dd></div>
+    <div><dt>Least squares</dt><dd>The method that chooses β0 and β1 to minimize the sum of squared residuals.</dd></div>
+    <div><dt>Sum of squared residuals (RSS)</dt><dd>The sum of e² over all points. Smaller means a better fit.</dd></div>
+    <div><dt>Total sum of squares (SST)</dt><dd>The sum of (y - ȳ)² over all points, measuring the total spread of y around its mean.</dd></div>
+    <div><dt>Mean x̄, mean ȳ</dt><dd>The averages of the x values and the y values.</dd></div>
+    <div><dt>R squared (R²)</dt><dd>The fraction of the spread in y explained by the line. R² = 1 - RSS / SST.</dd></div>
+    <div><dt>Correlation r</dt><dd>A number from -1 to 1 that measures how closely x and y move together in a straight line.</dd></div>
+    <div><dt>Extrapolation</dt><dd>Using the line to predict for x values outside the range of the data.</dd></div>
+  </dl>
+</section>
+
+<section class="unit" id="c1" data-title="The model">
+  <h2>Concept 1: The model y = β0 + β1x + ε</h2>
+  <h3>Writing the relationship down</h3>
+  <p>The model says that each score is a straight-line function of the hours studied, plus some unexplained error:</p>
+  <div class="formula">y = β0 + β1x + ε</div>
+  <p>Each symbol has a job. y is the score we want to predict. x is the hours studied. β0 is the intercept, the score the line gives at zero hours. β1 is the slope, the change in score for each extra hour. ε is the error, the difference between the real score and the line's value, which the model cannot explain.</p>
+  <p>The β symbols are the unknown numbers we must estimate from the data. We write their estimates with hats, b0 and b1, or just the same letters when the context is clear. The fitted line is:</p>
+  <div class="formula">ŷ = b0 + b1x</div>
+  <h3>Reading a line</h3>
+  <p>Suppose the fitted line is ŷ = 2 + 3x. Then a student who studies 0 hours is predicted to score 2. A student who studies 4 hours is predicted to score 2 + 3 × 4 = 14. Each extra hour adds 3 to the predicted score.</p>
+  <div class="note trap"><p><span class="t">Trap</span>The error term ε is not a mistake in the calculation. It is the part of the real world that x does not explain. A regression line with a large error term still gives the best line; it simply means x does not explain everything.</p></div>
+  <details class="check"><summary>Question: For ŷ = 2 + 3x, what is the predicted y when x = 4?</summary><div class="ans"><p>2 + 3 × 4 = 2 + 12 = 14.</p></div></details>
+  <details class="check"><summary>Question: What does the error term ε represent?</summary><div class="ans"><p>The part of y that is not explained by the linear function of x.</p></div></details>
+</section>
+
+<section class="unit" id="c2" data-title="Least squares">
+  <h2>Concept 2: Least squares, finding the slope and intercept</h2>
+  <h3>The idea of least squares</h3>
+  <p>For any candidate line, each point has a residual, the vertical distance e = y - ŷ. Least squares chooses the line that makes the sum of squared residuals as small as possible. Squaring makes every distance positive, and it punishes large misses more than small ones.</p>
+  <h3>The formulas</h3>
+  <p>Define the sums of deviations from the means:</p>
+  <div class="formula">Sxx = Σ(x - x̄)²  and  Sxy = Σ(x - x̄)(y - ȳ)</div>
+  <p>Read Σ as "add up over all points", x̄ as the mean of the x values, and ȳ as the mean of the y values. Then the least squares estimates are:</p>
+  <div class="formula">b1 = Sxy / Sxx  and  b0 = ȳ - b1 × x̄</div>
+  <p>The second formula says that the line always passes through the point (x̄, ȳ), the average of all the data.</p>
+  <h3>Worked example, step by step</h3>
+  <p>Use the study data: x = 1, 2, 3, 4, 5 and y = 2, 4, 5, 4, 5.</p>
+  <ol>
+    <li><strong>Means.</strong> x̄ = (1 + 2 + 3 + 4 + 5) / 5 = 15 / 5 = 3. ȳ = (2 + 4 + 5 + 4 + 5) / 5 = 20 / 5 = 4.</li>
+    <li><strong>Deviations.</strong> For each point, compute x - 3 and y - 4. The pairs are (-2, -2), (-1, 0), (0, 1), (1, 0) and (2, 1).</li>
+    <li><strong>Sxy.</strong> Multiply the pairs and add: (-2)(-2) + (-1)(0) + (0)(1) + (1)(0) + (2)(1) = 4 + 0 + 0 + 0 + 2 = 6.</li>
+    <li><strong>Sxx.</strong> Square the x deviations and add: 4 + 1 + 0 + 1 + 4 = 10.</li>
+    <li><strong>Slope.</strong> b1 = 6 / 10 = 0.6.</li>
+    <li><strong>Intercept.</strong> b0 = 4 - 0.6 × 3 = 4 - 1.8 = 2.2.</li>
+    <li><strong>Line.</strong> ŷ = 2.2 + 0.6x.</li>
+  </ol>
+  <div class="note tip"><p><span class="t">Tip</span>Always compute the deviations from the means first, then the products. Writing Sxy as a sum of products of deviations avoids most arithmetic errors in GATE questions.</p></div>
+  <details class="check"><summary>Question: Why must the fitted line pass through the point (x̄, ȳ)?</summary><div class="ans"><p>Because b0 = ȳ - b1x̄. Put x = x̄ in the line: ŷ = ȳ - b1x̄ + b1x̄ = ȳ.</p></div></details>
+  <details class="check"><summary>Question: If Sxy = 0, what is the slope?</summary><div class="ans"><p>Zero. The line is flat, and the best prediction is the mean of y.</p></div></details>
+</section>
+
+<section class="unit" id="c3" data-title="Interpreting coefficients">
+  <h2>Concept 3: Interpreting the slope and intercept</h2>
+  <h3>The slope</h3>
+  <p>The slope b1 is the average change in y for a one-unit increase in x. For the study data, b1 = 0.6. This means that each extra hour of study is associated with an average increase of 0.6 points in the score. The word "associated" matters: the slope describes a pattern in the data, and it does not prove that studying causes the score to rise.</p>
+  <p>The sign of the slope tells the direction. A positive slope means y tends to rise with x. A negative slope means y falls as x rises.</p>
+  <h3>The intercept</h3>
+  <p>The intercept b0 is the predicted y at x = 0. For the study data, b0 = 2.2, which is the predicted score for zero hours of study. This value is only meaningful if x = 0 is inside the range of the data, which here it is not, since the data starts at 1 hour. In such cases the intercept is just a part of the line that makes it fit.</p>
+  <div class="note trap"><p><span class="t">Trap</span>Extrapolation means predicting outside the range of the x values in the data. For the study data, predicting for 20 hours would give 2.2 + 0.6 × 20 = 14.2, which is above the maximum score of 10. The line is not valid so far away.</p></div>
+  <h3>Units</h3>
+  <p>Always state the units. If x is in hours and y is in points, then b1 is in points per hour. A GATE question may ask the meaning of a coefficient in words. The safe answer names both variables and both units.</p>
+  <details class="check"><summary>Question: The slope is 0.6 points per hour. What does this mean?</summary><div class="ans"><p>On average, one extra hour of study goes with an extra 0.6 points of score.</p></div></details>
+  <details class="check"><summary>Question: Is a regression result proof that more study causes a higher score?</summary><div class="ans"><p>No. Regression shows an association in the data. Causation needs a careful study design.</p></div></details>
+</section>
+
+<section class="unit" id="c4" data-title="R squared and correlation">
+  <h2>Concept 4: R squared and the correlation coefficient</h2>
+  <h3>How much did the line explain?</h3>
+  <p>Before the line, the best guess for every y is ȳ. The spread of y around ȳ is measured by SST, the total sum of squares. After the line, the remaining spread is RSS, the sum of squared residuals. The difference is the part explained by the line.</p>
+  <div class="formula">R² = 1 - RSS / SST</div>
+  <p>Read the symbols: RSS is the sum of squared residuals, and SST is the total sum of squares of y around its mean. If RSS is 0, every point is on the line and R² = 1. If the line explains nothing, RSS equals SST and R² = 0.</p>
+  <h3>Worked example</h3>
+  <p>For the study data, the fitted values are 2.8, 3.4, 4.0, 4.6 and 5.2. The residuals are -0.8, 0.6, 1.0, -0.6 and -0.2. Their squares are 0.64, 0.36, 1.00, 0.36 and 0.04, which add to RSS = 2.4. The total sum of squares is SST = (2 - 4)² + (4 - 4)² + (5 - 4)² + (4 - 4)² + (5 - 4)² = 4 + 0 + 1 + 0 + 1 = 6.</p>
+  <p>So R² = 1 - 2.4 / 6 = 1 - 0.4 = 0.6. The line explains 60 percent of the variation in the scores.</p>
+  <h3>The correlation coefficient</h3>
+  <p>The correlation coefficient is:</p>
+  <div class="formula">r = Sxy / √(Sxx × Syy)</div>
+  <p>Here Syy is the sum of squared deviations of y, which is 6 for the study data. So r = 6 / √(10 × 6) = 6 / √60 = 0.7746. Two facts link r and R²:</p>
+  <ul>
+    <li>In simple linear regression, R² = r². Check: 0.7746² = 0.6.</li>
+    <li>The sign of r equals the sign of the slope, because Sxy and b1 have the same sign.</li>
+  </ul>
+  <div class="note key"><p><span class="t">Key idea</span>R² is always between 0 and 1 for a least squares line with an intercept. The correlation r is between -1 and 1 and tells the direction as well as the strength.</p></div>
+  <details class="check"><summary>Question: If r = -0.5 in a simple regression, what is R²?</summary><div class="ans"><p>R² = (-0.5)² = 0.25. The sign is lost, but the strength is kept.</p></div></details>
+  <details class="check"><summary>Question: If RSS equals SST, what is R²?</summary><div class="ans"><p>Zero. The line explains none of the variation in y.</p></div></details>
+</section>
+
+<section class="unit" id="c5" data-title="Residuals">
+  <h2>Concept 5: Residuals and residual analysis</h2>
+  <h3>What residuals tell you</h3>
+  <p>A residual is the vertical gap between a point and the line. Residuals are the model's mistakes on the data it was fitted to. A good linear model has residuals that look random: positive and negative, with no pattern, and roughly the same spread across x.</p>
+  <h3>Two checks</h3>
+  <ul>
+    <li><strong>Zero sum.</strong> When the model has an intercept, the residuals add to zero. For the study data: -0.8 + 0.6 + 1.0 - 0.6 - 0.2 = 0. This is a quick check on your arithmetic.</li>
+    <li><strong>No pattern.</strong> If the residuals form a curve, for example positive at both ends and negative in the middle, a straight line is the wrong model. Try a different form, such as a curve, or transform the data.</li>
+  </ul>
+  <div class="note trap"><p><span class="t">Trap</span>A small R² does not mean the regression is wrong. It means x explains only a small part of y. Check the residuals separately, because a low R² with random residuals is a weak but honest model.</p></div>
+  <h3>Using residuals for prediction</h3>
+  <p>The residual for a single point tells you how far the actual value was from the line. For the fifth student (x = 5, y = 5), the fitted value is 2.2 + 0.6 × 5 = 5.2, so the residual is 5 - 5.2 = -0.2. The line slightly over-predicted this student.</p>
+  <details class="check"><summary>Question: The residuals are 1, -1, 2, -2. Do they sum to zero?</summary><div class="ans"><p>Yes. 1 - 1 + 2 - 2 = 0.</p></div></details>
+  <details class="check"><summary>Question: A residual plot is curved. What does this suggest?</summary><div class="ans"><p>That a straight line does not capture the pattern, and a different model may be needed.</p></div></details>
+  <pre class="code" data-lang="python"><code>from fractions import Fraction
+
+x = [1, 2, 3, 4, 5]
+y = [2, 4, 5, 4, 5]
+n = len(x)
+mx = Fraction(sum(x), n)
+my = Fraction(sum(y), n)
+
+sxy = sum((a - mx) * (b - my) for a, b in zip(x, y))
+sxx = sum((a - mx) ** 2 for a in x)
+syy = sum((b - my) ** 2 for b in y)
+
+slope = sxy / sxx
+intercept = my - slope * mx
+print("slope:", slope, "=", float(slope))
+print("intercept:", intercept, "=", float(intercept))
+
+pred = [intercept + slope * a for a in x]
+resid = [b - p for b, p in zip(y, pred)]
+print("residuals:", [float(r) for r in resid])
+print("residual sum:", sum(resid))
+
+rss = sum(r * r for r in resid)
+sst = syy
+print("RSS:", rss, "SST:", sst)
+r2 = 1 - rss / sst
+print("R squared:", r2, "=", float(r2))
+r = float(sxy) / (float(sxx) * float(syy)) ** 0.5
+print("correlation r:", round(r, 4), "r squared:", round(r * r, 4))
+</code></pre>
+  <pre class="output">slope: 3/5 = 0.6
+intercept: 11/5 = 2.2
+residuals: [-0.8, 0.6, 1.0, -0.6, -0.2]
+residual sum: 0
+RSS: 12/5 SST: 6
+R squared: 3/5 = 0.6
+correlation r: 0.7746 r squared: 0.6</pre>
+</section>
+
+<section class="unit" id="formulas" data-title="Formulas">
+  <h2>Formula sheet</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Formula</th><th>What it means</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td>y = β0 + β1x + ε</td><td>The model</td><td>Stating the relationship</td></tr>
+      <tr><td>Sxx = Σ(x - x̄)²</td><td>Spread of x</td><td>Computing the slope</td></tr>
+      <tr><td>Sxy = Σ(x - x̄)(y - ȳ)</td><td>Joint spread of x and y</td><td>Computing the slope</td></tr>
+      <tr><td>b1 = Sxy / Sxx</td><td>Least squares slope</td><td>Finding the line</td></tr>
+      <tr><td>b0 = ȳ - b1x̄</td><td>Least squares intercept</td><td>Finding the line</td></tr>
+      <tr><td>e = y - ŷ</td><td>Residual</td><td>Checking the fit</td></tr>
+      <tr><td>R² = 1 - RSS / SST</td><td>Fraction of variation explained</td><td>Measuring fit</td></tr>
+      <tr><td>r = Sxy / √(Sxx × Syy)</td><td>Correlation</td><td>Strength and direction</td></tr>
+      <tr><td>R² = r² (simple regression)</td><td>Links the two measures</td><td>Converting between them</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="unit" id="practice" data-title="Practice">
+  <h2>Solved GATE-style problems</h2>
+  <p>These problems are original, written in the GATE style. They are not past exam questions.</p>
+
+  <article class="problem" data-level="warmup">
+    <h3>Predict from a line</h3>
+    <div class="statement"><p>The fitted line is ŷ = 1 + 2x. What is the predicted y when x = 3?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> One predicted value.</li>
+      <li><strong>Which idea applies.</strong> Substitute x into the line.</li>
+      <li><strong>Work it out.</strong> 1 + 2 × 3 = 1 + 6 = 7.</li>
+      <li><strong>Check.</strong> Going from x = 0 to x = 3 adds 3 × 2 = 6, starting from 1. Same answer.</li>
+    </ol>
+    <p class="cx">Answer: 7.</p>
+  </article>
+
+  <article class="problem" data-level="warmup">
+    <h3>Intercept from means</h3>
+    <div class="statement"><p>A regression has x̄ = 6, ȳ = 10 and slope b1 = 0.5. What is the intercept b0?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The intercept.</li>
+      <li><strong>Which idea applies.</strong> b0 = ȳ - b1 x̄, because the line passes through the mean point.</li>
+      <li><strong>Work it out.</strong> b0 = 10 - 0.5 × 6 = 10 - 3 = 7.</li>
+      <li><strong>Check.</strong> The line at x = 6 gives 7 + 0.5 × 6 = 10, which equals ȳ.</li>
+    </ol>
+    <p class="cx">Answer: 7.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Statements about regression</h3>
+    <div class="statement"><p>Select all that apply. Which statements about a simple linear regression with an intercept are true?</p>
+      <p>(A) If the slope is positive, the correlation r is positive.</p>
+      <p>(B) R² can be negative.</p>
+      <p>(C) In simple linear regression, R² equals r².</p>
+      <p>(D) The residuals add up to zero.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which facts about regression are true.</li>
+      <li><strong>Which idea applies.</strong> The sign of r matches the slope. R² = 1 - RSS / SST, and the residuals sum to zero when there is an intercept.</li>
+      <li><strong>Work it out.</strong> (A) True. (B) False, R² is between 0 and 1 for a least squares line with an intercept. (C) True. (D) True.</li>
+      <li><strong>Check.</strong> The false statement is the one about negative R².</li>
+    </ol>
+    <p class="cx">Answer: (A), (C) and (D).</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>R squared from sums</h3>
+    <div class="statement"><p>In a regression, the total sum of squares is SST = 50 and the sum of squared residuals is RSS = 20. What is R²? Give a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> R².</li>
+      <li><strong>Which idea applies.</strong> R² = 1 - RSS / SST.</li>
+      <li><strong>Work it out.</strong> 1 - 20 / 50 = 1 - 0.4 = 0.6.</li>
+      <li><strong>Check.</strong> The line explains 60 percent of the spread, which is between 0 and 1.</li>
+    </ol>
+    <p class="cx">Answer: 0.6.</p>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>A residual</h3>
+    <div class="statement"><p>Using the fitted line ŷ = 2.2 + 0.6x from the worked example, what is the residual of the point (x = 4, y = 4)? Give a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The residual e = y - ŷ.</li>
+      <li><strong>Which idea applies.</strong> Find the fitted value first, then subtract.</li>
+      <li><strong>Work it out.</strong> ŷ = 2.2 + 0.6 × 4 = 2.2 + 2.4 = 4.6. e = 4 - 4.6 = -0.6.</li>
+      <li><strong>Check.</strong> The point is below the line, so the residual is negative.</li>
+    </ol>
+    <p class="cx">Answer: -0.6.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>An exact line</h3>
+    <div class="statement"><p>Four points are (0, 1), (1, 3), (2, 5) and (3, 7). Find the slope and the intercept of the least squares line, and the R² value.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Slope, intercept and R².</li>
+      <li><strong>Which idea applies.</strong> Compute the means, Sxy and Sxx, then b1 and b0.</li>
+      <li><strong>Work it out.</strong> x̄ = 1.5 and ȳ = 4. Deviations of x: -1.5, -0.5, 0.5, 1.5. Deviations of y: -3, -1, 1, 3. Sxy = 4.5 + 0.5 + 0.5 + 4.5 = 10. Sxx = 2.25 + 0.25 + 0.25 + 2.25 = 5. b1 = 10 / 5 = 2. b0 = 4 - 2 × 1.5 = 1. The line is ŷ = 1 + 2x, which fits all four points exactly, so every residual is 0 and R² = 1.</li>
+      <li><strong>Check.</strong> Put x = 2 into 1 + 2x and get 5, which is the given y.</li>
+    </ol>
+    <p class="cx">Answer: slope 2, intercept 1, R² = 1.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Reading a fitted model</h3>
+    <div class="statement"><p>A regression of salary in lakhs (y) on years of experience (x) gives a slope of 0.8. The data covered 1 to 10 years of experience. Select all that apply.</p>
+      <p>(A) On average, each extra year goes with an increase of about 0.8 lakhs.</p>
+      <p>(B) Every person's salary rises by exactly 0.8 lakhs per year.</p>
+      <p>(C) The line can be trusted to predict for 50 years of experience.</p>
+      <p>(D) The intercept is always meaningful, even when x = 0 is outside the data.</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The correct reading of a fitted model.</li>
+      <li><strong>Which idea applies.</strong> A slope is an average change, not a fixed change for everyone. Predicting far outside the data is extrapolation.</li>
+      <li><strong>Work it out.</strong> (A) True, the slope is an average. (B) False, residuals show individuals differ. (C) False, 50 years is far outside 1 to 10. (D) False, the intercept at x = 0 may be outside the data.</li>
+      <li><strong>Check.</strong> Only the statement about the average slope is correct.</li>
+    </ol>
+    <p class="cx">Answer: (A) only.</p>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Correlation from R squared</h3>
+    <div class="statement"><p>A simple linear regression with a positive slope has R² = 0.6. What is the correlation r, to two decimal places?</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> r to two decimal places.</li>
+      <li><strong>Which idea applies.</strong> In simple regression R² = r², and the sign of r matches the slope.</li>
+      <li><strong>Work it out.</strong> r = √0.6 = 0.7746, which rounds to 0.77. The slope is positive, so r is positive.</li>
+      <li><strong>Check.</strong> 0.77 squared is about 0.593, which is close to 0.6 after rounding.</li>
+    </ol>
+    <p class="cx">Answer: 0.77.</p>
+  </article>
+
+  <h3>Exam-level practice</h3>
+  <p>Harder problems at GATE 2-mark level. Try each before reading the solution.</p>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 1: fit a line and predict (NAT, 2 marks)</h3>
+    <div class="statement"><p>Five points (x, y) are (1, 2), (2, 4), (3, 5), (4, 4) and (5, 5). Fit the least squares line y = b0 + b1 x, using b1 = Sxy / Sxx, where Sxy is the sum of (x - mean x)(y - mean y), Sxx is the sum of (x - mean x) squared, and b0 = mean y - b1 × mean x. Predict y at x = 6, and give the prediction as a decimal.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The predicted y at x = 6.</li>
+      <li><strong>Which idea applies.</strong> The least squares slope and intercept come from the means and the deviations from the means.</li>
+      <li><strong>Work it out.</strong> Mean x is 3 and mean y is 4. Sxy = (-2)(-2) + (-1)(0) + 0(1) + 1(0) + 2(1) = 6. Sxx = 4 + 1 + 0 + 1 + 4 = 10. So b1 = 0.6 and b0 = 4 - 0.6 × 3 = 2.2. The prediction is 2.2 + 0.6 × 6 = 5.8.</li>
+      <li><strong>Check.</strong> The fitted line at x = 3 gives 2.2 + 1.8 = 4.0, which equals the mean of y, as a least squares line must.</li>
+    </ol>
+    <p class="cx">Answer: 5.8.</p>
+    <pre class="code" data-lang="python"><code>xs=[1,2,3,4,5]; ys=[2,4,5,4,5]
+n=len(xs)
+mx=sum(xs)/n; my=sum(ys)/n
+sxy=sum((x-mx)*(y-my) for x,y in zip(xs,ys))
+sxx=sum((x-mx)**2 for x in xs)
+b1=sxy/sxx
+b0=my-b1*mx
+print(round(b1,4), round(b0,4))
+print(round(b0+b1*6,4))</code></pre>
+    <pre class="output">0.6 2.2
+5.8</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 2: slope, correlation and R squared (MSQ, 2 marks)</h3>
+    <div class="statement"><p>Use the same five points (1, 2), (2, 4), (3, 5), (4, 4) and (5, 5). Let b1 be the least squares slope, r the correlation coefficient and R² the coefficient of determination. Select all that apply. Which statements are true?</p>
+      <p>(A) b1 = 0.6</p>
+      <p>(B) R² = 0.6</p>
+      <p>(C) r = 0.6</p>
+      <p>(D) b0 = 0</p>
+    </div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> Which statements are true for this fit.</li>
+      <li><strong>Which idea applies.</strong> The slope is Sxy / Sxx. The correlation is Sxy / sqrt(Sxx × Syy), and R² is r squared.</li>
+      <li><strong>Work it out.</strong> Syy = 4 + 0 + 1 + 0 + 1 = 6. So r = 6 / sqrt(10 × 6) = 6 / sqrt(60), which is about 0.7746. Then R² = 0.7746 squared = 0.6. The slope is 0.6, and the intercept is 2.2.</li>
+      <li><strong>Check.</strong> R² is 0.6, but r is not 0.6, because R² is the square of r, not r itself.</li>
+    </ol>
+    <p class="cx">Answer: (A) and (B). Why the others fail: (C) r is about 0.7746, not 0.6; (D) the intercept is 2.2.</p>
+    <pre class="code" data-lang="python"><code>import math
+xs=[1,2,3,4,5]; ys=[2,4,5,4,5]
+n=len(xs)
+mx=sum(xs)/n; my=sum(ys)/n
+sxy=sum((x-mx)*(y-my) for x,y in zip(xs,ys))
+sxx=sum((x-mx)**2 for x in xs)
+syy=sum((y-my)**2 for y in ys)
+b1=sxy/sxx
+r=sxy/math.sqrt(sxx*syy)
+print(round(b1,4))
+print(round(r,4))
+print(round(r*r,4))</code></pre>
+    <pre class="output">0.6
+0.7746
+0.6</pre>
+  </article>
+
+  <article class="problem" data-level="hard">
+    <h3>Exam-level 3: sum of squared residuals (NAT, 2 marks)</h3>
+    <div class="statement"><p>Use the same five points. The least squares line is y-hat = 2.2 + 0.6 x. A residual is the observed y minus the fitted y-hat. Find the sum of squared residuals, SSE, over the five points, and give the answer as a decimal. Keep the fitted line exactly as given when you compute each residual.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> SSE for the fitted line.</li>
+      <li><strong>Which idea applies.</strong> A residual is the vertical error at each point. The plain sum of residuals is 0 for a least squares line, so the squares are needed to measure the error size.</li>
+      <li><strong>Work it out.</strong> The fitted values at x = 1 to 5 are 2.8, 3.4, 4.0, 4.6 and 5.2. The residuals are -0.8, 0.6, 1.0, -0.6 and -0.2, which add to 0. Their squares are 0.64, 0.36, 1.00, 0.36 and 0.04, which add to 2.40.</li>
+      <li><strong>Check.</strong> The shortcut SSE = Syy - b1 × Sxy gives 6 - 0.6 × 6 = 2.4, the same value.</li>
+    </ol>
+    <p class="cx">Answer: 2.4.</p>
+    <pre class="code" data-lang="python"><code>xs=[1,2,3,4,5]; ys=[2,4,5,4,5]
+n=len(xs)
+mx=sum(xs)/n; my=sum(ys)/n
+sxy=sum((x-mx)*(y-my) for x,y in zip(xs,ys))
+sxx=sum((x-mx)**2 for x in xs)
+b1=sxy/sxx
+b0=my-b1*mx
+fitted=[b0+b1*x for x in xs]
+res=[y-f for y,f in zip(ys,fitted)]
+sse=sum(e*e for e in res)
+print(abs(round(sum(res),4)))
+print(round(sse,4))</code></pre>
+    <pre class="output">0.0
+2.4</pre>
+  </article>
+
+  <article class="problem" data-level="medium">
+    <h3>Exam-level 4: correlation after a linear change (NAT, 2 marks)</h3>
+    <div class="statement"><p>Use the same five points (x, y). A new column is defined as z = 2y + 1, so z is a linear change of y. Find the correlation coefficient r between x and z, and give it rounded to four decimal places. Think about whether a change of scale or a shift can alter the correlation before you calculate.</p></div>
+    <h4>How to think about it</h4>
+    <ol class="think">
+      <li><strong>What is asked.</strong> The correlation r between x and z.</li>
+      <li><strong>Which idea applies.</strong> Correlation does not change when one variable is multiplied by a positive number and shifted by a constant.</li>
+      <li><strong>Work it out.</strong> The z values are 5, 9, 11, 9 and 11. The correlation of x with z equals the correlation of x with y, which was 0.7746 earlier. Rounded to four decimals, that is 0.7746.</li>
+      <li><strong>Check.</strong> The slope of z on x becomes 2 × 0.6 = 1.2, but r stays the same, as the rule predicts.</li>
+    </ol>
+    <p class="cx">Answer: 0.7746.</p>
+    <pre class="code" data-lang="python"><code>import math
+xs=[1,2,3,4,5]; ys=[2,4,5,4,5]
+new=[2*y+1 for y in ys]
+n=len(xs)
+mx=sum(xs)/n; mn=sum(new)/n
+sxx=sum((x-mx)**2 for x in xs)
+sxy2=sum((x-mx)*(v-mn) for x,v in zip(xs,new))
+syy2=sum((v-mn)**2 for v in new)
+r2=sxy2/math.sqrt(sxx*syy2)
+print(round(r2,4))</code></pre>
+    <pre class="output">0.7746</pre>
+  </article>
+</section>
+
+<section class="unit summary" id="summary" data-title="Summary">
+  <h2>Summary</h2>
+  <dl>
+    <div><dt>Simple linear regression</dt><dd>Predicting one numeric value from one predictor with a straight line.</dd></div>
+    <div><dt>Model</dt><dd>y = β0 + β1x + ε, with the error term for what the line does not explain.</dd></div>
+    <div><dt>Intercept b0</dt><dd>The predicted y at x = 0. Meaningful only when x = 0 is in the data range.</dd></div>
+    <div><dt>Slope b1</dt><dd>The average change in y per one-unit increase in x.</dd></div>
+    <div><dt>Least squares</dt><dd>The method that minimizes the sum of squared residuals.</dd></div>
+    <div><dt>Sxy and Sxx</dt><dd>Sums of products and squares of deviations from the means.</dd></div>
+    <div><dt>Fitted value</dt><dd>The predicted value ŷ from the line.</dd></div>
+    <div><dt>Residual</dt><dd>Observed y minus fitted ŷ.</dd></div>
+    <div><dt>RSS</dt><dd>Sum of squared residuals. Smaller is better.</dd></div>
+    <div><dt>SST</dt><dd>Total sum of squares of y around its mean.</dd></div>
+    <div><dt>R squared</dt><dd>1 - RSS / SST. The fraction of variation explained.</dd></div>
+    <div><dt>Correlation r</dt><dd>Strength and direction of a linear relationship, between -1 and 1.</dd></div>
+    <div><dt>Extrapolation</dt><dd>Prediction outside the range of the data, which may be unreliable.</dd></div>
+    <div><dt>Association</dt><dd>A pattern between variables, which is not the same as causation.</dd></div>
+  </dl>
+  <h3>Remember these</h3>
+  <ol>
+    <li>b1 = Sxy / Sxx and b0 = ȳ - b1x̄. The line passes through (x̄, ȳ).</li>
+    <li>Residuals are y - ŷ, and they sum to zero when the model has an intercept.</li>
+    <li>R² = 1 - RSS / SST, and in simple regression R² = r².</li>
+    <li>The sign of r matches the sign of the slope.</li>
+    <li>Do not predict far outside the data range.</li>
+  </ol>
+</section>
+
+<section class="finish" aria-label="Finish this topic"><h2>Reached the end of topic 96?</h2><p>Mark it complete and the current moves on to the next station on your path.</p>
+<button class="btn" id="complete" type="button">Mark topic 96 complete</button></section>
+<nav class="pager" aria-label="Other pages"><a class="prev" href="gate-095.html"><small>Previous, topic 95</small>Data transformation: normalization, discretization, sampling, compression</a><a class="next" href="gate-097.html"><small>Next, topic 97</small>Multiple linear regression</a></nav>
+</main><script src="assets/app.js"></script><script src="assets/viz.js"></script></body></html>
